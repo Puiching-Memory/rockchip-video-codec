@@ -66,7 +66,7 @@ configure_ffmpeg() {
         --enable-muxer=mp4 --enable-muxer=matroska --enable-muxer=mpegts --enable-muxer=ivf \
         --enable-muxer=yuv4mpegpipe --enable-muxer=rawvideo --enable-muxer=null \
         --enable-demuxer=mov --enable-demuxer=matroska --enable-demuxer=mpegts --enable-demuxer=ivf \
-        --enable-demuxer=yuv4mpegpipe --enable-demuxer=rawvideo \
+        --enable-demuxer=yuv4mpegpipe --enable-demuxer=rawvideo --enable-demuxer=h264 --enable-demuxer=hevc \
         --enable-protocol=file --enable-protocol=pipe \
         --enable-filter=psnr --enable-filter=ssim --enable-filter=format --enable-filter=scale \
         --enable-filter=hwdownload --enable-filter=hwupload --enable-filter=setsar \

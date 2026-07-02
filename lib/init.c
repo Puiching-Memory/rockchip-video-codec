@@ -21,6 +21,8 @@ static int s_initialized = 0;
 
 static void rkvc_init_impl(void)
 {
+    rkvc_ffmpeg_utils_init();
+
     /* FFmpeg 全局初始化在较新版本中自动完成，此处确保网络子系统 */
 #if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(58, 9, 100)
     av_register_all();

@@ -48,6 +48,18 @@ typedef struct rkvc_pipeline_desc {
      */
     int            enc_scale_denom;
     rkvc_upscale_algo post_upscale_algo; /**< 解码后上采样算法 */
+    const char    *post_upscale_rkvc_model_path; /**< AI_SR 时必填：RKNN 超分模型路径 */
+
+    /** SVT-AV1 level_of_parallelism（0=按 CPU 核数自动，1–6 手动） */
+    int            svt_lp;
+    /** SVT-AV1 实时调优（0=关，1=开；适合低延迟，preset 最低 7） */
+    int            svt_rtc;
+
+    /**
+     * FFmpeg 选项串（key=val:key2=val2），用于 demux / decoder / encoder。
+     * 例如 MPP 编码器额外参数：qp_max=48:qp_min=10
+     */
+    const char    *codec_opts;
 } rkvc_pipeline_desc;
 
 rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void);

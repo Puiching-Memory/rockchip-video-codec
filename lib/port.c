@@ -1,6 +1,6 @@
 /**
  * @file port.c
- * @brief 有界端口队列 (bounded queue)。
+ * @brief 有界端口队列 (bounded queue)，存储层使用 AVFifo。
  */
 
 #include "internal.h"
@@ -9,11 +9,8 @@
 #include <time.h>
 
 struct rkvc_port_queue {
+    AVFifo           *fifo;
     int               capacity;
-    rkvc_buffer     **items;
-    int               head;
-    int               tail;
-    int               count;
     pthread_mutex_t   lock;
     pthread_cond_t    not_full;
     pthread_cond_t    not_empty;
@@ -29,8 +26,8 @@ rkvc_port_queue *rkvc_port_queue_create(int capacity)
         return NULL;
 
     q->capacity = capacity;
-    q->items = rkvc_calloc((size_t)capacity, sizeof(rkvc_buffer *));
-    if (!q->items) {
+    q->fifo = av_fifo_alloc2((size_t)capacity, sizeof(rkvc_buffer *), 0);
+    if (!q->fifo) {
         rkvc_free(q);
         return NULL;
     }
@@ -47,10 +44,9 @@ void rkvc_port_queue_destroy(rkvc_port_queue *q)
         return;
 
     pthread_mutex_lock(&q->lock);
-    while (q->count > 0) {
-        rkvc_buffer *b = q->items[q->head];
-        q->head = (q->head + 1) % q->capacity;
-        q->count--;
+    while (av_fifo_can_read(q->fifo) > 0) {
+        rkvc_buffer *b = NULL;
+        av_fifo_read(q->fifo, &b, 1);
         rkvc_buffer_unref(b);
     }
     pthread_mutex_unlock(&q->lock);
@@ -58,24 +54,35 @@ void rkvc_port_queue_destroy(rkvc_port_queue *q)
     pthread_mutex_destroy(&q->lock);
     pthread_cond_destroy(&q->not_full);
     pthread_cond_destroy(&q->not_empty);
-    rkvc_free(q->items);
+    av_fifo_freep2(&q->fifo);
     rkvc_free(q);
 }
 
 rkvc_err rkvc_port_queue_push(rkvc_port_queue *q, rkvc_buffer *buf)
 {
+    rkvc_buffer *ref;
+
     if (!q || !buf)
         return RKVC_ERR_INVALID;
 
     pthread_mutex_lock(&q->lock);
-    if (q->count >= q->capacity) {
+    if (av_fifo_can_write(q->fifo) == 0) {
         pthread_mutex_unlock(&q->lock);
         return RKVC_ERR_AGAIN;
     }
 
-    q->items[q->tail] = rkvc_buffer_ref(buf);
-    q->tail = (q->tail + 1) % q->capacity;
-    q->count++;
+    ref = rkvc_buffer_ref(buf);
+    if (!ref) {
+        pthread_mutex_unlock(&q->lock);
+        return RKVC_ERR_NOMEM;
+    }
+
+    if (av_fifo_write(q->fifo, &ref, 1) < 0) {
+        rkvc_buffer_unref(ref);
+        pthread_mutex_unlock(&q->lock);
+        return RKVC_ERR_INTERNAL;
+    }
+
     pthread_cond_signal(&q->not_empty);
     pthread_mutex_unlock(&q->lock);
     return RKVC_OK;
@@ -101,7 +108,7 @@ rkvc_err rkvc_port_queue_pull(rkvc_port_queue *q, rkvc_buffer **buf,
     *buf = NULL;
     pthread_mutex_lock(&q->lock);
 
-    while (q->count == 0) {
+    while (av_fifo_can_read(q->fifo) == 0) {
         if (timeout_ms == 0) {
             pthread_mutex_unlock(&q->lock);
             return RKVC_ERR_AGAIN;
@@ -122,10 +129,11 @@ rkvc_err rkvc_port_queue_pull(rkvc_port_queue *q, rkvc_buffer **buf,
         }
     }
 
-    *buf = q->items[q->head];
-    q->items[q->head] = NULL;
-    q->head = (q->head + 1) % q->capacity;
-    q->count--;
+    if (av_fifo_read(q->fifo, buf, 1) < 0) {
+        pthread_mutex_unlock(&q->lock);
+        return RKVC_ERR_INTERNAL;
+    }
+
     pthread_cond_signal(&q->not_full);
     pthread_mutex_unlock(&q->lock);
     return RKVC_OK;

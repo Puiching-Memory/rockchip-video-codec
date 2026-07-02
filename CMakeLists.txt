@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.0
+    VERSION 0.2.1
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -38,7 +38,7 @@ option(RKVC_ENABLE_COVERAGE "Enable gcov/llvm-cov instrumentation" OFF)
 option(RKVC_ENABLE_FAULT_INJECTION "Enable deterministic test fault injection hooks" OFF)
 option(RKVC_ENABLE_TIDY    "Enable clang-tidy checks"  OFF)
 option(RKVC_BUILD_DOCS     "Build Doxygen API docs"    OFF)
-option(RKVC_INSTALL        "Generate install targets"   ON)
+option(RKVC_ENABLE_RKNN    "Enable RKNN NPU super-resolution" ON)
 
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库
@@ -91,6 +91,7 @@ set(EXTRA_LIBS
 )
 set(RKVC_SOURCES
     lib/init.c
+    lib/ffmpeg_util.c
     lib/utils.c
     lib/buffer_pool.c
     lib/router.c
@@ -106,7 +107,24 @@ set(RKVC_SOURCES
     lib/node_rga.c
     lib/node_post_upscale.c
     lib/node_dma_to_host.c
+    lib/rkvc_sr_neon.c
 )
+
+if(RKVC_ENABLE_RKNN)
+    find_library(RKNNRT_LIB rknnrt
+        PATHS /usr/lib/aarch64-linux-gnu /usr/lib /lib)
+    find_path(RKNN_INCLUDE_DIR rknn_api.h
+        PATHS /usr/include /usr/local/include)
+    if(RKNNRT_LIB AND RKNN_INCLUDE_DIR)
+        message(STATUS "RKNN runtime: ${RKNNRT_LIB}")
+        list(APPEND RKVC_SOURCES lib/node_rkvc_sr.c)
+        set(RKVC_RKNN_LIBS ${RKNNRT_LIB})
+        set(RKVC_RKNN_INCLUDES ${RKNN_INCLUDE_DIR})
+        set(RKVC_RKNN_ENABLED 1)
+    else()
+        message(WARNING "RKVC_ENABLE_RKNN=ON but librknnrt not found; building without NPU SR")
+    endif()
+endif()
 
 add_library(rkvc_instrumentation INTERFACE)
 
@@ -166,11 +184,15 @@ if(RKVC_BUILD_SHARED)
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
             ${SVT_INCLUDE_DIR}
+            ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
     target_link_directories(rkvc_shared PRIVATE ${RKVC_DEP_LIB_DIRS})
     target_link_options(rkvc_shared PRIVATE ${RKVC_RPATH_LINK_OPTIONS})
-    target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS})
+    if(RKVC_RKNN_ENABLED)
+        target_compile_definitions(rkvc_shared PRIVATE RKVC_ENABLE_RKNN=1)
+    endif()
     set_target_properties(rkvc_shared PROPERTIES
         OUTPUT_NAME rkvc
         VERSION     ${PROJECT_VERSION}
@@ -193,11 +215,15 @@ if(RKVC_BUILD_STATIC)
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
             ${SVT_INCLUDE_DIR}
+            ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
     target_link_directories(rkvc_static PUBLIC ${RKVC_DEP_LIB_DIRS})
     target_link_options(rkvc_static INTERFACE ${RKVC_RPATH_LINK_OPTIONS})
-    target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS})
+    target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS})
+    if(RKVC_RKNN_ENABLED)
+        target_compile_definitions(rkvc_static PRIVATE RKVC_ENABLE_RKNN=1)
+    endif()
     set_target_properties(rkvc_static PROPERTIES OUTPUT_NAME rkvc)
     # 版本号由 project(VERSION) 注入，init.c 不再硬编码
     target_compile_definitions(rkvc_static PRIVATE ${RKVC_VERSION_COMPILE_DEFS})

@@ -1,19 +1,25 @@
 # Build
 build/
 build-*/
+build_*/
+build-deps/
 *.o
 *.a
 *.so
 *.so.*
 *.dylib
 
-# CMake / CTest
+# CMake / CTest / CPack
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
 Makefile
 compile_commands.json
 Testing/
+packages/
+*.deb
 
 # ffmpeg 子模块就地构建产物（prefix=源码树时）
 third_party/ffmpeg-rockchip/ffbuild/
@@ -25,9 +31,20 @@ third_party/ffmpeg-rockchip/ffmpeg
 third_party/ffmpeg-rockchip/ffprobe
 third_party/ffmpeg-rockchip/ffplay
 
-# Test & Bench results
+# Coverage / Sanitizer
+*.gcno
+*.gcda
+*.gcov
+coverage/
+
+# Test & Bench results（bench/ 内 work/、results/ 见 bench/.gitignore）
 results/
 bench_results/
+*.bak
+*.pre_*
+
+# RKNN 超分模型（本地放置，不入库）
+*.rknn
 
 # Docs
 site/
@@ -48,6 +65,7 @@ __pycache__/
 .scratch/
 nohup.out
 *.xml
+*.log
 
 # Test media files
 *.mp4
@@ -58,3 +76,4 @@ nohup.out
 *.ivf
 *.yuv
 *.y4m
+*.nv12

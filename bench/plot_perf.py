@@ -14,6 +14,9 @@ import numpy as np
 
 from plot_rd_curve import (
     codec_short_label,
+    codecs_from_session_file,
+    codecs_from_workdir,
+    is_ai_sr,
     is_upscale_group,
     sort_codecs,
     upscale_group_key,
@@ -24,6 +27,7 @@ STAGE_STYLES: dict[str, dict[str, str | float]] = {
     "encode": {"color": "#4e79a7", "label": "Encode", "alpha": 0.92},
     "decode": {"color": "#59a14f", "label": "Decode", "alpha": 0.85},
     "rga": {"color": "#f28e2b", "label": "RGA upscale", "alpha": 0.85},
+    "npu": {"color": "#9467bd", "label": "NPU SR", "alpha": 0.85},
     "write": {"color": "#edc948", "label": "NV12 write", "alpha": 0.85},
     "post": {"color": "#f28e2b", "label": "Post-upscale", "alpha": 0.85},
     "e2e": {"color": "#b07aa1", "label": "E2E", "alpha": 0.80},
@@ -193,10 +197,11 @@ def plot_perf(
 
     def _layout_for(codec_idx: int) -> list[tuple[str, float]]:
         """返回该 codec 要画的 (stage, x_offset) 列表，簇内居中。"""
+        codec = codecs[codec_idx]
         stages: list[str] = ["encode", "decode"]
         if has_rga:
             if rga[codec_idx] > 0:
-                stages.append("rga")
+                stages.append("npu" if is_ai_sr(codec) else "rga")
         elif post[codec_idx] > 0:
             stages.append("post")
         if has_write and write[codec_idx] > 0:
@@ -213,8 +218,8 @@ def plot_perf(
         start = -(count - 1) / 2 * step
         return [start + i * step for i in range(count)]
 
-    stage_vals = {"encode": enc, "decode": dec, "rga": rga, "write": write,
-                  "post": post, "e2e": e2e}
+    stage_vals = {"encode": enc, "decode": dec, "rga": rga, "npu": rga,
+                  "write": write, "post": post, "e2e": e2e}
 
     def _errs(lo_key: str, hi_key: str, med_key: str) -> tuple[np.ndarray, np.ndarray]:
         low = np.array([data[c][med_key] - data[c][lo_key] for c in codecs])
@@ -248,6 +253,7 @@ def plot_perf(
             "encode": ("enc_fps_lo", "enc_fps_hi", "enc_fps"),
             "decode": ("dec_fps_lo", "dec_fps_hi", "dec_fps"),
             "rga": ("rga_fps_lo", "rga_fps_hi", "rga_fps"),
+            "npu": ("rga_fps_lo", "rga_fps_hi", "rga_fps"),
             "write": ("write_fps_lo", "write_fps_hi", "write_fps"),
             "post": ("post_fps_lo", "post_fps_hi", "post_fps"),
             "e2e": ("e2e_fps_lo", "e2e_fps_hi", "e2e_fps"),
@@ -262,7 +268,7 @@ def plot_perf(
         for i in range(n):
             for stage, xoff in _layout_for(i):
                 v = vals_map[stage][i]
-                if stage in ("post", "rga", "write") and v <= 0:
+                if stage in ("post", "rga", "npu", "write") and v <= 0:
                     continue
                 style = STAGE_STYLES[stage]
                 label = str(style["label"])
@@ -289,7 +295,8 @@ def plot_perf(
                     error_kw=err_kw,
                 )
 
-    fig, axes = plt.subplots(1, 2, figsize=(max(10, n * 2.2), 5))
+    fig_w = max(14, n * 2.8)
+    fig, axes = plt.subplots(1, 2, figsize=(fig_w, 5.5))
 
     ax = axes[0]
     _draw_grouped_bars(
@@ -327,6 +334,7 @@ def plot_perf(
         "encode": [realtime_fps / v if v > 0 else float("inf") for v in enc],
         "decode": [realtime_fps / v if v > 0 else float("inf") for v in dec],
         "rga": [realtime_fps / v if v > 0 else 0.0 for v in rga],
+        "npu": [realtime_fps / v if v > 0 else 0.0 for v in rga],
         "write": [realtime_fps / v if v > 0 else 0.0 for v in write],
         "post": [realtime_fps / v if v > 0 else 0.0 for v in post],
         "e2e": [realtime_fps / v if v > 0 else float("inf") for v in e2e],
@@ -368,12 +376,34 @@ def main() -> None:
         "--title",
         default="E2E Performance (RK3588, median over rate points)",
     )
+    parser.add_argument(
+        "--session-codecs",
+        type=Path,
+        default=None,
+        help="session.codecs 文件路径",
+    )
+    parser.add_argument(
+        "--filter-workdir",
+        type=Path,
+        default=None,
+        help="（已弃用）仅绘制 workdir/results_*.csv 中的 codec",
+    )
     args = parser.parse_args()
 
     if not args.csv.exists():
         raise SystemExit(f"找不到数据文件: {args.csv}")
 
     data = load_perf(args.csv, args.frames)
+    session_path = args.session_codecs
+    if session_path is None:
+        auto = args.csv.parent / "session.codecs"
+        if auto.is_file():
+            session_path = auto
+    include = codecs_from_session_file(session_path) if session_path else set()
+    if not include and args.filter_workdir and args.filter_workdir.is_dir():
+        include = codecs_from_workdir(args.filter_workdir)
+    if include:
+        data = {k: v for k, v in data.items() if k in include}
     if not data:
         raise SystemExit("CSV 无有效性能数据")
     plot_perf(data, args.out, args.title, args.realtime_fps)

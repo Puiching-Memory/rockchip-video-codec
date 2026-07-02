@@ -2,6 +2,73 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.1] - 2026-07-02
+
+### 发布重点
+
+rkvc **0.2.1** 在 v2 Session 管线之上补齐 **RKNN 神经网络超分（`rkvc_sr`）**、重构 **RD 基准测试配置与绘图**，并强化 **可移植包与硬件测试** 门禁。后处理上采样从「RGA 三档插值」扩展为可选 **AI 超分**；bench 支持 **SVT-AV1 内建 superres** 实验路线与 **左右对比演示视频** 批量生成。
+
+- **RKVC SR**：`post_upscale_algo=rkvc_sr` + `post_upscale_rkvc_model_path`，RKNN 双缓冲异步推理，NEON 量化/反量化，RGA CSC（NV12↔RGB）；`rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH`。
+- **Bench 配置化**：`bench/config.json` 集中路径、码率扫点、RD 校准表与路线开关；`bench/tools/config.py` 校验/导出；`BENCH_CSV_MODE=session` 默认仅保留本次跑分 codec。
+- **可移植包**：`test.sh` **99 项**（+7：三策略 bench 严格匹配、`rkvc_session_upscale` 2× 上采样）；CI `package` job 新增 portable 构建与自测。
+- **演示管线**：`bench/tools/comparison_demo_rkvc.py` + `scripts/make-comparison-demo.sh`，生成「1080p AV1 参考 | 低码率 AV1 + RKVC SR 3× 还原」左右对比片。
+
+### 新增
+
+- **RKNN 超分节点**
+  - `lib/node_rkvc_sr.c`：明文/加密 `.rknn` 模型加载、双 slot 异步推理、RGA 下采样预处理 + NEON int8 量化。
+  - `lib/rkvc_sr_neon.c`：RGB24 NHWC ↔ NCHW int8 向量化转换。
+  - 公共枚举 `RKVC_UPSCALE_AI_SR`；`rkvc_pipeline_desc.post_upscale_rkvc_model_path`。
+  - CMake `RKVC_ENABLE_RKNN`（默认 ON）；未找到 `librknnrt` 时降级构建（无 NPU SR）。
+
+- **FFmpeg 工具层**（`lib/ffmpeg_util.c`）
+  - 统一日志回调（`[rkvc:ffmpeg]` 前缀）、`rkvc_now_us()`、`rkvc_dict_parse_opts()`、`rkvc_codec_open2()` 等；`rkvc_init()` 自动调用 `rkvc_ffmpeg_utils_init()`。
+
+- **Bench 套件增强**
+  - `bench/config.json`、`bench/demo_videos.json`：路径、clip、校准表、`svt.superres` 开关。
+  - `bench/tools/comparison_demo_rkvc.py`：可配置码率/标签/字体，批量输出对比演示 MP4。
+  - `bench/tools/config.py`、`bench/tools/bitrate.py`：配置加载与码率计算辅助。
+  - SVT-AV1 + superres 实验路线（`svt-av1+superres`）；默认关闭，需 `paths.superres_decode_ffmpeg`（libaom 软解）。
+  - post-upscale 路线支持 `rkvc_sr` 算法名（`{codec}+up{N}x-rkvc_sr`）。
+  - RD/性能图：`plot_rd_curve.py` 重构（codec 族配色、RGA 均值带、superres 虚线）；`plot_perf.py` 同步。
+  - `.gitattributes` + LFS：`docs/images/bench/rd_curve_e2e.png`、`perf_e2e.png` 纳入文档。
+
+- **测试夹具**（`tests/test_fixtures.c/h`）
+  - 自生成 NV12 图案与 H.264 MP4（Session 编码），硬件测试无需 git 内嵌媒体。
+  - 硬件用例扩展：`test_session_transcode_balanced`、`test_session_transcode_quality`、`test_session_encode_decode_upscale_3x`（3× 下采样编码 + bilinear 还原）。
+
+- **脚本**
+  - `scripts/install-librga.sh`：从 airockchip/librga 安装头文件、动态库与 pkg-config（CI 三 job 统一调用）。
+  - `scripts/make-comparison-demo.sh`：对比演示视频入口。
+
+### 变更
+
+- 版本号升至 **0.2.1**（`CMakeLists.txt` `project(VERSION)` 为唯一来源）。
+- **SVT-AV1 码控**：文件/转码场景下 `RKVC_RC_CBR` 映射为 SVT `VBR`（random-access 下 CBR 初始化失败）。
+- **管线字段**：`rkvc_pipeline_desc` 新增 `svt_lp`、`svt_rtc`、`codec_opts`；CLI `rkvc_encode` / `rkvc_transcode` 支持 `--svt-lp`、`--svt-rtc`。
+- **端口队列**：`lib/port.c` 环形缓冲改为 FFmpeg `AVFifo`，push 失败路径补全 NOMEM/INTERNAL。
+- **MPP 解码器**：`codec_opts` 经 `rkvc_dict_parse_opts` 传入 `avcodec_open2`。
+- **可移植包**：`package-portable.sh` 打包 `rkvc_session_upscale`、`rkvc_yuv_upscale`。
+- **`scripts/test-portable.sh`**：`rkvc_bench` 校验 REALTIME/BALANCED/QUALITY 三策略 fps（拒绝 `-1.0 fps`）；新增 `rkvc_session_upscale` 2× 后处理上采样项；**92 → 99 项**。
+- **CI**：`package` job 增加 portable 构建与 `test-portable.sh`；补充 `gcc`、`pkg-config` 依赖。
+- **测试结构**：移除 `tests/test_frame.c`（逻辑并入 fixtures / 其他套件）；`CMakeLists.txt` 链接 `test_fixtures.c`。
+- 文档：`docs/testing.md` 硬件矩阵与 99 项 portable 说明；`docs/architecture.md` 补充 `rkvc_sr` 与 YUV-native 模型规格引用；`docs/packaging.md`、`README.md` 同步 bench 图与版本号。
+
+### 修复
+
+- **SVT-AV1 CBR 打开失败**：random-access 文件编码时 CBR 模式导致 SVT 初始化错误，改为 VBR 对齐 bench/转码实际行为。
+
+### 测试
+
+- 硬件集成：7 个独立 CTest 子用例（三策略转码 + 3× 上采样），`RKVC_RUN_HARDWARE_TESTS=1` 时夹具自生成。
+- `test_post_upscale.c`：`rkvc_sr` 算法名解析回归。
+- **可移植包**：`rkvc-0.2.1-linux-aarch64-portable.tar.gz` 解压后 `./test.sh` **99 项 / 0 失败**。
+
+### 已知限制
+
+- **SVT-AV1 + superres（`svt-av1+superres`）**：`av1_rkmpp` 硬解 superres 码流时 `hwdownload` stride 不一致会崩溃；实验路线默认关闭，启用时需 libaom 软解（慢）。
+- **`rkvc_sr`**：现网模型 RGB 域训练，推理含 NV12↔RGB CSC 开销；YUV-native 模型见 `docs/sr-model-yuv-spec.md`。
+
 ## [0.2.0] - 2026-06-30
 
 ### 发布重点

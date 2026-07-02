@@ -55,13 +55,51 @@ static void test_port_queue(void **state)
     rkvc_port_queue_destroy(q);
 }
 
+static void test_hash_buffer(void **state)
+{
+    (void)state;
+    const uint8_t data[] = "rkvc";
+    char hex[65];
+
+    assert_int_equal(rkvc_hash_buffer("sha256", data, sizeof(data) - 1,
+                                      hex, sizeof(hex)), RKVC_OK);
+    assert_string_equal(hex,
+        "d14b3c138a0770f36abd90604e9c3672027d512c268fa4c6c44a001f9e2b2932");
+}
+
+static void test_dict_parse_opts(void **state)
+{
+    (void)state;
+    AVDictionary *dict = NULL;
+
+    assert_int_equal(rkvc_dict_parse_opts(&dict, "threads=1:low_delay=1"),
+                     RKVC_OK);
+    assert_non_null(dict);
+    assert_non_null(av_dict_get(dict, "threads", NULL, 0));
+    assert_non_null(av_dict_get(dict, "low_delay", NULL, 0));
+    rkvc_dict_free(&dict);
+}
+
+static void test_now_us_monotonic(void **state)
+{
+    (void)state;
+    int64_t t0 = rkvc_now_us();
+    int64_t t1 = rkvc_now_us();
+    assert_true(t1 >= t0);
+}
+
 int main(void)
 {
+    rkvc_init();
+
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_averror_mapping),
         cmocka_unit_test(test_pix_fmt_roundtrip),
         cmocka_unit_test(test_buffer_wrap_avframe),
         cmocka_unit_test(test_port_queue),
+        cmocka_unit_test(test_hash_buffer),
+        cmocka_unit_test(test_dict_parse_opts),
+        cmocka_unit_test(test_now_us_monotonic),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

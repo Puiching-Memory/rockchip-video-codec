@@ -92,4 +92,4 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build -j1 -R test_session
 | [docs/packaging.md](docs/packaging.md) | 可移植包与分发 |
 | [docs/delivery.md](docs/delivery.md) | 客户交付清单 |
 
-版本：**0.2.0**（破坏性替换 v1 `encoder`/`decoder`/`stream` API）
+版本：**0.2.1**（v2 Session API；0.2.0 起破坏性替换 v1 `encoder`/`decoder`/`stream` API）

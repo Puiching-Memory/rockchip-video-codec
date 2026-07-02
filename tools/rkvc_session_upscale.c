@@ -15,8 +15,8 @@ static void usage(void)
     fprintf(stderr,
             "Usage: rkvc_session_upscale -i INPUT -o OUT.nv12 "
             "--width W --height H "
-            "[--enc-scale-denom N] [--post-upscale nearest|bilinear|bicubic] "
-            "[--print-timing]\n");
+            "[--enc-scale-denom N] [--post-upscale nearest|bilinear|bicubic|rkvc_sr] "
+            "--rkvc-sr-model PATH (required for rkvc_sr) [--print-timing]\n");
 }
 
 int main(int argc, char **argv)
@@ -24,6 +24,7 @@ int main(int argc, char **argv)
     const char *input = NULL;
     const char *output = NULL;
     const char *upscale_name = "bilinear";
+    const char *rkvc_sr_model = NULL;
     int width = 0;
     int height = 0;
     int enc_scale_denom = 1;
@@ -36,13 +37,14 @@ int main(int argc, char **argv)
         {"height", required_argument, 0, 'H'},
         {"enc-scale-denom", required_argument, 0, 'S'},
         {"post-upscale", required_argument, 0, 'U'},
+        {"rkvc-sr-model", required_argument, 0, 'M'},
         {"print-timing", no_argument, 0, 'T'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0},
     };
 
     int c;
-    while ((c = getopt_long(argc, argv, "i:o:W:H:S:U:Th", opts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "i:o:W:H:S:U:M:Th", opts, NULL)) != -1) {
         switch (c) {
         case 'i': input = optarg; break;
         case 'o': output = optarg; break;
@@ -50,6 +52,7 @@ int main(int argc, char **argv)
         case 'H': height = atoi(optarg); break;
         case 'S': enc_scale_denom = atoi(optarg); break;
         case 'U': upscale_name = optarg; break;
+        case 'M': rkvc_sr_model = optarg; break;
         case 'T': print_timing = 1; break;
         default:
             usage();
@@ -67,6 +70,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "unknown post-upscale algo: %s\n", upscale_name);
         return 1;
     }
+    if (algo == RKVC_UPSCALE_AI_SR &&
+        (!rkvc_sr_model || !rkvc_sr_model[0])) {
+        fprintf(stderr, "--rkvc-sr-model is required when --post-upscale rkvc_sr\n");
+        return 1;
+    }
 
     rkvc_pipeline_desc d;
     rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_DECODE, &d);
@@ -77,6 +85,7 @@ int main(int argc, char **argv)
     d.pixel_format       = RKVC_PIX_FMT_NV12;
     d.enc_scale_denom    = enc_scale_denom > 0 ? enc_scale_denom : 1;
     d.post_upscale_algo  = algo;
+    d.post_upscale_rkvc_model_path = rkvc_sr_model;
 
     rkvc_session *s = NULL;
     rkvc_err err = rkvc_session_create(&d, &s);

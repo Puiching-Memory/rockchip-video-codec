@@ -43,6 +43,8 @@ int main(int argc, char **argv)
     const char *rc_mode_s = NULL;
     int64_t bitrate = 4000000;
     int w = 0, h = 0, qp = -1;
+    int svt_lp = 0;
+    int svt_rtc = 0;
 
     static struct option opts[] = {
         {"input", required_argument, 0, 'i'},
@@ -52,11 +54,13 @@ int main(int argc, char **argv)
         {"size", required_argument, 0, 's'},
         {"rc-mode", required_argument, 0, 'R'},
         {"qp", required_argument, 0, 'q'},
+        {"svt-lp", required_argument, 0, 'L'},
+        {"svt-rtc", no_argument, 0, 'C'},
         {0, 0, 0, 0}
     };
 
     int c;
-    while ((c = getopt_long(argc, argv, "i:o:p:b:s:R:q:", opts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "i:o:p:b:s:R:q:L:C", opts, NULL)) != -1) {
         switch (c) {
         case 'i': input = optarg; break;
         case 'o': output = optarg; break;
@@ -69,10 +73,17 @@ int main(int argc, char **argv)
         case 'q':
             qp = atoi(optarg);
             break;
+        case 'L':
+            svt_lp = atoi(optarg);
+            break;
+        case 'C':
+            svt_rtc = 1;
+            break;
         default:
             fprintf(stderr,
                     "usage: rkvc_transcode -i IN -o OUT [-p realtime|balanced|quality] "
-                    "[-b bps] [-s WxH] [--rc-mode vbr|cbr|cqp] [--qp N]\n");
+                    "[-b bps] [-s WxH] [--rc-mode vbr|cbr|cqp] [--qp N] "
+                    "[--svt-lp N] [--svt-rtc]\n");
             return 1;
         }
     }
@@ -80,7 +91,8 @@ int main(int argc, char **argv)
     if (!input || !output) {
         fprintf(stderr,
                 "usage: rkvc_transcode -i IN -o OUT [-p realtime|balanced|quality] "
-                "[-b bps] [-s WxH] [--rc-mode vbr|cbr|cqp] [--qp N]\n");
+                "[-b bps] [-s WxH] [--rc-mode vbr|cbr|cqp] [--qp N] "
+                "[--svt-lp N] [--svt-rtc]\n");
         return 1;
     }
 
@@ -90,6 +102,8 @@ int main(int argc, char **argv)
     d.input_path  = input;
     d.output_path = output;
     d.bitrate     = bitrate;
+    d.svt_lp      = svt_lp;
+    d.svt_rtc     = svt_rtc;
     if (w > 0 && h > 0) {
         d.width  = w;
         d.height = h;

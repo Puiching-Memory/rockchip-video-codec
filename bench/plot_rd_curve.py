@@ -12,12 +12,16 @@ from pathlib import Path
 
 import math
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter, ScalarFormatter
 
 UPSCALE_CODEC_RE = re.compile(
-    r"^(?P<base>h264|h265|svt-av1)\+up(?P<scale>\d+)x-(?P<algo>nearest|bilinear|bicubic)$"
+    r"^(?P<base>h264|h265|svt-av1)\+up(?P<scale>\d+)x-(?P<algo>nearest|bilinear|bicubic|rkvc_sr)$"
 )
 
-# 三种传统插值合并展示时的组键，例如 h264+up3x
+# RGA 插值算法（合并为均值带）；rkvc_sr 单独成线
+RGA_ALGOS = frozenset({"nearest", "bilinear", "bicubic"})
+AI_SR_ALGOS = frozenset({"rkvc_sr"})
+
 UPSCALE_GROUP_RE = re.compile(
     r"^(?P<base>h264|h265|svt-av1)\+up(?P<scale>\d+)x$"
 )
@@ -33,14 +37,33 @@ CODEC_LABELS = {
     "rkvc-v2": "rkvc v2 (Session)",
 }
 
+# 按 codec 技术家族配色：同族相近色相，基线/RGA/AI 用深→浅区分
+FAMILY_PALETTES: dict[str, dict[str, str]] = {
+    "h264": {
+        "base": "#1B4F8A",  # 深蓝
+        "rga": "#4A90D9",   # 中蓝
+        "ai": "#8CB8E8",    # 浅蓝
+    },
+    "h265": {
+        "base": "#B45309",  # 深橙
+        "rga": "#E8923A",   # 中橙
+        "ai": "#F5C07A",    # 浅橙
+    },
+    "svt-av1": {
+        "base": "#1B7D3A",  # 深绿
+        "rga": "#4DAF6C",   # 中绿
+        "ai": "#8FD4A8",    # 浅绿
+    },
+}
+
 CODEC_COLORS = {
-    "h264": "#1f77b4",
-    "h265": "#ff7f0e",
-    "svt-av1": "#2ca02c",
-    "svt-av1+superres": "#006d2c",
-    "rkvc-realtime": "#6baed6",
-    "rkvc-balanced": "#fdae6b",
-    "rkvc-quality": "#74c476",
+    "h264": FAMILY_PALETTES["h264"]["base"],
+    "h265": FAMILY_PALETTES["h265"]["base"],
+    "svt-av1": FAMILY_PALETTES["svt-av1"]["base"],
+    "svt-av1+superres": "#14532D",
+    "rkvc-realtime": FAMILY_PALETTES["h264"]["rga"],
+    "rkvc-balanced": FAMILY_PALETTES["h265"]["rga"],
+    "rkvc-quality": FAMILY_PALETTES["svt-av1"]["rga"],
     "rkvc-v2": "#9467bd",
 }
 
@@ -51,35 +74,24 @@ UPSCALE_BASE_LABELS = {
 }
 
 UPSCALE_ALGO_COLORS = {
-    "h264": {
-        "nearest": "#aec7e8",
-        "bilinear": "#6baed6",
-        "bicubic": "#3182bd",
-    },
-    "h265": {
-        "nearest": "#fdd0a2",
-        "bilinear": "#fdae6b",
-        "bicubic": "#f16913",
-    },
-    "svt-av1": {
-        "nearest": "#98df8a",
-        "bilinear": "#31a354",
-        "bicubic": "#006d2c",
-    },
+    base: {
+        "nearest": FAMILY_PALETTES[base]["rga"],
+        "bilinear": FAMILY_PALETTES[base]["rga"],
+        "bicubic": FAMILY_PALETTES[base]["rga"],
+        "rkvc_sr": FAMILY_PALETTES[base]["ai"],
+    }
+    for base in FAMILY_PALETTES
 }
 
 UPSCALE_ALGO_MARKERS = {
     "nearest": "x",
     "bilinear": "d",
     "bicubic": "p",
+    "rkvc_sr": "*",
 }
 
-# 合并后的 post-upscale 曲线颜色（与对应基线同色系、略浅）
-UPSCALE_GROUP_COLORS = {
-    "h264": "#6baed6",
-    "h265": "#fdae6b",
-    "svt-av1": "#31a354",
-}
+# 合并后的 post-upscale RGA 曲线颜色（家族中色）
+UPSCALE_GROUP_COLORS = {base: pal["rga"] for base, pal in FAMILY_PALETTES.items()}
 
 CODEC_MARKERS = {
     "h264": "o",
@@ -108,12 +120,17 @@ def is_superres_variant(codec: str) -> bool:
     return codec == "svt-av1+superres"
 
 
+def is_ai_sr(codec: str) -> bool:
+    m = UPSCALE_CODEC_RE.match(codec)
+    return bool(m and m.group("algo") in AI_SR_ALGOS)
+
+
 def codec_linestyle(codec: str) -> str:
     if is_superres_variant(codec) or is_upscale_group(codec):
         return "--"
     m = UPSCALE_CODEC_RE.match(codec)
     if m:
-        return "--"
+        return "-." if m.group("algo") in AI_SR_ALGOS else "--"
     return "-"
 
 
@@ -127,7 +144,7 @@ def is_upscale_group(codec: str) -> bool:
 
 def upscale_group_key(codec: str) -> str | None:
     m = UPSCALE_CODEC_RE.match(codec)
-    if not m:
+    if not m or m.group("algo") not in RGA_ALGOS:
         return None
     return f"{m.group('base')}+up{m.group('scale')}x"
 
@@ -146,7 +163,7 @@ def upscale_group_label(codec: str) -> str:
     base = upscale_group_base(codec) or codec
     scale = upscale_group_scale(codec) or 0
     name = UPSCALE_BASE_LABELS.get(base, base)
-    return f"{name}↑{scale}× RGA" if scale else name
+    return f"{name} ↑{scale}× RGA" if scale else name
 
 
 def upscale_group_color(codec: str) -> str:
@@ -163,7 +180,9 @@ def codec_label(codec: str) -> str:
         scale = int(m.group("scale"))
         algo = m.group("algo")
         lo_h = 1080 // scale if scale else 0
-        return f"{UPSCALE_BASE_LABELS.get(base, base)} {lo_h}p→1080p RGA ({algo})"
+        if algo in AI_SR_ALGOS:
+            return f"{UPSCALE_BASE_LABELS.get(base, base)} ↑{scale}× AI"
+        return f"{UPSCALE_BASE_LABELS.get(base, base)} ↑{scale}× RGA ({algo})"
     return CODEC_LABELS.get(codec, codec)
 
 
@@ -179,6 +198,8 @@ def codec_short_label(codec: str) -> str:
         base = m.group("base")
         scale = int(m.group("scale"))
         name = UPSCALE_BASE_LABELS.get(base, base)
+        if m.group("algo") in AI_SR_ALGOS:
+            return f"{name}↑{scale}× AI"
         return f"{name}↑{scale}×"
     short = {
         "h264": "H.264",
@@ -209,6 +230,29 @@ def codec_marker(codec: str) -> str:
     if m:
         return UPSCALE_ALGO_MARKERS.get(m.group("algo"), "o")
     return CODEC_MARKERS.get(codec, "o")
+
+
+def codec_linewidth(codec: str) -> float:
+    if is_upscale_group(codec):
+        return 2.0
+    m = UPSCALE_CODEC_RE.match(codec)
+    if m:
+        return 2.0
+    return 2.4
+
+
+def plot_style_kwargs(codec: str, color: str, label: str) -> dict:
+    return dict(
+        label=label,
+        color=color,
+        marker=codec_marker(codec),
+        linewidth=codec_linewidth(codec),
+        linestyle=codec_linestyle(codec),
+        markersize=7 if not is_ai_sr(codec) else 8,
+        markeredgecolor="white",
+        markeredgewidth=0.4,
+        clip_on=True,
+    )
 
 
 def sort_codecs(codecs: list[str]) -> list[str]:
@@ -273,6 +317,40 @@ def group_upscale_rd(data: dict[str, list[dict]]) -> dict[str, list[dict]]:
     return out
 
 
+def filter_rd_outliers(data: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """剔除相对邻点质量骤降的坏点（如解码失败导致的 PSNR 塌陷）。"""
+    out: dict[str, list[dict]] = {}
+    for codec, pts in data.items():
+        if len(pts) < 3:
+            out[codec] = pts
+            continue
+        sorted_pts = sorted(pts, key=lambda p: p["actual_kbps"])
+        kept: list[dict] = []
+        for i, p in enumerate(sorted_pts):
+            neigh_psnr: list[float] = []
+            neigh_ssim: list[float] = []
+            if i > 0:
+                neigh_psnr.append(sorted_pts[i - 1]["psnr_y"])
+                neigh_ssim.append(sorted_pts[i - 1]["ssim"])
+            if i + 1 < len(sorted_pts):
+                neigh_psnr.append(sorted_pts[i + 1]["psnr_y"])
+                neigh_ssim.append(sorted_pts[i + 1]["ssim"])
+            if not neigh_psnr:
+                kept.append(p)
+                continue
+            med_psnr = statistics.median(neigh_psnr)
+            med_ssim = statistics.median(neigh_ssim)
+            if p["psnr_y"] < med_psnr - 6.0 and p["ssim"] < med_ssim - 0.08:
+                print(
+                    f"[warn] 跳过异常点 {codec} @ {p['target_kbps']:.0f}kbps: "
+                    f"PSNR-Y {p['psnr_y']:.1f} (邻点 ~{med_psnr:.1f})"
+                )
+                continue
+            kept.append(p)
+        out[codec] = kept
+    return out
+
+
 def load_csv(path: Path, max_kbps: float | None = None) -> dict[str, list[dict]]:
     data: dict[str, list[dict]] = defaultdict(list)
     with path.open(newline="") as f:
@@ -305,7 +383,38 @@ def load_csv(path: Path, max_kbps: float | None = None) -> dict[str, list[dict]]
             ]
     for codec in data:
         data[codec].sort(key=lambda x: x["actual_kbps"])
-    return data
+    return filter_rd_outliers(data)
+
+
+def _log_kbps_formatter(x, _pos) -> str:
+    if x < 10:
+        return f"{x:g}"
+    return f"{int(round(x))}"
+
+
+def codecs_from_workdir(workdir: Path) -> set[str]:
+    """读取本次 bench 分片 CSV 中的 codec 列表（兼容旧流程）。"""
+    found: set[str] = set()
+    for partial in sorted(workdir.glob("results_*.csv")):
+        with partial.open(newline="") as f:
+            for row in csv.DictReader(f):
+                if row.get("codec"):
+                    found.add(row["codec"])
+    return found
+
+
+def codecs_from_session_file(path: Path) -> set[str]:
+    if not path.is_file():
+        return set()
+    return {line.strip() for line in path.read_text().splitlines() if line.strip()}
+
+
+def filter_data_codecs(
+    data: dict[str, list[dict]], include: set[str] | None
+) -> dict[str, list[dict]]:
+    if not include:
+        return data
+    return {k: v for k, v in data.items() if k in include}
 
 
 def _log_axis_ticks(lo: float, hi: float) -> list[float]:
@@ -329,7 +438,6 @@ def plot_rd(
     title: str,
     *,
     xscale: str = "log",
-    low_zoom_max_kbps: float = 300.0,
 ) -> None:
     data = group_upscale_rd(data)
 
@@ -373,27 +481,11 @@ def plot_rd(
             ssim_hi = [p["ssim_hi"] for p in pts]
             ax_psnr.fill_between(br, psnr_lo, psnr_hi, color=color, alpha=0.22, linewidth=0)
             ax_ssim.fill_between(br, ssim_lo, ssim_hi, color=color, alpha=0.22, linewidth=0)
-            kw = dict(
-                label=label,
-                color=color,
-                marker=codec_marker(codec),
-                linewidth=2,
-                linestyle="--",
-                markersize=7,
-                clip_on=True,
-            )
+            kw = plot_style_kwargs(codec, color, label)
             ax_psnr.plot(br, psnr, **kw)
             ax_ssim.plot(br, ssim, **kw)
         else:
-            kw = dict(
-                label=label,
-                color=color,
-                marker=codec_marker(codec),
-                linewidth=2,
-                linestyle=codec_linestyle(codec),
-                markersize=7,
-                clip_on=True,
-            )
+            kw = plot_style_kwargs(codec, color, label)
             ax_psnr.plot(br, psnr, **kw)
             ax_ssim.plot(br, ssim, **kw)
 
@@ -408,19 +500,21 @@ def plot_rd(
     ssim_pad = max(0.01, (ssim_max - ssim_min) * 0.12)
 
     if xscale == "log":
-        # 左边界贴紧实际最小码率，避免 25–70 kbps 无数据区（对数轴上很显眼）
         x_left = max(br_min * 0.88, 8.0)
-        x_right = max(br_max * 1.08, x_left * 1.5)
-        ticks = _log_axis_ticks(x_left, x_right)
+        x_right = max(br_max * 1.12, x_left * 1.5)
         for ax in (ax_psnr, ax_ssim):
             ax.set_xscale("log")
             ax.set_xlim(x_left, x_right)
-            if ticks:
-                ax.set_xticks(ticks)
-                ax.set_xticklabels([str(int(t)) if t >= 10 else f"{t:g}" for t in ticks])
+            ax.xaxis.set_major_locator(LogLocator(base=10))
+            ax.xaxis.set_minor_formatter(NullFormatter())
+            ax.xaxis.set_major_formatter(FuncFormatter(_log_kbps_formatter))
+            ax.xaxis.set_tick_params(which="minor", size=0)
     else:
         ax_psnr.set_xlim(br_min - br_pad, br_max + br_pad)
         ax_ssim.set_xlim(br_min - br_pad, br_max + br_pad)
+        for ax in (ax_psnr, ax_ssim):
+            ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+            ax.ticklabel_format(axis="x", style="plain", useOffset=False)
 
     ax_psnr.set_ylim(psnr_min - psnr_pad, psnr_max + psnr_pad)
     ax_ssim.set_ylim(ssim_min - ssim_pad, min(1.0, ssim_max + ssim_pad))
@@ -432,19 +526,20 @@ def plot_rd(
 
     handles, labels = ax_psnr.get_legend_handles_labels()
     n = max(len(labels), 1)
+    ncol = 3 if n > 6 else 2
     fig.legend(
         handles,
         labels,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.02),
-        ncol=min(n, 3),
-        fontsize=8,
+        ncol=ncol,
+        fontsize=8.5,
         framealpha=0.95,
         columnspacing=1.2,
         handletextpad=0.4,
     )
 
-    fig.suptitle(title, fontsize=12, fontweight="bold", y=0.98)
+    fig.suptitle(title, fontsize=11, fontweight="bold", y=0.98)
     fig.tight_layout(rect=(0, 0.10, 1, 0.94))
     png = out_prefix.with_suffix(".png")
     pdf = out_prefix.with_suffix(".pdf")
@@ -453,23 +548,6 @@ def plot_rd(
     print(f"Saved: {png}")
     print(f"Saved: {pdf}")
     plt.close(fig)
-
-    # 低码率放大图：突出上采样优势交叉区（约 <300 kbps）
-    if low_zoom_max_kbps > 0:
-        zoom_data = {
-            codec: [p for p in pts if p["actual_kbps"] <= low_zoom_max_kbps * 1.05]
-            for codec, pts in data.items()
-            if any(p["actual_kbps"] <= low_zoom_max_kbps * 1.05 for p in pts)
-        }
-        if zoom_data:
-            zprefix = out_prefix.with_name(out_prefix.name + "_lowzoom")
-            plot_rd(
-                zoom_data,
-                zprefix,
-                title + f" (zoom ≤{int(low_zoom_max_kbps)} kbps)",
-                xscale="linear",
-                low_zoom_max_kbps=0,
-            )
 
 
 def main() -> None:
@@ -488,16 +566,22 @@ def main() -> None:
         help="横轴刻度：log 便于展示低码率上采样优势区（默认 log）",
     )
     parser.add_argument(
-        "--low-zoom-max-kbps",
-        type=float,
-        default=300.0,
-        help="额外输出低码率放大图的上限 kbps（0=禁用，默认 300）",
-    )
-    parser.add_argument(
         "--max-kbps",
         type=float,
         default=None,
         help="过滤 actual_kbps 上限（默认 max(target_kbps)×1.15）",
+    )
+    parser.add_argument(
+        "--session-codecs",
+        type=Path,
+        default=None,
+        help="session.codecs 文件路径（与 rd_data.csv 同目录时自动发现）",
+    )
+    parser.add_argument(
+        "--filter-workdir",
+        type=Path,
+        default=None,
+        help="（已弃用）仅绘制 workdir/results_*.csv 中的 codec；请用 session 模式 CSV",
     )
     args = parser.parse_args()
 
@@ -505,14 +589,29 @@ def main() -> None:
         raise SystemExit(f"找不到数据文件: {args.csv}")
 
     data = load_csv(args.csv, max_kbps=args.max_kbps)
+    session_path = args.session_codecs
+    if session_path is None:
+        auto = args.csv.parent / "session.codecs"
+        if auto.is_file():
+            session_path = auto
+    include = codecs_from_session_file(session_path) if session_path else set()
+    if not include and args.filter_workdir and args.filter_workdir.is_dir():
+        include = codecs_from_workdir(args.filter_workdir)
+    if include:
+        data = filter_data_codecs(data, include)
     if not data:
         raise SystemExit("CSV 无有效数据")
+    # 扫点较少且码率跨度不大时用线性横轴，避免对数轴刻度混乱
+    max_pts = max(len(v) for v in data.values())
+    br_all = [p["actual_kbps"] for pts in data.values() for p in pts]
+    xscale = args.xscale
+    if xscale == "log" and max_pts <= 6 and br_all and max(br_all) / max(min(br_all), 1) < 20:
+        xscale = "linear"
     plot_rd(
         data,
         args.out,
         args.title,
-        xscale=args.xscale,
-        low_zoom_max_kbps=args.low_zoom_max_kbps,
+        xscale=xscale,
     )
 
 

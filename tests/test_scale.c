@@ -249,7 +249,7 @@ static void test_post_upscale_buffer_bench(void **state)
                      RKVC_OK);
     fill_nv12(src, 55);
     assert_int_equal(rkvc_post_upscale_buffer(src, &dst, 1920, 1080,
-                                            RKVC_UPSCALE_BILINEAR),
+                                            RKVC_UPSCALE_BILINEAR, NULL),
                      RKVC_OK);
     rkvc_buffer_video_info info;
     rkvc_buffer_get_video_info(dst, &info);

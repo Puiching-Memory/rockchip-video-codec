@@ -10,17 +10,19 @@ git submodule update --init --depth 1 third_party/SVT-AV1
 
 ./scripts/package-portable.sh
 
-./scripts/test-portable.sh build/portable/rkvc-0.2.0-linux-aarch64-portable
+./scripts/test-portable.sh build/portable/rkvc-0.2.1-linux-aarch64-portable
 ```
 
-产物：`rkvc-0.2.0-linux-aarch64-portable.tar.gz`（约 4.5 MB）
+产物：`rkvc-0.2.1-linux-aarch64-portable.tar.gz`（约 4.5 MB）
 
 ```
-rkvc-0.2.0-linux-aarch64-portable/
+rkvc-0.2.1-linux-aarch64-portable/
 ├── bin/
 │   ├── rkvc_encode
 │   ├── rkvc_decode
-│   ├── rkvc_transcode      # v2 新增
+│   ├── rkvc_transcode
+│   ├── rkvc_session_upscale   # 硬解 + 后处理上采样
+│   ├── rkvc_yuv_upscale
 │   ├── rkvc_info
 │   └── rkvc_bench
 ├── lib/
@@ -35,7 +37,7 @@ rkvc-0.2.0-linux-aarch64-portable/
 ├── include/rkvc/            # v2 头文件
 ├── share/pkgconfig/rkvc.pc
 ├── examples/                # 示例源码与二进制
-├── test.sh                  # 一键自测（92 项）
+├── test.sh                  # 一键自测（99 项）
 ├── network-e2e-test.sh      # v2 冒烟测试
 ├── portable-test-helpers.sh
 ├── README.md / USAGE.md / DEVELOPMENT.md / EXAMPLES.md
@@ -44,8 +46,8 @@ rkvc-0.2.0-linux-aarch64-portable/
 ### 使用
 
 ```bash
-tar xzf rkvc-0.2.0-linux-aarch64-portable.tar.gz
-cd rkvc-0.2.0-linux-aarch64-portable
+tar xzf rkvc-0.2.1-linux-aarch64-portable.tar.gz
+cd rkvc-0.2.1-linux-aarch64-portable
 
 ./test.sh
 ./network-e2e-test.sh
@@ -76,7 +78,7 @@ LD_LIBRARY_PATH=lib ./myapp
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C build -j4 package
-sudo dpkg -i build/packages/rkvc_0.2.0_arm64.deb
+sudo dpkg -i build/packages/rkvc_0.2.1_arm64.deb
 ```
 
 !!! note
@@ -88,7 +90,7 @@ sudo dpkg -i build/packages/rkvc_0.2.0_arm64.deb
 
 ```bash
 ninja -C build -j4 package
-# 产物: build/packages/rkvc-0.2.0-Linux.tar.gz
+# 产物: build/packages/rkvc-0.2.1-Linux.tar.gz
 ```
 
 ## 打包脚本

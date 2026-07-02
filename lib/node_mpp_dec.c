@@ -79,10 +79,18 @@ rkvc_err rkvc_mpp_dec_open(rkvc_mpp_dec **out, const rkvc_mpp_dec_config *cfg,
         dec->ctx->flags |= AV_CODEC_FLAG_LOW_DELAY;
     dec->ctx->thread_count = 1;
 
-    ret = avcodec_open2(dec->ctx, codec, NULL);
-    if (ret < 0) {
+    AVDictionary *dec_opts = NULL;
+    rkvc_err perr = rkvc_dict_parse_opts(&dec_opts, cfg->codec_opts);
+    if (perr != RKVC_OK) {
         rkvc_mpp_dec_close(dec);
-        return rkvc_from_averror(ret);
+        return perr;
+    }
+
+    rkvc_err err = rkvc_codec_open2(dec->ctx, codec, &dec_opts, "mpp_dec");
+    rkvc_dict_free(&dec_opts);
+    if (err != RKVC_OK) {
+        rkvc_mpp_dec_close(dec);
+        return err;
     }
 
     *out = dec;

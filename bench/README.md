@@ -30,7 +30,7 @@ RUN_CODECS=svt-av1,svt-av1+superres ./scripts/run-bench.sh /path/to/1080p.mp4
 # superres 参数（可选）
 SVT_SUPERRES_MODE=4          # 默认 auto；1=fixed 3=qthresh
 SVT_SUPERRES_DENOM=9         # fixed 时分母 9~16（8/9 ~ 8/16 水平缩放）
-SVT_SUPERRES_FFMPEG=/usr/bin/ffmpeg   # 软解 ffmpeg
+SVT_SUPERRES_FFMPEG=/path/to/ffmpeg-with-libaom   # 须在 config.json paths.superres_decode_ffmpeg 配置
 ```
 
 ## 下采样 + 后处理上采样（评估 NN 占位）
@@ -81,15 +81,49 @@ PLOT_ONLY=1 ./scripts/run-bench.sh
 
 | 路径 | 说明 |
 |------|------|
-| `bench/results/rd_data.csv` | 原始数据（含 `rga_sec` / `write_sec` / `postproc_sec` 分列） |
-| `bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log，含低码率放大图 `rd_curve_e2e_lowzoom.png`） |
+| `bench/results/rd_data.csv` | 原始数据（**默认仅含本次 RUN_CODECS**） |
+| `bench/results/session.meta` | 本次跑分元数据（码率点、clip、模式等） |
+| `bench/results/session.codecs` | 本次 CSV 中的 codec 列表 |
+| `bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log） |
 | `bench/results/perf_e2e.png` | E2E 性能对比 |
 | `bench/work/` | 中间文件（可删） |
 
-## 环境变量
+## 配置（bench/config.json）
 
-- `RUN_CODECS` — 默认 `h264,h265,svt-av1,rkvc-v2`（`rkvc-v2` 展开为三档 policy）
-- `TARGET_KBPS` — 目标码率点（逗号分隔 kbps），默认 `25,30,40,50,60,80,100,150,200,300,400,500,600,700,800,900,1000`
+基准参数、路径、RD 校准表集中在 `bench/config.json`，**不再依赖系统 `/usr/bin/ffmpeg`**，也不再在 shell 里硬编码 QP/CRF 表。
+
+```bash
+# 校验配置与项目 ffmpeg 是否就绪
+python3 bench/tools/config.py validate bench/config.json
+
+# 查看将生效的默认值
+python3 bench/tools/config.py defaults bench/config.json /path/to/rk3588-ai-video-codec
+
+# 单次覆盖（环境变量优先于 config）
+RUN_CODECS=svt-av1,post-upscale ENC_SCALE_DENOM=3 \
+  ./scripts/run-bench.sh /path/to/1080p.mp4
+
+# 使用自定义配置
+BENCH_CONFIG=bench/my_config.json ./scripts/run-bench.sh clip.mp4
+```
+
+主要配置项：
+
+| 节点 | 说明 |
+|------|------|
+| `paths.ffmpeg` / `ffprobe` | 项目 `ffmpeg-rockchip` 构建产物 |
+| `target_kbps` | RD 扫点码率列表 |
+| `calibration.*` | h264/h265/SVT CQP/CRF 校准表 |
+| `run.codecs` / `enc_scale_denom` / `upscale_algos` | 对比路线 |
+| `svt.superres.enabled` | 默认 `false`（需另配 `paths.superres_decode_ffmpeg` 才启用） |
+
+环境变量仍可覆盖 config 中的任意默认值（在调用脚本前 `export`）。
+
+## 环境变量（覆盖 config）
+
+- `BENCH_CONFIG` — 配置文件路径（默认 `bench/config.json`）
+- `RUN_CODECS` — 见 `config.json` → `run.codecs`
+- `TARGET_KBPS` — 见 `config.json` → `target_kbps`
 - `SVT_RD_MODE` — SVT-AV1 RD 扫点：`calibrated`（默认，CRF/CQP 校准表）或 `vbr`（`--rc 1 --tbr`）
 - `ENC_SCALE_DENOM` — post-upscale 编码下采样分母（默认 `2`）
 - `UPSCALE_ALGOS` — 上采样算法（RGA 硬件），逗号分隔（默认 `nearest,bilinear,bicubic`）
@@ -100,6 +134,17 @@ PLOT_ONLY=1 ./scripts/run-bench.sh
 - `RKVC_BUILD` — rkvc 构建目录（含 `rkvc_transcode`）
 - `SVT_PRESET` — SVT 编码 preset（默认 11）
 - `RAMDISK_DIR` — YUV 放 tmpfs，减少 I/O 干扰
+- `BENCH_CSV_MODE` — `session`（**默认**，`rd_data.csv` 只保留本次跑出的 codec）| `accumulate`（增量合并，未重跑的 codec 保留旧行）
+
+### CSV 合并模式
+
+默认 **`session`**：`finalize_csv` 只用本次 `bench/work/results_*.csv` 重写 `rd_data.csv`，不会把上次 h264/h265 等历史路线混进来。
+
+若需多次跑分累积到同一张表（旧行为），显式设置：
+
+```bash
+BENCH_CSV_MODE=accumulate ./scripts/run-bench.sh clip.mp4
+```
 
 ## 单独绘图
 

@@ -1,7 +1,7 @@
 # rkvc 项目交付文档
 
 > **项目名称**: rkvc (RK3588 Video Codec Library)  
-> **版本**: 0.2.0  
+> **版本**: 0.2.1  
 > **目标硬件**: Rockchip RK3588 / RK3588S  
 > **架构**: Session + Pipeline + Codec Router (v2)
 
@@ -177,10 +177,10 @@ pkg-config --cflags --libs rkvc
 
 ```bash
 ./scripts/package-portable.sh
-./scripts/test-portable.sh build/portable/rkvc-0.2.0-linux-aarch64-portable
+./scripts/test-portable.sh build/portable/rkvc-0.2.1-linux-aarch64-portable
 ```
 
-产物：`rkvc-0.2.0-linux-aarch64-portable.tar.gz`（约 4.5 MB，92 项自测）
+产物：`rkvc-0.2.1-linux-aarch64-portable.tar.gz`（约 4.5 MB，99 项自测）
 
 ---
 
@@ -351,11 +351,11 @@ export RKVC_LOG_LEVEL=debug
 
 ```bash
 ./scripts/test-strict.sh
-./scripts/test-portable.sh build/portable/rkvc-0.2.0-linux-aarch64-portable
+./scripts/test-portable.sh build/portable/rkvc-0.2.1-linux-aarch64-portable
 ```
 
 - `tests` preset：13 个 CTest 目标
-- 可移植包自测：92 项
+- 可移植包自测：99 项
 - RK3588 实机：`RKVC_RUN_HARDWARE_TESTS=1 ctest -R test_session_`
 
 ---

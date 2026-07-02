@@ -65,15 +65,34 @@ rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg)
         rkvc_mpp_enc_close(enc);
         return RKVC_ERR_INVALID;
     }
-    if (av_opt_set_int(enc->ctx->priv_data, "rc_mode", cfg->rc_mode, 0) < 0) {
+
+    AVDictionary *enc_opts = NULL;
+    rkvc_err perr = rkvc_dict_parse_opts(&enc_opts, cfg->codec_opts);
+    if (perr != RKVC_OK) {
         rkvc_mpp_enc_close(enc);
-        return RKVC_ERR_INVALID;
+        return perr;
+    }
+
+    perr = rkvc_dict_set_int(&enc_opts, "rc_mode", cfg->rc_mode);
+    if (perr != RKVC_OK) {
+        rkvc_dict_free(&enc_opts);
+        rkvc_mpp_enc_close(enc);
+        return perr;
     }
     if (cfg->qp_init >= 0) {
-        if (av_opt_set_int(enc->ctx->priv_data, "qp_init", cfg->qp_init, 0) < 0) {
+        perr = rkvc_dict_set_int(&enc_opts, "qp_init", cfg->qp_init);
+        if (perr != RKVC_OK) {
+            rkvc_dict_free(&enc_opts);
             rkvc_mpp_enc_close(enc);
-            return RKVC_ERR_INVALID;
+            return perr;
         }
+    }
+
+    perr = rkvc_opt_set_dict(enc->ctx->priv_data, &enc_opts);
+    if (perr != RKVC_OK) {
+        rkvc_dict_free(&enc_opts);
+        rkvc_mpp_enc_close(enc);
+        return perr;
     }
 
     AVBufferRef *hw = NULL;
@@ -82,10 +101,11 @@ rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg)
         av_buffer_unref(&hw);
     (void)herr;
 
-    int ret = avcodec_open2(enc->ctx, codec, NULL);
-    if (ret < 0) {
+    rkvc_err err = rkvc_codec_open2(enc->ctx, codec, &enc_opts, "mpp_enc");
+    rkvc_dict_free(&enc_opts);
+    if (err != RKVC_OK) {
         rkvc_mpp_enc_close(enc);
-        return rkvc_from_averror(ret);
+        return err;
     }
 
     enc->pkt = av_packet_alloc();

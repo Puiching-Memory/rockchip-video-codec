@@ -22,7 +22,7 @@ v2 以 **Session + Pipeline + Codec Router** 替代 v1 的 `encoder` / `decoder`
 ```c
 rkvc_err rkvc_init(void);       // 线程安全，可多次调用
 void     rkvc_deinit(void);
-const char *rkvc_version(void); // "0.2.0"
+const char *rkvc_version(void); // "0.2.1"
 uint32_t    rkvc_version_number(void); // major<<16 | minor<<8 | patch
 const char *rkvc_err_str(rkvc_err err);
 ```
@@ -120,6 +120,10 @@ typedef struct rkvc_pipeline_desc {
 
     int            enc_scale_denom;           // 1=全分辨率编码
     rkvc_upscale_algo post_upscale_algo;      // 解码后上采样
+    const char    *post_upscale_rkvc_model_path;
+
+    int            svt_lp;                    // SVT lp，0=自动
+    int            svt_rtc;                   // SVT 实时调优，0/1
 } rkvc_pipeline_desc;
 ```
 
@@ -232,7 +236,7 @@ rkvc_err rkvc_buffer_set_pts(rkvc_buffer *buf, int64_t pts);
 ```c
 typedef enum {
     RKVC_UPSCALE_NONE, RKVC_UPSCALE_NEAREST, RKVC_UPSCALE_BILINEAR,
-    RKVC_UPSCALE_BICUBIC,
+    RKVC_UPSCALE_BICUBIC, RKVC_UPSCALE_AI_SR,  // rkvc_sr（需 RKNN 模型路径）
 } rkvc_upscale_algo;
 
 int rkvc_upscale_algo_from_name(const char *name, rkvc_upscale_algo *out);

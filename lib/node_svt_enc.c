@@ -1,17 +1,20 @@
 /**
  * @file node_svt_enc.c
  * @brief SVT-AV1 软件编码节点。
+ *
+ * 输入帧经 EbSvtIOFormat 指针直接交给 SVT（send_picture 内部再拷贝一次），
+ * 避免应用层整帧重复 memcpy；NV12 仅对 UV 做去交错写入 chroma 暂存区。
  */
 
 #include "internal.h"
-
-#define RKVC_SVT_DEFAULT_LP 4
 
 struct rkvc_svt_enc {
     EbComponentType           *handle;
     EbSvtAv1EncConfiguration  cfg;
     EbBufferHeaderType       *in_header;
     EbSvtIOFormat            *in_io;
+    uint8_t                  *chroma_cb;
+    uint8_t                  *chroma_cr;
     int                       width;
     int                       height;
     rkvc_pix_fmt              input_format;
@@ -35,52 +38,98 @@ static rkvc_err svt_alloc_io(rkvc_svt_enc *enc)
 {
     const int w = enc->width;
     const int h = enc->height;
-    const size_t y = (size_t)w * (size_t)h;
-    const size_t c = y / 4;
+    const size_t chroma_w = (size_t)(w / 2);
+    const size_t chroma_h = (size_t)(h / 2);
 
     enc->in_header = rkvc_calloc(1, sizeof(*enc->in_header));
     enc->in_io     = rkvc_calloc(1, sizeof(*enc->in_io));
     if (!enc->in_header || !enc->in_io)
         return RKVC_ERR_NOMEM;
 
-    enc->in_io->luma = rkvc_malloc(y);
-    enc->in_io->cb   = rkvc_malloc(c);
-    enc->in_io->cr   = rkvc_malloc(c);
-    if (!enc->in_io->luma || !enc->in_io->cb || !enc->in_io->cr)
+    enc->chroma_cb = rkvc_malloc(chroma_w * chroma_h);
+    enc->chroma_cr = rkvc_malloc(chroma_w * chroma_h);
+    if (!enc->chroma_cb || !enc->chroma_cr)
         return RKVC_ERR_NOMEM;
 
-    enc->in_io->y_stride  = (uint32_t)w;
-    enc->in_io->cb_stride = (uint32_t)(w / 2);
-    enc->in_io->cr_stride = (uint32_t)(w / 2);
     enc->in_header->size     = sizeof(*enc->in_header);
     enc->in_header->p_buffer = (uint8_t *)enc->in_io;
     return RKVC_OK;
 }
 
-static void copy_to_svt(rkvc_svt_enc *enc, const AVFrame *frame)
+static void deinterleave_nv12_chroma(const AVFrame *frame, int width, int height,
+                                     uint8_t *cb, uint8_t *cr)
 {
-    const int w = enc->width;
-    const int h = enc->height;
-    EbSvtIOFormat *io = enc->in_io;
+    const int chroma_w = width / 2;
+    const int chroma_h = height / 2;
+    const uint8_t *uv = frame->data[1];
+    const int uv_stride = frame->linesize[1];
 
-    for (int y = 0; y < h; y++)
-        memcpy(io->luma + y * io->y_stride,
-               frame->data[0] + y * frame->linesize[0], (size_t)w);
-
-    for (int y = 0; y < h / 2; y++) {
-        if (frame->format == AV_PIX_FMT_YUV420P) {
-            memcpy(io->cb + y * io->cb_stride,
-                   frame->data[1] + y * frame->linesize[1], (size_t)(w / 2));
-            memcpy(io->cr + y * io->cr_stride,
-                   frame->data[2] + y * frame->linesize[2], (size_t)(w / 2));
-        } else {
-            const uint8_t *uv = frame->data[1] + y * frame->linesize[1];
-            for (int x = 0; x < w / 2; x++) {
-                io->cb[y * io->cb_stride + x] = uv[x * 2];
-                io->cr[y * io->cr_stride + x] = uv[x * 2 + 1];
-            }
+    for (int y = 0; y < chroma_h; y++) {
+        const uint8_t *row = uv + y * uv_stride;
+        uint8_t *cb_row = cb + y * chroma_w;
+        uint8_t *cr_row = cr + y * chroma_w;
+        for (int x = 0; x < chroma_w; x++) {
+            cb_row[x] = row[x * 2];
+            cr_row[x] = row[x * 2 + 1];
         }
     }
+}
+
+static void bind_io_from_frame(rkvc_svt_enc *enc, const AVFrame *frame)
+{
+    EbSvtIOFormat *io = enc->in_io;
+
+    io->luma     = frame->data[0];
+    io->y_stride = (uint32_t)frame->linesize[0];
+
+    if (frame->format == AV_PIX_FMT_YUV420P) {
+        io->cb        = frame->data[1];
+        io->cr        = frame->data[2];
+        io->cb_stride = (uint32_t)frame->linesize[1];
+        io->cr_stride = (uint32_t)frame->linesize[2];
+        return;
+    }
+
+    io->cb_stride = (uint32_t)(enc->width / 2);
+    io->cr_stride = (uint32_t)(enc->width / 2);
+    io->cb        = enc->chroma_cb;
+    io->cr        = enc->chroma_cr;
+    deinterleave_nv12_chroma(frame, enc->width, enc->height,
+                             enc->chroma_cb, enc->chroma_cr);
+}
+
+static rkvc_err svt_prepare_work_frame(const rkvc_buffer *frame,
+                                       rkvc_buffer **work_out,
+                                       rkvc_buffer **tmp_out,
+                                       int *dmabuf_mapped)
+{
+    *work_out = NULL;
+    *tmp_out = NULL;
+    *dmabuf_mapped = 0;
+
+    if (frame->mem_type == RKVC_MEM_HOST && frame->av_frame) {
+        *work_out = rkvc_buffer_ref((rkvc_buffer *)frame);
+        return RKVC_OK;
+    }
+
+    if (frame->mem_type == RKVC_MEM_DMABUF && frame->av_frame &&
+        frame->av_frame->format != AV_PIX_FMT_DRM_PRIME &&
+        frame->av_frame->data[0]) {
+        rkvc_err err = rkvc_buffer_dmabuf_begin_cpu_read(frame);
+        if (err != RKVC_OK)
+            return err;
+        *dmabuf_mapped = 1;
+        *work_out = rkvc_buffer_ref((rkvc_buffer *)frame);
+        return RKVC_OK;
+    }
+
+    rkvc_buffer *host = NULL;
+    rkvc_err err = rkvc_dma_to_host(frame, &host);
+    if (err != RKVC_OK)
+        return err;
+    *tmp_out = host;
+    *work_out = host;
+    return RKVC_OK;
 }
 
 rkvc_err rkvc_svt_enc_open(rkvc_svt_enc **out, const rkvc_svt_enc_config *cfg)
@@ -113,7 +162,9 @@ rkvc_err rkvc_svt_enc_open(rkvc_svt_enc **out, const rkvc_svt_enc_config *cfg)
     enc->cfg.encoder_bit_depth      = 8;
     enc->cfg.enc_mode = (uint8_t)(cfg->svt_preset > 0 ? cfg->svt_preset
                                                        : RKVC_SVT_PRESET_PERF);
-    enc->cfg.level_of_parallelism   = RKVC_SVT_DEFAULT_LP;
+    enc->cfg.level_of_parallelism = (uint32_t)(cfg->svt_lp >= 0 ? cfg->svt_lp
+                                                                 : RKVC_SVT_LP_AUTO);
+    enc->cfg.rtc = cfg->svt_rtc ? true : false;
     enc->cfg.target_bit_rate        = (uint32_t)cfg->bitrate;
     switch (cfg->rc_mode) {
     case RKVC_RC_CBR:
@@ -161,12 +212,9 @@ void rkvc_svt_enc_close(rkvc_svt_enc *enc)
         svt_av1_enc_deinit(enc->handle);
         svt_av1_enc_deinit_handle(enc->handle);
     }
-    if (enc->in_io) {
-        rkvc_free(enc->in_io->luma);
-        rkvc_free(enc->in_io->cb);
-        rkvc_free(enc->in_io->cr);
-        rkvc_free(enc->in_io);
-    }
+    rkvc_free(enc->chroma_cb);
+    rkvc_free(enc->chroma_cr);
+    rkvc_free(enc->in_io);
     rkvc_free(enc->in_header);
     rkvc_free(enc);
 }
@@ -201,22 +249,21 @@ rkvc_err rkvc_svt_enc_send_frame(rkvc_svt_enc *enc, rkvc_buffer *frame)
     if (!frame)
         return rkvc_svt_enc_drain(enc);
 
-    rkvc_buffer *host = NULL;
-    const rkvc_buffer *work = frame;
-    if (frame->mem_type == RKVC_MEM_DMABUF) {
-        rkvc_err err = rkvc_dma_to_host(frame, &host);
-        if (err != RKVC_OK)
-            return err;
-        work = host;
-    }
+    rkvc_buffer *work = NULL;
+    rkvc_buffer *tmp = NULL;
+    int dmabuf_mapped = 0;
+    rkvc_err err = svt_prepare_work_frame(frame, &work, &tmp, &dmabuf_mapped);
+    if (err != RKVC_OK)
+        return err;
 
     if (!work->av_frame) {
-        rkvc_buffer_unref(host);
+        rkvc_buffer_unref(tmp);
+        if (dmabuf_mapped)
+            rkvc_buffer_dmabuf_end_cpu_read(frame);
         return RKVC_ERR_INVALID;
     }
 
-    copy_to_svt(enc, work->av_frame);
-    rkvc_buffer_unref(host);
+    bind_io_from_frame(enc, work->av_frame);
 
     const uint32_t y_size = (uint32_t)((size_t)enc->width * (size_t)enc->height);
     enc->in_header->n_filled_len = y_size + 2 * (y_size / 4);
@@ -224,7 +271,13 @@ rkvc_err rkvc_svt_enc_send_frame(rkvc_svt_enc *enc, rkvc_buffer *frame)
     enc->in_header->dts = enc->in_header->pts;
 
     EbErrorType ret = svt_av1_enc_send_picture(enc->handle, enc->in_header);
-    return svt_check(ret);
+    err = svt_check(ret);
+
+    rkvc_buffer_unref(tmp);
+    if (dmabuf_mapped)
+        rkvc_buffer_dmabuf_end_cpu_read(frame);
+
+    return err;
 }
 
 rkvc_err rkvc_svt_enc_receive_packet(rkvc_svt_enc *enc, rkvc_buffer **out)

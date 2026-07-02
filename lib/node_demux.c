@@ -25,13 +25,22 @@ rkvc_err rkvc_demux_open(rkvc_demux **out, const rkvc_demux_config *cfg)
         return RKVC_ERR_NOMEM;
 
     d->video_idx = -1;
-    int ret = avformat_open_input(&d->fmt, cfg->input_path, NULL, NULL);
-    if (ret < 0) {
+
+    AVDictionary *fmt_opts = NULL;
+    rkvc_err perr = rkvc_dict_parse_opts(&fmt_opts, cfg->format_opts);
+    if (perr != RKVC_OK) {
         rkvc_demux_close(d);
-        return rkvc_from_averror(ret);
+        return perr;
     }
 
-    ret = avformat_find_stream_info(d->fmt, NULL);
+    rkvc_err err = rkvc_format_open_input(&d->fmt, cfg->input_path, &fmt_opts);
+    rkvc_dict_free(&fmt_opts);
+    if (err != RKVC_OK) {
+        rkvc_demux_close(d);
+        return err;
+    }
+
+    int ret = avformat_find_stream_info(d->fmt, NULL);
     if (ret < 0) {
         rkvc_demux_close(d);
         return rkvc_from_averror(ret);

@@ -26,6 +26,9 @@ rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void)
     d.qp_init       = -1;
     d.enc_scale_denom     = 1;
     d.post_upscale_algo   = RKVC_UPSCALE_NONE;
+    d.post_upscale_rkvc_model_path = NULL;
+    d.svt_lp              = RKVC_SVT_LP_AUTO;
+    d.svt_rtc             = 0;
     return d;
 }
 

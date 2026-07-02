@@ -11,6 +11,7 @@ const char *rkvc_upscale_algo_name(rkvc_upscale_algo algo)
     case RKVC_UPSCALE_NEAREST:  return "nearest";
     case RKVC_UPSCALE_BILINEAR: return "bilinear";
     case RKVC_UPSCALE_BICUBIC:  return "bicubic";
+    case RKVC_UPSCALE_AI_SR:    return "rkvc_sr";
     default:                    return "none";
     }
 }
@@ -33,6 +34,10 @@ int rkvc_upscale_algo_from_name(const char *name, rkvc_upscale_algo *out)
     }
     if (strcmp(name, "bicubic") == 0) {
         *out = RKVC_UPSCALE_BICUBIC;
+        return 0;
+    }
+    if (strcmp(name, "rkvc_sr") == 0) {
+        *out = RKVC_UPSCALE_AI_SR;
         return 0;
     }
     return -1;
@@ -118,19 +123,27 @@ static rkvc_err nv12_to_yuv420p_buffer(const rkvc_buffer *src, rkvc_buffer **yuv
 
 rkvc_err rkvc_post_upscale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                   int dst_w, int dst_h,
-                                  rkvc_upscale_algo algo)
+                                  rkvc_upscale_algo algo,
+                                  const char *rkvc_sr_model_path)
 {
     if (!src || !dst || dst_w <= 0 || dst_h <= 0)
         return RKVC_ERR_INVALID;
     if (algo == RKVC_UPSCALE_NONE)
         return RKVC_ERR_INVALID;
-    if (!rkvc_rga_available())
-        return RKVC_ERR_HW;
 
     *dst = NULL;
 
     if (!src->av_frame)
         return RKVC_ERR_INVALID;
+
+    if (algo == RKVC_UPSCALE_AI_SR) {
+        if (!rkvc_sr_model_path || !rkvc_sr_model_path[0])
+            return RKVC_ERR_INVALID;
+        return rkvc_rknn_sr_buffer(src, dst, dst_w, dst_h, rkvc_sr_model_path);
+    }
+
+    if (!rkvc_rga_available())
+        return RKVC_ERR_HW;
 
     const int sw = src->av_frame->width;
     const int sh = src->av_frame->height;

@@ -756,3 +756,160 @@ rkvc_err rkvc_rga_scale_ctx_process(rkvc_rga_scale_ctx *ctx,
     *out = rkvc_buffer_ref(ctx->dst);
     return RKVC_OK;
 }
+
+int rkvc_rga_rgb888_stride(int width)
+{
+    if (width <= 0)
+        return 0;
+    /* RGA RGB888 的 wstride 为像素跨度，须 16 像素对齐 */
+    return (width + 15) & ~15;
+}
+
+int rkvc_rga_rgb888_row_bytes(int width)
+{
+    const int ps = rkvc_rga_rgb888_stride(width);
+    return ps > 0 ? ps * 3 : 0;
+}
+
+static rkvc_err rga_cvtcolor_checked(const rga_buffer_t *src,
+                                     const rga_buffer_t *dst,
+                                     int sfmt, int dfmt)
+{
+    IM_STATUS ret = imcvtcolor_t(*src, *dst, sfmt, dfmt,
+                                 IM_COLOR_SPACE_DEFAULT, 1);
+    if (ret != IM_STATUS_SUCCESS) {
+        RKVC_LOG("RGA imcvtcolor failed: %s (src %dx%d fmt=%#x -> dst %dx%d fmt=%#x)",
+                 imStrError_t(ret), src->width, src->height, sfmt,
+                 dst->width, dst->height, dfmt);
+        return RKVC_ERR_HW;
+    }
+    return RKVC_OK;
+}
+
+static rkvc_err rga_import_rgb888_virtual(const uint8_t *rgb, int w, int h,
+                                          int stride_pixels, rga_import_t *imp,
+                                          rga_buffer_t *rga)
+{
+    if (!rgb || !imp || !rga || w <= 0 || h <= 0 ||
+        stride_pixels < rkvc_rga_rgb888_stride(w))
+        return RKVC_ERR_INVALID;
+
+    memset(imp, 0, sizeof(*imp));
+    memset(rga, 0, sizeof(*rga));
+
+    const int fmt = RK_FORMAT_RGB_888;
+    im_handle_param_t param = {
+        .width  = (uint32_t)w,
+        .height = (uint32_t)h,
+        .format = (uint32_t)fmt,
+    };
+
+    imp->handle = importbuffer_virtualaddr((void *)(uintptr_t)rgb, &param);
+    if (!imp->handle)
+        return RKVC_ERR_HW;
+
+    imp->owned = 1;
+    *rga = wrapbuffer_handle_t(imp->handle, w, h, stride_pixels, h, fmt);
+    return RKVC_OK;
+}
+
+rkvc_err rkvc_rga_csc_nv12_to_rgb888(const rkvc_buffer *src, uint8_t *rgb,
+                                     int w, int h, int rgb_stride_pixels)
+{
+    if (!src || !src->av_frame || !rgb || w <= 0 || h <= 0)
+        return RKVC_ERR_INVALID;
+    if (src->format != RKVC_PIX_FMT_NV12)
+        return RKVC_ERR_FORMAT;
+    if (!rkvc_rga_available())
+        return RKVC_ERR_HW;
+    if (rgb_stride_pixels < rkvc_rga_rgb888_stride(w))
+        return RKVC_ERR_INVALID;
+
+    rkvc_buffer *work = NULL;
+    const rkvc_buffer *nv12 = src;
+
+    if (src->mem_type != RKVC_MEM_DMABUF && !frame_contiguous(src->av_frame)) {
+        rkvc_err err = nv12_copy_contiguous(src, &work);
+        if (err != RKVC_OK)
+            return err;
+        nv12 = work;
+    }
+
+    int src_ws = 0, src_hs = 0;
+    if (!buffer_nv12_rga_stride(nv12, &src_ws, &src_hs) ||
+        !rga_nv12_stride_ok(src_ws, src_hs)) {
+        rkvc_buffer_unref(work);
+        return RKVC_ERR_FORMAT;
+    }
+
+    rga_import_t src_imp = {0};
+    rga_import_t dst_imp = {0};
+    rga_buffer_t rga_src;
+    rga_buffer_t rga_dst;
+    rkvc_err err;
+
+    err = rga_import_nv12_buffer(nv12, w, h, src_ws, src_hs,
+                                 &src_imp, &rga_src);
+    if (err != RKVC_OK)
+        goto done;
+
+    err = rga_import_rgb888_virtual(rgb, w, h, rgb_stride_pixels, &dst_imp, &rga_dst);
+    if (err != RKVC_OK)
+        goto done;
+
+    err = rga_cvtcolor_checked(&rga_src, &rga_dst,
+                               RK_FORMAT_YCbCr_420_SP, RK_FORMAT_RGB_888);
+
+done:
+    rga_import_release(&src_imp);
+    rga_import_release(&dst_imp);
+    rkvc_buffer_unref(work);
+    return err;
+}
+
+rkvc_err rkvc_rga_csc_rgb888_to_nv12(const uint8_t *rgb, int w, int h,
+                                     int rgb_stride_pixels, rkvc_buffer *dst)
+{
+    if (!rgb || !dst || !dst->av_frame || w <= 0 || h <= 0)
+        return RKVC_ERR_INVALID;
+    if (dst->format != RKVC_PIX_FMT_NV12)
+        return RKVC_ERR_FORMAT;
+    if (!rkvc_rga_available())
+        return RKVC_ERR_HW;
+    if (rgb_stride_pixels < rkvc_rga_rgb888_stride(w))
+        return RKVC_ERR_INVALID;
+
+    int dst_ws = 0, dst_hs = 0;
+    if (!buffer_nv12_rga_stride(dst, &dst_ws, &dst_hs) ||
+        !rga_nv12_stride_ok(dst_ws, dst_hs))
+        return RKVC_ERR_FORMAT;
+
+    rga_import_t src_imp = {0};
+    rga_import_t dst_imp = {0};
+    rga_buffer_t rga_src;
+    rga_buffer_t rga_dst;
+    rkvc_err err;
+
+    err = rga_import_rgb888_virtual(rgb, w, h, rgb_stride_pixels, &src_imp, &rga_src);
+    if (err != RKVC_OK)
+        goto done;
+
+    err = rga_import_nv12_buffer(dst, w, h, dst_ws, dst_hs,
+                                 &dst_imp, &rga_dst);
+    if (err != RKVC_OK)
+        goto done;
+
+    err = rkvc_buffer_dmabuf_begin_device_write(dst);
+    if (err != RKVC_OK)
+        goto done;
+
+    err = rga_cvtcolor_checked(&rga_src, &rga_dst,
+                               RK_FORMAT_RGB_888, RK_FORMAT_YCbCr_420_SP);
+    if (err == RKVC_OK)
+        err = rkvc_buffer_dmabuf_end_device_write(dst);
+
+done:
+    rga_import_release(&src_imp);
+    rga_import_release(&dst_imp);
+    return err;
+}

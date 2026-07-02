@@ -21,6 +21,10 @@ static void test_upscale_algo_names(void **state)
     assert_int_equal(rkvc_upscale_algo_from_name("bicubic", &algo), 0);
     assert_int_equal(algo, RKVC_UPSCALE_BICUBIC);
 
+    assert_int_equal(rkvc_upscale_algo_from_name("rkvc_sr", &algo), 0);
+    assert_int_equal(algo, RKVC_UPSCALE_AI_SR);
+    assert_string_equal(rkvc_upscale_algo_name(algo), "rkvc_sr");
+
     assert_int_equal(rkvc_upscale_algo_from_name("invalid", &algo), -1);
 }
 

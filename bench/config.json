@@ -1,0 +1,99 @@
+{
+  "paths": {
+    "ffmpeg": "third_party/ffmpeg-rockchip/ffmpeg",
+    "ffprobe": "third_party/ffmpeg-rockchip/ffprobe",
+    "svt_enc": "build-deps/svt-av1-install/bin/SvtAv1EncApp",
+    "rkvc_build": "build",
+    "mpp_lib": "build-deps/mpp-install/lib",
+    "ffmpeg_src": "third_party/ffmpeg-rockchip",
+    "svt_prefix": "build-deps/svt-av1-install",
+    "rkvc_sr_model": "rkvc_sr_x3.crypt.rknn",
+    "superres_decode_ffmpeg": null
+  },
+  "clip": {
+    "sec": 4,
+    "offset": "middle",
+    "elementary_mp4": {
+      "encoder": "h264_rkmpp",
+      "rc_mode": 2,
+      "qp": 10,
+      "gop": 60
+    }
+  },
+  "target_kbps": [
+    25, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000
+  ],
+  "run": {
+    "codecs": ["h264", "h265", "svt-av1", "rkvc-v2"],
+    "enc_scale_denom": 2,
+    "upscale_algos": ["nearest", "bilinear", "bicubic"],
+    "rkvc_policies": ["realtime", "balanced", "quality"],
+    "csv_mode": "session",
+    "parallel": false
+  },
+  "ramdisk_dir": "/dev/shm/rkvc-bench",
+  "rkmpp": {
+    "rc_mode": 2,
+    "gop": 60
+  },
+  "svt": {
+    "preset": 11,
+    "keyint": 60,
+    "lp": 4,
+    "rtc": false,
+    "rd_mode": "calibrated",
+    "superres": {
+      "enabled": false,
+      "mode": 4,
+      "denom": 9,
+      "kf_denom": 9,
+      "qthres": 48,
+      "kf_qthres": 48
+    }
+  },
+  "prep": {
+    "downscale_method": "rga-bilinear-nv12-v1",
+    "downscale_algo": "bilinear"
+  },
+  "calibration": {
+    "defaults": {
+      "h264.full": 51,
+      "h264.low": 37,
+      "h265.full": 41,
+      "h265.low": 33,
+      "svt_av1.full_crf": 62,
+      "svt_av1.low_qp": 46
+    },
+    "h264": {
+      "full": {
+        "25": 51, "30": 51, "40": 51, "50": 51, "60": 51, "80": 51, "100": 51, "150": 51, "200": 51,
+        "300": 47, "400": 45, "500": 43, "600": 41, "700": 40, "800": 38, "900": 38, "1000": 37
+      },
+      "low": {
+        "25": 47, "30": 46, "40": 45, "50": 44, "60": 43, "80": 42, "100": 40, "150": 39, "200": 37,
+        "300": 34, "400": 32, "500": 31, "600": 30, "700": 29, "800": 28, "900": 27, "1000": 25
+      }
+    },
+    "h265": {
+      "full": {
+        "25": 51, "30": 51, "40": 51, "50": 51, "60": 51, "80": 51,
+        "100": 48, "150": 47, "200": 46, "300": 43, "400": 41, "500": 40,
+        "600": 38, "700": 37, "800": 36, "900": 34, "1000": 33
+      },
+      "low": {
+        "25": 42, "30": 41, "40": 40, "50": 39, "60": 38, "80": 37, "100": 35, "150": 34, "200": 33,
+        "300": 32, "400": 31, "500": 29, "600": 27, "700": 26, "800": 25, "900": 24, "1000": 23
+      }
+    },
+    "svt_av1": {
+      "full_crf": {
+        "25": 70, "30": 69, "40": 68, "50": 70, "60": 68, "80": 67, "100": 65, "150": 64, "200": 62,
+        "300": 60, "400": 58, "500": 57, "600": 54, "700": 53, "800": 52, "900": 42, "1000": 41
+      },
+      "low_qp": {
+        "25": 63, "30": 62, "40": 61, "50": 60, "60": 59, "80": 57, "100": 53, "150": 51, "200": 46,
+        "300": 41, "400": 38, "500": 36, "600": 34, "700": 31, "800": 29, "900": 28, "1000": 19
+      }
+    }
+  }
+}

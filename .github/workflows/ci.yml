@@ -24,12 +24,7 @@ jobs:
           sudo apt-get install -y -qq clang-tidy cmake ninja-build
 
       - name: Install librga
-        run: |
-          git clone --depth 1 https://github.com/airockchip/librga.git /tmp/librga
-          sudo mkdir -p /usr/local/include/rga
-          sudo cp /tmp/librga/include/*.h /usr/local/include/rga/
-          sudo cp /tmp/librga/libs/Linux/gcc-aarch64/librga.so /usr/local/lib/
-          sudo ldconfig
+        run: sudo ./scripts/install-librga.sh
 
       - name: Generate ffmpeg config headers
         run: |
@@ -69,12 +64,7 @@ jobs:
           sudo apt-get install -y -qq cmake ninja-build libcmocka-dev libdrm-dev
 
       - name: Install librga
-        run: |
-          git clone --depth 1 https://github.com/airockchip/librga.git /tmp/librga
-          sudo mkdir -p /usr/local/include/rga
-          sudo cp /tmp/librga/include/*.h /usr/local/include/rga/
-          sudo cp /tmp/librga/libs/Linux/gcc-aarch64/librga.so /usr/local/lib/
-          sudo ldconfig
+        run: sudo ./scripts/install-librga.sh
 
       - name: Build MPP
         run: |
@@ -133,12 +123,7 @@ jobs:
             cmake ninja-build patchelf libdrm-dev gcc pkg-config
 
       - name: Install librga
-        run: |
-          git clone --depth 1 https://github.com/airockchip/librga.git /tmp/librga
-          sudo mkdir -p /usr/local/include/rga
-          sudo cp /tmp/librga/include/*.h /usr/local/include/rga/
-          sudo cp /tmp/librga/libs/Linux/gcc-aarch64/librga.so /usr/local/lib/
-          sudo ldconfig
+        run: sudo ./scripts/install-librga.sh
 
       - name: Build MPP
         run: |
@@ -168,7 +153,7 @@ jobs:
         run: ./scripts/package-portable.sh
 
       - name: Test portable package
-        run: ./scripts/test-portable.sh build/portable/rkvc-0.2.0-linux-aarch64-portable
+        run: ./scripts/test-portable.sh build/portable/rkvc-0.2.1-linux-aarch64-portable
 
       - name: Upload packages
         uses: actions/upload-artifact@v7

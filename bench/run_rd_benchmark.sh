@@ -12,79 +12,66 @@
 set -euo pipefail
 
 BENCH_ROOT="$(cd "$(dirname "$0")" && pwd)"
+BENCH_PY="${BENCH_PY:-python3}"
+BENCH_TOOLS="$BENCH_ROOT/tools"
+BENCH_CONFIG="${BENCH_CONFIG:-$BENCH_ROOT/config.json}"
 PROJECT_ROOT="$(cd "$BENCH_ROOT/.." && pwd)"
 RESULTS="$BENCH_ROOT/results"
 WORKDIR="$BENCH_ROOT/work"
-RAMDISK_DIR="${RAMDISK_DIR:-/dev/shm/rkvc-bench}"
-RAM_WORK_DIR="$RAMDISK_DIR/work"
+
+# 从 bench/config.json 加载默认值；环境变量可覆盖（在调用前 export）。
+load_bench_config() {
+    if [[ ! -f "$BENCH_CONFIG" ]]; then
+        echo "[error] 配置文件不存在: $BENCH_CONFIG" >&2
+        exit 1
+    fi
+    "$BENCH_PY" "$BENCH_TOOLS/config.py" validate "$BENCH_CONFIG" "$PROJECT_ROOT" >/dev/null
+    local line key val
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" == \#* ]] && continue
+        key="${line%%=*}"
+        val="${line#*=}"
+        if [[ -z "${!key+x}" ]]; then
+            export "$key=$val"
+        fi
+    done < <("$BENCH_PY" "$BENCH_TOOLS/config.py" defaults "$BENCH_CONFIG" "$PROJECT_ROOT")
+}
+
+SRC_VIDEO="${1:-${SRC_VIDEO:-}}"
+CLIP_START_SEC="${CLIP_START_SEC:-}"
 
 # shellcheck source=../scripts/build-common.sh
 source "$PROJECT_ROOT/scripts/build-common.sh" 2>/dev/null || true
 
-SRC_VIDEO="${1:-${SRC_VIDEO:-}}"
-CLIP_SEC="${CLIP_SEC:-4}"
-# 片段起点：middle=从源视频时长居中截取；start=从 0s 起（可用 CLIP_START_SEC 显式指定秒数）
-CLIP_OFFSET="${CLIP_OFFSET:-middle}"
-CLIP_START_SEC="${CLIP_START_SEC:-}"
-# 目标码率点（kbps）：低端加密以显现上采样优势区，高端覆盖至 1000
-TARGET_KBPS="${TARGET_KBPS:-25,30,40,50,60,80,100,150,200,300,400,500,600,700,800,900,1000}"
-IFS=',' read -ra BITRATES <<< "$TARGET_KBPS"
-SVT_PRESET="${SVT_PRESET:-11}"
-# SVT RD 扫点模式：calibrated=CRF/CQP 校准表（actual≈target）；vbr=旧版 --rc 1 --tbr
-SVT_RD_MODE="${SVT_RD_MODE:-calibrated}"
-# AV1 内建 superres（SVT-AV1）：mode 0=off 1=fixed 2=random 3=qthresh 4=auto
-SVT_SUPERRES_MODE="${SVT_SUPERRES_MODE:-4}"
-SVT_SUPERRES_DENOM="${SVT_SUPERRES_DENOM:-9}"
-SVT_SUPERRES_KF_DENOM="${SVT_SUPERRES_KF_DENOM:-$SVT_SUPERRES_DENOM}"
-SVT_SUPERRES_QTHRES="${SVT_SUPERRES_QTHRES:-48}"
-SVT_SUPERRES_KF_QTHRES="${SVT_SUPERRES_KF_QTHRES:-$SVT_SUPERRES_QTHRES}"
-# superres 码流 av1_rkmpp 硬解会崩溃，默认用系统 ffmpeg + libaom-av1 软解
-SVT_SUPERRES_FFMPEG="${SVT_SUPERRES_FFMPEG:-/usr/bin/ffmpeg}"
-ENC_SCALE_DENOM="${ENC_SCALE_DENOM:-2}"
-UPSCALE_ALGOS="${UPSCALE_ALGOS:-nearest,bilinear,bicubic}"
-RUN_CODECS="${RUN_CODECS:-h264,h265,svt-av1,rkvc-v2}"
-RKVC_POLICIES="${RKVC_POLICIES:-realtime,balanced,quality}"
-RKVC_BUILD="${RKVC_BUILD:-${RKVC_BUILD_DIR:-$PROJECT_ROOT/build}}"
+load_bench_config
+
 case "$RKVC_BUILD" in /*) ;; *) RKVC_BUILD="$PROJECT_ROOT/$RKVC_BUILD" ;; esac
+RAM_WORK_DIR="$RAMDISK_DIR/work"
 
-MPP_LIB="$PROJECT_ROOT/build-deps/mpp-install/lib"
-FFMPEG_SRC="$PROJECT_ROOT/third_party/ffmpeg-rockchip"
-SVT_PREFIX="$PROJECT_ROOT/build-deps/svt-av1-install"
+CLIP_SEC="${CLIP_SEC:-4}"
+CLIP_OFFSET="${CLIP_OFFSET:-middle}"
+TARGET_KBPS="${TARGET_KBPS:-1000}"
+IFS=',' read -ra BITRATES <<< "$TARGET_KBPS"
 
-resolve_ffmpeg() {
-    if [[ -n "${FFMPEG:-}" && -x "$FFMPEG" ]]; then
-        echo "$FFMPEG"
-        return
+require_project_ffmpeg() {
+    if [[ ! -x "$FFMPEG" || ! -x "$FFPROBE" ]]; then
+        echo "[error] 项目 ffmpeg 未构建或不可执行:" >&2
+        echo "  FFMPEG=$FFMPEG" >&2
+        echo "  FFPROBE=$FFPROBE" >&2
+        echo "请运行: ./scripts/rebuild-ffmpeg-rkmpp.sh" >&2
+        exit 1
     fi
-    if [[ -x "$FFMPEG_SRC/ffmpeg" ]]; then
-        echo "$FFMPEG_SRC/ffmpeg"
-        return
-    fi
-    if command -v ffmpeg >/dev/null 2>&1; then
-        command -v ffmpeg
-        return
-    fi
-    echo "[error] 未找到 ffmpeg，请先运行 ./scripts/rebuild-ffmpeg-rkmpp.sh" >&2
-    exit 1
 }
 
-FFMPEG="$(resolve_ffmpeg)"
-# 默认使用自包含 ffmpeg-rockchip；可用 PREP_FFMPEG 覆盖
+require_project_ffmpeg
 PREP_FFMPEG="${PREP_FFMPEG:-$FFMPEG}"
-FFPROBE="${FFPROBE:-}"
-if [[ -z "$FFPROBE" ]]; then
-    if [[ -x "${FFMPEG%/*}/ffprobe" ]]; then
-        FFPROBE="${FFMPEG%/*}/ffprobe"
-    elif command -v /usr/bin/ffprobe >/dev/null 2>&1; then
-        FFPROBE=/usr/bin/ffprobe
-    else
-        FFPROBE="$(command -v ffprobe || true)"
-    fi
-fi
+
 SVT_ENC="${SVT_ENC:-$SVT_PREFIX/bin/SvtAv1EncApp}"
 RKVC_TRANS="$RKVC_BUILD/rkvc_transcode"
 RKVC_YUV_UPSCALE="$RKVC_BUILD/rkvc_yuv_upscale"
 RKVC_SESSION_UPSCALE="$RKVC_BUILD/rkvc_session_upscale"
+RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/rkvc_sr_x3.crypt.rknn}"
+export RKVC_SR_MODEL
 RKVC_ENC="$RKVC_BUILD/rkvc_encode"
 
 FFMPEG_LIB_DIRS=""
@@ -102,8 +89,10 @@ REF_YUV_RAM="$RAMDISK_DIR/clip.yuv"
 REF_NV12_RAM="$RAMDISK_DIR/clip.nv12"
 CLIP_META="$WORKDIR/clip.meta"
 CSV="$RESULTS/rd_data.csv"
+SESSION_META="$RESULTS/session.meta"
+SESSION_CODECS="$RESULTS/session.codecs"
 CSV_HEADER="codec,target_kbps,actual_kbps,psnr_y,psnr_u,psnr_v,psnr_avg,ssim,encode_sec,decode_sec,rga_sec,write_sec,postproc_sec"
-CSV_FIELDS="codec,target_kbps,actual_kbps,psnr_y,psnr_u,psnr_v,psnr_avg,ssim,encode_sec,decode_sec,rga_sec,write_sec,postproc_sec"
+CSV_FIELDS="$CSV_HEADER"
 
 # 码流/YUV 走 tmpfs；日志与 stats 留在 work/ 便于排查。
 bench_ramdir() {
@@ -127,37 +116,66 @@ usage() {
     cat <<EOF
 用法: $(basename "$0") [源视频.mp4]
 
-环境变量:
+默认从 bench/config.json 读取路径、码率点、RD 校准表等；环境变量可覆盖单项。
+
+常用覆盖:
+  BENCH_CONFIG   配置文件路径（默认 $BENCH_ROOT/config.json）
   SRC_VIDEO      源视频路径（也可作为第一个参数）
-  RUN_CODECS     默认 h264,h265,svt-av1,rkvc-v2（rkvc-v2 展开为三档 policy）
-  ENC_SCALE_DENOM  下采样编码分母（post-upscale 路线，默认 2）
-  UPSCALE_ALGOS  后处理上采样算法列表（RGA 硬件，默认 nearest,bilinear,bicubic）
-  RKVC_POLICIES  rkvc Session 语义档位（默认 realtime,balanced,quality）
-  CLIP_SEC       截取秒数（默认 4）
-  CLIP_OFFSET    截取位置：middle（默认，居中）| start（从头）
-  CLIP_START_SEC 显式起点秒数（设置后覆盖 CLIP_OFFSET）
-  TARGET_KBPS    目标码率点，逗号分隔 kbps（默认 50,100,150,200,300,400,500,600,700,800,900,1000）
-  SVT_RD_MODE    SVT-AV1 RD 扫点：calibrated（默认，CRF/CQP 表）或 vbr（--rc 1 --tbr）
-  SVT_SUPERRES_MODE   AV1 内建 superres 模式（默认 4=auto；1=fixed 3=qthresh）
-  SVT_SUPERRES_DENOM  superres 分母 9~16（默认 9，即水平 8/9；16=水平 1/2）
-  SVT_SUPERRES_QTHRES superres QP 阈值（mode=3 时，默认 48）
-  SVT_SUPERRES_FFMPEG  superres 解码用 ffmpeg（默认 /usr/bin/ffmpeg libaom-av1 软解；av1_rkmpp 暂不可用）
-  RKVC_BUILD     rkvc 构建目录（默认 $PROJECT_ROOT/build）
+  RUN_CODECS     见 config.json run.codecs
+  TARGET_KBPS    逗号分隔 kbps 列表
+  ENC_SCALE_DENOM / UPSCALE_ALGOS / CLIP_SEC / CLIP_OFFSET
+  RKVC_BUILD     rkvc 构建目录
   PLOT_ONLY=1    仅根据已有 CSV 绘图
-  RAMDISK_DIR    中间帧/码流缓存（默认 /dev/shm/rkvc-bench，不落盘 eMMC）
+  BENCH_CSV_MODE session（默认）| accumulate
 
 前置条件:
   ./scripts/build-svt.sh
   ./scripts/rebuild-ffmpeg-rkmpp.sh
-  cmake -B build && cmake --build build -j4   # rkvc_transcode
+  cmake -B build && cmake --build build -j4
 EOF
 }
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { usage; exit 0; }
 
+align_even() {
+    local v="$1"
+    echo $(( v & ~1 ))
+}
+
+enc_dims() {
+    ENC_W=$(align_even $(( WIDTH / ENC_SCALE_DENOM )))
+    ENC_H=$(align_even $(( HEIGHT / ENC_SCALE_DENOM )))
+}
+
+load_session_meta_for_plot() {
+  [[ -f "$SESSION_META" ]] || return 0
+  local line key val
+  while IFS= read -r line; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    key="${line%%=*}"
+    val="${line#*=}"
+    case "$key" in
+      clip_sec) CLIP_SEC="$val" ;;
+      clip_start) CLIP_START="$val" ;;
+      frames) FRAMES="$val" ;;
+      width) WIDTH="$val" ;;
+      height) HEIGHT="$val" ;;
+      enc_scale_denom) ENC_SCALE_DENOM="$val" ;;
+    esac
+  done <"$SESSION_META"
+}
+
 plot_results() {
     local frames="${1:-62}"
     local title_rd title_perf
+    local plot_extra=()
+    load_session_meta_for_plot
+    if [[ -n "${FRAMES:-}" ]]; then
+        frames="$FRAMES"
+    fi
+    if [[ -f "$SESSION_CODECS" ]]; then
+        plot_extra+=(--session-codecs "$SESSION_CODECS")
+    fi
     if [[ -n "${WIDTH:-}" && "${WIDTH}" -gt 0 ]]; then
         enc_dims
         title_rd="E2E RD Curve (${CLIP_SEC}s@${CLIP_START}s, ${WIDTH}x${HEIGHT} vs ${ENC_W}x${ENC_H} + ${ENC_SCALE_DENOM}x upscale)"
@@ -169,23 +187,26 @@ plot_results() {
 
     if [[ -f "$BENCH_ROOT/.venv/bin/python" ]]; then
         (cd "$BENCH_ROOT" && .venv/bin/python plot_rd_curve.py --csv "$CSV" \
-            --out "$RESULTS/rd_curve_e2e" --title "$title_rd")
+            --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
         (cd "$BENCH_ROOT" && .venv/bin/python plot_perf.py --csv "$CSV" \
-            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf")
+            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
+            "${plot_extra[@]}")
         return
     fi
     if command -v uv >/dev/null 2>&1; then
         (cd "$BENCH_ROOT" && uv run plot_rd_curve.py --csv "$CSV" \
-            --out "$RESULTS/rd_curve_e2e" --title "$title_rd")
+            --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
         (cd "$BENCH_ROOT" && uv run plot_perf.py --csv "$CSV" \
-            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf")
+            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
+            "${plot_extra[@]}")
         return
     fi
     if python3 -c "import matplotlib" 2>/dev/null; then
         (cd "$BENCH_ROOT" && python3 plot_rd_curve.py --csv "$CSV" \
-            --out "$RESULTS/rd_curve_e2e" --title "$title_rd")
+            --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
         (cd "$BENCH_ROOT" && python3 plot_perf.py --csv "$CSV" \
-            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf")
+            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
+            "${plot_extra[@]}")
         return
     fi
     echo "[warn] 未安装 matplotlib，跳过绘图。可在 bench/ 下运行: uv sync && uv run plot_rd_curve.py"
@@ -227,16 +248,7 @@ compute_clip_start() {
     fi
     local dur
     dur=$(probe_src_duration_sec)
-    CLIP_START=$(python3 - "$dur" "$CLIP_SEC" <<'PY'
-import sys
-dur = float(sys.argv[1] or 0)
-clip = float(sys.argv[2])
-if dur <= clip:
-    print("0")
-else:
-    print(f"{(dur - clip) / 2:.3f}")
-PY
-)
+    CLIP_START=$("$BENCH_PY" "$BENCH_TOOLS/clip.py" start "$dur" "$CLIP_SEC")
 }
 
 src_is_raw_elementary() {
@@ -254,27 +266,19 @@ prep_input_format_args() {
     esac
 }
 
-# 裸 .h265/.h264 需系统 ffmpeg demux；容器格式仍用 PREP_FFMPEG（rockchip 构建）。
+# 裸码流与容器均使用项目 ffmpeg-rockchip（须含 h264/hevc decoder + parser）。
 resolve_demux_ffmpeg() {
-    if src_is_raw_elementary && [[ -x /usr/bin/ffmpeg ]]; then
-        echo /usr/bin/ffmpeg
-        return
-    fi
-    echo "$PREP_FFMPEG"
+    echo "$FFMPEG"
 }
 
 resolve_demux_ffprobe() {
-    if src_is_raw_elementary && [[ -x /usr/bin/ffprobe ]]; then
-        echo /usr/bin/ffprobe
-        return
-    fi
     echo "$FFPROBE"
 }
 
 # 源视频时长（秒）；裸码流首次 count_frames 较慢，结果缓存在 work/。
 probe_src_duration_sec() {
     local cache_key
-    cache_key=$(python3 -c "import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])" "$SRC_VIDEO")
+    cache_key=$("$BENCH_PY" "$BENCH_TOOLS/clip.py" cache-key "$SRC_VIDEO")
     local cache="$WORKDIR/src_duration_${cache_key}.cache"
     local mtime cached_mtime cached_dur
     mtime=$(stat -c %Y "$SRC_VIDEO" 2>/dev/null || echo 0)
@@ -302,18 +306,7 @@ probe_src_duration_sec() {
                 -show_entries stream=nb_read_frames,r_frame_rate -of csv=p=0 "$SRC_VIDEO" 2>/dev/null || true)
             fps_s=$(echo "$probe_out" | cut -d, -f1)
             frames=$(echo "$probe_out" | cut -d, -f2)
-            dur=$(FPS_S="$fps_s" FRAMES_N="$frames" python3 - <<'PY'
-import os
-fps_s = os.environ.get("FPS_S", "30/1")
-n = int(os.environ.get("FRAMES_N", "0") or 0)
-if "/" in fps_s:
-    a, b = fps_s.split("/", 1)
-    fps = float(a) / float(b) if float(b) else 30.0
-else:
-    fps = float(fps_s) if fps_s else 30.0
-print(n / fps if fps > 0 and n > 0 else 0)
-PY
-)
+            dur=$(FPS_S="$fps_s" FRAMES_N="$frames" "$BENCH_PY" "$BENCH_TOOLS/clip.py" duration-from-frames)
         else
             dur=0
         fi
@@ -357,7 +350,8 @@ prepare_clip() {
             _fps=$("$demux_probe" -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$REF_Y4M_RAM")
             # clip.mp4 仅供 ffprobe / rkvc_transcode；由已解码 YUV 封装，避免二次有损。
             "$demux_ff" -y -f rawvideo -pix_fmt yuv420p -video_size "${_w}x${_h}" \
-                -framerate "$_fps" -i "$REF_YUV_RAM" -c:v libx264 -crf 10 -preset ultrafast -an \
+                -framerate "$_fps" -i "$REF_YUV_RAM" -c:v "$PREP_ELEM_ENCODER" \
+                -rc_mode "$PREP_ELEM_RC_MODE" -qp_init "$PREP_ELEM_QP" -g "$PREP_ELEM_GOP" -an \
                 "$CLIP_MP4" 2>/dev/null
         else
             "$PREP_FFMPEG" -y -ss "$CLIP_START" -t "$CLIP_SEC" -i "$SRC_VIDEO" -c copy -an "$CLIP_MP4" 2>/dev/null
@@ -382,94 +376,35 @@ DURATION=$("$FFPROBE" -v error -show_entries format=duration -of csv=p=0 "$SRC_C
 if [[ ! -f "$CSV" ]]; then
     echo "$CSV_HEADER" > "$CSV"
 elif ! head -1 "$CSV" | grep -q rga_sec; then
-    python3 - "$CSV" <<'PY'
-import csv, sys
-path = sys.argv[1]
-fields = [
-    "codec", "target_kbps", "actual_kbps", "psnr_y", "psnr_u", "psnr_v",
-    "psnr_avg", "ssim", "encode_sec", "decode_sec", "rga_sec", "write_sec",
-    "postproc_sec",
-]
-rows = list(csv.DictReader(open(path, newline="")))
-with open(path, "w", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=fields)
-    w.writeheader()
-    for r in rows:
-        r.setdefault("postproc_sec", "0.0")
-        post = float(r.get("postproc_sec") or 0)
-        r.setdefault("rga_sec", f"{post:.3f}" if post else "0.0")
-        r.setdefault("write_sec", "0.0")
-        w.writerow({k: r.get(k, "") for k in fields})
-PY
+    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" migrate "$CSV"
 fi
 
-# 本次跑出的分片 CSV 合并进 rd_data.csv：同 codec 整批替换，非追加重复行。
+# 合并分片 CSV → rd_data.csv。
+# session（默认）：仅写入本次 results_*.csv，rd_data.csv 与本次 RUN_CODECS 一致。
+# accumulate：未出现在分片中的 codec 保留旧 rd_data.csv 行。
 finalize_csv() {
-    python3 - "$CSV" "$WORKDIR" <<'PY'
-import csv, sys
-from pathlib import Path
+    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" finalize \
+        "$CSV" "$WORKDIR" "$BENCH_CSV_MODE" "$SESSION_META" "$SESSION_CODECS"
+}
 
-main_path = Path(sys.argv[1])
-workdir = Path(sys.argv[2])
-fields = [
-    "codec", "target_kbps", "actual_kbps", "psnr_y", "psnr_u", "psnr_v",
-    "psnr_avg", "ssim", "encode_sec", "decode_sec", "rga_sec", "write_sec",
-    "postproc_sec",
-]
-
-def _norm_row(row):
-    row.setdefault("postproc_sec", "0.0")
-    row.setdefault("rga_sec", "0.0")
-    row.setdefault("write_sec", "0.0")
-    post = float(row.get("postproc_sec") or 0)
-    rga = float(row.get("rga_sec") or 0)
-    wr = float(row.get("write_sec") or 0)
-    if post <= 0 and (rga > 0 or wr > 0):
-        post = rga + wr
-    elif rga <= 0 and wr <= 0 and post > 0:
-        row["rga_sec"] = f"{post:.3f}"
-    row["postproc_sec"] = f"{post:.3f}"
-    row["rga_sec"] = f"{rga:.3f}"
-    row["write_sec"] = f"{wr:.3f}"
-    return {k: row.get(k, "") for k in fields}
-
-new_rows = []
-rerun = set()
-for partial in sorted(workdir.glob("results_*.csv")):
-    with partial.open(newline="") as f:
-        for row in csv.DictReader(f):
-            new_rows.append(_norm_row(row))
-            rerun.add(row["codec"])
-
-preserved = []
-if main_path.is_file() and main_path.stat().st_size > 0:
-    with main_path.open(newline="") as f:
-        for row in csv.DictReader(f):
-            if row["codec"] not in rerun:
-                preserved.append(_norm_row(row))
-
-tmp = main_path.with_suffix(".csv.tmp")
-with tmp.open("w", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=fields)
-    w.writeheader()
-    w.writerows(preserved)
-    w.writerows(new_rows)
-tmp.replace(main_path)
-PY
+write_bench_session_meta() {
+    cat >"$SESSION_META" <<EOF
+run_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+csv_mode=$BENCH_CSV_MODE
+run_codecs=$RUN_CODECS
+enc_scale_denom=$ENC_SCALE_DENOM
+upscale_algos=$UPSCALE_ALGOS
+target_kbps=$TARGET_KBPS
+clip_sec=$CLIP_SEC
+clip_start=$CLIP_START
+frames=$FRAMES
+width=$WIDTH
+height=$HEIGHT
+EOF
 }
 
 parse_quality_log() {
-    python3 - "$1" <<'PY'
-import re, sys
-log = open(sys.argv[1]).read()
-psnr_m = re.findall(r"PSNR y:([\d.]+) u:([\d.]+) v:([\d.]+) average:([\d.]+)", log)
-ssim_m = re.findall(r"All:([\d.]+)", log.split("Parsed_ssim")[-1] if "Parsed_ssim" in log else log)
-if not psnr_m or not ssim_m:
-    raise SystemExit(f"quality parse failed: {sys.argv[1]}")
-psnr = psnr_m[-1]
-ssim = ssim_m[-1]
-print(",".join((*psnr, ssim)))
-PY
+    "$BENCH_PY" "$BENCH_TOOLS/quality.py" parse "$1"
 }
 
 measure_quality() {
@@ -506,95 +441,30 @@ measure_quality_nv12() {
 
 actual_kbps() {
     local file="$1" frames="${2:-}" dur="${3:-$DURATION}"
-    python3 - "$file" "$frames" "$dur" "$FPS_NUM" "$FPS_DEN" <<'PY'
-import os, sys
-size = os.path.getsize(sys.argv[1])
-frames = sys.argv[2]
-dur = float(sys.argv[3])
-fps_num = float(sys.argv[4])
-fps_den = float(sys.argv[5])
-fps = fps_num / fps_den if fps_den else 30.0
-if frames and frames != "0":
-    dur = float(frames) / fps
-if dur <= 0:
-    print("0")
-else:
-    print(f"{size * 8 / dur / 1000:.2f}")
-PY
+    "$BENCH_PY" "$BENCH_TOOLS/bitrate.py" "$file" "$frames" "$dur" "$FPS_NUM" "$FPS_DEN"
 }
 
 # 写入当前 $CSV（本次路线的分片文件，非 rd_data.csv 追加）。
 write_csv_row() {
-    python3 - "$@" <<'PY'
-import sys
-csv, codec, tgt, br, q, t0, t1, t2 = sys.argv[1:9]
-t3 = sys.argv[9] if len(sys.argv) > 9 else ""
-enc = float(t1) - float(t0)
-dec = float(t2) - float(t1)
-post = float(t3) - float(t2) if t3 else 0.0
-open(csv, "a").write(
-    f"{codec},{tgt},{br},{q},{enc:.1f},{dec:.1f},0.000,0.000,{post:.3f}\n")
-PY
+    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" write-row "$@"
 }
 
 write_csv_row_session() {
-    python3 - "$@" <<'PY'
-import sys
-csv, codec, tgt, br, q, t0, t1, dec, rga, wr, post = sys.argv[1:12]
-enc = float(t1) - float(t0)
-open(csv, "a").write(
-    f"{codec},{tgt},{br},{q},{enc:.1f},{float(dec):.3f},"
-    f"{float(rga):.3f},{float(wr):.3f},{float(post):.3f}\n")
-PY
+    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" write-session-row "$@"
 }
 
-align_even() {
-    local v="$1"
-    echo $(( v & ~1 ))
+bench_cal() {
+    "$BENCH_PY" "$BENCH_TOOLS/config.py" lookup "$BENCH_CONFIG" "$PROJECT_ROOT" "$1" "$2"
 }
 
-enc_dims() {
-    ENC_W=$(align_even $(( WIDTH / ENC_SCALE_DENOM )))
-    ENC_H=$(align_even $(( HEIGHT / ENC_SCALE_DENOM )))
-}
-
-# RKMPP CBR 在 2s 短片段上无法稳定命中目标码率（首 GOP 严重超发），
-# 故 h264/h265 使用按分辨率校准的 CQP（rc_mode=2）。
-# SVT preset 11 下 VBR/CBR 均难命中 target，calibrated 模式用 CRF/CQP 表扫点。
 rkmpp_cqp_encode_args() {
     local qp="$1"
-    printf '%s\n' -rc_mode 2 -qp_init "$qp"
+    printf '%s\n' -rc_mode "$RKMPP_RC_MODE" -qp_init "$qp"
 }
 
 svt_vbr_args() {
     local kbps="$1"
     printf '%s\n' --rc 1 --tbr "$kbps"
-}
-
-# 全分辨率 1080p @ locomotion 2s CRF 表（SVT preset 11，actual≈target）
-svt_crf_for_target() {
-    case "$1" in
-         25) echo 70 ;;   30) echo 69 ;;   40) echo 68 ;;
-         50) echo 70 ;;   60) echo 68 ;;   80) echo 67 ;;
-        100) echo 65 ;;  150) echo 64 ;;  200) echo 62 ;;
-        300) echo 60 ;;  400) echo 58 ;;  500) echo 57 ;;
-        600) echo 54 ;;  700) echo 53 ;;  800) echo 52 ;;
-        900) echo 42 ;; 1000) echo 41 ;;
-        *) echo 62 ;;
-    esac
-}
-
-# 低分辨率 360p @ locomotion 2s CQP 表（post-upscale SVT 路线）
-svt_lo_qp_for_target() {
-    case "$1" in
-         25) echo 63 ;;   30) echo 62 ;;   40) echo 61 ;;
-         50) echo 60 ;;   60) echo 59 ;;   80) echo 57 ;;
-        100) echo 53 ;;  150) echo 51 ;;  200) echo 46 ;;
-        300) echo 41 ;;  400) echo 38 ;;  500) echo 36 ;;
-        600) echo 34 ;;  700) echo 31 ;;  800) echo 29 ;;
-        900) echo 28 ;; 1000) echo 19 ;;
-        *) echo 46 ;;
-    esac
 }
 
 svt_full_encode_args() {
@@ -604,7 +474,7 @@ svt_full_encode_args() {
         return
     fi
     local crf
-    crf=$(svt_crf_for_target "$kbps")
+    crf=$(bench_cal "svt_av1.full_crf" "$kbps")
     printf '%s\n' --rc 0 --crf "$crf"
 }
 
@@ -615,7 +485,7 @@ svt_lo_encode_args() {
         return
     fi
     local qp
-    qp=$(svt_lo_qp_for_target "$kbps")
+    qp=$(bench_cal "svt_av1.low_qp" "$kbps")
     printf '%s\n' --rc 0 --aq-mode 0 --qp "$qp"
 }
 
@@ -649,63 +519,21 @@ svt_superres_encode_args() {
     printf '%s\n' "${base[@]}" "${superres[@]}"
 }
 
-# 全分辨率 1080p @ locomotion 4s middle CQP（h264_rkmpp qp≤51，复杂片段 floor ~650kbps）
-h264_qp_for_target() {
-    case "$1" in
-         25|30|40|50|60|80|100|150|200) echo 51 ;;
-        300) echo 47 ;;  400) echo 45 ;;  500) echo 43 ;;
-        600) echo 41 ;;  700) echo 40 ;;  800) echo 38 ;;
-        900) echo 38 ;; 1000) echo 37 ;;
-        *) echo 51 ;;
-    esac
-}
-
-h265_qp_for_target() {
-    case "$1" in
-         25|30|40|50|60|80) echo 51 ;;
-        100) echo 48 ;;  150) echo 47 ;;  200) echo 46 ;;
-        300) echo 43 ;;  400) echo 41 ;;  500) echo 40 ;;
-        600) echo 38 ;;  700) echo 37 ;;  800) echo 36 ;;
-        900) echo 34 ;; 1000) echo 33 ;;
-        *) echo 41 ;;
-    esac
-}
-
-# 低分辨率 360p @ locomotion 2s CQP 表（post-upscale RKMPP 路线）
-h264_lo_qp_for_target() {
-    case "$1" in
-         25) echo 47 ;;   30) echo 46 ;;   40) echo 45 ;;
-         50) echo 44 ;;   60) echo 43 ;;   80) echo 42 ;;
-        100) echo 40 ;;  150) echo 39 ;;  200) echo 37 ;;
-        300) echo 34 ;;  400) echo 32 ;;  500) echo 31 ;;
-        600) echo 30 ;;  700) echo 29 ;;  800) echo 28 ;;
-        900) echo 27 ;; 1000) echo 25 ;;
-        *) echo 37 ;;
-    esac
-}
-
-h265_lo_qp_for_target() {
-    case "$1" in
-         25) echo 42 ;;   30) echo 41 ;;   40) echo 40 ;;
-         50) echo 39 ;;   60) echo 38 ;;   80) echo 37 ;;
-        100) echo 35 ;;  150) echo 34 ;;  200) echo 33 ;;
-        300) echo 32 ;;  400) echo 31 ;;  500) echo 29 ;;
-        600) echo 27 ;;  700) echo 26 ;;  800) echo 25 ;;
-        900) echo 24 ;; 1000) echo 23 ;;
-        *) echo 33 ;;
-    esac
-}
+h264_qp_for_target() { bench_cal "h264.full" "$1"; }
+h265_qp_for_target() { bench_cal "h265.full" "$1"; }
+h264_lo_qp_for_target() { bench_cal "h264.low" "$1"; }
+h265_lo_qp_for_target() { bench_cal "h265.low" "$1"; }
 
 sync_enc_ref_to_ram() {
     enc_dims
     REF_Y4M_ENC="$RAMDISK_DIR/clip_enc_${ENC_SCALE_DENOM}x_${ENC_W}x${ENC_H}.y4m"
     REF_NV12_ENC="$RAMDISK_DIR/clip_enc_${ENC_SCALE_DENOM}x_${ENC_W}x${ENC_H}.nv12"
     local enc_meta="$RAMDISK_DIR/clip_enc_${ENC_SCALE_DENOM}x.meta"
-    local enc_method="rga-bilinear-nv12-v1"
+    local enc_method="$PREP_DOWNSCALE_METHOD"
 
     if [[ ! -f "$enc_meta" ]] || [[ "$(cat "$enc_meta")" != "$enc_method" ]] \
         || [[ ! -f "$REF_NV12_ENC" ]] || [[ "$REF_NV12_RAM" -nt "$REF_NV12_ENC" ]]; then
-        echo "[prep] RGA 下采样参考帧 ${WIDTH}x${HEIGHT} → ${ENC_W}x${ENC_H} (1/${ENC_SCALE_DENOM}, bilinear, NV12) ..."
+        echo "[prep] RGA 下采样参考帧 ${WIDTH}x${HEIGHT} → ${ENC_W}x${ENC_H} (1/${ENC_SCALE_DENOM}, ${PREP_DOWNSCALE_ALGO}, NV12) ..."
         downscale_nv12 "$REF_NV12_RAM" "$REF_NV12_ENC" "$FRAMES" || return 1
         echo "$enc_method" > "$enc_meta"
         rm -f "$REF_Y4M_ENC"
@@ -764,9 +592,9 @@ ffmpeg_to_yuv420p_raw() {
 ffmpeg_superres_to_yuv420p_raw() {
     local input="$1" out_yuv="$2" log="$3"
     shift 3
-    local ff="${SVT_SUPERRES_FFMPEG:-/usr/bin/ffmpeg}"
-    if [[ ! -x "$ff" ]]; then
-        echo "[error] superres 解码需要 $ff（libaom-av1），或设置 SVT_SUPERRES_FFMPEG" >&2
+    local ff="$SVT_SUPERRES_FFMPEG"
+    if [[ -z "$ff" || ! -x "$ff" ]]; then
+        echo "[error] superres 解码需在 config.json 设置 paths.superres_decode_ffmpeg（项目 ffmpeg 无 libaom）" >&2
         return 1
     fi
     "$ff" -y -c:v libaom-av1 -i "$input" -pix_fmt yuv420p \
@@ -803,16 +631,24 @@ session_decode_upscale() {
         echo "[error] Session 上采样工具未构建: $RKVC_SESSION_UPSCALE" >&2
         return 1
     fi
+    local -a extra=()
+    if [[ "$algo" == "rkvc_sr" ]]; then
+        if [[ ! -f "$RKVC_SR_MODEL" ]]; then
+            echo "[error] RKVC 超分模型未找到: $RKVC_SR_MODEL" >&2
+            return 1
+        fi
+        extra+=(--rkvc-sr-model "$RKVC_SR_MODEL")
+    fi
     "$RKVC_SESSION_UPSCALE" -i "$bitstream" -o "$out_nv12" \
         --width "$WIDTH" --height "$HEIGHT" \
         --enc-scale-denom "$ENC_SCALE_DENOM" \
-        --post-upscale "$algo" --print-timing 2>"$log"
+        --post-upscale "$algo" "${extra[@]}" --print-timing 2>"$log"
 }
 
 downscale_yuv() {
     local in_yuv="$1" out_yuv="$2" frames="$3"
     enc_dims
-    upscale_yuv "$in_yuv" "$out_yuv" "$WIDTH" "$HEIGHT" "$ENC_W" "$ENC_H" bilinear "$frames"
+    upscale_yuv "$in_yuv" "$out_yuv" "$WIDTH" "$HEIGHT" "$ENC_W" "$ENC_H" "$PREP_DOWNSCALE_ALGO" "$frames"
 }
 
 downscale_nv12() {
@@ -884,7 +720,7 @@ run_h264_hw() {
     t0=$(date +%s.%N)
     "$FFMPEG" -y -f rawvideo -pix_fmt yuv420p -video_size "${WIDTH}x${HEIGHT}" \
         -framerate "$FPS_NUM/$FPS_DEN" -i "$REF_YUV_RAM" -c:v h264_rkmpp \
-        "${enc_args[@]}" -g 60 -an \
+        "${enc_args[@]}" -g "$RKMPP_GOP" -an \
         "$bitstream" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     ffmpeg_to_yuv420p_raw "$bitstream" "$decoded_yuv" "$logdir/dec.log"
@@ -910,7 +746,7 @@ run_h265_hw() {
     t0=$(date +%s.%N)
     "$FFMPEG" -y -f rawvideo -pix_fmt yuv420p -video_size "${WIDTH}x${HEIGHT}" \
         -framerate "$FPS_NUM/$FPS_DEN" -i "$REF_YUV_RAM" -c:v hevc_rkmpp \
-        "${enc_args[@]}" -g 60 -an \
+        "${enc_args[@]}" -g "$RKMPP_GOP" -an \
         "$bitstream" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     ffmpeg_to_yuv420p_raw "$bitstream" "$decoded_yuv" "$logdir/dec.log"
@@ -939,7 +775,7 @@ run_svt_av1() {
     local t0 t1 t2 br q
     t0=$(date +%s.%N)
     "$SVT_ENC" --input "$REF_Y4M_RAM" -b "$bitstream" --preset "$SVT_PRESET" \
-        "${svt_args[@]}" --keyint 60 --lp 4 -n "$FRAMES" 2>"$logdir/enc.log"
+        "${svt_args[@]}" --keyint "$SVT_KEYINT" --lp "$SVT_LP" -n "$FRAMES" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     ffmpeg_to_yuv420p_raw "$bitstream" "$decoded_yuv" "$logdir/dec.log"
     t2=$(date +%s.%N)
@@ -966,11 +802,11 @@ run_svt_av1_superres() {
     local -a svt_args
     mapfile -t svt_args < <(svt_superres_encode_args "$kbps")
     echo "[run] ${csv_codec} @ ${kbps}kbps (superres $(svt_superres_mode_label), preset ${SVT_PRESET}, mode ${SVT_RD_MODE})"
-    echo "[warn] svt-av1+superres 为实验路线（搁置）；解码走 ${SVT_SUPERRES_FFMPEG:-/usr/bin/ffmpeg} libaom-av1 软解" >&2
+    echo "[warn] svt-av1+superres 为实验路线；解码走 ${SVT_SUPERRES_FFMPEG}（须在 config.json 配置）" >&2
     local t0 t1 t2 br q
     t0=$(date +%s.%N)
     "$SVT_ENC" --input "$REF_Y4M_RAM" -b "$bitstream" --preset "$SVT_PRESET" \
-        "${svt_args[@]}" --keyint 60 --lp 4 -n "$FRAMES" 2>"$logdir/enc.log" || return 1
+        "${svt_args[@]}" --keyint "$SVT_KEYINT" --lp "$SVT_LP" -n "$FRAMES" 2>"$logdir/enc.log" || return 1
     t1=$(date +%s.%N)
     ffmpeg_superres_to_yuv420p_raw "$bitstream" "$decoded_yuv" "$logdir/dec.log" -frames:v "$FRAMES" || return 1
     t2=$(date +%s.%N)
@@ -1015,7 +851,7 @@ run_rkmpp_post_upscale() {
     t0=$(date +%s.%N)
     "$FFMPEG" -y -f rawvideo -pix_fmt nv12 -video_size "${ENC_W}x${ENC_H}" \
         -framerate "$FPS_NUM/$FPS_DEN" -i "$REF_NV12_ENC" -c:v "$enc" \
-        "${enc_args[@]}" -g 60 -an "$bitstream" 2>"$logdir/enc.log" || return 1
+        "${enc_args[@]}" -g "$RKMPP_GOP" -an "$bitstream" 2>"$logdir/enc.log" || return 1
     t1=$(date +%s.%N)
     timing=$(session_decode_upscale "$bitstream" "$upscaled_nv12" "$algo" "$logdir/dec.log") || return 1
     dec_sec=$(echo "$timing" | sed -n 's/.*decode_sec=\([0-9.]*\).*/\1/p')
@@ -1051,7 +887,7 @@ run_svt_av1_post_upscale() {
     mapfile -t svt_args < <(svt_lo_encode_args "$kbps")
     t0=$(date +%s.%N)
     "$SVT_ENC" --input "$REF_Y4M_ENC" -b "$bitstream" --preset "$SVT_PRESET" \
-        "${svt_args[@]}" --keyint 60 --lp 4 -n "$FRAMES" 2>"$logdir/enc.log"
+        "${svt_args[@]}" --keyint "$SVT_KEYINT" --lp "$SVT_LP" -n "$FRAMES" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     timing=$(session_decode_upscale "$bitstream" "$upscaled_nv12" "$algo" "$logdir/dec.log") || return 1
     dec_sec=$(echo "$timing" | sed -n 's/.*decode_sec=\([0-9.]*\).*/\1/p')
@@ -1150,11 +986,14 @@ run_rkvc_quality() {
         echo "[skip] rkvc_encode 未构建: $RKVC_ENC"
         return 0
     fi
-    echo "[run] rkvc session (quality → AV1 SVT p${SVT_PRESET}, YUV encode) @ ${kbps}kbps"
+    echo "[run] rkvc session (quality → AV1 SVT p${SVT_PRESET}, lp=${SVT_LP}, YUV encode) @ ${kbps}kbps"
     local t0 t1 t2 br q enc_frames
+    local -a svt_session_args=(--svt-lp "${SVT_LP:-4}")
+    [[ "${SVT_RTC:-0}" == "1" ]] && svt_session_args+=(--svt-rtc)
     t0=$(date +%s.%N)
     "$RKVC_ENC" -i "$REF_YUV_RAM" -o "$bitstream" -p quality -b "$((kbps * 1000))" \
-        --rc-mode vbr --pix-fmt yuv420p -s "${WIDTH}x${HEIGHT}" -r "$fps" 2>"$logdir/enc.log"
+        --rc-mode vbr --pix-fmt yuv420p -s "${WIDTH}x${HEIGHT}" -r "$fps" \
+        "${svt_session_args[@]}" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     enc_frames=$(stream_frame_count "$bitstream")
     if [[ "$enc_frames" -lt $((FRAMES - 2)) ]]; then
@@ -1189,7 +1028,8 @@ codec_enabled() {
 }
 
 superres_enabled() {
-    codec_enabled svt-av1+superres || codec_enabled svt-av1-superres
+    [[ "$SVT_SUPERRES_ENABLED" == "1" ]] || \
+        codec_enabled svt-av1+superres || codec_enabled svt-av1-superres
 }
 
 rkvc_policy_enabled() {
@@ -1218,7 +1058,7 @@ codec_will_rerun() {
     if [[ "$codec" == post-upscale ]]; then
         post_upscale_will_rerun && return 0
     fi
-    if [[ "$codec" =~ ^(h264|h265|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic)$ ]]; then
+    if [[ "$codec" =~ ^(h264|h265|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
         post_upscale_algo_enabled "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" && return 0
     fi
     if [[ "$codec" =~ ^(h264|h265|svt-av1)\+up[0-9]+x$ ]]; then
@@ -1228,6 +1068,7 @@ codec_will_rerun() {
 }
 
 echo "[info] project: $PROJECT_ROOT"
+echo "[info] config:  $BENCH_CONFIG"
 echo "[info] ffmpeg:  $FFMPEG"
 echo "[info] clip: ${CLIP_SEC}s @ ${CLIP_START}s (${FRAMES} frames, ${WIDTH}x${HEIGHT}, offset=${CLIP_OFFSET})"
 echo "[info] bitrates: ${BITRATES[*]} kbps (TARGET_KBPS)"
@@ -1236,6 +1077,7 @@ if superres_enabled; then
     echo "[info] svt superres: mode=${SVT_SUPERRES_MODE} denom=${SVT_SUPERRES_DENOM} qthres=${SVT_SUPERRES_QTHRES}"
 fi
 echo "[info] codecs: $RUN_CODECS"
+echo "[info] csv mode: $BENCH_CSV_MODE (session=仅本次, accumulate=保留未重跑历史)"
 echo "[info] enc scale denom: $ENC_SCALE_DENOM  upscale algos: $UPSCALE_ALGOS"
 echo "[info] rkvc policies: $RKVC_POLICIES"
 echo "[info] rkvc: $RKVC_TRANS"
@@ -1256,6 +1098,7 @@ if post_upscale_will_rerun; then
     sync_enc_ref_to_ram
 fi
 sync_ref_to_ram
+write_bench_session_meta
 rm -f "$WORKDIR"/results_*.csv
 
 bench_rkvc_policies() {
@@ -1290,7 +1133,8 @@ bench_post_upscale_combo() {
 }
 
 bench_post_upscale() {
-    local base algo
+    local base algo c
+    declare -A _ran=()
     IFS=',' read -ra _bench_algos <<< "$UPSCALE_ALGOS"
     for base in h264 h265 svt-av1; do
         post_upscale_base_enabled "$base" || continue
@@ -1298,6 +1142,7 @@ bench_post_upscale() {
             if ! post_upscale_algo_enabled "$base" "$algo"; then
                 continue
             fi
+            _ran["${base}|${algo}"]=1
             if [[ "$BENCH_PARALLEL" == "1" ]]; then
                 bench_post_upscale_combo "$base" "$algo" &
                 pids+=($!)
@@ -1305,6 +1150,21 @@ bench_post_upscale() {
                 bench_post_upscale_combo "$base" "$algo"
             fi
         done
+    done
+    IFS=',' read -ra _run_codecs <<< "$RUN_CODECS"
+    for c in "${_run_codecs[@]}"; do
+        if [[ "$c" =~ ^(h264|h265|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
+            base="${BASH_REMATCH[1]}"
+            algo="${BASH_REMATCH[2]}"
+            [[ -n "${_ran[${base}|${algo}]:-}" ]] && continue
+            post_upscale_algo_enabled "$base" "$algo" || continue
+            if [[ "$BENCH_PARALLEL" == "1" ]]; then
+                bench_post_upscale_combo "$base" "$algo" &
+                pids+=($!)
+            else
+                bench_post_upscale_combo "$base" "$algo"
+            fi
+        fi
     done
 }
 

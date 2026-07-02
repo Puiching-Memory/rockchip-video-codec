@@ -11,11 +11,15 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include <libavutil/dict.h>
+#include <libavutil/fifo.h>
+#include <libavutil/hash.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_drm.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/time.h>
 #include <libswscale/swscale.h>
 #include <svt-av1/EbSvtAv1Enc.h>
 
@@ -23,6 +27,8 @@
 
 /** SVT-AV1 高性能 preset（与 bench SVT_PRESET 默认 11 对齐） */
 #define RKVC_SVT_PRESET_PERF 11
+/** SVT-AV1 lp：0 表示由编码器按 CPU 核数自动选择 */
+#define RKVC_SVT_LP_AUTO 0
 
 #include <fcntl.h>
 #include <pthread.h>
@@ -31,12 +37,14 @@
 #include <string.h>
 #include <unistd.h>
 
-#ifdef RKVC_DEBUG
+void rkvc_log_print(int level, const char *fmt, ...) av_printf_format(2, 3);
+void rkvc_ffmpeg_utils_init(void);
+void rkvc_set_log_level(int level);
+int rkvc_get_log_level(void);
+int64_t rkvc_now_us(void);
+
 #define RKVC_LOG(fmt, ...) \
-    fprintf(stderr, "[rkvc] " fmt "\n", ##__VA_ARGS__)
-#else
-#define RKVC_LOG(fmt, ...) ((void)0)
-#endif
+    rkvc_log_print(AV_LOG_INFO, fmt "\n", ##__VA_ARGS__)
 
 /* ── 工具 ─────────────────────────────────────────────────────────── */
 
@@ -58,6 +66,19 @@ enum AVPixelFormat rkvc_to_av_pix_fmt(rkvc_pix_fmt fmt);
 rkvc_pix_fmt rkvc_from_av_pix_fmt(enum AVPixelFormat fmt);
 int rkvc_buffer_looks_compressed_video(const uint8_t *data, size_t size);
 rkvc_err rkvc_avframe_alloc_contiguous(AVFrame *av_frame);
+
+rkvc_err rkvc_dict_parse_opts(AVDictionary **dict, const char *opts);
+void rkvc_dict_free(AVDictionary **dict);
+rkvc_err rkvc_dict_set_int(AVDictionary **dict, const char *key, int64_t val);
+rkvc_err rkvc_opt_set_dict(void *obj, AVDictionary **dict);
+rkvc_err rkvc_codec_open2(AVCodecContext *ctx, const AVCodec *codec,
+                          AVDictionary **opts, const char *ctx_name);
+rkvc_err rkvc_format_open_input(AVFormatContext **fmt, const char *path,
+                                AVDictionary **opts);
+rkvc_err rkvc_hash_buffer(const char *algo, const uint8_t *data, size_t len,
+                          char *out_hex, size_t out_size);
+rkvc_err rkvc_hash_file(const char *path, const char *algo,
+                        char *out_hex, size_t out_size);
 
 /* ── Buffer ───────────────────────────────────────────────────────── */
 
@@ -128,6 +149,7 @@ typedef struct rkvc_svt_enc rkvc_svt_enc;
 
 typedef struct {
     const char *input_path;
+    const char *format_opts; /**< avformat_open_input 选项，key=val:key2=val2 */
 } rkvc_demux_config;
 
 typedef struct {
@@ -146,6 +168,7 @@ typedef struct {
     const rkvc_route_plan *route;
     rkvc_pix_fmt      output_format;
     int               low_latency;
+    const char       *codec_opts; /**< avcodec_open2 选项，key=val:key2=val2 */
 } rkvc_mpp_dec_config;
 
 typedef struct {
@@ -160,6 +183,7 @@ typedef struct {
     int               low_latency;
     rkvc_rc_mode      rc_mode;
     int               qp_init;
+    const char       *codec_opts; /**< 编码器 priv_data / open2 选项 */
 } rkvc_mpp_enc_config;
 
 typedef struct {
@@ -171,6 +195,8 @@ typedef struct {
     rkvc_pix_fmt      input_format;
     int               gop_size;
     int               svt_preset;
+    int               svt_lp;
+    int               svt_rtc;
     rkvc_rc_mode      rc_mode;
 } rkvc_svt_enc_config;
 
@@ -210,7 +236,8 @@ rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                rkvc_upscale_algo algo);
 rkvc_err rkvc_post_upscale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                   int dst_w, int dst_h,
-                                  rkvc_upscale_algo algo);
+                                  rkvc_upscale_algo algo,
+                                  const char *rkvc_sr_model_path);
 const char *rkvc_upscale_algo_name(rkvc_upscale_algo algo);
 int rkvc_upscale_algo_from_name(const char *name, rkvc_upscale_algo *out);
 rkvc_err rkvc_dma_to_host(const rkvc_buffer *src, rkvc_buffer **dst);
@@ -219,6 +246,31 @@ rkvc_err rkvc_buffer_dmabuf_end_cpu_read(const rkvc_buffer *buf);
 rkvc_err rkvc_buffer_dmabuf_begin_device_write(const rkvc_buffer *buf);
 rkvc_err rkvc_buffer_dmabuf_end_device_write(const rkvc_buffer *buf);
 int rkvc_rga_available(void);
+int rkvc_rga_rgb888_stride(int width);
+int rkvc_rga_rgb888_row_bytes(int width);
+rkvc_err rkvc_rga_csc_nv12_to_rgb888(const rkvc_buffer *src, uint8_t *rgb,
+                                     int w, int h, int rgb_stride_pixels);
+rkvc_err rkvc_rga_csc_rgb888_to_nv12(const uint8_t *rgb, int w, int h,
+                                     int rgb_stride_pixels, rkvc_buffer *dst);
+
+typedef struct rkvc_rknn_sr_ctx rkvc_rknn_sr_ctx;
+
+int rkvc_rknn_sr_available(void);
+rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
+                                          int expect_out_w, int expect_out_h,
+                                          rkvc_buffer_pool *pool);
+void rkvc_rknn_sr_ctx_destroy(rkvc_rknn_sr_ctx *ctx);
+rkvc_err rkvc_rknn_sr_ctx_process(rkvc_rknn_sr_ctx *ctx,
+                                  const rkvc_buffer *src,
+                                  rkvc_buffer **out);
+rkvc_err rkvc_rknn_sr_ctx_submit(rkvc_rknn_sr_ctx *ctx,
+                                 const rkvc_buffer *src);
+rkvc_err rkvc_rknn_sr_ctx_collect(rkvc_rknn_sr_ctx *ctx,
+                                  rkvc_buffer **out, int block);
+int rkvc_rknn_sr_ctx_busy(const rkvc_rknn_sr_ctx *ctx);
+void rkvc_rknn_sr_ctx_drain(rkvc_rknn_sr_ctx *ctx);
+rkvc_err rkvc_rknn_sr_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
+                             int dst_w, int dst_h, const char *model_path);
 
 typedef struct rkvc_rga_scale_ctx rkvc_rga_scale_ctx;
 rkvc_rga_scale_ctx *rkvc_rga_scale_ctx_create(int dst_w, int dst_h,
@@ -250,6 +302,7 @@ struct rkvc_session {
     rkvc_mpp_enc         *enc;
     rkvc_svt_enc         *svt;
     rkvc_rga_scale_ctx   *rga_scale;
+    rkvc_rknn_sr_ctx     *rknn_sr;
 
     rkvc_session_stats    stats;
     int64_t               first_ts_us;

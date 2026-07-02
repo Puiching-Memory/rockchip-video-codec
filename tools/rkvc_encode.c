@@ -13,7 +13,8 @@ static void usage(void)
 {
     printf("rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 [-p realtime|balanced|quality] "
            "[--rc-mode vbr|cbr|cqp] [--qp N] [--enc-scale-denom N] "
-           "[--post-upscale nearest|bilinear|bicubic]\n");
+           "[--post-upscale nearest|bilinear|bicubic] "
+           "[--svt-lp N] [--svt-rtc]\n");
 }
 
 static rkvc_policy parse_policy(const char *s)
@@ -67,6 +68,8 @@ int main(int argc, char **argv)
     const char *upscale_s = NULL;
     int w = 1920, h = 1080, fps = 30, qp = -1;
     int enc_scale_denom = 1;
+    int svt_lp = 0;
+    int svt_rtc = 0;
     int64_t bitrate = 4000000;
 
     static struct option opts[] = {
@@ -81,12 +84,14 @@ int main(int argc, char **argv)
         {"pix-fmt", required_argument, 0, 'f'},
         {"enc-scale-denom", required_argument, 0, 'S'},
         {"post-upscale", required_argument, 0, 'U'},
+        {"svt-lp", required_argument, 0, 'L'},
+        {"svt-rtc", no_argument, 0, 'C'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
 
     int c;
-    while ((c = getopt_long(argc, argv, "i:o:s:r:b:p:hR:q:f:S:U:", opts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "i:o:s:r:b:p:hR:q:f:S:U:L:C", opts, NULL)) != -1) {
         switch (c) {
         case 'i': input = optarg; break;
         case 'o': output = optarg; break;
@@ -99,6 +104,8 @@ int main(int argc, char **argv)
         case 'f': pix_fmt_s = optarg; break;
         case 'S': enc_scale_denom = atoi(optarg); break;
         case 'U': upscale_s = optarg; break;
+        case 'L': svt_lp = atoi(optarg); break;
+        case 'C': svt_rtc = 1; break;
         default: usage(); return c == 'h' ? 0 : 1;
         }
     }
@@ -133,6 +140,8 @@ int main(int argc, char **argv)
         d.qp_init = qp;
     if (enc_scale_denom > 0)
         d.enc_scale_denom = enc_scale_denom;
+    d.svt_lp  = svt_lp;
+    d.svt_rtc = svt_rtc;
     if (upscale_s) {
         rkvc_upscale_algo algo;
         if (rkvc_upscale_algo_from_name(upscale_s, &algo) < 0) {

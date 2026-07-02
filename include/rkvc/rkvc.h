@@ -27,6 +27,17 @@ rkvc_err rkvc_init(void);
 void rkvc_deinit(void);
 const char *rkvc_err_str(rkvc_err err);
 
+/** 日志级别与 FFmpeg AV_LOG_* 常量一致（如 AV_LOG_INFO、AV_LOG_DEBUG）。 */
+void rkvc_set_log_level(int level);
+int rkvc_get_log_level(void);
+
+/**
+ * 计算文件摘要（algo 支持 md5、sha256 等，见 av_hash_names）。
+ * out_hex 长度须 >= 2 * digest_size + 1。
+ */
+rkvc_err rkvc_hash_file(const char *path, const char *algo,
+                        char *out_hex, size_t out_size);
+
 typedef enum {
     RKVC_INPUT_UNKNOWN = 0,
     RKVC_INPUT_RAW_VIDEO,

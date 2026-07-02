@@ -114,7 +114,9 @@ graph TD
 全分辨率 REF → RGA 1/N 下采样 → 编码 → 解码 → RGA 上采样 → 输出
 ```
 
-对应字段：`enc_scale_denom`（编码前下采样分母）、`post_upscale_algo`（`nearest` / `bilinear` / `bicubic`，RGA 硬件）。`width`/`height` 始终为显示/参考分辨率。
+对应字段：`enc_scale_denom`（编码前下采样分母）、`post_upscale_algo`（`nearest` / `bilinear` / `bicubic` / `rkvc_sr`，RGA 或 RKVC 神经网络超分）。`width`/`height` 始终为显示/参考分辨率。
+
+`rkvc_sr` 走 RKVC 神经网络超分（`lib/node_rkvc_sr.c`）。现网模型在 RGB 域训练，推理含 NV12↔RGB CSC；下一代 **YUV-native** 模型规格见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
 
 ## RKMPP 解码器初始化
 

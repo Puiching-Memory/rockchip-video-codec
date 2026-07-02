@@ -66,6 +66,7 @@ typedef enum {
     RKVC_UPSCALE_NEAREST,       /**< 最近邻 (RGA) */
     RKVC_UPSCALE_BILINEAR,      /**< 双线性 (RGA) */
     RKVC_UPSCALE_BICUBIC,       /**< 双三次 (RGA) */
+    RKVC_UPSCALE_AI_SR,         /**< RKVC 神经网络超分 */
 } rkvc_upscale_algo;
 
 #ifdef __cplusplus
