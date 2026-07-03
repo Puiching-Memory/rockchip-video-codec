@@ -11,7 +11,8 @@ rkvc **0.2.0** 为破坏性升级：v1 的 `encoder` / `decoder` / `stream` / `f
 | `rkvc_packet` | `rkvc_buffer`（`RKVC_BUF_BITSTREAM`） |
 | `rkvc_stream` | Session 端口 `capture` / `output` |
 | 手动选 HEVC 编码器 | `rkvc_policy` + Codec Router |
-| `rkvc_scale_*` | `enc_scale_denom` + RGA 节点 + `post_upscale_algo` |
+| `rkvc_scale_*` | `enc_scale_denom` + Session RGA 节点 + `post_upscale_algo` |
+| `rkvc_scale_*`（独立平面缩放） | `rkvc_upscale_yuv420p` / `rkvc_upscale_nv12` / `rkvc_upscale_ctx_*` |
 
 ## 头文件变更
 
@@ -21,7 +22,9 @@ rkvc **0.2.0** 为破坏性升级：v1 的 `encoder` / `decoder` / `stream` / `f
 
 **新增：**
 
+- `rkvc/types.h` — 公共枚举与错误码
 - `rkvc/buffer.h`、`pipeline.h`、`policy.h`、`port.h`、`session.h`
+- `rkvc/rkvc.h` — 主入口（init、日志、caps、RGA 上采样等）
 
 ## 代码迁移
 
@@ -102,6 +105,18 @@ rkvc_buffer *buf;
 rkvc_buffer_alloc_video_host(&buf, 1920, 1080, RKVC_PIX_FMT_NV12);
 rkvc_buffer_get_video_planes(buf, planes, strides);
 ```
+
+### 帧元数据（v2 新增）
+
+```c
+rkvc_buffer_video_info info;
+rkvc_buffer_get_video_info(buf, &info);
+// info.width, info.height, info.format, info.mem_type, info.fd
+```
+
+### 码率控制别名
+
+v1 的 `RKRC_VBR` / `RKRC_CBR` / `RKRC_CQP` 仍可用，映射到 `RKVC_RC_*`。
 
 ## CLI 迁移
 

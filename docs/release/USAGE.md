@@ -66,6 +66,18 @@ rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --post-upscale rkvc_sr --rkvc-sr-model /path/to/model.rknn
 ```
 
+### rkvc_yuv_upscale
+
+YUV420P 文件批处理 RGA 缩放（底层 `rkvc_upscale_ctx_*` API，无需 Session）。
+
+```bash
+rkvc_yuv_upscale -i input.yuv -o output.yuv \
+  --src-size 1920x1080 --dst-size 3840x2160 \
+  --algo bilinear
+```
+
+支持算法：`nearest` / `bilinear` / `bicubic`（不含 `rkvc_sr`）。
+
 ### rkvc_bench
 
 对比三档 policy 的 Session E2E 转码 fps（**须** `-i` 指定输入）。
@@ -124,7 +136,9 @@ rkvc_encode -i raw.nv12 -o half_enc.mp4 -s 1920x1080 \
 |------|------|
 | `LD_LIBRARY_PATH` | 二次开发时指向包内 `lib/` |
 | `PKG_CONFIG_PATH` | 指向 `share/pkgconfig/` |
-| `RKVC_LOG_LEVEL` | 调试日志级别（`debug`） |
+| `RKVC_LOG_LEVEL` | 调试日志（`debug`）；等效于代码中 `rkvc_set_log_level(AV_LOG_DEBUG)` |
+
+程序内也可调用 `rkvc_set_log_level()` / `rkvc_get_log_level()`（级别与 FFmpeg `AV_LOG_*` 一致）。
 
 ## 错误处理
 

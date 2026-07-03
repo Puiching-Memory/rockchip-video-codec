@@ -6,7 +6,8 @@ v2 以 **Session + Pipeline + Codec Router** 替代 v1 的 `encoder` / `decoder`
 
 | 头文件 | 说明 |
 |--------|------|
-| `rkvc.h` | 主入口：版本、init、caps、输入探测 |
+| `types.h` | 错误码、像素格式、码率控制、上采样枚举 |
+| `rkvc.h` | 主入口：版本、init、日志、caps、探测、RGA 上采样 |
 | `buffer.h` | `rkvc_buffer` 视频/码流统一缓冲 |
 | `policy.h` | `rkvc_policy`、`rkvc_codec`、Codec Router |
 | `pipeline.h` | `rkvc_pipeline_desc`、管线模板 |
@@ -17,45 +18,85 @@ v2 以 **Session + Pipeline + Codec Router** 替代 v1 的 `encoder` / `decoder`
 #include "rkvc/rkvc.h"   // 包含以上全部头文件
 ```
 
-## 全局初始化
+也可按需单独包含子头文件。
+
+---
+
+## 全局初始化与版本
 
 ```c
-rkvc_err rkvc_init(void);       // 线程安全，可多次调用
-void     rkvc_deinit(void);
-const char *rkvc_version(void); // "0.2.1"
-uint32_t    rkvc_version_number(void); // major<<16 | minor<<8 | patch
-const char *rkvc_err_str(rkvc_err err);
+rkvc_err rkvc_init(void);              // 线程安全，可多次调用（pthread_once）
+void     rkvc_deinit(void);            // 不反初始化 FFmpeg 全局状态
+const char  *rkvc_version(void);       // "0.2.1"
+uint32_t     rkvc_version_number(void); // major<<16 | minor<<8 | patch
+const char  *rkvc_err_str(rkvc_err err);
 ```
+
+- `rkvc_init()`：注册 FFmpeg 日志回调、探测硬件；`rkvc_session_create` 也会隐式调用。
+- `rkvc_deinit()`：仅标记未初始化，避免多实例共享 FFmpeg 时崩溃。
+
+---
+
+## 日志
+
+```c
+void rkvc_set_log_level(int level);  // FFmpeg AV_LOG_*，如 AV_LOG_INFO、AV_LOG_DEBUG
+int  rkvc_get_log_level(void);
+```
+
+同时作用于 `[rkvc]` 前缀日志与 FFmpeg `av_log`。
+
+---
+
+## 文件哈希
+
+```c
+rkvc_err rkvc_hash_file(const char *path, const char *algo,
+                        char *out_hex, size_t out_size);
+```
+
+- `algo`：`md5`、`sha256` 等（见 FFmpeg `av_hash_names`）。
+- `out_size` 须 ≥ `2 * digest_size + 1`。
+
+---
 
 ## 能力与权限
 
 ```c
 typedef struct {
-    int has_h264_enc, has_hevc_enc, has_av1_enc;
+    int has_h264_enc, has_hevc_enc, has_av1_enc;   // has_av1_enc = SVT-AV1
     int has_h264_dec, has_hevc_dec, has_av1_dec;
     int has_dma_heap, has_rga;
-    int max_width, max_height;
+    int max_width, max_height;   // RK3588：7680×4320
 } rkvc_caps;
 
 rkvc_err rkvc_query_caps(rkvc_caps *caps);
-rkvc_err rkvc_check_hw_permissions(void);  // 权限不足 → RKVC_ERR_PERMISSION
+rkvc_err rkvc_check_hw_permissions(void);  // → RKVC_ERR_PERMISSION
 ```
 
-`rkvc_info --json` 输出字段与 `rkvc_caps` 对应。
+`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`rkvc_info --json` 字段与此结构对应。
+
+`rkvc_check_hw_permissions` 检查 `/dev/mpp_service`、DMA heap（`/dev/dma_heap/system-uncached`）或 DRM/Ion 分配器。
+
+---
 
 ## 输入格式探测
 
-编码 CLI 在打开原始 NV12 前探测文件头，压缩视频误作 raw 输入时返回 `RKVC_ERR_FORMAT`。
+编码 CLI 在打开原始 NV12 前探测文件头；压缩视频误作 raw 输入时返回 `RKVC_ERR_FORMAT`。
 
 ```c
 typedef enum {
-    RKVC_INPUT_UNKNOWN = 0,
-    RKVC_INPUT_RAW_VIDEO,
-    RKVC_INPUT_COMPRESSED_VIDEO,
+    RKVC_INPUT_UNKNOWN = 0,          // 无法判定（原始 YUV 无魔数）
+    RKVC_INPUT_RAW_VIDEO,            // 保留；当前实现不返回此值
+    RKVC_INPUT_COMPRESSED_VIDEO,     // 检测到 MP4/MKV/Annex-B 等
 } rkvc_input_format_probe;
 
 rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size);
 ```
+
+建议传入 ≥ 12 字节文件头。原始 NV12 文件通常返回 `UNKNOWN`，需由路径/参数约定格式。
+
+---
 
 ## 错误码
 
@@ -68,11 +109,13 @@ rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size
 | `RKVC_ERR_IO` | -4 | I/O 错误 |
 | `RKVC_ERR_HW` | -5 | 硬件加速初始化失败 |
 | `RKVC_ERR_EOF` | -6 | 流结束 |
-| `RKVC_ERR_AGAIN` | -7 | 需要更多输入或输出缓冲区满 |
+| `RKVC_ERR_AGAIN` | -7 | 队列满/空、需重试（非致命） |
 | `RKVC_ERR_MUX` | -8 | 封装器错误 |
 | `RKVC_ERR_INTERNAL` | -9 | 内部 FFmpeg 错误 |
 | `RKVC_ERR_PERMISSION` | -10 | 设备节点权限不足 |
 | `RKVC_ERR_FORMAT` | -11 | 输入数据格式不匹配 |
+
+---
 
 ## 像素格式
 
@@ -83,37 +126,95 @@ rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size
 | NV16 | `RKVC_PIX_FMT_NV16` | 4:2:2 semi-planar |
 | P010 | `RKVC_PIX_FMT_P010` | 10-bit 4:2:0 |
 
-## Policy 与 Codec
+---
+
+## 码率控制
 
 ```c
 typedef enum {
-    RKVC_POLICY_REALTIME = 0,  // H.264 RKMPP
+    RKVC_RC_VBR = 0,   // 可变码率
+    RKVC_RC_CBR = 1,   // 恒定码率（pipeline 默认）
+    RKVC_RC_CQP = 2,   // 固定 QP
+} rkvc_rc_mode;
+
+// v1 兼容别名
+#define RKRC_VBR RKVC_RC_VBR
+#define RKRC_CBR RKVC_RC_CBR
+#define RKRC_CQP RKVC_RC_CQP
+```
+
+数值与 MPP / FFmpeg `rkmppenc` 的 `rc_mode` 一致。
+
+---
+
+## 编码预设（保留）
+
+```c
+typedef enum {
+    RKVC_PRESET_FAST = 0,
+    RKVC_PRESET_MEDIUM,
+    RKVC_PRESET_SLOW,
+} rkvc_preset;
+```
+
+v1 遗留类型，v2 `rkvc_pipeline_desc` 使用 `rkvc_policy` 代替；当前 pipeline API 未直接暴露此枚举。
+
+---
+
+## Policy、Codec 与 Router
+
+```c
+typedef enum {
+    RKVC_POLICY_REALTIME = 0,  // H.264 RKMPP，≥30fps@1080p
     RKVC_POLICY_BALANCED,      // HEVC RKMPP（高帧率 1080p+ 回退 H.264）
-    RKVC_POLICY_QUALITY,       // SVT-AV1 + av1_rkmpp
+    RKVC_POLICY_QUALITY,       // SVT-AV1 preset 11 + av1_rkmpp
 } rkvc_policy;
 
 typedef enum {
     RKVC_CODEC_H264, RKVC_CODEC_HEVC, RKVC_CODEC_AV1, RKVC_CODEC_AUTO,
 } rkvc_codec;
+
+typedef enum {
+    RKVC_ENC_BACKEND_NONE, RKVC_ENC_BACKEND_MPP, RKVC_ENC_BACKEND_SVT,
+} rkvc_enc_backend;
+
+typedef enum {
+    RKVC_DEC_BACKEND_NONE, RKVC_DEC_BACKEND_MPP,
+} rkvc_dec_backend;
 ```
 
 ```c
 typedef struct {
     rkvc_codec       codec;
-    rkvc_enc_backend enc_backend;  // MPP 或 SVT
+    rkvc_enc_backend enc_backend;
     rkvc_dec_backend dec_backend;
     const char      *enc_name;     // "h264_rkmpp" / "svt-av1" 等
     const char      *dec_name;
-    int              svt_preset;
-    const char      *reason;
+    int              svt_preset;   // SVT enc_mode 6–11
+    const char      *reason;       // 选型原因（静态字符串）
 } rkvc_route_plan;
 
 rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc, rkvc_route_plan *plan);
+
+const char *rkvc_codec_name(rkvc_codec codec);    // "h264" / "hevc" / "av1" / "auto"
+const char *rkvc_policy_name(rkvc_policy policy); // "realtime" / "balanced" / "quality"
 ```
+
+`desc->codec != RKVC_CODEC_AUTO` 时强制对应路线，忽略 policy 自动规则。
+
+---
 
 ## 管线描述
 
 ```c
+typedef enum {
+    RKVC_TEMPLATE_FILE_ENCODE,
+    RKVC_TEMPLATE_FILE_DECODE,
+    RKVC_TEMPLATE_FILE_TRANSCODE,
+    RKVC_TEMPLATE_LIVE_CAPTURE,
+    RKVC_TEMPLATE_AV1_STORAGE,
+} rkvc_pipeline_template;
+
 typedef struct rkvc_pipeline_desc {
     rkvc_pipeline_template template_id;
     rkvc_policy            policy;
@@ -126,20 +227,20 @@ typedef struct rkvc_pipeline_desc {
     int            gop_size, b_frames;
     int            low_latency;
     int            queue_depth;       // 端口队列深度，默认 3
-    rkvc_rc_mode   rc_mode;           // VBR / CBR / CQP
+    rkvc_rc_mode   rc_mode;
     int            qp_init;           // -1 表示编码器默认
 
     const char    *input_path;
     const char    *output_path;
 
     int            enc_scale_denom;           // 1=全分辨率编码
-    rkvc_upscale_algo post_upscale_algo;      // 解码后上采样
-    const char    *post_upscale_rkvc_model_path;
+    rkvc_upscale_algo post_upscale_algo;
+    const char    *post_upscale_rkvc_model_path;  // AI_SR 必填
 
-    int            svt_lp;                    // SVT lp，0=自动
-    int            svt_rtc;                   // SVT 实时调优，0/1
+    int            svt_lp;                    // 0=自动，1–6 手动
+    int            svt_rtc;                   // 0/1
 
-    const char    *codec_opts;                // FFmpeg key=val:key2=val2，demux/dec/enc
+    const char    *codec_opts;                // FFmpeg key=val:key2=val2
 } rkvc_pipeline_desc;
 ```
 
@@ -151,13 +252,32 @@ typedef struct rkvc_pipeline_desc {
 | `RKVC_TEMPLATE_FILE_DECODE` | `BALANCED` | 容器 → 原始 NV12 |
 | `RKVC_TEMPLATE_FILE_TRANSCODE` | `BALANCED` | 转码（Router 选 codec） |
 | `RKVC_TEMPLATE_AV1_STORAGE` | `QUALITY` | 强制 AV1 SVT 存储档 |
-| `RKVC_TEMPLATE_LIVE_CAPTURE` | `REALTIME` | 低延迟 H.264（V4L2 待接） |
+| `RKVC_TEMPLATE_LIVE_CAPTURE` | `REALTIME` | 低延迟 H.264（V4L2 待接），`low_latency=1` |
+
+### 默认值（`rkvc_pipeline_desc_defaults`）
+
+| 字段 | 默认 |
+|------|------|
+| template | `FILE_TRANSCODE` |
+| policy | `BALANCED` |
+| codec | `AUTO` |
+| 分辨率 | 1920×1080@30 |
+| bitrate | 4_000_000 |
+| pixel_format | NV12 |
+| gop_size | 60 |
+| queue_depth | 3 |
+| rc_mode | CBR |
+| qp_init | -1 |
+| enc_scale_denom | 1 |
+| post_upscale_algo | NONE |
 
 ```c
 rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void);
 rkvc_err rkvc_pipeline_from_template(rkvc_pipeline_template tmpl,
                                      rkvc_pipeline_desc *desc);
 ```
+
+---
 
 ## Session
 
@@ -167,6 +287,10 @@ typedef struct {
     int             running;
     uint64_t        frames_in, frames_out, frames_dropped;
     double          avg_fps;
+    double          decode_sec;    // 解码累计耗时（bench）
+    double          rga_sec;         // RGA 上采样累计耗时
+    double          write_sec;       // NV12 写盘累计耗时
+    double          postproc_sec;    // rga_sec + write_sec
 } rkvc_session_stats;
 
 rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc, rkvc_session **out);
@@ -177,9 +301,21 @@ rkvc_port *rkvc_session_port(rkvc_session *session, const char *name);
 rkvc_err rkvc_session_get_stats(const rkvc_session *session, rkvc_session_stats *stats);
 void     rkvc_session_destroy(rkvc_session *session);
 
-/** 文件模板：阻塞跑完整条管线 */
-rkvc_err rkvc_session_run_file(rkvc_session *session);
+rkvc_err rkvc_session_run_file(rkvc_session *session);  // 文件模板阻塞跑完
 ```
+
+- `create`：`post_upscale_algo == RKVC_UPSCALE_AI_SR` 时须提供 `post_upscale_rkvc_model_path`。
+- `run_file`：内部 start → 处理路径 → stop；流式模板勿用。
+
+### Session 端口
+
+| 端口 | 方向 | 数据类型 | 说明 |
+|------|------|----------|------|
+| `capture` | 输入 | `RKVC_BUF_VIDEO` | 采集/原始帧入口 |
+| `output` | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流 |
+| `preview` | 输出 | `RKVC_BUF_VIDEO` | 预览支路（部分模板） |
+
+文件模式用 `rkvc_session_run_file()`，无需手动操作端口。详见 [architecture.md](architecture.md)。
 
 ### 文件转码示例
 
@@ -227,19 +363,74 @@ rkvc_session_stop(s);
 rkvc_session_destroy(s);
 ```
 
+### 拉取输出示例
+
+```c
+rkvc_port *out = rkvc_session_port(s, "output");
+rkvc_buffer *pkt = NULL;
+while (rkvc_port_pull(out, &pkt, 100) == RKVC_OK) {
+    rkvc_buffer_bitstream_view view;
+    rkvc_buffer_get_bitstream(pkt, &view);
+    // 处理 view.data / view.size ...
+    rkvc_buffer_unref(pkt);
+    pkt = NULL;
+}
+```
+
+---
+
+## Port
+
+```c
+rkvc_err rkvc_port_push(rkvc_port *port, rkvc_buffer *buf);
+rkvc_err rkvc_port_pull(rkvc_port *port, rkvc_buffer **buf, int timeout_ms);
+```
+
+| `timeout_ms` | 行为 |
+|--------------|------|
+| `0` | 非阻塞；队列空 → `RKVC_ERR_AGAIN` |
+| `> 0` | 等待至多 N 毫秒；超时 → `RKVC_ERR_AGAIN` |
+| `< 0` | 无限阻塞直至有数据 |
+
+`push` 队列满时返回 `RKVC_ERR_AGAIN`（深度由 `queue_depth` 控制）。内部对 `buf` 引用计数 +1。
+
+---
+
 ## Buffer
 
 ```c
-typedef enum { RKVC_BUF_VIDEO, RKVC_BUF_BITSTREAM } rkvc_buffer_kind;
+typedef enum { RKVC_BUF_NONE, RKVC_BUF_VIDEO, RKVC_BUF_BITSTREAM } rkvc_buffer_kind;
 typedef enum { RKVC_MEM_HOST, RKVC_MEM_DMABUF } rkvc_mem_type;
 
+typedef struct {
+    rkvc_mem_type  mem_type;
+    int            fd;           // DMA-BUF fd，主机内存为 -1
+    uint32_t       width, height;
+    rkvc_pix_fmt   format;
+    uint32_t       strides[4];
+    int64_t        pts;
+    uint64_t       modifier;     // DRM modifier
+} rkvc_buffer_video_info;
+
+typedef struct {
+    const uint8_t *data;
+    size_t         size;
+    int64_t        pts, dts;
+    int            key_frame;
+} rkvc_buffer_bitstream_view;
+```
+
+```c
 rkvc_buffer *rkvc_buffer_ref(rkvc_buffer *buf);
 void         rkvc_buffer_unref(rkvc_buffer *buf);
+rkvc_buffer_kind rkvc_buffer_kind_of(const rkvc_buffer *buf);
 
 rkvc_err rkvc_buffer_alloc_video_host(rkvc_buffer **out,
                                       int w, int h, rkvc_pix_fmt fmt);
 rkvc_err rkvc_buffer_alloc_bitstream(rkvc_buffer **out,
                                      const uint8_t *data, size_t size, int copy);
+rkvc_err rkvc_buffer_get_video_info(const rkvc_buffer *buf,
+                                    rkvc_buffer_video_info *info);
 rkvc_err rkvc_buffer_get_video_planes(rkvc_buffer *buf,
                                       uint8_t *planes[4], int strides[4]);
 rkvc_err rkvc_buffer_get_bitstream(const rkvc_buffer *buf,
@@ -247,7 +438,14 @@ rkvc_err rkvc_buffer_get_bitstream(const rkvc_buffer *buf,
 rkvc_err rkvc_buffer_set_pts(rkvc_buffer *buf, int64_t pts);
 ```
 
-## 上采样算法
+- `alloc_bitstream(..., copy=1)`：深拷贝；`copy=0`：零拷贝引用 `data`，调用方须保持有效直至 `unref`。
+- `get_video_planes`：仅主机帧 / 已映射 AVFrame；DMA-BUF 硬解帧请用 `get_video_info` + 节点下载。
+
+缓冲区生命周期详见 [architecture.md](architecture.md#缓冲区生命周期)。
+
+---
+
+## 上采样算法与 RGA API
 
 ```c
 typedef enum {
@@ -259,6 +457,44 @@ int rkvc_upscale_algo_from_name(const char *name, rkvc_upscale_algo *out);
 const char *rkvc_upscale_algo_name(rkvc_upscale_algo algo);
 ```
 
+名称映射：`none` / `nearest` / `bilinear` / `bicubic` / `rkvc_sr`。
+
+### 一次性缩放（调用方提供平面缓冲）
+
+```c
+rkvc_err rkvc_upscale_yuv420p(const uint8_t *src, uint8_t *dst,
+                              int src_w, int src_h, int dst_w, int dst_h,
+                              rkvc_upscale_algo algo);
+rkvc_err rkvc_upscale_nv12(const uint8_t *src, uint8_t *dst,
+                           int src_w, int src_h, int dst_w, int dst_h,
+                           rkvc_upscale_algo algo);
+```
+
+NV12 布局：`width*height` 字节 Y + `width*height/2` 字节 UV。不支持 `NONE` / `AI_SR`。
+
+### 批量上下文（复用 RGA import，适合 bench / 多帧）
+
+```c
+typedef struct rkvc_upscale_ctx rkvc_upscale_ctx;
+
+rkvc_upscale_ctx *rkvc_upscale_ctx_create(int src_w, int src_h,
+                                          int dst_w, int dst_h,
+                                          rkvc_upscale_algo algo);
+void rkvc_upscale_ctx_destroy(rkvc_upscale_ctx *ctx);
+
+uint8_t *rkvc_upscale_ctx_src_buf(rkvc_upscale_ctx *ctx);
+uint8_t *rkvc_upscale_ctx_dst_buf(rkvc_upscale_ctx *ctx);
+size_t rkvc_upscale_ctx_src_bytes(const rkvc_upscale_ctx *ctx);
+size_t rkvc_upscale_ctx_dst_bytes(const rkvc_upscale_ctx *ctx);
+rkvc_err rkvc_upscale_ctx_process(rkvc_upscale_ctx *ctx);
+```
+
+内部缓冲为 NV12 紧凑布局，可直接 `pread`/`pwrite` 或 `memcpy`。对应 CLI：`rkvc_yuv_upscale`。
+
+`rkvc_encode` 的 `--post-upscale` 仅支持 `nearest`/`bilinear`/`bicubic`；**AI 超分**请用 `rkvc_session_upscale` 或 `post_upscale_algo=RKVC_UPSCALE_AI_SR`。
+
+---
+
 ## CLI 工具
 
 | 工具 | 用途 |
@@ -269,7 +505,7 @@ const char *rkvc_upscale_algo_name(rkvc_upscale_algo algo);
 | `rkvc_bench` | 三档 policy E2E fps 对比（**须** `-i INPUT.mp4`） |
 | `rkvc_info` | 硬件能力查询（`-j` JSON） |
 | `rkvc_session_upscale` | 硬解 + 后处理上采样（含 `rkvc_sr` + `--rkvc-sr-model`） |
-| `rkvc_yuv_upscale` | YUV420p 批处理 RGA 缩放 |
+| `rkvc_yuv_upscale` | YUV420p 批处理 RGA 缩放（`rkvc_upscale_ctx_*`） |
 
 ```bash
 rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 -p balanced \
@@ -285,7 +521,13 @@ rkvc_bench -i clip.mp4
 rkvc_info -j
 ```
 
-`rkvc_encode` 的 `--post-upscale` 仅支持 `nearest`/`bilinear`/`bicubic`；**AI 超分**请用 `rkvc_session_upscale` 或 Session 字段 `post_upscale_algo=RKVC_UPSCALE_AI_SR`。
+---
+
+## Doxygen
+
+启用 `-DRKVC_BUILD_DOCS=ON` 构建时，Doxygen 从 `include/rkvc/*.h` 生成 HTML API 文档（与本文档互补）。
+
+---
 
 ## v1 → v2 迁移
 

@@ -12,7 +12,7 @@
 |------|------|
 | 快速构建与首次运行 | [getting-started.md](getting-started.md) |
 | 架构与节点 | [architecture.md](architecture.md) |
-| API 参考 | [api.md](api.md) |
+| API 参考 | [api.md](api.md)（含 Doxygen 生成说明） |
 | 打包与可移植包 | [packaging.md](packaging.md) |
 | 测试与质量门禁 | [testing.md](testing.md) |
 | 性能与 RD 基准 | [benchmark.md](benchmark.md) |
@@ -101,9 +101,9 @@ ctest --test-dir build-tests -j1 -R 'test_session_' --output-on-failure
 | `rkvc_bench` 无输入 | `rkvc_bench -i clip.mp4` 或先 `example_encode_file -o test.mp4` |
 
 ```bash
+export RKVC_LOG_LEVEL=debug   # 或代码中 rkvc_set_log_level(AV_LOG_DEBUG)
 rkvc_info -j
 ./build/rkvc_bench -i test.mp4
-export RKVC_LOG_LEVEL=debug
 ```
 
 ---

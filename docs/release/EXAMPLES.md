@@ -26,6 +26,8 @@
 
 同一码流分别以 NV12 / YUV420P / NV16 / P010 解码，从 `output` 端口校验首帧 `format`（无参数时自生成短 HEVC 夹具，需硬件）。
 
+源码演示 `rkvc_buffer_get_video_info()` 读取解码帧格式。
+
 ```bash
 ./examples/bin/example_decode_formats
 ./examples/bin/example_decode_formats input.mp4
@@ -116,5 +118,6 @@ SDL2 原始/重建画面对比（可选构建，需 SDL2）。
 2. `transcode.c` — 文件转码最简路径
 3. `stream_encode.c` — 流式编码
 4. `latency_test.c` — 性能测量
+5. `decode_formats.c` — 多像素格式 + `rkvc_buffer_get_video_info`
 
-完整 API 文档见包内 `DEVELOPMENT.md` 或项目 `docs/api.md`。
+完整 API 文档见项目 `docs/api.md` 或包内 `DEVELOPMENT.md`。

@@ -130,3 +130,9 @@ gcc -o myapp myapp.c $(pkg-config --cflags --libs rkvc)
 ## 从 v0.1.x 升级
 
 若你使用过 v1 API，请先阅读 [v1 → v2 迁移](migration.md)。
+
+## 二次开发
+
+- 完整 API：[api.md](api.md)（与 `include/rkvc/*.h` Doxygen 注释一致）
+- 集成示例：[release/DEVELOPMENT.md](release/DEVELOPMENT.md)
+- 调试日志：`rkvc_set_log_level(AV_LOG_DEBUG)` 或 `export RKVC_LOG_LEVEL=debug`

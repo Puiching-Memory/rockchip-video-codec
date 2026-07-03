@@ -88,7 +88,20 @@ find_package(rkvc REQUIRED)
 target_link_libraries(myapp PRIVATE rkvc::shared)
 ```
 
-详见 `DEVELOPMENT.md`。
+详见 `DEVELOPMENT.md`（集成示例）与项目 `docs/api.md`（完整 API 参考）。
+
+## 头文件
+
+```
+include/rkvc/
+├── types.h      # 错误码、像素格式、码率控制、上采样枚举
+├── rkvc.h       # 主入口（包含以下全部）
+├── buffer.h     # rkvc_buffer
+├── policy.h     # Codec Router
+├── pipeline.h   # 管线模板与描述
+├── session.h    # 会话生命周期
+└── port.h       # push/pull 端口
+```
 
 ## 技术支持
 

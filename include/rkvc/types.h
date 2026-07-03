@@ -1,6 +1,6 @@
 /**
  * @file types.h
- * @brief 公共类型定义：错误码、像素格式、基本配置结构。
+ * @brief 公共类型定义：错误码、像素格式、码率控制、上采样算法。
  */
 
 #ifndef RKVC_TYPES_H
@@ -14,6 +14,11 @@ extern "C" {
 
 /* ── 错误码 ───────────────────────────────────────────────────────── */
 
+/**
+ * @brief 库调用返回值。
+ *
+ * 负值为错误；`RKVC_ERR_AGAIN` 与 `RKVC_ERR_EOF` 在流式 I/O 中为正常控制流，非致命错误。
+ */
 typedef enum {
     RKVC_OK              =  0,  /**< 成功 */
     RKVC_ERR_NOMEM       = -1,  /**< 内存分配失败 */
@@ -22,7 +27,7 @@ typedef enum {
     RKVC_ERR_IO          = -4,  /**< I/O 错误 */
     RKVC_ERR_HW          = -5,  /**< 硬件加速初始化失败 */
     RKVC_ERR_EOF         = -6,  /**< 流结束 */
-    RKVC_ERR_AGAIN       = -7,  /**< 需要更多输入或输出缓冲区满 */
+    RKVC_ERR_AGAIN       = -7,  /**< 需要更多输入，或队列/缓冲区满/空 */
     RKVC_ERR_MUX         = -8,  /**< 封装器错误 */
     RKVC_ERR_INTERNAL    = -9,  /**< 内部 FFmpeg 错误 */
     RKVC_ERR_PERMISSION  = -10, /**< 设备节点权限不足 */
@@ -31,15 +36,19 @@ typedef enum {
 
 /* ── 像素格式 ─────────────────────────────────────────────────────── */
 
+/** @brief 视频帧像素格式（与 VPU / RGA 对齐）。 */
 typedef enum {
-    RKVC_PIX_FMT_NV12    = 0,   /**< NV12 (默认, VPU 原生) */
-    RKVC_PIX_FMT_YUV420P = 1,   /**< YUV420P planar */
-    RKVC_PIX_FMT_NV16    = 2,   /**< NV16 (4:2:2 semi-planar) */
-    RKVC_PIX_FMT_P010    = 3,   /**< P010 (10-bit 4:2:0) */
+    RKVC_PIX_FMT_NV12    = 0,   /**< NV12 semi-planar（默认，VPU 原生） */
+    RKVC_PIX_FMT_YUV420P = 1,   /**< YUV420P planar 4:2:0 */
+    RKVC_PIX_FMT_NV16    = 2,   /**< NV16 4:2:2 semi-planar */
+    RKVC_PIX_FMT_P010    = 3,   /**< P010 10-bit 4:2:0 */
 } rkvc_pix_fmt;
 
-/* ── 编码质量预设 ──────────────────────────────────────────────────── */
+/* ── 编码质量预设（保留，v2 pipeline 暂未使用）────────────────────── */
 
+/**
+ * @brief 编码速度/质量档位（v1 遗留，供内部校验；`rkvc_pipeline_desc` 使用 `rkvc_policy`）。
+ */
 typedef enum {
     RKVC_PRESET_FAST     = 0,   /**< 速度优先 */
     RKVC_PRESET_MEDIUM   = 1,   /**< 均衡 */
@@ -48,25 +57,38 @@ typedef enum {
 
 /* ── 码率控制模式 ──────────────────────────────────────────────────── */
 
-/** 与 MPP / FFmpeg rkmppenc rc_mode 数值一致 */
+/**
+ * @brief MPP 码率控制模式。
+ *
+ * 数值与 MPP / FFmpeg `rkmppenc` 的 `rc_mode` 一致。
+ */
 typedef enum {
     RKVC_RC_VBR = 0,            /**< 可变码率 */
-    RKVC_RC_CBR = 1,            /**< 恒定码率 */
-    RKVC_RC_CQP = 2,            /**< 固定 QP (MPP FIXQP) */
+    RKVC_RC_CBR = 1,            /**< 恒定码率（pipeline 默认） */
+    RKVC_RC_CQP = 2,            /**< 固定 QP（MPP FIXQP） */
 } rkvc_rc_mode;
 
+/** @name 码率控制兼容宏（v1 别名）
+ * @{ */
 #define RKRC_VBR RKVC_RC_VBR
 #define RKRC_CBR RKVC_RC_CBR
 #define RKRC_CQP RKVC_RC_CQP
+/** @} */
 
-/* ── 解码后上采样算法（RGA 硬件插值）──────────────────────────── */
+/* ── 解码后上采样算法 ─────────────────────────────────────────────── */
 
+/**
+ * @brief 解码后上采样算法。
+ *
+ * `RKVC_UPSCALE_NEAREST` … `RKVC_UPSCALE_BICUBIC` 走 RGA 硬件插值；
+ * `RKVC_UPSCALE_AI_SR` 走 RKNN 超分（`rkvc_sr`，需 `post_upscale_rkvc_model_path`）。
+ */
 typedef enum {
     RKVC_UPSCALE_NONE = 0,      /**< 不做后处理上采样 */
-    RKVC_UPSCALE_NEAREST,       /**< 最近邻 (RGA) */
-    RKVC_UPSCALE_BILINEAR,      /**< 双线性 (RGA) */
-    RKVC_UPSCALE_BICUBIC,       /**< 双三次 (RGA) */
-    RKVC_UPSCALE_AI_SR,         /**< RKVC 神经网络超分 */
+    RKVC_UPSCALE_NEAREST,       /**< 最近邻（RGA） */
+    RKVC_UPSCALE_BILINEAR,      /**< 双线性（RGA） */
+    RKVC_UPSCALE_BICUBIC,       /**< 双三次（RGA） */
+    RKVC_UPSCALE_AI_SR,         /**< RKVC 神经网络超分（RKNN） */
 } rkvc_upscale_algo;
 
 #ifdef __cplusplus

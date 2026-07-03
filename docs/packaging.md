@@ -107,4 +107,4 @@ ninja -C build -j4 package
 
 ## 发布文档模板
 
-可移植包附带的用户文档源文件位于 `docs/release/`，打包时复制到包根目录。
+可移植包附带的用户文档源文件位于 `docs/release/`，打包时复制到包根目录。完整 API 参考在源码树 [docs/api.md](api.md)（不随可移植包分发，二次开发可查阅头文件 `include/rkvc/*.h`）。

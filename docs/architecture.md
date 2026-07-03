@@ -101,14 +101,35 @@ graph TD
 
 文件模式通过 `rkvc_session_run_file()` 阻塞跑完整条管线，无需手动操作端口。
 
+### 端口队列语义
+
+`port.c` 实现有界 FIFO（默认深度 3，由 `queue_depth` 配置）：
+
+| 操作 | 队列满/空 | 返回值 |
+|------|-----------|--------|
+| `rkvc_port_push` | 满 | `RKVC_ERR_AGAIN` |
+| `rkvc_port_pull(..., 0)` | 空 | `RKVC_ERR_AGAIN`（非阻塞） |
+| `rkvc_port_pull(..., N)` | 空超时 | `RKVC_ERR_AGAIN` |
+| `rkvc_port_pull(..., -1)` | — | 阻塞直至有数据 |
+
+详见 [api.md](api.md#port)。
+
 ## 缓冲区生命周期
 
-1. **分配**: `rkvc_buffer_alloc_video_host()` 创建主机 NV12 帧，或 `rkvc_buffer_alloc_bitstream()` 包装码流
-2. **上传**: 节点内部通过 `av_hwframe_transfer_data` 上传到 RKMPP DMA-BUF
-3. **处理**: MPP / SVT 硬件或软件编码；RGA 负责下采样
-4. **下载**: `node_dma_to_host` 将硬件帧拉回主机内存
-5. **后处理**: `node_post_upscale` 按 `post_upscale_algo` 分流 — **RGA**（`nearest`/`bilinear`/`bicubic`：`node_rga` `importbuffer` → `imresize`）或 **RKNN 超分**（`rkvc_sr`：`node_rkvc_sr`）；bench 与 `rkvc_session_upscale` 走同一 Session 路径（DMABUF 硬解 → 后处理）
-6. **释放**: `rkvc_buffer_unref()` 引用计数归零时释放
+1. **分配**: `rkvc_buffer_alloc_video_host()` 创建主机帧，或 `rkvc_buffer_alloc_bitstream()` 包装码流（`copy=0` 为零拷贝引用）
+2. **查询**: `rkvc_buffer_kind_of()`、`rkvc_buffer_get_video_info()`（DMA-BUF 元数据）、`get_video_planes()`（主机可写帧）
+3. **上传**: 节点内部通过 `av_hwframe_transfer_data` 上传到 RKMPP DMA-BUF
+4. **处理**: MPP / SVT 硬件或软件编码；RGA 负责下采样
+5. **下载**: `node_dma_to_host` 将硬件帧拉回主机内存
+6. **后处理**: `node_post_upscale` 按 `post_upscale_algo` 分流 — **RGA**（`nearest`/`bilinear`/`bicubic`：`node_rga`）或 **RKNN 超分**（`rkvc_sr`：`node_rkvc_sr`）
+7. **释放**: `rkvc_buffer_unref()` 引用计数归零时释放
+
+### 独立 RGA API（不经 Session）
+
+`node_rga.c` 同时导出公共 C API，供 CLI `rkvc_yuv_upscale` 与测试直接调用：
+
+- `rkvc_upscale_yuv420p` / `rkvc_upscale_nv12` — 单次平面缩放
+- `rkvc_upscale_ctx_*` — 复用 RGA import 的批量上下文
 
 ## 下采样 + 后处理上采样
 
@@ -121,6 +142,16 @@ graph TD
 对应字段：`enc_scale_denom`（编码前下采样分母）、`post_upscale_algo`（`nearest` / `bilinear` / `bicubic` / `rkvc_sr`，RGA 或 RKVC 神经网络超分）。`width`/`height` 始终为显示/参考分辨率。
 
 `rkvc_sr` 走 RKVC 神经网络超分（`lib/node_rkvc_sr.c`）。现网模型在 RGB 域训练，推理含 NV12↔RGB CSC；下一代 **YUV-native** 模型规格见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
+
+## 辅助模块
+
+| 模块 | 文件 | 公共 API |
+|------|------|----------|
+| 初始化 | `init.c` | `rkvc_init` / `rkvc_deinit` / `rkvc_version` |
+| 能力 | `init.c` | `rkvc_query_caps` / `rkvc_check_hw_permissions` |
+| FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_hash_file` |
+| 输入探测 | `utils.c` | `rkvc_probe_input_format` |
+| 名称转换 | `router.c` | `rkvc_codec_name` / `rkvc_policy_name` |
 
 ## RKMPP 解码器初始化
 

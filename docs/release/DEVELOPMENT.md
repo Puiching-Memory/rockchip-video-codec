@@ -43,8 +43,20 @@ v2 核心概念：
 头文件：
 
 ```c
-#include "rkvc/rkvc.h"
+#include "rkvc/rkvc.h"   // 包含 types / buffer / policy / pipeline / session / port
 ```
+
+完整 API 说明见源码树 [docs/api.md](../api.md)；可移植包内可参考下文各节及 `include/rkvc/*.h` 头文件注释。
+
+| 头文件 | 主要内容 |
+|--------|----------|
+| `types.h` | `rkvc_err`、`rkvc_pix_fmt`、`rkvc_rc_mode`、`rkvc_upscale_algo` |
+| `buffer.h` | `rkvc_buffer` 分配、平面访问、码流视图 |
+| `policy.h` | `rkvc_policy`、`rkvc_codec`、`rkvc_route_resolve` |
+| `pipeline.h` | `rkvc_pipeline_desc`、模板 |
+| `session.h` | `rkvc_session_*`、统计 |
+| `port.h` | `rkvc_port_push` / `rkvc_port_pull` |
+| `rkvc.h` | init、日志、caps、探测、RGA 上采样 |
 
 ## 文件转码
 
@@ -124,6 +136,61 @@ while (rkvc_port_pull(out, &pkt, 100) == RKVC_OK) {
 }
 ```
 
+### `timeout_ms` 语义
+
+| 值 | 行为 |
+|----|------|
+| `0` | 非阻塞；队列空 → `RKVC_ERR_AGAIN` |
+| `> 0` | 等待至多 N 毫秒；超时 → `RKVC_ERR_AGAIN` |
+| `< 0` | 无限阻塞直至有数据 |
+
+`push` 在队列满时返回 `RKVC_ERR_AGAIN`（深度由 `d.queue_depth` 控制，默认 3）。
+
+## Buffer 进阶
+
+```c
+// 查询种类与元数据（硬解 DMA-BUF 帧用 get_video_info，勿假设 get_video_planes 可写）
+rkvc_buffer_kind kind = rkvc_buffer_kind_of(buf);
+rkvc_buffer_video_info info;
+rkvc_buffer_get_video_info(buf, &info);  // width/height/format/fd/modifier/pts
+
+// 码流零拷贝包装（调用方保持 data 有效）
+rkvc_buffer *pkt = NULL;
+rkvc_buffer_alloc_bitstream(&pkt, data, size, /*copy=*/0);
+```
+
+## 日志与调试
+
+```c
+rkvc_set_log_level(AV_LOG_DEBUG);   // 与 FFmpeg AV_LOG_* 一致
+// 或环境变量：export RKVC_LOG_LEVEL=debug
+```
+
+## 文件哈希（测试/校验）
+
+```c
+char hex[65];
+rkvc_hash_file("clip.mp4", "sha256", hex, sizeof(hex));
+```
+
+## RGA 独立上采样 API
+
+不经过 Session 时，可直接调用 RGA 缩放（对应 CLI `rkvc_yuv_upscale`）：
+
+```c
+// 一次性
+rkvc_upscale_nv12(src, dst, sw, sh, dw, dh, RKVC_UPSCALE_BILINEAR);
+
+// 批量（复用 RGA import，适合多帧文件）
+rkvc_upscale_ctx *ctx = rkvc_upscale_ctx_create(sw, sh, dw, dh, RKVC_UPSCALE_BILINEAR);
+uint8_t *src_buf = rkvc_upscale_ctx_src_buf(ctx);
+uint8_t *dst_buf = rkvc_upscale_ctx_dst_buf(ctx);
+// fread → src_buf → rkvc_upscale_ctx_process(ctx) → fwrite dst_buf
+rkvc_upscale_ctx_destroy(ctx);
+```
+
+不支持 `RKVC_UPSCALE_NONE` / `RKVC_UPSCALE_AI_SR`；AI 超分须走 Session + `post_upscale_algo`。
+
 ## Codec Router
 
 ```c
@@ -180,7 +247,7 @@ if (err != RKVC_OK) {
 - `REALTIME` 策略优先用于监控/推流低延迟场景
 - `enc_scale_denom > 1` 可降低编码负载，代价是上采样画质损失
 - 复用 `rkvc_buffer`，避免频繁 alloc/free
-- 查询 `rkvc_session_get_stats()` 监控丢帧与 fps
+- 查询 `rkvc_session_get_stats()` 监控丢帧与 fps；bench 路径另有 `decode_sec` / `rga_sec` / `write_sec` / `postproc_sec`
 
 ## 常见问题
 
@@ -195,3 +262,6 @@ A: `QUALITY` policy 或 `RKVC_CODEC_AV1`，需要 `libSvtAv1Enc.so`（包内已�
 
 **Q: 低延迟模式？**  
 A: 设置 `d.low_latency = 1`，使用 `RKVC_TEMPLATE_LIVE_CAPTURE`（V4L2 待接）。
+
+**Q: 完整 API 在哪里？**  
+A: 项目 `docs/api.md`；头文件 `include/rkvc/*.h` 含 Doxygen 注释；`-DRKVC_BUILD_DOCS=ON` 可生成 HTML。

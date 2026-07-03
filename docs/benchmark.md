@@ -91,3 +91,5 @@ ENC_SCALE_DENOM=2 UPSCALE_ALGOS=nearest,bilinear,bicubic \
 ```
 
 rkvc Session 对应参数：`enc_scale_denom`、`post_upscale_algo`，或 CLI `--enc-scale-denom 2 --post-upscale bilinear`。
+
+独立 RGA 批处理（不经 Session）可用 `rkvc_yuv_upscale` 或 `rkvc_upscale_ctx_*` API；`rkvc_session_get_stats()` 的 `rga_sec` / `postproc_sec` 反映 Session 路径上的 RGA 耗时。

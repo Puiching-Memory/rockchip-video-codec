@@ -85,12 +85,13 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build -j1 -R test_session
 |------|------|
 | [docs/index.md](docs/index.md) | 文档首页与导航 |
 | [docs/getting-started.md](docs/getting-started.md) | 构建与首次运行 |
-| [docs/api.md](docs/api.md) | v2 API 参考 |
+| [docs/api.md](docs/api.md) | v2 API 完整参考（含头文件 Doxygen 注释） |
 | [docs/architecture.md](docs/architecture.md) | Session / Router / 节点架构 |
 | [docs/migration.md](docs/migration.md) | v0.1.x → v0.2.x 迁移 |
 | [docs/benchmark.md](docs/benchmark.md) | 性能与 RD 基准 |
 | [docs/testing.md](docs/testing.md) | 测试矩阵 |
-| [docs/packaging.md](docs/packaging.md) | 可移植包与分发 |
+| [docs/packaging.md](docs/packaging.md) | 可便携包与分发 |
 | [docs/delivery.md](docs/delivery.md) | 客户交付清单 |
+| [docs/release/](docs/release/) | 发布包用户文档（USAGE / DEVELOPMENT / EXAMPLES） |
 
 版本：**0.2.1**（v2 Session API；0.2.0 起破坏性替换 v1 `encoder`/`decoder`/`stream` API）
