@@ -159,12 +159,16 @@ echo "帧数:   $FRAMES"
 echo ""
 
 echo "--- 生成测试码流 ---"
+if portable_skip_hardware_tests; then
+    warn "跳过测试码流生成 (无 RKMPP 设备)"
+else
 capture_command enc_status enc_out encode_test_clip "$PKG_DIR" "$INPUT" "$SIZE" "$FRAMES" "$BITRATE"
 if [ "$enc_status" -eq 0 ] && [ -f "$INPUT" ] && [ "$(file_size "$INPUT")" -gt 0 ]; then
     pass "测试码流生成成功: $(file_size "$INPUT") bytes"
 else
     fail "测试码流生成失败 (exit=$enc_status)"
     show_output "encode_test_clip" "$enc_out"
+fi
 fi
 
 if [ ! -x "$PAIR" ]; then

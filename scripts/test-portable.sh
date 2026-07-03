@@ -327,6 +327,14 @@ echo "--- 编解码测试 ---"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
+if portable_skip_hardware_tests; then
+    warn "跳过编解码/转码/bench/上采样/网络冒烟 (无 RKMPP 设备；实机设 RKVC_RUN_HARDWARE_TESTS=1 强制)"
+    generate_raw_nv12 "$TMPDIR/raw.nv12" 640 480 10
+else
+if ! portable_mpp_device_accessible; then
+    fail "RKVC_RUN_HARDWARE_TESTS=1 但无可用 RKMPP 设备节点"
+fi
+
 capture_run enc_status enc_out encode_test_clip "$PKG_DIR" "$TMPDIR/test.mp4" 640x480 10 1000000
 if [ "$enc_status" -eq 0 ] && [ -f "$TMPDIR/test.mp4" ]; then
     enc_size=$(file_size "$TMPDIR/test.mp4")
@@ -423,6 +431,7 @@ if [ -x "$PKG_DIR/bin/rkvc_session_upscale" ] && [ -f "$TMPDIR/test.mp4" ]; then
         fail "rkvc_session_upscale 后处理上采样失败 (exit=$up_status, size=$up_size)"
         show_output "rkvc_session_upscale" "$up_out"
     fi
+fi
 fi
 
 echo ""

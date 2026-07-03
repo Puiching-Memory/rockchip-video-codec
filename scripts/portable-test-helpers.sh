@@ -1,6 +1,30 @@
 #!/bin/bash
 # scripts/portable-test-helpers.sh — 可移植包测试共用辅助函数
 
+# GitHub Actions 等无 RKMPP 设备的环境应跳过编解码冒烟；RK3588 实机默认可跑。
+# RKVC_RUN_HARDWARE_TESTS=1 且无设备时改为失败（与 CTest 硬件用例 opt-in 一致）。
+portable_mpp_device_accessible() {
+    local path
+    for path in /dev/mpp_service /dev/mpp-service /dev/rkvenc /dev/rkvdec \
+                /dev/vpu_service /dev/vpu-service; do
+        if [ -r "$path" ] && [ -w "$path" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+portable_skip_hardware_tests() {
+    if portable_mpp_device_accessible; then
+        return 1
+    fi
+    if [ -n "${RKVC_RUN_HARDWARE_TESTS:-}" ] && \
+       [ "${RKVC_RUN_HARDWARE_TESTS}" != "0" ]; then
+        return 1
+    fi
+    return 0
+}
+
 generate_raw_nv12() {
     local path="$1" w="$2" h="$3" n="${4:-10}"
     local y_plane=$((w * h))
