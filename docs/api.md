@@ -43,6 +43,20 @@ rkvc_err rkvc_check_hw_permissions(void);  // 权限不足 → RKVC_ERR_PERMISSI
 
 `rkvc_info --json` 输出字段与 `rkvc_caps` 对应。
 
+## 输入格式探测
+
+编码 CLI 在打开原始 NV12 前探测文件头，压缩视频误作 raw 输入时返回 `RKVC_ERR_FORMAT`。
+
+```c
+typedef enum {
+    RKVC_INPUT_UNKNOWN = 0,
+    RKVC_INPUT_RAW_VIDEO,
+    RKVC_INPUT_COMPRESSED_VIDEO,
+} rkvc_input_format_probe;
+
+rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size);
+```
+
 ## 错误码
 
 | 错误码 | 值 | 含义 |
@@ -124,6 +138,8 @@ typedef struct rkvc_pipeline_desc {
 
     int            svt_lp;                    // SVT lp，0=自动
     int            svt_rtc;                   // SVT 实时调优，0/1
+
+    const char    *codec_opts;                // FFmpeg key=val:key2=val2，demux/dec/enc
 } rkvc_pipeline_desc;
 ```
 
@@ -247,19 +263,29 @@ const char *rkvc_upscale_algo_name(rkvc_upscale_algo algo);
 
 | 工具 | 用途 |
 |------|------|
-| `rkvc_encode` | 原始 NV12 → MP4（`-p realtime\|balanced\|quality`） |
+| `rkvc_encode` | 原始 NV12 → MP4（`-p realtime\|balanced\|quality`；`--svt-lp`/`--svt-rtc`） |
 | `rkvc_decode` | 容器/码流 → 原始 NV12 |
-| `rkvc_transcode` | 容器 → 容器，Router 选 codec |
-| `rkvc_bench` | 三档 policy E2E fps 对比 |
+| `rkvc_transcode` | 容器 → 容器，Router 选 codec（`--svt-lp`/`--svt-rtc`） |
+| `rkvc_bench` | 三档 policy E2E fps 对比（**须** `-i INPUT.mp4`） |
 | `rkvc_info` | 硬件能力查询（`-j` JSON） |
+| `rkvc_session_upscale` | 硬解 + 后处理上采样（含 `rkvc_sr` + `--rkvc-sr-model`） |
+| `rkvc_yuv_upscale` | YUV420p 批处理 RGA 缩放 |
 
 ```bash
 rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 -p balanced \
-  --rc-mode cbr -b 4000000 --enc-scale-denom 2 --post-upscale bilinear
+  --rc-mode cbr -b 4000000 --enc-scale-denom 2 --post-upscale bilinear \
+  --svt-lp 4 --svt-rtc 0
 
-rkvc_transcode -i in.mp4 -o out.mp4 -p quality -b 6000000
+rkvc_transcode -i in.mp4 -o out.mp4 -p quality -b 6000000 --svt-lp 4
+
+rkvc_session_upscale -i stream.mp4 -o out.nv12 --width 1920 --height 1080 \
+  --enc-scale-denom 2 --post-upscale rkvc_sr --rkvc-sr-model model.rknn
+
+rkvc_bench -i clip.mp4
 rkvc_info -j
 ```
+
+`rkvc_encode` 的 `--post-upscale` 仅支持 `nearest`/`bilinear`/`bicubic`；**AI 超分**请用 `rkvc_session_upscale` 或 Session 字段 `post_upscale_algo=RKVC_UPSCALE_AI_SR`。
 
 ## v1 → v2 迁移
 

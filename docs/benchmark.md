@@ -17,15 +17,16 @@ RUN_CODECS=h264,rkvc-v2 ./scripts/run-bench.sh clip.mp4
 v2 的 `rkvc_bench` 对同一输入文件分别跑 `REALTIME` / `BALANCED` / `QUALITY` 三档 policy 的完整转码管线，输出 E2E fps。
 
 ```bash
-./build/rkvc_bench
-./build/rkvc_bench -i tests/fixtures/sample.h264.mp4
+./build/rkvc_bench -i clip.mp4
 ./build/rkvc_bench -i clip.mp4 -o /tmp/bench_out -s 1920x1080
 ```
+
+须通过 `-i` 指定输入容器；可先运行 `example_encode_file -o test.mp4` 生成短片段。
 
 ### 输出示例
 
 ```
-rkvc v2 session E2E bench (input=tests/fixtures/sample.h264.mp4)
+rkvc v2 session E2E bench (input=clip.mp4)
   REALTIME (H.264): 36.2 fps
   BALANCED (HEVC):  27.1 fps
   QUALITY (AV1):    24.3 fps

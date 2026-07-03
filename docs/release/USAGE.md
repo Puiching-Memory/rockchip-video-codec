@@ -24,12 +24,14 @@ rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 \
   -r 30 -b 4000000 \
   --rc-mode cbr|vbr|cqp --qp 26 \
   --enc-scale-denom 2 \
-  --post-upscale bilinear|bicubic|nearest
+  --post-upscale bilinear|bicubic|nearest \
+  --svt-lp N --svt-rtc
 ```
 
 **注意**：
 
 - `-i` 必须为原始 NV12 文件，不接受 .mp4 / .h265 等压缩文件
+- `--post-upscale` 仅 RGA 三档；**`rkvc_sr` 请用 `rkvc_session_upscale`**
 - v2 已移除 `--testsrc`、`--stdin`、`--stdout`；测试图案请用 `example_encode_file`
 
 ### rkvc_decode
@@ -46,12 +48,27 @@ rkvc_decode -i input.mp4 -o decoded.nv12
 
 ```bash
 rkvc_transcode -i in.mp4 -o out.mp4 -p balanced -b 4000000
-rkvc_transcode -i in.mp4 -o out_av1.mp4 -p quality -b 6000000
+rkvc_transcode -i in.mp4 -o out_av1.mp4 -p quality -b 6000000 --svt-lp 4 --svt-rtc 0
+```
+
+### rkvc_session_upscale
+
+硬解 + 后处理上采样（与 bench post-upscale 同路径）。
+
+```bash
+rkvc_session_upscale -i stream.mp4 -o out.nv12 \
+  --width 1920 --height 1080 \
+  --enc-scale-denom 2 --post-upscale bilinear
+
+# RKNN 超分（需模型与 RKVC_ENABLE_RKNN 构建）
+rkvc_session_upscale -i stream.mp4 -o out.nv12 \
+  --width 1920 --height 1080 --enc-scale-denom 3 \
+  --post-upscale rkvc_sr --rkvc-sr-model /path/to/model.rknn
 ```
 
 ### rkvc_bench
 
-对比三档 policy 的 Session E2E 转码 fps。
+对比三档 policy 的 Session E2E 转码 fps（**须** `-i` 指定输入）。
 
 ```bash
 rkvc_bench -i sample.mp4 -o /tmp/bench -s 1920x1080

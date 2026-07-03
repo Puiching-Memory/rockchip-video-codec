@@ -24,10 +24,11 @@
 
 ### example_decode_formats
 
-验证 NV12 / YUV420P / NV16 / P010 解码输出格式。
+同一码流分别以 NV12 / YUV420P / NV16 / P010 解码，从 `output` 端口校验首帧 `format`（无参数时自生成短 HEVC 夹具，需硬件）。
 
 ```bash
 ./examples/bin/example_decode_formats
+./examples/bin/example_decode_formats input.mp4
 ```
 
 ## 转码

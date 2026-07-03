@@ -143,10 +143,13 @@ policy 说明：
 
 ```c
 d.enc_scale_denom   = 2;                    // 编码前宽高各减半
-d.post_upscale_algo = RKVC_UPSCALE_BILINEAR; // 解码后还原
+d.post_upscale_algo = RKVC_UPSCALE_BILINEAR; // 解码后 RGA 还原
+d.post_upscale_rkvc_model_path = NULL;      // RKVC_UPSCALE_AI_SR 时必填
 d.width  = 1920;  // 显示分辨率不变
 d.height = 1080;
 ```
+
+AI 超分：`post_upscale_algo = RKVC_UPSCALE_AI_SR` + `post_upscale_rkvc_model_path`；或 CLI `rkvc_session_upscale --post-upscale rkvc_sr`。YUV-native 模型规格见项目 `docs/sr-model-yuv-spec.md`。
 
 ## 能力查询
 

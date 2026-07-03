@@ -73,7 +73,7 @@ v2 版本生成短测试码流并验证 `stream_device_pair` 占位；完整 UDP
 - `stream_encode` / `stream_decode` / `stream_transcode` — 流式处理
 - `latency_test` — 端到端延迟
 - `psnr_test` — 编解码质量
-- `decode_formats` — 多像素格式验证
+- `decode_formats` — 多像素格式解码验证（NV12/YUV420P/NV16/P010）
 
 详见 `EXAMPLES.md`。
 

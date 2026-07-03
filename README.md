@@ -7,6 +7,7 @@
 - **Codec Router** — `REALTIME`→H.264 RKMPP、`BALANCED`→HEVC、`QUALITY`→SVT-AV1+硬解
 - **Session API** — `rkvc_session` + 命名端口 `capture`/`output`/`preview`
 - **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频/码流；RGA NV12 缩放
+- **后处理上采样** — RGA 插值（`nearest`/`bilinear`/`bicubic`）或 RKNN 超分（`rkvc_sr`）
 - **模板管线** — 文件编解码、转码、AV1 存储、LiveCapture（V4L2 待接）
 
 ## 性能 (RK3588, 1080p E2E, bench/)
@@ -27,8 +28,8 @@ git submodule update --init --depth 1 third_party/SVT-AV1
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j4
 
-./build/rkvc_bench
-./build/rkvc_transcode -i in.mp4 -o out.mp4 -p balanced
+./build/example_encode_file -o /tmp/bench_in.mp4 -s 640x480 -n 30
+./build/rkvc_bench -i /tmp/bench_in.mp4
 ```
 
 ## RD 基准测试（bench/）
@@ -86,7 +87,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build -j1 -R test_session
 | [docs/getting-started.md](docs/getting-started.md) | 构建与首次运行 |
 | [docs/api.md](docs/api.md) | v2 API 参考 |
 | [docs/architecture.md](docs/architecture.md) | Session / Router / 节点架构 |
-| [docs/migration.md](docs/migration.md) | v0.1.x → v0.2.0 迁移 |
+| [docs/migration.md](docs/migration.md) | v0.1.x → v0.2.x 迁移 |
 | [docs/benchmark.md](docs/benchmark.md) | 性能与 RD 基准 |
 | [docs/testing.md](docs/testing.md) | 测试矩阵 |
 | [docs/packaging.md](docs/packaging.md) | 可移植包与分发 |

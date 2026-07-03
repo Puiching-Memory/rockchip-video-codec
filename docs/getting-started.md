@@ -6,7 +6,7 @@
 |------|------|
 | SoC | Rockchip RK3588 / RK3588S |
 | 内核 | Rockchip BSP 5.10 或 6.1 |
-| 构建 | CMake >= 3.21、Ninja（推荐）、GCC/Clang（C11） |
+| 构建 | CMake >= 3.16（裸 `cmake -B`）；**CMake Presets 需 >= 3.21**、Ninja（推荐）、GCC/Clang（C11） |
 | 系统包 | libdrm-dev、patchelf（可移植包打包） |
 | 测试 | CMocka（可选，`RKVC_BUILD_TESTS=ON`） |
 
@@ -57,13 +57,14 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C build -j4
 ```
 
-默认 preset 构建目标：`rkvc_shared`、`rkvc_static`、`rkvc_encode`、`rkvc_decode`、`rkvc_transcode`、`rkvc_info`、`rkvc_bench`。
+默认 preset 构建目标：`rkvc_shared`、`rkvc_static`、`rkvc_encode`、`rkvc_decode`、`rkvc_transcode`、`rkvc_info`、`rkvc_bench`、`rkvc_session_upscale`、`rkvc_yuv_upscale`。
 
 ## 验证安装
 
 ```bash
 ./build/rkvc_info -j
-./build/rkvc_bench -i tests/fixtures/sample.h264.mp4
+./build/example_encode_file -o /tmp/bench_in.mp4 -s 640x480 -n 30
+./build/rkvc_bench -i /tmp/bench_in.mp4
 ```
 
 ## 快速使用

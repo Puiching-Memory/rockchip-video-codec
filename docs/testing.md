@@ -35,7 +35,7 @@
 | preset | CTest 目标数 | 说明 |
 |--------|-------------|------|
 | `tests` | 16 | 9 个单元测试 + 7 个硬件子用例 |
-| `full-tests` | 17 | 上述 + `test_cli_args` + `test_bench_permission_failure` |
+| `full-tests` | 18 | 上述 + `test_cli_args` + `test_bench_permission_failure` |
 
 硬件测试拆为 7 个独立 CTest 用例（含三策略转码与 3× 上采样），未设置 `RKVC_RUN_HARDWARE_TESTS=1` 时 **exit 77（Skipped）**；设置后夹具自生成，无需 `tests/fixtures/` 内嵌文件。
 

@@ -6,11 +6,11 @@
 #   ./test.sh                         # 在可移植包目录内一键自测
 #
 # 测试项目:
-#   1. 文件完整性
+#   1. 文件完整性（含 rkvc_session_upscale / rkvc_yuv_upscale）
 #   2. 动态库依赖与包内库来源
 #   3. RPATH/RUNPATH 自包含
-#   4. CLI 功能与 JSON 字段
-#   5. 编码、解码、管道模式、本机网络回环
+#   4. CLI 功能与 JSON 字段、三策略 rkvc_bench
+#   5. 编码、解码、转码、后处理上采样、网络冒烟（network-e2e-test.sh）
 #   6. 开发头文件与 pkg-config
 #   7. CLI 参数错误与包结构负向测试
 

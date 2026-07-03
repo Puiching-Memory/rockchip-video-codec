@@ -28,6 +28,7 @@ graph TD
         Rga["node_rga"]
         DmaHost["node_dma_to_host"]
         PostUp["node_post_upscale"]
+        RkvcSr["node_rkvc_sr"]
         Mux["node_mux"]
     end
 
@@ -51,7 +52,10 @@ graph TD
     Scheduler --> Rga
     Scheduler --> DmaHost
     Scheduler --> PostUp
+    Scheduler --> RkvcSr
     Scheduler --> Mux
+    PostUp --> Rga
+    PostUp --> RkvcSr
     Buffer --> Rga
     Demux --> FFmpeg
     MppDec --> FFmpeg
@@ -103,7 +107,7 @@ graph TD
 2. **上传**: 节点内部通过 `av_hwframe_transfer_data` 上传到 RKMPP DMA-BUF
 3. **处理**: MPP / SVT 硬件或软件编码；RGA 负责下采样
 4. **下载**: `node_dma_to_host` 将硬件帧拉回主机内存
-5. **后处理**: `node_post_upscale` 经 `node_rga`（`importbuffer` → `imcheck` → `imresize`）还原分辨率；bench post-upscale 与 Session 同路径（`rkvc_session_upscale`：DMABUF 硬解 → RGA）
+5. **后处理**: `node_post_upscale` 按 `post_upscale_algo` 分流 — **RGA**（`nearest`/`bilinear`/`bicubic`：`node_rga` `importbuffer` → `imresize`）或 **RKNN 超分**（`rkvc_sr`：`node_rkvc_sr`）；bench 与 `rkvc_session_upscale` 走同一 Session 路径（DMABUF 硬解 → 后处理）
 6. **释放**: `rkvc_buffer_unref()` 引用计数归零时释放
 
 ## 下采样 + 后处理上采样
@@ -111,7 +115,7 @@ graph TD
 模拟「低分辨率编码 → 解码 → 上采样还原」管线：
 
 ```
-全分辨率 REF → RGA 1/N 下采样 → 编码 → 解码 → RGA 上采样 → 输出
+全分辨率 REF → RGA 1/N 下采样 → 编码 → 解码 → RGA / RKNN 上采样 → 输出
 ```
 
 对应字段：`enc_scale_denom`（编码前下采样分母）、`post_upscale_algo`（`nearest` / `bilinear` / `bicubic` / `rkvc_sr`，RGA 或 RKVC 神经网络超分）。`width`/`height` 始终为显示/参考分辨率。

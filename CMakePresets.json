@@ -81,7 +81,7 @@
             "name": "default",
             "configurePreset": "default",
             "jobs": 4,
-            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info"]
+            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
         },
         {
             "name": "tests",

@@ -58,7 +58,7 @@ static double bench_policy(rkvc_policy policy, const bench_opts *o)
 int main(int argc, char **argv)
 {
     bench_opts o = {
-        .input = "tests/fixtures/sample.h264.mp4",
+        .input = NULL,
         .output_dir = "/tmp/rkvc_bench",
         .width = 1920,
         .height = 1080,
@@ -76,6 +76,19 @@ int main(int argc, char **argv)
         if (c == 'i') o.input = optarg;
         else if (c == 'o') o.output_dir = optarg;
         else if (c == 's') sscanf(optarg, "%dx%d", &o.width, &o.height);
+    }
+
+    if (!o.input) {
+        fprintf(stderr,
+                "usage: rkvc_bench -i INPUT.mp4 [-o OUTDIR] [-s WxH]\n"
+                "  generate input: ./example_encode_file -o test.mp4 -s 1920x1080 -n 100\n");
+        return 1;
+    }
+
+    struct stat st;
+    if (stat(o.input, &st) != 0) {
+        fprintf(stderr, "input not found: %s\n", o.input);
+        return 1;
     }
 
     rkvc_init();

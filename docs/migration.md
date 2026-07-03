@@ -139,4 +139,10 @@ git submodule update --init --depth 1 third_party/SVT-AV1
 
 ## 可移植包
 
-包名由 `rkvc-0.1.x-linux-aarch64-portable` 更新为 `rkvc-0.2.0-linux-aarch64-portable`，新增 `rkvc_transcode` 与 `libSvtAv1Enc.so.4`。
+包名由 `rkvc-0.1.x-linux-aarch64-portable` 更新为 **`rkvc-0.2.1-linux-aarch64-portable`**（0.2.0 起 v2 API）。
+
+相较 v1 包新增：
+
+- `rkvc_transcode`、`rkvc_session_upscale`、`rkvc_yuv_upscale`
+- `libSvtAv1Enc.so.4`（QUALITY / AV1 路线）
+- 自测由 92 项增至 **99 项**（三策略 bench 严格匹配 + 后处理上采样）
