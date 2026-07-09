@@ -15,26 +15,29 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter, ScalarFormatter
 
 UPSCALE_CODEC_RE = re.compile(
-    r"^(?P<base>h264|h265|svt-av1)\+up(?P<scale>\d+)x-(?P<algo>nearest|bilinear|bicubic|rkvc_sr)$"
+    r"^(?P<base>h264|h265|svt-av1-hq|svt-av1)\+up(?P<scale>\d+)x-(?P<algo>[A-Za-z0-9_]+)$"
 )
 
-# RGA 插值算法（合并为均值带）；rkvc_sr 单独成线
+# RGA 插值算法（合并为均值带）；AI 超分单独成线
 RGA_ALGOS = frozenset({"nearest", "bilinear", "bicubic"})
-AI_SR_ALGOS = frozenset({"rkvc_sr"})
+# mobileone：历史 CSV 别名，等同 rkvc_sr
+AI_SR_ALGOS = frozenset({"rkvc_sr", "mobileone"})
 
 UPSCALE_GROUP_RE = re.compile(
-    r"^(?P<base>h264|h265|svt-av1)\+up(?P<scale>\d+)x$"
+    r"^(?P<base>h264|h265|svt-av1-hq|svt-av1)\+up(?P<scale>\d+)x$"
 )
 
 CODEC_LABELS = {
     "h264": "H.264",
     "h265": "H.265",
     "svt-av1": "SVT-AV1",
+    "svt-av1-hq": "SVT-AV1 HQ (non-realtime)",
     "svt-av1+superres": "SVT-AV1 + superres (AV1 built-in)",
     "rkvc-realtime": "rkvc realtime (H.264)",
     "rkvc-balanced": "rkvc balanced (HEVC)",
     "rkvc-quality": "rkvc quality (AV1)",
-    "rkvc-v2": "rkvc v2 (Session)",
+    "rkvc-offline": "rkvc offline (AV1 HQ)",
+    "rkvc": "rkvc (Session)",
 }
 
 # 按 codec 技术家族配色：同族相近色相，基线/RGA/AI 用深→浅区分
@@ -54,23 +57,31 @@ FAMILY_PALETTES: dict[str, dict[str, str]] = {
         "rga": "#4DAF6C",   # 中绿
         "ai": "#8FD4A8",    # 浅绿
     },
+    "svt-av1-hq": {
+        "base": "#0F5C2E",  # 更深绿（HQ）
+        "rga": "#2F8F55",
+        "ai": "#6FBF8A",
+    },
 }
 
 CODEC_COLORS = {
     "h264": FAMILY_PALETTES["h264"]["base"],
     "h265": FAMILY_PALETTES["h265"]["base"],
     "svt-av1": FAMILY_PALETTES["svt-av1"]["base"],
+    "svt-av1-hq": "#0F5C2E",
     "svt-av1+superres": "#14532D",
     "rkvc-realtime": FAMILY_PALETTES["h264"]["rga"],
     "rkvc-balanced": FAMILY_PALETTES["h265"]["rga"],
     "rkvc-quality": FAMILY_PALETTES["svt-av1"]["rga"],
-    "rkvc-v2": "#9467bd",
+    "rkvc-offline": FAMILY_PALETTES["svt-av1"]["ai"],
+    "rkvc": "#9467bd",
 }
 
 UPSCALE_BASE_LABELS = {
     "h264": "H.264",
     "h265": "H.265",
     "svt-av1": "SVT-AV1",
+    "svt-av1-hq": "SVT-AV1 HQ",
 }
 
 UPSCALE_ALGO_COLORS = {
@@ -79,6 +90,7 @@ UPSCALE_ALGO_COLORS = {
         "bilinear": FAMILY_PALETTES[base]["rga"],
         "bicubic": FAMILY_PALETTES[base]["rga"],
         "rkvc_sr": FAMILY_PALETTES[base]["ai"],
+        "mobileone": FAMILY_PALETTES[base]["ai"],
     }
     for base in FAMILY_PALETTES
 }
@@ -88,6 +100,7 @@ UPSCALE_ALGO_MARKERS = {
     "bilinear": "d",
     "bicubic": "p",
     "rkvc_sr": "*",
+    "mobileone": "*",
 }
 
 # 合并后的 post-upscale RGA 曲线颜色（家族中色）
@@ -97,22 +110,26 @@ CODEC_MARKERS = {
     "h264": "o",
     "h265": "s",
     "svt-av1": "^",
+    "svt-av1-hq": "*",
     "svt-av1+superres": "h",
     "rkvc-realtime": "D",
     "rkvc-balanced": "v",
     "rkvc-quality": "P",
-    "rkvc-v2": "v",
+    "rkvc-offline": "X",
+    "rkvc": "v",
 }
 
 CODEC_ORDER = [
     "h264",
     "h265",
     "svt-av1",
+    "svt-av1-hq",
     "svt-av1+superres",
     "rkvc-realtime",
     "rkvc-balanced",
     "rkvc-quality",
-    "rkvc-v2",
+    "rkvc-offline",
+    "rkvc",
 ]
 
 
@@ -179,7 +196,6 @@ def codec_label(codec: str) -> str:
         base = m.group("base")
         scale = int(m.group("scale"))
         algo = m.group("algo")
-        lo_h = 1080 // scale if scale else 0
         if algo in AI_SR_ALGOS:
             return f"{UPSCALE_BASE_LABELS.get(base, base)} ↑{scale}× AI"
         return f"{UPSCALE_BASE_LABELS.get(base, base)} ↑{scale}× RGA ({algo})"
@@ -205,22 +221,33 @@ def codec_short_label(codec: str) -> str:
         "h264": "H.264",
         "h265": "H.265",
         "svt-av1": "SVT-AV1",
+        "svt-av1-hq": "SVT-AV1 HQ",
         "svt-av1+superres": "SVT-AV1+SR",
         "rkvc-realtime": "rkvc RT",
         "rkvc-balanced": "rkvc Bal",
         "rkvc-quality": "rkvc Q",
-        "rkvc-v2": "rkvc v2",
+        "rkvc-offline": "rkvc Off",
+        "rkvc": "rkvc",
     }
     return short.get(codec, codec)
 
 
-def codec_color(codec: str) -> str | None:
+def codec_color(codec: str) -> str:
     if is_upscale_group(codec):
         return upscale_group_color(codec)
     m = UPSCALE_CODEC_RE.match(codec)
     if m:
-        return UPSCALE_ALGO_COLORS.get(m.group("base"), {}).get(m.group("algo"))
-    return CODEC_COLORS.get(codec)
+        base = m.group("base")
+        algo = m.group("algo")
+        mapped = UPSCALE_ALGO_COLORS.get(base, {}).get(algo)
+        if mapped:
+            return mapped
+        # 未知算法：RGA 族用中色，其余用 AI 浅色，避免落入 matplotlib 默认色环
+        pal = FAMILY_PALETTES.get(base)
+        if pal:
+            return pal["rga"] if algo in RGA_ALGOS else pal["ai"]
+        return "#888888"
+    return CODEC_COLORS.get(codec, "#555555")
 
 
 def codec_marker(codec: str) -> str:
@@ -228,7 +255,10 @@ def codec_marker(codec: str) -> str:
         return "D"
     m = UPSCALE_CODEC_RE.match(codec)
     if m:
-        return UPSCALE_ALGO_MARKERS.get(m.group("algo"), "o")
+        algo = m.group("algo")
+        if algo in UPSCALE_ALGO_MARKERS:
+            return UPSCALE_ALGO_MARKERS[algo]
+        return "*" if algo in AI_SR_ALGOS else "o"
     return CODEC_MARKERS.get(codec, "o")
 
 
@@ -239,6 +269,22 @@ def codec_linewidth(codec: str) -> float:
     if m:
         return 2.0
     return 2.4
+
+
+def codec_zorder(codec: str) -> int:
+    """绘制层级：RGA 最底 → AI → 全分辨率基线 → HQ/rkvc 最上。"""
+    if is_upscale_group(codec):
+        return 2
+    m = UPSCALE_CODEC_RE.match(codec)
+    if m:
+        return 3 if m.group("algo") in AI_SR_ALGOS else 2
+    if codec in ("svt-av1-hq", "rkvc-offline"):
+        return 6
+    if codec.startswith("rkvc-") or codec == "rkvc":
+        return 5
+    if codec in ("svt-av1", "svt-av1+superres", "h265", "h264"):
+        return 4
+    return 4
 
 
 def plot_style_kwargs(codec: str, color: str, label: str) -> dict:
@@ -252,6 +298,7 @@ def plot_style_kwargs(codec: str, color: str, label: str) -> dict:
         markeredgecolor="white",
         markeredgewidth=0.4,
         clip_on=True,
+        zorder=codec_zorder(codec),
     )
 
 
@@ -260,9 +307,12 @@ def sort_codecs(codecs: list[str]) -> list[str]:
         {c for c in codecs if is_upscale_group(c)}
         | {gk for c in codecs if (gk := upscale_group_key(c))}
     )
+    ai_upscales = sorted(
+        c for c in codecs if is_post_upscale(c) and upscale_group_key(c) is None
+    )
     baselines = [
         c for c in codecs
-        if not is_upscale_group(c) and upscale_group_key(c) is None
+        if not is_upscale_group(c) and not is_post_upscale(c)
     ]
 
     ordered: list[str] = []
@@ -272,7 +322,10 @@ def sort_codecs(codecs: list[str]) -> list[str]:
         for g in groups_present:
             if g.startswith(f"{c}+up"):
                 ordered.append(g)
-    for c in baselines:
+        for ai in ai_upscales:
+            if ai.startswith(f"{c}+up"):
+                ordered.append(ai)
+    for c in baselines + groups_present + ai_upscales:
         if c not in ordered:
             ordered.append(c)
     return ordered
@@ -474,13 +527,19 @@ def plot_rd(
 
         color = upscale_group_color(codec) if is_upscale_group(codec) else codec_color(codec)
         label = codec_label(codec)
+        z = codec_zorder(codec)
         if is_upscale_group(codec):
             psnr_lo = [p["psnr_y_lo"] for p in pts]
             psnr_hi = [p["psnr_y_hi"] for p in pts]
             ssim_lo = [p["ssim_lo"] for p in pts]
             ssim_hi = [p["ssim_hi"] for p in pts]
-            ax_psnr.fill_between(br, psnr_lo, psnr_hi, color=color, alpha=0.22, linewidth=0)
-            ax_ssim.fill_between(br, ssim_lo, ssim_hi, color=color, alpha=0.22, linewidth=0)
+            # 色带略低于对应折线，避免盖住基线
+            ax_psnr.fill_between(
+                br, psnr_lo, psnr_hi, color=color, alpha=0.22, linewidth=0, zorder=z - 1
+            )
+            ax_ssim.fill_between(
+                br, ssim_lo, ssim_hi, color=color, alpha=0.22, linewidth=0, zorder=z - 1
+            )
             kw = plot_style_kwargs(codec, color, label)
             ax_psnr.plot(br, psnr, **kw)
             ax_ssim.plot(br, ssim, **kw)
@@ -557,7 +616,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=bench_root / "results" / "rd_curve_e2e")
     parser.add_argument(
         "--title",
-        default="E2E RD Curve (RK3588, baselines + rkvc realtime/balanced/quality)",
+        default="E2E RD Curve (RK3588, baselines + rkvc realtime/balanced/quality/offline)",
     )
     parser.add_argument(
         "--xscale",

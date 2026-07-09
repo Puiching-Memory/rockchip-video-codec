@@ -14,6 +14,7 @@ static rkvc_policy parse_policy(const char *s)
     if (!s || strcmp(s, "realtime") == 0) return RKVC_POLICY_REALTIME;
     if (strcmp(s, "balanced") == 0) return RKVC_POLICY_BALANCED;
     if (strcmp(s, "quality") == 0) return RKVC_POLICY_QUALITY;
+    if (strcmp(s, "offline") == 0) return RKVC_POLICY_OFFLINE;
     return RKVC_POLICY_BALANCED;
 }
 
@@ -81,7 +82,7 @@ int main(int argc, char **argv)
             break;
         default:
             fprintf(stderr,
-                    "usage: rkvc_transcode -i IN -o OUT [-p realtime|balanced|quality] "
+                    "usage: rkvc_transcode -i IN -o OUT [-p realtime|balanced|quality|offline] "
                     "[-b bps] [-s WxH] [--rc-mode vbr|cbr|cqp] [--qp N] "
                     "[--svt-lp N] [--svt-rtc]\n");
             return 1;
@@ -90,7 +91,7 @@ int main(int argc, char **argv)
 
     if (!input || !output) {
         fprintf(stderr,
-                "usage: rkvc_transcode -i IN -o OUT [-p realtime|balanced|quality] "
+                "usage: rkvc_transcode -i IN -o OUT [-p realtime|balanced|quality|offline] "
                 "[-b bps] [-s WxH] [--rc-mode vbr|cbr|cqp] [--qp N] "
                 "[--svt-lp N] [--svt-rtc]\n");
         return 1;

@@ -9,7 +9,9 @@ int main(int argc, char **argv) {
     d.input_path = argv[1]; d.output_path = argv[2];
     if (argc > 3) {
         if (strcmp(argv[3], "realtime") == 0) d.policy = RKVC_POLICY_REALTIME;
+        else if (strcmp(argv[3], "balanced") == 0) d.policy = RKVC_POLICY_BALANCED;
         else if (strcmp(argv[3], "quality") == 0) d.policy = RKVC_POLICY_QUALITY;
+        else if (strcmp(argv[3], "offline") == 0) d.policy = RKVC_POLICY_OFFLINE;
     }
     rkvc_session *s = NULL;
     rkvc_session_create(&d, &s);

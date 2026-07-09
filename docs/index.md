@@ -22,7 +22,6 @@
 - [构建目录约定](build-layout.md) — 全部收在 `.build/`（release / tests / deps / dist …）
 - [架构](architecture.md) — Session 图、Codec Router、节点管线
 - [API 参考](api.md) — v2 公共 API（完整函数/结构体说明）
-- [v1 → v2 迁移](migration.md) — 破坏性升级迁移指南
 - [YUV 超分模型规格](sr-model-yuv-spec.md) — YUV-native SR 训练/推理/RKVC 模型导出规范（设计稿）
 
 ### 运维与交付

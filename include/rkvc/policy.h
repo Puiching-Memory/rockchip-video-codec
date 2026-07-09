@@ -25,12 +25,13 @@ typedef enum {
 /**
  * @brief 端到端质量/延迟策略（Codec Router 输入）。
  *
- * 与 CLI `-p realtime|balanced|quality` 对应。
+ * 与 CLI `-p realtime|balanced|quality|offline` 对应。
  */
 typedef enum {
     RKVC_POLICY_REALTIME = 0,   /**< H.264 RKMPP，目标 ≥30fps@1080p */
     RKVC_POLICY_BALANCED,       /**< HEVC RKMPP；高帧率 1080p+ 回退 H.264 */
-    RKVC_POLICY_QUALITY,       /**< SVT-AV1 preset 11 + av1_rkmpp 硬解 */
+    RKVC_POLICY_QUALITY,        /**< SVT-AV1 preset 11 + av1_rkmpp（近实时） */
+    RKVC_POLICY_OFFLINE,        /**< 非实时：SVT-AV1 preset 4 + av1_rkmpp，目标 ≥1fps@1080p */
 } rkvc_policy;
 
 /** @brief 编码器后端。 */
@@ -57,7 +58,7 @@ typedef struct {
     rkvc_dec_backend  dec_backend;  /**< 解码后端 */
     const char       *enc_name;     /**< FFmpeg 编码器名或 `"svt-av1"` */
     const char       *dec_name;     /**< FFmpeg 解码器名，如 `"hevc_rkmpp"` */
-    int               svt_preset;   /**< SVT `enc_mode`（6–11），非 SVT 时为 0 */
+    int               svt_preset;   /**< SVT `enc_mode`（如 4–11），非 SVT 时为 0 */
     const char       *reason;       /**< 人类可读选型原因（静态字符串） */
 } rkvc_route_plan;
 
@@ -81,7 +82,7 @@ const char *rkvc_codec_name(rkvc_codec codec);
 
 /**
  * @brief 将 `rkvc_policy` 转为 CLI 风格短名。
- * @return `"realtime"` / `"balanced"` / `"quality"` / `"unknown"`。
+ * @return `"realtime"` / `"balanced"` / `"quality"` / `"offline"` / `"unknown"`。
  */
 const char *rkvc_policy_name(rkvc_policy policy);
 

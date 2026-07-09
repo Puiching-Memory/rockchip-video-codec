@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # bench/run_rd_benchmark.sh — RK3588 端到端 RD 基准（集成于 rkvc 项目）
 #
-# 对比路线（默认）: h264 / h265 / svt-av1 / rkvc-v2 / post-upscale
+# 对比路线（默认）: h264 / h265 / svt-av1 / svt-av1-hq / rkvc / post-upscale
 # 实验路线（搁置）: svt-av1+superres — AV1 内建 superres，见 bench/README.md
 #
 # 用法:
 #   ./scripts/run-bench.sh [源视频.mp4]
-#   RUN_CODECS=h264,rkvc-v2 ./scripts/run-bench.sh clip.mp4
+#   RUN_CODECS=h264,rkvc ./scripts/run-bench.sh clip.mp4
 #   PLOT_ONLY=1 ./scripts/run-bench.sh
 
 set -euo pipefail
@@ -697,12 +697,19 @@ post_upscale_algo_enabled() {
 
 post_upscale_will_rerun() {
     local base algo
-    for base in h264 h265 svt-av1; do
+    for base in h264 h265 svt-av1 svt-av1-hq; do
         if post_upscale_base_enabled "$base"; then
             return 0
         fi
     done
     return 1
+}
+
+svt_preset_for_base() {
+    case "$1" in
+        svt-av1-hq) echo "${SVT_HQ_PRESET:-4}" ;;
+        *)          echo "$SVT_PRESET" ;;
+    esac
 }
 
 run_h264_hw() {
@@ -757,11 +764,11 @@ run_h265_hw() {
     write_csv_row "$CSV" "h265" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
 }
 
-run_svt_av1() {
-    local kbps="$1"
+run_svt_av1_at_preset() {
+    local csv_codec="$1" kbps="$2" preset="$3"
     local ramdir logdir
-    ramdir=$(bench_ramdir svt-av1 "$kbps")
-    logdir=$(bench_logdir svt-av1 "$kbps")
+    ramdir=$(bench_ramdir "$csv_codec" "$kbps")
+    logdir=$(bench_logdir "$csv_codec" "$kbps")
     mkdir -p "$ramdir" "$logdir"
     if [[ ! -x "$SVT_ENC" ]]; then
         echo "[skip] SVT-AV1 未构建: $SVT_ENC (运行 ./scripts/build-svt.sh)"
@@ -771,10 +778,10 @@ run_svt_av1() {
     local decoded_yuv="$ramdir/decoded.yuv" stats="$logdir/stats"
     local -a svt_args
     mapfile -t svt_args < <(svt_full_encode_args "$kbps")
-    echo "[run] svt-av1 @ ${kbps}kbps (preset ${SVT_PRESET}, mode ${SVT_RD_MODE})"
+    echo "[run] ${csv_codec} @ ${kbps}kbps (preset ${preset}, mode ${SVT_RD_MODE})"
     local t0 t1 t2 br q
     t0=$(date +%s.%N)
-    "$SVT_ENC" --input "$REF_Y4M_RAM" -b "$bitstream" --preset "$SVT_PRESET" \
+    "$SVT_ENC" --input "$REF_Y4M_RAM" -b "$bitstream" --preset "$preset" \
         "${svt_args[@]}" --keyint "$SVT_KEYINT" --lp "$SVT_LP" -n "$FRAMES" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     ffmpeg_to_yuv420p_raw "$bitstream" "$decoded_yuv" "$logdir/dec.log"
@@ -782,7 +789,16 @@ run_svt_av1() {
     br=$(actual_kbps "$bitstream" "$FRAMES")
     q=$(measure_quality_yuv "$decoded_yuv" "$REF_YUV_RAM" "$FRAMES" "$stats" "$FPS_NUM" "$FPS_DEN")
     bench_cleanup_ramdir "$ramdir"
-    write_csv_row "$CSV" "svt-av1" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
+    write_csv_row "$CSV" "$csv_codec" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
+}
+
+run_svt_av1() {
+    run_svt_av1_at_preset svt-av1 "$1" "$SVT_PRESET"
+}
+
+# 非实时高质量档：更慢的 SVT preset（默认 hq_preset=4），目标编码速度 ≥1 fps@1080p
+run_svt_av1_hq() {
+    run_svt_av1_at_preset svt-av1-hq "$1" "${SVT_HQ_PRESET:-4}"
 }
 
 run_svt_av1_superres() {
@@ -866,9 +882,10 @@ run_rkmpp_post_upscale() {
 }
 
 run_svt_av1_post_upscale() {
-    local algo="$1" kbps="$2"
-    local csv_codec ramdir logdir
-    csv_codec=$(post_upscale_codec_name svt-av1 "$algo")
+    local base="$1" algo="$2" kbps="$3"
+    local csv_codec ramdir logdir preset
+    csv_codec=$(post_upscale_codec_name "$base" "$algo")
+    preset=$(svt_preset_for_base "$base")
     ramdir=$(bench_ramdir "$csv_codec" "$kbps")
     logdir=$(bench_logdir "$csv_codec" "$kbps")
     mkdir -p "$ramdir" "$logdir"
@@ -881,12 +898,12 @@ run_svt_av1_post_upscale() {
     local bitstream="$ramdir/stream.ivf"
     local upscaled_nv12="$ramdir/upscaled.nv12"
     local stats="$logdir/stats"
-    echo "[run] ${csv_codec} @ ${kbps}kbps (encode ${ENC_W}x${ENC_H}, session decode+upscale=${algo}, preset ${SVT_PRESET}, mode ${SVT_RD_MODE})"
+    echo "[run] ${csv_codec} @ ${kbps}kbps (encode ${ENC_W}x${ENC_H}, session decode+upscale=${algo}, preset ${preset}, mode ${SVT_RD_MODE})"
     local t0 t1 timing dec_sec rga_sec write_sec post_sec br q
     local -a svt_args
     mapfile -t svt_args < <(svt_lo_encode_args "$kbps")
     t0=$(date +%s.%N)
-    "$SVT_ENC" --input "$REF_Y4M_ENC" -b "$bitstream" --preset "$SVT_PRESET" \
+    "$SVT_ENC" --input "$REF_Y4M_ENC" -b "$bitstream" --preset "$preset" \
         "${svt_args[@]}" --keyint "$SVT_KEYINT" --lp "$SVT_LP" -n "$FRAMES" 2>"$logdir/enc.log"
     t1=$(date +%s.%N)
     timing=$(session_decode_upscale "$bitstream" "$upscaled_nv12" "$algo" "$logdir/dec.log") || return 1
@@ -1008,6 +1025,43 @@ run_rkvc_quality() {
     write_csv_row "$CSV" "$csv_codec" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
 }
 
+# 非实时高质量：Session offline → SVT-AV1 hq_preset（默认 4）
+run_rkvc_offline() {
+    local kbps="$1"
+    local csv_codec="rkvc-offline"
+    local ramdir logdir
+    ramdir=$(bench_ramdir "$csv_codec" "$kbps")
+    logdir=$(bench_logdir "$csv_codec" "$kbps")
+    mkdir -p "$ramdir" "$logdir"
+    local bitstream="$ramdir/stream.ivf" decoded_yuv="$ramdir/decoded.yuv" stats="$logdir/stats"
+    local fps=$((FPS_NUM / FPS_DEN))
+    local hq_preset="${SVT_HQ_PRESET:-4}"
+    if [[ ! -x "$RKVC_ENC" ]]; then
+        echo "[skip] rkvc_encode 未构建: $RKVC_ENC"
+        return 0
+    fi
+    echo "[run] rkvc session (offline → AV1 SVT p${hq_preset}, lp=${SVT_LP}, YUV encode) @ ${kbps}kbps"
+    local t0 t1 t2 br q enc_frames
+    local -a svt_session_args=(--svt-lp "${SVT_LP:-4}")
+    [[ "${SVT_RTC:-0}" == "1" ]] && svt_session_args+=(--svt-rtc)
+    t0=$(date +%s.%N)
+    "$RKVC_ENC" -i "$REF_YUV_RAM" -o "$bitstream" -p offline -b "$((kbps * 1000))" \
+        --rc-mode vbr --pix-fmt yuv420p -s "${WIDTH}x${HEIGHT}" -r "$fps" \
+        "${svt_session_args[@]}" 2>"$logdir/enc.log"
+    t1=$(date +%s.%N)
+    enc_frames=$(stream_frame_count "$bitstream")
+    if [[ "$enc_frames" -lt $((FRAMES - 2)) ]]; then
+        echo "[error] ${csv_codec} @ ${kbps}kbps 帧数不足: ${enc_frames}/${FRAMES}" >&2
+        return 1
+    fi
+    ffmpeg_to_yuv420p_raw "$bitstream" "$decoded_yuv" "$logdir/dec.log" -frames:v "$enc_frames"
+    t2=$(date +%s.%N)
+    br=$(actual_kbps "$bitstream" "$enc_frames")
+    q=$(measure_quality_yuv "$decoded_yuv" "$REF_YUV_RAM" "$enc_frames" "$stats" "$FPS_NUM" "$FPS_DEN")
+    bench_cleanup_ramdir "$ramdir"
+    write_csv_row "$CSV" "$csv_codec" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
+}
+
 run_rkvc_realtime() { run_rkvc_transcode_policy realtime "$1"; }
 run_rkvc_balanced()  { run_rkvc_transcode_policy balanced "$1"; }
 
@@ -1042,7 +1096,7 @@ rkvc_policy_selected() {
     if codec_enabled "$csv_codec"; then
         return 0
     fi
-    codec_enabled rkvc-v2 && rkvc_policy_enabled "$policy"
+    codec_enabled rkvc && rkvc_policy_enabled "$policy"
 }
 
 codec_will_rerun() {
@@ -1051,17 +1105,17 @@ codec_will_rerun() {
         return 0
     fi
     case "$codec" in
-        rkvc-v2|rkvc-realtime|rkvc-balanced|rkvc-quality)
-            codec_enabled rkvc-v2 && return 0
+        rkvc|rkvc-realtime|rkvc-balanced|rkvc-quality|rkvc-offline)
+            codec_enabled rkvc && return 0
             ;;
     esac
     if [[ "$codec" == post-upscale ]]; then
         post_upscale_will_rerun && return 0
     fi
-    if [[ "$codec" =~ ^(h264|h265|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
+    if [[ "$codec" =~ ^(h264|h265|svt-av1-hq|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
         post_upscale_algo_enabled "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" && return 0
     fi
-    if [[ "$codec" =~ ^(h264|h265|svt-av1)\+up[0-9]+x$ ]]; then
+    if [[ "$codec" =~ ^(h264|h265|svt-av1-hq|svt-av1)\+up[0-9]+x$ ]]; then
         post_upscale_base_enabled "${BASH_REMATCH[1]}" && return 0
     fi
     return 1
@@ -1073,6 +1127,7 @@ echo "[info] ffmpeg:  $FFMPEG"
 echo "[info] clip: ${CLIP_SEC}s @ ${CLIP_START}s (${FRAMES} frames, ${WIDTH}x${HEIGHT}, offset=${CLIP_OFFSET})"
 echo "[info] bitrates: ${BITRATES[*]} kbps (TARGET_KBPS)"
 echo "[info] svt rd mode: $SVT_RD_MODE (calibrated=CRF/CQP, vbr=--rc 1 --tbr)"
+echo "[info] svt preset: $SVT_PRESET  hq_preset: ${SVT_HQ_PRESET:-4}"
 if superres_enabled; then
     echo "[info] svt superres: mode=${SVT_SUPERRES_MODE} denom=${SVT_SUPERRES_DENOM} qthres=${SVT_SUPERRES_QTHRES}"
 fi
@@ -1083,12 +1138,12 @@ echo "[info] rkvc policies: $RKVC_POLICIES"
 echo "[info] rkvc: $RKVC_TRANS"
 echo "[info] ramdisk: $RAMDISK_DIR (码流/YUV 中间文件 tmpfs)"
 
-for codec in h264 h265 svt-av1 svt-av1+superres rkvc-v2 rkvc-realtime rkvc-balanced rkvc-quality; do
+for codec in h264 h265 svt-av1 svt-av1-hq svt-av1+superres rkvc rkvc-realtime rkvc-balanced rkvc-quality rkvc-offline; do
     codec_will_rerun "$codec" && rm -rf "$RAM_WORK_DIR/$codec"
 done
 if post_upscale_will_rerun; then
     IFS=',' read -ra _up_algos <<< "$UPSCALE_ALGOS"
-    for base in h264 h265 svt-av1; do
+    for base in h264 h265 svt-av1 svt-av1-hq; do
         post_upscale_base_enabled "$base" || continue
         for algo in "${_up_algos[@]}"; do
             _c=$(post_upscale_codec_name "$base" "$algo")
@@ -1103,7 +1158,7 @@ rm -f "$WORKDIR"/results_*.csv
 
 bench_rkvc_policies() {
     local policy fn
-    for policy in realtime balanced quality; do
+    for policy in realtime balanced quality offline; do
         if ! rkvc_policy_selected "$policy"; then
             continue
         fi
@@ -1126,7 +1181,7 @@ bench_post_upscale_combo() {
     for kbps in "${BITRATES[@]}"; do
         case "$base" in
             h264|h265) run_rkmpp_post_upscale "$base" "$algo" "$kbps" ;;
-            svt-av1)   run_svt_av1_post_upscale "$algo" "$kbps" ;;
+            svt-av1|svt-av1-hq) run_svt_av1_post_upscale "$base" "$algo" "$kbps" ;;
         esac
     done
     CSV="$orig_csv"
@@ -1136,7 +1191,7 @@ bench_post_upscale() {
     local base algo c
     declare -A _ran=()
     IFS=',' read -ra _bench_algos <<< "$UPSCALE_ALGOS"
-    for base in h264 h265 svt-av1; do
+    for base in h264 h265 svt-av1 svt-av1-hq; do
         post_upscale_base_enabled "$base" || continue
         for algo in "${_bench_algos[@]}"; do
             if ! post_upscale_algo_enabled "$base" "$algo"; then
@@ -1153,7 +1208,7 @@ bench_post_upscale() {
     done
     IFS=',' read -ra _run_codecs <<< "$RUN_CODECS"
     for c in "${_run_codecs[@]}"; do
-        if [[ "$c" =~ ^(h264|h265|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
+        if [[ "$c" =~ ^(h264|h265|svt-av1-hq|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
             base="${BASH_REMATCH[1]}"
             algo="${BASH_REMATCH[2]}"
             [[ -n "${_ran[${base}|${algo}]:-}" ]] && continue
@@ -1175,6 +1230,7 @@ if [[ "$BENCH_PARALLEL" == "1" ]]; then
     codec_enabled h264 && { bench_codec run_h264_hw & pids+=($!); }
     codec_enabled h265 && { bench_codec run_h265_hw & pids+=($!); }
     codec_enabled svt-av1 && { bench_codec run_svt_av1 & pids+=($!); }
+    codec_enabled svt-av1-hq && { bench_codec run_svt_av1_hq & pids+=($!); }
     superres_enabled && { bench_codec run_svt_av1_superres & pids+=($!); }
     bench_rkvc_policies
     bench_post_upscale
@@ -1183,6 +1239,7 @@ else
     codec_enabled h264 && bench_codec run_h264_hw
     codec_enabled h265 && bench_codec run_h265_hw
     codec_enabled svt-av1 && bench_codec run_svt_av1
+    codec_enabled svt-av1-hq && bench_codec run_svt_av1_hq
     superres_enabled && bench_codec run_svt_av1_superres
     bench_rkvc_policies
     bench_post_upscale

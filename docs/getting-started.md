@@ -133,10 +133,6 @@ gcc -o myapp myapp.c $(pkg-config --cflags --libs rkvc)
 
 详见 [基准测试](benchmark.md) 与 [bench/README.md](../bench/README.md)。
 
-## 从 v0.1.x 升级
-
-若你使用过 v1 API，请先阅读 [v1 → v2 迁移](migration.md)。
-
 ## 二次开发
 
 - 完整 API：[api.md](api.md)（与 `include/rkvc/*.h` Doxygen 注释一致）

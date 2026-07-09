@@ -9,7 +9,7 @@
 #   1. 文件完整性（含 rkvc_session_upscale / rkvc_yuv_upscale）
 #   2. 动态库依赖与包内库来源
 #   3. RPATH/RUNPATH 自包含
-#   4. CLI 功能与 JSON 字段、三策略 rkvc_bench
+#   4. CLI 功能与 JSON 字段、四策略 rkvc_bench
 #   5. 编码、解码、转码、后处理上采样、网络冒烟（network-e2e-test.sh）
 #   6. 开发头文件与 pkg-config
 #   7. CLI 参数错误与包结构负向测试
@@ -420,13 +420,14 @@ if [ -f "$TMPDIR/test.mp4" ]; then
        echo "$bench_out" | grep -qE 'REALTIME \(H\.264\)[[:space:]]+[0-9]+\.[0-9]+ fps' && \
        echo "$bench_out" | grep -qE 'BALANCED \(HEVC\)[[:space:]]+[0-9]+\.[0-9]+ fps' && \
        echo "$bench_out" | grep -qE 'QUALITY \(AV1\)[[:space:]]+[0-9]+\.[0-9]+ fps' && \
+       echo "$bench_out" | grep -qE 'OFFLINE \(AV1 HQ\)[[:space:]]+[0-9]+\.[0-9]+ fps' && \
        ! echo "$bench_out" | grep -q '\-1\.0 fps'; then
         bench_ok=1
     fi
     if [ "$bench_ok" -eq 1 ]; then
-        pass "rkvc_bench session E2E 三策略短测"
+        pass "rkvc_bench session E2E 四策略短测"
     else
-        fail "rkvc_bench session E2E 三策略短测失败 (exit=$bench_status)"
+        fail "rkvc_bench session E2E 四策略短测失败 (exit=$bench_status)"
         echo "  命令: $PKG_DIR/bin/rkvc_bench -i $TMPDIR/test.mp4 -o $TMPDIR/bench -s 640x480"
         show_output "rkvc_bench" "$bench_out"
     fi

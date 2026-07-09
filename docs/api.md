@@ -136,11 +136,6 @@ typedef enum {
     RKVC_RC_CBR = 1,   // 恒定码率（pipeline 默认）
     RKVC_RC_CQP = 2,   // 固定 QP
 } rkvc_rc_mode;
-
-// v1 兼容别名
-#define RKRC_VBR RKVC_RC_VBR
-#define RKRC_CBR RKVC_RC_CBR
-#define RKRC_CQP RKVC_RC_CQP
 ```
 
 数值与 MPP / FFmpeg `rkmppenc` 的 `rc_mode` 一致。
@@ -153,7 +148,8 @@ typedef enum {
 typedef enum {
     RKVC_POLICY_REALTIME = 0,  // H.264 RKMPP，≥30fps@1080p
     RKVC_POLICY_BALANCED,      // HEVC RKMPP（高帧率 1080p+ 回退 H.264）
-    RKVC_POLICY_QUALITY,       // SVT-AV1 preset 11 + av1_rkmpp
+    RKVC_POLICY_QUALITY,       // SVT-AV1 preset 11 + av1_rkmpp（近实时）
+    RKVC_POLICY_OFFLINE,       // SVT-AV1 preset 4 + av1_rkmpp（非实时，≥1fps@1080p）
 } rkvc_policy;
 
 typedef enum {
@@ -176,14 +172,14 @@ typedef struct {
     rkvc_dec_backend dec_backend;
     const char      *enc_name;     // "h264_rkmpp" / "svt-av1" 等
     const char      *dec_name;
-    int              svt_preset;   // SVT enc_mode 6–11
+    int              svt_preset;   // SVT enc_mode（如 4–11）
     const char      *reason;       // 选型原因（静态字符串）
 } rkvc_route_plan;
 
 rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc, rkvc_route_plan *plan);
 
 const char *rkvc_codec_name(rkvc_codec codec);    // "h264" / "hevc" / "av1" / "auto"
-const char *rkvc_policy_name(rkvc_policy policy); // "realtime" / "balanced" / "quality"
+const char *rkvc_policy_name(rkvc_policy policy); // "realtime" / "balanced" / "quality" / "offline"
 ```
 
 `desc->codec != RKVC_CODEC_AUTO` 时强制对应路线，忽略 policy 自动规则。
@@ -490,7 +486,7 @@ rkvc_err rkvc_upscale_ctx_process(rkvc_upscale_ctx *ctx);
 | `rkvc_encode` | 原始 NV12 → MP4（`-p`；`--enc-scale-denom`；`--svt-lp`/`--svt-rtc`） |
 | `rkvc_decode` | 容器/码流 → 原始 NV12 |
 | `rkvc_transcode` | 容器 → 容器，Router 选 codec（`--svt-lp`/`--svt-rtc`） |
-| `rkvc_bench` | 三档 policy E2E fps 对比（**须** `-i INPUT.mp4`） |
+| `rkvc_bench` | 四档 policy E2E fps 对比（**须** `-i INPUT.mp4`） |
 | `rkvc_info` | 硬件能力查询（`-j` JSON） |
 | `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA / `rkvc_sr` + `--rkvc-sr-model`） |
 | `rkvc_yuv_upscale` | YUV420p 批处理 RGA 缩放（`rkvc_upscale_ctx_*`） |
@@ -500,6 +496,7 @@ rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 -p balanced \
   --rc-mode cbr -b 4000000 --enc-scale-denom 2 --svt-lp 4 --svt-rtc 0
 
 rkvc_transcode -i in.mp4 -o out.mp4 -p quality -b 6000000 --svt-lp 4
+rkvc_transcode -i in.mp4 -o hq.mp4 -p offline -b 6000000 --svt-lp 4
 
 rkvc_session_upscale -i stream.mp4 -o out.nv12 --width 1920 --height 1080 \
   --enc-scale-denom 2 --post-upscale rkvc_sr --rkvc-sr-model model.rknn
@@ -513,9 +510,3 @@ rkvc_info -j
 ## Doxygen
 
 启用 `-DRKVC_BUILD_DOCS=ON` 构建时，Doxygen 从 `include/rkvc/*.h` 生成 HTML API 文档（与本文档互补）。
-
----
-
-## v1 → v2 迁移
-
-概念对照与代码示例见 [migration.md](migration.md)。

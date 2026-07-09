@@ -1,6 +1,6 @@
 /**
  * @file rkvc_bench.c
- * @brief v2 Session E2E 基准：对比 REALTIME / BALANCED / QUALITY 路线。
+ * @brief v2 Session E2E 基准：对比 REALTIME / BALANCED / QUALITY / OFFLINE 路线。
  */
 
 #include "rkvc/rkvc.h"
@@ -101,6 +101,7 @@ int main(int argc, char **argv)
         { RKVC_POLICY_REALTIME, "REALTIME (H.264)" },
         { RKVC_POLICY_BALANCED, "BALANCED (HEVC)" },
         { RKVC_POLICY_QUALITY,  "QUALITY (AV1)" },
+        { RKVC_POLICY_OFFLINE,  "OFFLINE (AV1 HQ)" },
     };
 
     int failed = 0;

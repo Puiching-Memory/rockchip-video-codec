@@ -3,7 +3,7 @@
 #
 # 用法:
 #   ./scripts/run-bench.sh /path/to/video.mp4
-#   RUN_CODECS=h264,rkvc-v2 RKVC_BUILD=.build/release ./scripts/run-bench.sh clip.mp4
+#   RUN_CODECS=h264,rkvc RKVC_BUILD=.build/release ./scripts/run-bench.sh clip.mp4
 #   PLOT_ONLY=1 ./scripts/run-bench.sh
 
 set -euo pipefail

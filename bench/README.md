@@ -8,14 +8,17 @@ RK3588 端到端 **码率-画质（RD）** 与 **性能** 对比框架，已集�
 |----------|------|
 | `h264` | FFmpeg `h264_rkmpp` 硬编硬解 |
 | `h265` | FFmpeg `hevc_rkmpp` 硬编硬解 |
-| `svt-av1` | SVT-AV1 编 + `av1_rkmpp` 硬解 |
-| `rkvc-v2` | **rkvc Session** 三档语义（`RKVC_POLICIES` 展开） |
+| `svt-av1` | SVT-AV1 编 + `av1_rkmpp` 硬解（默认 preset 11，偏实时） |
+| `svt-av1-hq` | **非实时高质量**：SVT-AV1 更慢 preset（默认 `hq_preset=4`）+ `av1_rkmpp`；目标编码 ≥1 fps@1080p |
+| `rkvc` | **rkvc Session** 四档语义（`RKVC_POLICIES` 展开） |
 | `rkvc-realtime` | Session `realtime` → H.264 RKMPP |
 | `rkvc-balanced` | Session `balanced` → HEVC RKMPP |
 | `rkvc-quality` | Session `quality` → SVT-AV1 p11 + av1_rkmpp（与 `svt-av1` 基线同 preset） |
+| `rkvc-offline` | Session `offline` → SVT-AV1 p4 + av1_rkmpp（非实时高质量，与 `svt-av1-hq` 对齐） |
 | `post-upscale` | **下采样编码 + 上采样后处理**（RGA 插值或 `rkvc_sr`；与 Session 解码路径一致） |
 | `svt-av1+up3x-bilinear` | 单算法路线（`ENC_SCALE_DENOM=3` 时 CSV 名为 `svt-av1+up{N}x-{algo}`） |
 | `svt-av1+up3x-rkvc_sr` | 同上，AI 超分（需 `RKVC_SR_MODEL` / `paths.rkvc_sr_model`） |
+| `svt-av1-hq+up3x-rkvc_sr` | HQ preset 下采样编码 + AI 超分还原 |
 | `svt-av1+superres` | **实验 / 搁置**：SVT-AV1 + AV1 内建 superres（见下节） |
 
 ## AV1 内建 superres（实验，搁置）
@@ -124,7 +127,8 @@ BENCH_CONFIG=bench/my_config.json ./scripts/run-bench.sh clip.mp4
 | `paths.ffmpeg` / `ffprobe` | 项目 `ffmpeg-rockchip` 构建产物 |
 | `target_kbps` | RD 扫点码率列表 |
 | `calibration.*` | h264/h265/SVT CQP/CRF 校准表 |
-| `run.codecs` / `enc_scale_denom` / `upscale_algos` | 对比路线 |
+| `run.codecs` / `enc_scale_denom` / `upscale_algos` | 对比路线（含 `svt-av1-hq`） |
+| `svt.preset` / `svt.hq_preset` | 实时档 / 非实时高质量档 SVT preset（默认 11 / 4） |
 | `svt.superres.enabled` | 默认 `false`（需另配 `paths.superres_decode_ffmpeg` 才启用） |
 
 环境变量仍可覆盖 config 中的任意默认值（在调用脚本前 `export`）。
@@ -138,12 +142,13 @@ BENCH_CONFIG=bench/my_config.json ./scripts/run-bench.sh clip.mp4
 - `ENC_SCALE_DENOM` — post-upscale 编码下采样分母（默认 `2`）
 - `UPSCALE_ALGOS` — 上采样算法，逗号分隔（默认 `nearest,bilinear,bicubic`；可加 `rkvc_sr`）
 - `RKVC_SR_MODEL` — `rkvc_sr` 模型路径（默认见 `config.json` → `paths.rkvc_sr_model`）
-- `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality`
+- `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality,offline`
 - `CLIP_SEC` — 截取秒数（默认 `4`）
 - `CLIP_OFFSET` — 截取位置：`middle`（默认，居中）| `start`
 - `CLIP_START_SEC` — 显式起点秒数（设置后覆盖 `CLIP_OFFSET`）
 - `RKVC_BUILD` — rkvc 构建目录（含 `rkvc_transcode`）
-- `SVT_PRESET` — SVT 编码 preset（默认 11）
+- `SVT_PRESET` — SVT 编码 preset（默认 11，用于 `svt-av1` / post-upscale / rkvc-quality）
+- `SVT_HQ_PRESET` — 非实时高质量档 preset（默认 4，用于 `svt-av1-hq`；本机 1080p 约 ~2 fps，低于 1 fps 的 p2/p3 不采用）
 - `RAMDISK_DIR` — YUV 放 tmpfs，减少 I/O 干扰
 - `BENCH_CSV_MODE` — `session`（**默认**，`rd_data.csv` 只保留本次跑出的 codec）| `accumulate`（增量合并，未重跑的 codec 保留旧行）
 

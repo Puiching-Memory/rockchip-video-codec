@@ -42,6 +42,19 @@ static void test_quality_routes_av1(void **state)
     assert_int_equal(plan.svt_preset, 11);
 }
 
+static void test_offline_routes_av1_hq(void **state)
+{
+    (void)state;
+    rkvc_pipeline_desc d = rkvc_pipeline_desc_defaults();
+    d.policy = RKVC_POLICY_OFFLINE;
+    rkvc_route_plan plan;
+    assert_int_equal(rkvc_route_resolve(&d, &plan), RKVC_OK);
+    assert_int_equal(plan.codec, RKVC_CODEC_AV1);
+    assert_int_equal(plan.enc_backend, RKVC_ENC_BACKEND_SVT);
+    assert_int_equal(plan.svt_preset, 4);
+    assert_string_equal(rkvc_policy_name(RKVC_POLICY_OFFLINE), "offline");
+}
+
 static void test_forced_codec(void **state)
 {
     (void)state;
@@ -73,6 +86,7 @@ int main(void)
         cmocka_unit_test(test_realtime_routes_h264),
         cmocka_unit_test(test_balanced_routes_hevc),
         cmocka_unit_test(test_quality_routes_av1),
+        cmocka_unit_test(test_offline_routes_av1_hq),
         cmocka_unit_test(test_forced_codec),
         cmocka_unit_test(test_balanced_high_fps_1080p_downgrades_h264),
     };

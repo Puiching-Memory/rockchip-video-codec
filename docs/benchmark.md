@@ -7,14 +7,14 @@ RK3588 上 H.264 / HEVC / SVT-AV1 / rkvc Session 的端到端 RD 与性能对比
 ```bash
 ./scripts/run-bench.sh /path/to/1080p.mp4
 PLOT_ONLY=1 ./scripts/run-bench.sh
-RUN_CODECS=h264,rkvc-v2 ./scripts/run-bench.sh clip.mp4
+RUN_CODECS=h264,rkvc ./scripts/run-bench.sh clip.mp4
 ```
 
-默认对比路线：`h264`、`h265`、`svt-av1`、`rkvc-v2`（展开为 realtime / balanced / quality 三档）。
+默认对比路线：`h264`、`h265`、`svt-av1`、`svt-av1-hq`、`rkvc`（展开为 realtime / balanced / quality / offline 四档）。
 
 ## rkvc_bench（Session E2E）
 
-v2 的 `rkvc_bench` 对同一输入文件分别跑 `REALTIME` / `BALANCED` / `QUALITY` 三档 policy 的完整转码管线，输出 E2E fps。
+`rkvc_bench` 对同一输入文件分别跑 `REALTIME` / `BALANCED` / `QUALITY` / `OFFLINE` 四档 policy 的完整转码管线，输出 E2E fps。
 
 ```bash
 ./.build/release/rkvc_bench -i clip.mp4
@@ -30,6 +30,7 @@ rkvc v2 session E2E bench (input=clip.mp4)
   REALTIME (H.264): 36.2 fps
   BALANCED (HEVC):  27.1 fps
   QUALITY (AV1):    24.3 fps
+  OFFLINE (AV1 HQ):  2.2 fps
 ```
 
 ### RK3588 实测 (1080p E2E 转码)
@@ -38,9 +39,10 @@ rkvc v2 session E2E bench (input=clip.mp4)
 |--------|------|---------|
 | `REALTIME` | H.264 RKMPP | ~36 |
 | `BALANCED` | HEVC RKMPP | ~27 |
-| `QUALITY` | SVT-AV1 + av1_rkmpp | ~24 |
+| `QUALITY` | SVT-AV1 p11 + av1_rkmpp | ~24 |
+| `OFFLINE` | SVT-AV1 p4 + av1_rkmpp | ~2（非实时，≥1） |
 
-> v0.1.x 的 `--quick` / `--stream` / `--encode-only` 等选项已在 v2 移除；吞吐细分测试请使用 RD 套件或示例程序。
+> 吞吐细分测试请使用 RD 套件或示例程序。
 
 ## 端到端延迟测试
 
@@ -92,6 +94,6 @@ ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
   RUN_CODECS=post-upscale ./scripts/run-bench.sh clip.mp4
 ```
 
-Session 字段：`enc_scale_denom`、`post_upscale_algo`。CLI 请用 `rkvc_session_upscale --enc-scale-denom N --post-upscale …`（**不是** `rkvc_encode --post-upscale`；编码工具只做下采样）。
+Session 字段：`enc_scale_denom`、`post_upscale_algo`。CLI 请用 `rkvc_session_upscale --enc-scale-denom N --post-upscale …`（编码工具 `rkvc_encode` 只做下采样，不接受 `--post-upscale`）。
 
 独立 RGA 批处理（不经 Session）可用 `rkvc_yuv_upscale` 或 `rkvc_upscale_ctx_*` API；`rkvc_session_get_stats()` 的 `rga_sec` / `postproc_sec` 反映 Session 路径上的后处理耗时。

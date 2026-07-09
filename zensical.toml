@@ -10,7 +10,6 @@ nav = [
   { "快速开始" = "getting-started.md" },
   { "架构" = "architecture.md" },
   { "API 参考" = "api.md" },
-  { "v1 迁移" = "migration.md" },
   { "测试" = "testing.md" },
   { "基准测试" = "benchmark.md" },
   { "打包与分发" = "packaging.md" },

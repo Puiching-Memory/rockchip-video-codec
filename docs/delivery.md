@@ -31,12 +31,13 @@
 | 低延迟编解码链路 | ✅ 可测 | `example_latency_test`：1080p 低延迟模式编码 ~7 ms/帧，端到端 ~69 ms（P50 ~76 ms） |
 | 流式 Session API | ✅ 可用 | `example_stream_encode` / `stream_decode` / `stream_transcode` |
 | 三策略实时转码 | ✅ 可用 | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
+| 非实时高质量 | ✅ 可用 | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps） |
 | V4L2 采集 (`LIVE_CAPTURE`) | ⏳ 占位 | 模板已定义，节点未接入 |
 | UDP/RTP 网络回环 | ⏳ 冒烟 | `network-e2e-test.sh` 仅 v2 占位，非完整生产链路 |
 
 **在线 vs 离线差异小结**：
 
-- **编码侧**：在线推荐 `REALTIME`（H.264 RKMPP 硬编，CPU 占用低）；离线可选用 `QUALITY`（SVT-AV1 软编，CPU 高、画质好）。
+- **编码侧**：在线推荐 `REALTIME`（H.264 RKMPP 硬编，CPU 占用低）；近实时可用 `QUALITY`（SVT-AV1 p11）；离线归档用 `OFFLINE`（SVT-AV1 p4，画质更高、≥1fps@1080p）。
 - **解码侧**：H.264 / HEVC / AV1 均为 **RKMPP 硬解**，在线/离线共用，单帧硬解耗时可忽略（见下文 AI 性能表）。
 - **AI 超分**：当前为**解码后处理**，适合「边缘低码率上传 + 云端/终端解码还原」；编码阶段不做 NPU 推理。
 
@@ -49,8 +50,8 @@ gantt
     title rkvc 技术路线
     dateFormat YYYY-MM-DD
     section 基础编解码
-    v0.1.x 单体式 encoder/decoder API     :done, v01, 2026-05-14, 2026-06-23
-  section v2 架构
+    硬件编解码基座（H.264/HEVC RKMPP）    :done, v01, 2026-05-14, 2026-06-23
+  section Session 架构
     Session + Codec Router + DMA-BUF      :done, v20, 2026-06-24, 2026-06-30
     H.264/HEVC/AV1 三族 + RGA 后处理      :done, v20b, 2026-06-30, 2026-06-30
   section AI 与评测
@@ -65,8 +66,8 @@ gantt
 
 | 节点 | 内容 | 状态 | 完成时间 |
 |------|------|------|----------|
-| **P0** 硬件编解码基座 | ffmpeg-rockchip + MPP：H.264/HEVC 硬编硬解 | ✅ 已交付 | 2026-05 ~ 06（v0.1.x） |
-| **P1** v2 Session 架构 | Codec Router、管线模板、可移植包 | ✅ 已交付 | **2026-06-30**（v0.2.0） |
+| **P0** 硬件编解码基座 | ffmpeg-rockchip + MPP：H.264/HEVC 硬编硬解 | ✅ 已交付 | 2026-05 ~ 06 |
+| **P1** Session 架构 | Codec Router、管线模板、可移植包 | ✅ 已交付 | **2026-06-30**（v0.2.0） |
 | **P2** AV1 存储档 | SVT-AV1 软编 + `av1_rkmpp` 硬解 | ✅ 已交付 | 2026-06-30 |
 | **P3** 下采样 + RGA 上采样 | `enc_scale_denom` + `post_upscale_algo` | ✅ 已交付 | 2026-06-30 |
 | **P4** RKNN AI 超分 | `rkvc_sr` 节点、双缓冲异步推理 | ✅ 已交付 | **2026-07-02**（v0.2.1） |
@@ -87,7 +88,6 @@ gantt
 | 打包与可移植包 | [packaging.md](packaging.md) |
 | 测试与质量门禁 | [testing.md](testing.md) |
 | 性能与 RD 基准 | [benchmark.md](benchmark.md) |
-| v1 → v2 迁移 | [migration.md](migration.md) |
 | YUV-native 超分（设计稿） | [sr-model-yuv-spec.md](sr-model-yuv-spec.md) |
 | 发布包用户文档 | [release/README.md](release/README.md) |
 
@@ -147,7 +147,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 | 能力 | 验收方式 |
 |------|----------|
-| 三策略转码 | `rkvc_transcode -p realtime\|balanced\|quality` |
+| 四策略转码 | `rkvc_transcode -p realtime\|balanced\|quality\|offline` |
 | E2E fps | `rkvc_bench -i clip.mp4`（须 `-i` 指定输入） |
 | RGA 后处理上采样 | `rkvc_session_upscale --enc-scale-denom 2 --post-upscale bilinear` |
 | RKNN 超分（可选） | `rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH`（需 `RKVC_ENABLE_RKNN`） |
@@ -315,7 +315,7 @@ CLI 快速验证解码端：
 - 仅支持 RK3588 / RK3588S；可移植包须在 **aarch64 目标机**构建
 - `LIVE_CAPTURE` / V4L2 与完整 UDP/RTP 回环尚未接入
 - `rkvc_encode -i` 仅接受原始 NV12；`--enc-scale-denom` 只做编码前下采样
-- **后处理上采样**（RGA / `rkvc_sr`）仅 `rkvc_session_upscale` / `FILE_DECODE`；`rkvc_encode` 即使传入 `--post-upscale` 也不会在编码路径应用（CLI 遗留参数，请勿依赖）
+- **后处理上采样**（RGA / `rkvc_sr`）仅 `rkvc_session_upscale` / `FILE_DECODE`；编码路径请用 `rkvc_encode --enc-scale-denom`
 - `QUALITY` 依赖 SVT-AV1 软件编码，CPU 占用高于硬编
 - 现网 `rkvc_sr` 模型为 RGB 域；YUV-native 规格见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)
 
@@ -346,9 +346,3 @@ rkvc_info -j
 | ffmpeg-rockchip | LGPL/GPL | `third_party/ffmpeg-rockchip/` |
 | Rockchip MPP | Apache 2.0 | `third_party/mpp/` |
 | SVT-AV1 | BSD-3 / PATENTS | `third_party/SVT-AV1/` |
-
----
-
-## v1 迁移
-
-v0.1.x API 已在 0.2.0 移除。详见 [migration.md](migration.md)。

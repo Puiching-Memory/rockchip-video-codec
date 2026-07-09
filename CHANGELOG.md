@@ -2,6 +2,39 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.4] - 2026-07-09
+
+### 发布重点
+
+rkvc **0.2.4** 补齐第四档语义策略 **`OFFLINE`**（非实时高质量：SVT-AV1 preset 4 + `av1_rkmpp`，目标 ≥1 fps@1080p），并在 RD bench 中对齐 `svt-av1-hq` / `rkvc-offline` 与 HQ 下采样超分路线。同时清掉全部 **v1 兼容残留**（API 别名、无效 CLI 开关、迁移文档与旧 bench 命名），Session / Router 成为唯一公开面。
+
+### 新增
+
+- **语义档位 `OFFLINE`**：`RKVC_POLICY_OFFLINE`；CLI `-p offline`（`rkvc_encode` / `rkvc_transcode`）；Router 映射为 SVT-AV1 preset 4 + `av1_rkmpp`；内部常量 `RKVC_SVT_PRESET_HQ`。
+- **`rkvc_bench` 四策略**：在 REALTIME / BALANCED / QUALITY 之外增加 `OFFLINE (AV1 HQ)`；可移植包自测同步校验四档 fps。
+- **RD bench 高质量基线**：`svt.hq_preset`（默认 4）/ `SVT_HQ_PRESET`；路线 `svt-av1-hq`、`rkvc-offline`；支持 `svt-av1-hq+up{N}x-{bilinear,rkvc_sr}`。
+- **绘图**：`svt-av1-hq` 独立深绿配色；历史 CSV 别名 `mobileone` 按 AI 超分处理；曲线 z-order 为 RGA → AI → 全分辨率基线 → HQ / rkvc 最上。
+
+### 变更
+
+- 版本号升至 **0.2.4**（`CMakeLists.txt` `project(VERSION)` 为唯一来源）。
+- Bench 默认路线：`rkvc-v2` → `rkvc`（展开含 `offline`）；prep 键 `rga-bilinear-nv12-v1` → `rga-bilinear-nv12`（旧 prep 缓存需重建一次）。
+- `QUALITY` 文档语义明确为近实时（SVT preset 11）；离线归档改走 `OFFLINE`。
+- 架构 / 交付 / 基准文档与 `examples/transcode.c` 同步四策略说明。
+
+### 移除
+
+- 公共 API：`rkvc_preset` / `RKVC_PRESET_*`、`RKRC_*` 码控别名、`rkvc_is_valid_preset()`。
+- `rkvc_encode --post-upscale`（编码路径只做下采样；上采样请用 `rkvc_session_upscale`）。
+- `docs/migration.md` 及站点 / README / 交付文档中的 v1 迁移入口。
+
+### 测试
+
+- `test_router`：`test_offline_routes_av1_hq`（preset 4）。
+- 硬件用例：`test_session_transcode_offline`（`RKVC_RUN_HARDWARE_TESTS=1`）。
+- 可移植包：`rkvc_bench` 四策略短测（拒绝 `-1.0 fps`）。
+- Bench 实机：`svt-av1-hq` 全分辨率，以及 `+up3x-bilinear` / `+up3x-rkvc_sr` RD 扫点。
+
 ## [0.2.3] - 2026-07-09
 
 ### 发布重点

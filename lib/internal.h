@@ -25,8 +25,10 @@
 
 #define AV_PIX_FMT_RKMPP AV_PIX_FMT_DRM_PRIME
 
-/** SVT-AV1 高性能 preset（与 bench SVT_PRESET 默认 11 对齐） */
+/** SVT-AV1 近实时/高性能 preset（与 bench SVT_PRESET / QUALITY 默认 11 对齐） */
 #define RKVC_SVT_PRESET_PERF 11
+/** SVT-AV1 非实时高质量 preset（与 bench SVT_HQ_PRESET / OFFLINE 默认 4 对齐，≥1fps@1080p） */
+#define RKVC_SVT_PRESET_HQ 4
 /** SVT-AV1 lp：0 表示由编码器按 CPU 核数自动选择 */
 #define RKVC_SVT_LP_AUTO 0
 

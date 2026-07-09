@@ -34,7 +34,7 @@ rkvc-*-linux-aarch64-portable/
 │   ├── libavformat.so.60
 │   ├── libavutil.so.58
 │   ├── libswscale.so.7
-│   ├── libSvtAv1Enc.so.4    # v2 新增
+│   ├── libSvtAv1Enc.so.4    # QUALITY / AV1 编码
 │   ├── librockchip_mpp.so.1
 │   ├── librga.so            # RGA 用户态库（submodule）
 │   ├── librknnrt.so         # RKNN NPU runtime（rkvc_sr）

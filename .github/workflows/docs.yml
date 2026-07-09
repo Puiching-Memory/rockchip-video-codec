@@ -26,7 +26,8 @@ concurrency:
 jobs:
   docs:
     name: Build and deploy docs
-    runs-on: ubuntu-latest
+    # librga 预编译库仅提供 aarch64/armhf；与 ci.yml 一致使用 ARM runner
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4

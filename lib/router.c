@@ -21,6 +21,7 @@ const char *rkvc_policy_name(rkvc_policy policy)
     case RKVC_POLICY_REALTIME: return "realtime";
     case RKVC_POLICY_BALANCED: return "balanced";
     case RKVC_POLICY_QUALITY:  return "quality";
+    case RKVC_POLICY_OFFLINE:  return "offline";
     default:                   return "unknown";
     }
 }
@@ -100,6 +101,11 @@ rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc,
     case RKVC_POLICY_QUALITY:
         fill_av1_svt(plan, RKVC_SVT_PRESET_PERF,
                       "quality: SVT preset 11 + av1_rkmpp");
+        break;
+
+    case RKVC_POLICY_OFFLINE:
+        fill_av1_svt(plan, RKVC_SVT_PRESET_HQ,
+                      "offline: SVT preset 4 + av1_rkmpp (≥1fps@1080p)");
         break;
 
     default:

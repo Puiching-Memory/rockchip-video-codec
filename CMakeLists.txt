@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.3
+    VERSION 0.2.4
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -517,6 +517,7 @@ if(RKVC_BUILD_TESTS)
         test_session_transcode_h264
         test_session_transcode_balanced
         test_session_transcode_quality
+        test_session_transcode_offline
         test_session_decode_nv12
         test_session_encode_h264
         test_session_av1_storage

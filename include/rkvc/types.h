@@ -44,17 +44,6 @@ typedef enum {
     RKVC_PIX_FMT_P010    = 3,   /**< P010 10-bit 4:2:0 */
 } rkvc_pix_fmt;
 
-/* ── 编码质量预设（保留，v2 pipeline 暂未使用）────────────────────── */
-
-/**
- * @brief 编码速度/质量档位（v1 遗留，供内部校验；`rkvc_pipeline_desc` 使用 `rkvc_policy`）。
- */
-typedef enum {
-    RKVC_PRESET_FAST     = 0,   /**< 速度优先 */
-    RKVC_PRESET_MEDIUM   = 1,   /**< 均衡 */
-    RKVC_PRESET_SLOW     = 2,   /**< 质量优先 */
-} rkvc_preset;
-
 /* ── 码率控制模式 ──────────────────────────────────────────────────── */
 
 /**
@@ -67,13 +56,6 @@ typedef enum {
     RKVC_RC_CBR = 1,            /**< 恒定码率（pipeline 默认） */
     RKVC_RC_CQP = 2,            /**< 固定 QP（MPP FIXQP） */
 } rkvc_rc_mode;
-
-/** @name 码率控制兼容宏（v1 别名）
- * @{ */
-#define RKRC_VBR RKVC_RC_VBR
-#define RKRC_CBR RKVC_RC_CBR
-#define RKRC_CQP RKVC_RC_CQP
-/** @} */
 
 /* ── 解码后上采样算法 ─────────────────────────────────────────────── */
 

@@ -254,18 +254,6 @@ int rkvc_is_valid_pix_fmt(rkvc_pix_fmt fmt)
     }
 }
 
-int rkvc_is_valid_preset(rkvc_preset preset)
-{
-    switch (preset) {
-    case RKVC_PRESET_FAST:
-    case RKVC_PRESET_MEDIUM:
-    case RKVC_PRESET_SLOW:
-        return 1;
-    default:
-        return 0;
-    }
-}
-
 int rkvc_is_valid_rc_mode(rkvc_rc_mode mode)
 {
     switch (mode) {

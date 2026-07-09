@@ -20,7 +20,7 @@ JSON 输出字段：`h264_enc`、`hevc_enc`、`av1_enc`、`h264_dec`、`hevc_dec
 
 ```bash
 rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 \
-  -p realtime|balanced|quality \
+  -p realtime|balanced|quality|offline \
   -r 30 -b 4000000 \
   --rc-mode cbr|vbr|cqp --qp 26 \
   --enc-scale-denom 2 \
@@ -49,6 +49,7 @@ rkvc_decode -i input.mp4 -o decoded.nv12
 ```bash
 rkvc_transcode -i in.mp4 -o out.mp4 -p balanced -b 4000000
 rkvc_transcode -i in.mp4 -o out_av1.mp4 -p quality -b 6000000 --svt-lp 4 --svt-rtc 0
+rkvc_transcode -i in.mp4 -o out_hq.mp4 -p offline -b 6000000 --svt-lp 4
 ```
 
 ### rkvc_session_upscale
@@ -80,7 +81,7 @@ rkvc_yuv_upscale -i input.yuv -o output.yuv \
 
 ### rkvc_bench
 
-对比三档 policy 的 Session E2E 转码 fps（**须** `-i` 指定输入）。
+对比四档 policy 的 Session E2E 转码 fps（**须** `-i` 指定输入）。
 
 ```bash
 rkvc_bench -i sample.mp4 -o /tmp/bench -s 1920x1080
@@ -93,6 +94,7 @@ rkvc v2 session E2E bench (input=sample.mp4)
   REALTIME (H.264): 36.2 fps
   BALANCED (HEVC):  27.1 fps
   QUALITY (AV1):    24.3 fps
+  OFFLINE (AV1 HQ):  2.2 fps
 ```
 
 ## 典型工作流
@@ -119,8 +121,11 @@ rkvc_transcode -i input.mp4 -o realtime.mp4 -p realtime
 # 均衡画质/码率
 rkvc_transcode -i input.mp4 -o balanced.mp4 -p balanced -b 4000000
 
-# 高画质 AV1
+# 近实时高画质 AV1
 rkvc_transcode -i input.mp4 -o quality.mp4 -p quality -b 6000000
+
+# 非实时最高画质 AV1（preset 4，≥1fps@1080p）
+rkvc_transcode -i input.mp4 -o offline.mp4 -p offline -b 6000000
 ```
 
 ### 下采样编码 + 上采样还原
@@ -158,7 +163,3 @@ rkvc_session_upscale -i half_enc.mp4 -o restored.nv12 \
 | `RKVC_ERR_FORMAT` | 输入格式不匹配 | 编码用 NV12；压缩文件用 decode/transcode |
 | `RKVC_ERR_HW` | 硬件初始化失败 | `rkvc_info -j` 诊断 |
 | `RKVC_ERR_AGAIN` | 缓冲区满/需更多输入 | 流式模式重试或 drain |
-
-## 从 v0.1.x 升级
-
-v0.1.x 的 `--testsrc`、`--stdin`、`--stdout` 管道模式已移除。详见项目文档 `migration.md`。

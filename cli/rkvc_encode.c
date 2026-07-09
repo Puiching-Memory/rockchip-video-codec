@@ -11,7 +11,7 @@
 
 static void usage(void)
 {
-    printf("rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 [-p realtime|balanced|quality] "
+    printf("rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 [-p realtime|balanced|quality|offline] "
            "[--rc-mode vbr|cbr|cqp] [--qp N] [--enc-scale-denom N] "
            "[--svt-lp N] [--svt-rtc]\n"
            "  Note: --enc-scale-denom downscales before encode only.\n"
@@ -23,6 +23,7 @@ static rkvc_policy parse_policy(const char *s)
     if (!s || strcmp(s, "realtime") == 0) return RKVC_POLICY_REALTIME;
     if (strcmp(s, "balanced") == 0) return RKVC_POLICY_BALANCED;
     if (strcmp(s, "quality") == 0) return RKVC_POLICY_QUALITY;
+    if (strcmp(s, "offline") == 0) return RKVC_POLICY_OFFLINE;
     return RKVC_POLICY_REALTIME;
 }
 
@@ -66,7 +67,6 @@ int main(int argc, char **argv)
     const char *input = NULL, *output = NULL, *policy_s = "realtime";
     const char *rc_mode_s = NULL;
     const char *pix_fmt_s = NULL;
-    const char *upscale_s = NULL;
     int w = 1920, h = 1080, fps = 30, qp = -1;
     int enc_scale_denom = 1;
     int svt_lp = 0;
@@ -84,7 +84,6 @@ int main(int argc, char **argv)
         {"qp", required_argument, 0, 'q'},
         {"pix-fmt", required_argument, 0, 'f'},
         {"enc-scale-denom", required_argument, 0, 'S'},
-        {"post-upscale", required_argument, 0, 'U'},
         {"svt-lp", required_argument, 0, 'L'},
         {"svt-rtc", no_argument, 0, 'C'},
         {"help", no_argument, 0, 'h'},
@@ -92,7 +91,7 @@ int main(int argc, char **argv)
     };
 
     int c;
-    while ((c = getopt_long(argc, argv, "i:o:s:r:b:p:hR:q:f:S:U:L:C", opts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "i:o:s:r:b:p:hR:q:f:S:L:C", opts, NULL)) != -1) {
         switch (c) {
         case 'i': input = optarg; break;
         case 'o': output = optarg; break;
@@ -104,7 +103,6 @@ int main(int argc, char **argv)
         case 'q': qp = atoi(optarg); break;
         case 'f': pix_fmt_s = optarg; break;
         case 'S': enc_scale_denom = atoi(optarg); break;
-        case 'U': upscale_s = optarg; break;
         case 'L': svt_lp = atoi(optarg); break;
         case 'C': svt_rtc = 1; break;
         default: usage(); return c == 'h' ? 0 : 1;
@@ -143,18 +141,6 @@ int main(int argc, char **argv)
         d.enc_scale_denom = enc_scale_denom;
     d.svt_lp  = svt_lp;
     d.svt_rtc = svt_rtc;
-    if (upscale_s) {
-        rkvc_upscale_algo algo;
-        if (rkvc_upscale_algo_from_name(upscale_s, &algo) < 0) {
-            fprintf(stderr, "invalid post-upscale: %s\n", upscale_s);
-            return 1;
-        }
-        /* FILE_ENCODE never applies post_upscale; keep parsing for compat. */
-        fprintf(stderr,
-                "warning: --post-upscale is ignored by rkvc_encode "
-                "(encode path only downscales); use rkvc_session_upscale\n");
-        d.post_upscale_algo = algo;
-    }
 
     rkvc_session *s = NULL;
     rkvc_err err = rkvc_session_create(&d, &s);

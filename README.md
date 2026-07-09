@@ -4,7 +4,7 @@
 
 ## 功能
 
-- **Codec Router** — `REALTIME`→H.264 RKMPP、`BALANCED`→HEVC、`QUALITY`→SVT-AV1+硬解
+- **Codec Router** — `REALTIME`→H.264、`BALANCED`→HEVC、`QUALITY`→SVT-AV1 p11、`OFFLINE`→SVT-AV1 p4（非实时）
 - **Session API** — `rkvc_session` + 命名端口 `capture` / `output`（`preview` 占位）
 - **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频/码流；RGA NV12 缩放
 - **后处理上采样** — 解码路径：RGA 插值或 RKNN 超分（`rkvc_sr`）；编码路径仅 `enc_scale_denom` 下采样
@@ -16,7 +16,8 @@
 |------|---------|--------|
 | H.264 RKMPP | ~36 | REALTIME |
 | HEVC RKMPP | ~27 | BALANCED |
-| SVT-AV1 + av1_rkmpp | ~24 | QUALITY |
+| SVT-AV1 p11 + av1_rkmpp | ~24 | QUALITY |
+| SVT-AV1 p4 + av1_rkmpp | ~2 | OFFLINE（非实时，≥1 fps） |
 
 ## 快速开始
 
@@ -37,7 +38,7 @@ cmake --build --preset default
 
 ## RD 基准测试（bench/）
 
-端到端码率-画质与性能对比，默认四路：**H.264 / H.265 / SVT-AV1 / rkvc v2**。
+端到端码率-画质与性能对比，默认四路：**H.264 / H.265 / SVT-AV1 / rkvc**。
 
 ![RD 曲线（1080p E2E）](docs/images/bench/rd_curve_e2e.png)
 
@@ -46,7 +47,7 @@ cmake --build --preset default
 ```bash
 ./scripts/run-bench.sh /path/to/1080p.mp4
 PLOT_ONLY=1 ./scripts/run-bench.sh          # 仅重绘图表
-RUN_CODECS=h264,rkvc-v2 ./scripts/run-bench.sh clip.mp4
+RUN_CODECS=h264,rkvc ./scripts/run-bench.sh clip.mp4
 ```
 
 详见 [bench/README.md](bench/README.md)。
@@ -91,7 +92,6 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 | [docs/build-layout.md](docs/build-layout.md) | 构建目录约定（全部在 `.build/`） |
 | [docs/api.md](docs/api.md) | v2 API 完整参考 |
 | [docs/architecture.md](docs/architecture.md) | Session / Router / 节点架构 |
-| [docs/migration.md](docs/migration.md) | v0.1.x → v0.2.x 迁移 |
 | [docs/benchmark.md](docs/benchmark.md) | 性能与 RD 基准 |
 | [docs/testing.md](docs/testing.md) | 测试矩阵 |
 | [docs/packaging.md](docs/packaging.md) | 可便携包与分发 |
@@ -100,4 +100,4 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 | [docs/release/](docs/release/) | 发布包用户文档 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
 
-版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()`（v2 Session API；0.2.0 起破坏性替换 v1 `encoder`/`decoder`/`stream` API）
+版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()`（Session + Codec Router API）

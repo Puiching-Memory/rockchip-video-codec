@@ -204,7 +204,8 @@ policy 说明：
 
 - `RKVC_POLICY_REALTIME` → `h264_rkmpp`
 - `RKVC_POLICY_BALANCED` → `hevc_rkmpp`（高帧率 1080p+ 回退 H.264）
-- `RKVC_POLICY_QUALITY` → `svt-av1` + `av1_rkmpp`
+- `RKVC_POLICY_QUALITY` → `svt-av1` preset 11 + `av1_rkmpp`
+- `RKVC_POLICY_OFFLINE` → `svt-av1` preset 4 + `av1_rkmpp`（非实时，≥1fps@1080p）
 
 ## 下采样 + 上采样
 
@@ -253,9 +254,6 @@ if (err != RKVC_OK) {
 - 查询 `rkvc_session_get_stats()` 监控丢帧与 fps；bench 路径另有 `decode_sec` / `rga_sec` / `write_sec` / `postproc_sec`
 
 ## 常见问题
-
-**Q: 如何从 v0.1.x 迁移？**  
-A: v1 的 `encoder`/`decoder`/`stream`/`frame` API 已移除，参见 `migration.md`。
 
 **Q: 能否直接编码 MP4 输入？**  
 A: 不能。`rkvc_encode -i` 仅接受原始 NV12。压缩文件请用 `rkvc_transcode` 或 decode 模板。

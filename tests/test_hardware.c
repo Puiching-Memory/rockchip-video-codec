@@ -170,6 +170,21 @@ static void test_session_transcode_quality(void **state)
     assert_int_equal(err, RKVC_OK);
 }
 
+static void test_session_transcode_offline(void **state)
+{
+    (void)state;
+    skip_unless_av1();
+
+    char out[PATH_MAX];
+    if (test_mktemp_file(out, sizeof(out), "/tmp/rkvc_v2_trans_offline_", ".mp4") != 0)
+        fail();
+
+    rkvc_err err = run_transcode(RKVC_POLICY_OFFLINE, 640, 480,
+                                 fixture_h264(), out);
+    remove(out);
+    assert_int_equal(err, RKVC_OK);
+}
+
 static void test_session_decode_nv12(void **state)
 {
     (void)state;
@@ -381,6 +396,7 @@ static const struct CMUnitTest tests[] = {
     cmocka_unit_test(test_session_transcode_h264),
     cmocka_unit_test(test_session_transcode_balanced),
     cmocka_unit_test(test_session_transcode_quality),
+    cmocka_unit_test(test_session_transcode_offline),
     cmocka_unit_test(test_session_decode_nv12),
     cmocka_unit_test(test_session_encode_h264),
     cmocka_unit_test(test_session_av1_storage),
