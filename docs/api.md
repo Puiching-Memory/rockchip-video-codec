@@ -66,7 +66,7 @@ rkvc_err rkvc_hash_file(const char *path, const char *algo,
 typedef struct {
     int has_h264_enc, has_hevc_enc, has_av1_enc;   // has_av1_enc = SVT-AV1
     int has_h264_dec, has_hevc_dec, has_av1_dec;
-    int has_dma_heap, has_rga;
+    int has_dma_heap, has_rga, has_rknn;  // has_rknn：RKNN 已编译且 NPU 可访问
     int max_width, max_height;   // RK3588：7680×4320
 } rkvc_caps;
 
@@ -74,7 +74,7 @@ rkvc_err rkvc_query_caps(rkvc_caps *caps);
 rkvc_err rkvc_check_hw_permissions(void);  // → RKVC_ERR_PERMISSION
 ```
 
-`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`rkvc_info --json` 字段与此结构对应。
+`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`has_rknn` 需 `RKVC_ENABLE_RKNN` 构建且 NPU 可访问（`/sys/kernel/debug/rknpu/version` 或 `/dev/dri/by-path/*npu-render*`）。`rkvc_info --json` 字段与此结构对应（含 `rknn`）。
 
 `rkvc_check_hw_permissions` 检查 `/dev/mpp_service`、DMA heap（`/dev/dma_heap/system-uncached`）或 DRM/Ion 分配器。
 
@@ -481,9 +481,11 @@ rkvc_err rkvc_upscale_ctx_process(rkvc_upscale_ctx *ctx);
 
 ---
 
-## CLI 工具
+## CLI
 
-| 工具 | 用途 |
+源码在 `cli/`（构建选项 `RKVC_BUILD_CLI`；安装到 `bin/`）。
+
+| 程序 | 用途 |
 |------|------|
 | `rkvc_encode` | 原始 NV12 → MP4（`-p`；`--enc-scale-denom`；`--svt-lp`/`--svt-rtc`） |
 | `rkvc_decode` | 容器/码流 → 原始 NV12 |

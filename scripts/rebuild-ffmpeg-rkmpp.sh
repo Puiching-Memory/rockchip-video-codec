@@ -18,7 +18,8 @@ rkvc_limit_build_jobs
 
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FFMPEG_SRC="$PROJECT_DIR/third_party/ffmpeg-rockchip"
-MPP_PREFIX="${MPP_PREFIX:-$PROJECT_DIR/build-deps/mpp-install}"
+MPP_PREFIX="${MPP_PREFIX:-$PROJECT_DIR/.build/deps/mpp-install}"
+RGA_PREFIX="${RGA_PREFIX:-$PROJECT_DIR/.build/deps/librga-install}"
 FFMPEG_PREFIX="$FFMPEG_SRC"
 
 CLEAN=0
@@ -36,8 +37,8 @@ configure_ffmpeg() {
         extra_configure+=(--prefix="$FFMPEG_PREFIX")
     fi
 
-    export PKG_CONFIG_PATH="$MPP_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    export LD_LIBRARY_PATH="$MPP_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export PKG_CONFIG_PATH="$RGA_PREFIX/lib/pkgconfig:$MPP_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    export LD_LIBRARY_PATH="$RGA_PREFIX/lib:$MPP_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
     cd "$FFMPEG_SRC"
 
@@ -82,7 +83,16 @@ configure_ffmpeg() {
 main() {
     echo "=== rebuild-ffmpeg-rkmpp (prefix=$FFMPEG_PREFIX) ==="
     if [[ ! -f "$MPP_PREFIX/lib/librockchip_mpp.so" ]]; then
-        echo "错误: 请先构建 MPP (build-deps/mpp-install 或 package-portable.sh)"
+        echo "错误: 请先构建 MPP (.build/deps/mpp-install 或 package-portable.sh)"
+        exit 1
+    fi
+    if [[ ! -f "$RGA_PREFIX/lib/librga.so" ]]; then
+        echo "--- 安装 librga 子模块到 $RGA_PREFIX ---"
+        PREFIX="$RGA_PREFIX" "$SCRIPT_DIR/install-librga.sh"
+    fi
+    if ! PKG_CONFIG_PATH="$RGA_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" \
+            pkg-config --exists librga; then
+        echo "错误: pkg-config 找不到 librga（期望 $RGA_PREFIX/lib/pkgconfig/librga.pc）"
         exit 1
     fi
     configure_ffmpeg

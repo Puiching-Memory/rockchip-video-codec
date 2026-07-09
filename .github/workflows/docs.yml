@@ -31,7 +31,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          fetch-depth: 1
+
+      - name: Init submodules (shallow)
+        run: git submodule update --init --depth 1 --recursive
+
+      - name: Install librga (from submodule)
+        run: ./scripts/install-librga.sh
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -47,21 +53,21 @@ jobs:
 
       - name: Build Doxygen
         run: |
-          cmake -B build -DRKVC_BUILD_DOCS=ON
-          cmake --build build --target docs
+          cmake -B .build/release -DRKVC_BUILD_DOCS=ON
+          cmake --build .build/release --target docs
 
       - name: Upload API docs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: doxygen-api-docs
-          path: build/docs/html/
+          path: .build/release/docs/html/
           if-no-files-found: ignore
 
       - name: Build site
         run: |
           zensical build --clean
-          cp -r build/docs/html site/doxygen
+          cp -r .build/release/docs/html site/doxygen
           touch site/.nojekyll
 
       - name: Deploy to gh-pages

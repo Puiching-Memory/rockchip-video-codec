@@ -21,19 +21,19 @@
 ## 快速开始
 
 ```bash
-git submodule update --init --depth 1 third_party/SVT-AV1
+git submodule update --init --depth 1
 ./scripts/build-svt.sh
+./scripts/install-librga.sh         # third_party/librga → .build/deps/librga-install
 ./scripts/rebuild-ffmpeg-rkmpp.sh   # h264/hevc/av1 硬解 + h264/hevc 硬编
-./scripts/install-librga.sh         # 若系统无 librga
 
 cmake --preset default
 cmake --build --preset default
 
-./build/example_encode_file -o /tmp/bench_in.mp4 -s 640x480 -n 30
-./build/rkvc_bench -i /tmp/bench_in.mp4
+./.build/release/example_encode_file -o /tmp/bench_in.mp4 -s 640x480 -n 30
+./.build/release/rkvc_bench -i /tmp/bench_in.mp4
 ```
 
-完整依赖与权限见 [docs/getting-started.md](docs/getting-started.md)。
+完整依赖与权限见 [docs/getting-started.md](docs/getting-started.md)。构建目录约定见 [docs/build-layout.md](docs/build-layout.md)。
 
 ## RD 基准测试（bench/）
 
@@ -73,15 +73,14 @@ cmake --preset tests
 cmake --build --preset tests
 ctest --preset tests -j1 --output-on-failure
 
-# RK3588 硬件（每用例独立进程，串行；产物在 build-tests/）
-RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build-tests -j1 -R 'test_session_' --output-on-failure
+# RK3588 硬件（每用例独立进程，串行；产物在 .build/tests/）
+RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 ```
 
 ## 依赖
 
-- Rockchip BSP、MPP、`third_party/ffmpeg-rockchip`（`rebuild-ffmpeg-rkmpp.sh`）
-- SVT-AV1 submodule、libdrm、RGA（`install-librga.sh`）
-- 可选：`librknnrt`（`rkvc_sr`；可移植包可自带）
+- Rockchip BSP、`third_party/` 子模块：MPP、ffmpeg-rockchip、SVT-AV1、[librga](https://github.com/airockchip/librga)
+- libdrm；可选 `librknnrt`（`rkvc_sr`；可移植包可自带）
 
 ## 文档
 
@@ -89,6 +88,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build-tests -j1 -R 'test_session_' --
 |------|------|
 | [docs/index.md](docs/index.md) | 文档首页与导航 |
 | [docs/getting-started.md](docs/getting-started.md) | 构建与首次运行 |
+| [docs/build-layout.md](docs/build-layout.md) | 构建目录约定（全部在 `.build/`） |
 | [docs/api.md](docs/api.md) | v2 API 完整参考 |
 | [docs/architecture.md](docs/architecture.md) | Session / Router / 节点架构 |
 | [docs/migration.md](docs/migration.md) | v0.1.x → v0.2.x 迁移 |

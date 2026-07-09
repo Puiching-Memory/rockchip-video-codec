@@ -139,8 +139,9 @@ v1 的 `RKRC_VBR` / `RKRC_CBR` / `RKRC_CQP` 仍可用，映射到 `RKVC_RC_*`。
 v2 需要额外构建：
 
 ```bash
-git submodule update --init --depth 1 third_party/SVT-AV1
+git submodule update --init --depth 1
 ./scripts/build-svt.sh
+./scripts/install-librga.sh
 ./scripts/rebuild-ffmpeg-rkmpp.sh   # 含 H.264/HEVC/AV1 RKMPP
 ```
 

@@ -4,10 +4,12 @@
  */
 
 #include "internal.h"
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
+#include <string.h>
 #include <unistd.h>
 
 /*
@@ -170,6 +172,31 @@ static int dma_heap_runtime_selected(void)
     return rkvc_dev_access("/dev/dma_heap", F_OK | R_OK) == 0;
 }
 
+static int npu_accessible(void)
+{
+    if (rkvc_dev_access("/sys/kernel/debug/rknpu/version", R_OK) == 0)
+        return 1;
+
+    DIR *dir = opendir("/dev/dri/by-path");
+    if (!dir)
+        return 0;
+
+    int found = 0;
+    struct dirent *ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (!strstr(ent->d_name, "npu-render"))
+            continue;
+        char path[PATH_MAX];
+        snprintf(path, sizeof(path), "/dev/dri/by-path/%s", ent->d_name);
+        if (rkvc_dev_access(path, R_OK | W_OK) == 0) {
+            found = 1;
+            break;
+        }
+    }
+    closedir(dir);
+    return found;
+}
+
 static int drm_allocator_accessible(void)
 {
     static const char *const paths[] = {
@@ -271,6 +298,7 @@ rkvc_err rkvc_query_caps(rkvc_caps *caps)
 
     caps->has_dma_heap = mpp_default_dma_heap_accessible();
     caps->has_rga = (rkvc_dev_access("/dev/rga", R_OK | W_OK) == 0);
+    caps->has_rknn = (rkvc_rknn_sr_available() && npu_accessible()) ? 1 : 0;
 
     /* RK3588 最大分辨率 */
     caps->max_width  = 7680;

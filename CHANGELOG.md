@@ -2,6 +2,33 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.3] - 2026-07-09
+
+### 发布重点
+
+rkvc **0.2.3** 补齐 **NPU / `rkvc_sr` 完整测试门禁**，可移植包在携带 `librknnrt.so` 之外再附带约定超分模型；构建产物统一收纳到 **`.build/`**；**librga** 改为 `third_party/librga` 子模块（浅克隆），不再依赖开发板系统预装。目标板仍需 NPU 驱动/固件与 `/dev/rga` 设备节点。
+
+### 变更
+
+- 版本号升至 **0.2.3**（`CMakeLists.txt` `project(VERSION)` 为唯一来源）。
+- **源码目录重命名**：`tools/` → `cli/`（正式命令行入口；与 `bench/tools/` 辅助脚本区分）。
+- **CMake 选项重命名**：`RKVC_BUILD_TOOLS` → `RKVC_BUILD_CLI`（内部目标列表 `RKVC_CLI_TARGETS`）。
+- **`rkvc_caps.has_rknn`** / **`rkvc_info --json` `rknn`**：RKNN 已编译且 NPU 可访问时置位。
+- **`rknn_query(RKNN_QUERY_SDK_VERSION)`**：`rkvc_sr` 初始化日志打印 `rknnrt api=` / `drv=`。
+- **硬件用例** `test_session_encode_decode_upscale_3x_ai_sr`（`RKVC_RUN_HARDWARE_TESTS=1`；模型默认 `models/rkvc_sr_x3.crypt.rknn`，可用 `RKVC_SR_MODEL` 覆盖）。
+- **`scripts/test-npu-sr.sh`**：仿 RGA 门禁的 NPU AI 超分推广脚本（测试树 `.build/tests/`）。
+- **`scripts/package-portable.sh`**：启用 RKNN 时拷贝 `models/rkvc_sr_x3.crypt.rknn` 进包内 `models/`；并随包携带 `librga.so`。
+- **`scripts/test-portable.sh`** / **`portable-test-helpers.sh`**：校验包内模型与 `librga`；有 NPU 时跑 `rkvc_sr` 冒烟。
+- Bench 默认模型路径改为 `models/rkvc_sr_x3.crypt.rknn`。
+- **构建目录收纳到 `.build/`**：约定见 `docs/build-layout.md` / `CMakePresets.json`（`release` / `tests` / `deps` / `portable` / `dist` 等）；根目录不再并列 `build*`；新增 `portable` preset。
+- **`third_party/librga` 子模块**（[airockchip/librga](https://github.com/airockchip/librga)）：`install-librga.sh` 默认装到 `.build/deps/librga-install/`；CMake / ffmpeg 重建 / 可移植包均走该前缀，不再取系统预装库。
+- **所有子模块浅克隆**：`.gitmodules` 为 ffmpeg-rockchip / mpp / SVT-AV1 / librga 设置 `shallow = true`；文档与 CI 统一 `git submodule update --init --depth 1`。
+
+### 测试
+
+- **NPU 门禁**：`./scripts/test-npu-sr.sh` 实机通过（硬件用例 + session smoke）。
+- **可移植包**：`rkvc-*-linux-aarch64-portable.tar.gz`（含 `lib/librga.so` + `lib/librknnrt.so` + `models/`）。
+
 ## [0.2.2] - 2026-07-09
 
 ### 发布重点

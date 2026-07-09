@@ -1,6 +1,6 @@
 # 示例程序指南
 
-所有示例位于 `examples/` 目录，构建后在 `examples/bin/` 或 `build/` 下运行。
+所有示例位于 `examples/` 目录，构建后在 `examples/bin/` 或 `.build/release/` 下运行。
 
 ## 文件编解码
 

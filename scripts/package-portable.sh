@@ -6,9 +6,10 @@
 #
 # 流程:
 #   1. 从 third_party/mpp 子模块编译 rockchip-mpp
-#   2. 从 third_party/ffmpeg-rockchip 子模块编译 ffmpeg
-#   3. 用编译的 ffmpeg / MPP 构建 rkvc
-#   4. bundle 动态库 + RPATH 打包
+#   2. 从 third_party/librga 子模块安装预编译 librga
+#   3. 从 third_party/ffmpeg-rockchip 子模块编译 ffmpeg
+#   4. 用编译的 ffmpeg / MPP / librga 构建 rkvc
+#   5. bundle 动态库（含 librga）+ RPATH 打包
 #
 # 前置依赖: gcc, g++, cmake, make, pkg-config, patchelf, libdrm-dev
 # 可选依赖: ninja (若已有 ninja 构建目录则自动使用)
@@ -23,12 +24,14 @@ rkvc_limit_build_jobs
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FFMPEG_SRC="$PROJECT_DIR/third_party/ffmpeg-rockchip"
 MPP_SRC="$PROJECT_DIR/third_party/mpp"
-SVT_PREFIX="$PROJECT_DIR/build-deps/svt-av1-install"
-FFMPEG_PREFIX="$PROJECT_DIR/build-deps/ffmpeg-install"
-MPP_BUILD="$PROJECT_DIR/build-deps/mpp-build"
-MPP_PREFIX="$PROJECT_DIR/build-deps/mpp-install"
-RKVC_BUILD="$PROJECT_DIR/build-portable"
-OUT_DIR="$PROJECT_DIR/build/portable"
+RGA_SRC="$PROJECT_DIR/third_party/librga"
+SVT_PREFIX="$PROJECT_DIR/.build/deps/svt-av1-install"
+FFMPEG_PREFIX="$PROJECT_DIR/.build/deps/ffmpeg-install"
+MPP_BUILD="$PROJECT_DIR/.build/deps/mpp-build"
+MPP_PREFIX="$PROJECT_DIR/.build/deps/mpp-install"
+RGA_PREFIX="$PROJECT_DIR/.build/deps/librga-install"
+RKVC_BUILD="$PROJECT_DIR/.build/portable"
+OUT_DIR="$PROJECT_DIR/.build/dist"
 
 VERSION="$(rkvc_project_version)"
 ARCH="$(uname -m)"
@@ -77,6 +80,10 @@ check_deps() {
         echo "错误: mpp 子模块未初始化，运行: git submodule update --init --depth 1 third_party/mpp"
         exit 1
     fi
+    if [[ ! -f "$RGA_SRC/include/im2d.h" ]]; then
+        echo "错误: librga 子模块未初始化，运行: git submodule update --init --depth 1 third_party/librga"
+        exit 1
+    fi
 }
 
 build_mpp() {
@@ -113,14 +120,28 @@ build_svt() {
     "$SCRIPT_DIR/build-svt.sh" ${CLEAN:+--clean}
 }
 
+install_rga() {
+    echo "=== 安装 librga (submodule → $RGA_PREFIX) ==="
+    if [[ $CLEAN -eq 1 ]]; then
+        rm -rf "$RGA_PREFIX"
+    fi
+    if [[ -f "$RGA_PREFIX/lib/librga.so" ]]; then
+        echo "--- librga 已安装，跳过 (用 --clean 重建) ---"
+        return
+    fi
+    PREFIX="$RGA_PREFIX" "$SCRIPT_DIR/install-librga.sh"
+}
+
 build_ffmpeg() {
     echo "=== 构建 ffmpeg-rockchip (AV1 硬解) ==="
-    "$SCRIPT_DIR/rebuild-ffmpeg-rkmpp.sh" ${CLEAN:+--clean} --prefix "$FFMPEG_PREFIX"
+    RGA_PREFIX="$RGA_PREFIX" MPP_PREFIX="$MPP_PREFIX" \
+        "$SCRIPT_DIR/rebuild-ffmpeg-rkmpp.sh" ${CLEAN:+--clean} --prefix "$FFMPEG_PREFIX"
 }
 
 build_rkvc() {
     echo ""
-    echo "=== 构建 rkvc ==="
+    echo "=== 构建 rkvc (.build/portable/) ==="
+    # 目录与 CMakePresets.json「portable」一致；此处手写 -B，兼容 CMake < 3.21
     [[ $CLEAN -eq 1 ]] && rm -rf "$RKVC_BUILD"
 
     local gen
@@ -132,6 +153,7 @@ build_rkvc() {
         -DCMAKE_BUILD_PARALLEL_LEVEL="$BUILD_JOBS" \
         -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
         -DMPP_BUILD_DIR="$MPP_BUILD" \
+        -DRGA_PREFIX="$RGA_PREFIX" \
         "$PROJECT_DIR"
 
     local build_cmd
@@ -145,7 +167,7 @@ package() {
     echo "=== 打包 $PKG_NAME ==="
 
     rm -rf "$OUT_DIR/$PKG_NAME"
-    mkdir -p "$OUT_DIR/$PKG_NAME"/{bin,lib,include/rkvc,share/pkgconfig,examples/bin,examples/src}
+    mkdir -p "$OUT_DIR/$PKG_NAME"/{bin,lib,include/rkvc,share/pkgconfig,examples/bin,examples/src,models}
 
     for tool in rkvc_encode rkvc_decode rkvc_info rkvc_bench rkvc_transcode \
                 rkvc_session_upscale rkvc_yuv_upscale; do
@@ -212,6 +234,16 @@ package() {
         echo "  $(basename "$real")"
     done
 
+    # librga SONAME 为 librga.so（无版本后缀）
+    echo "--- 复制 librga ---"
+    if [[ -f "$RGA_PREFIX/lib/librga.so" ]]; then
+        cp "$RGA_PREFIX/lib/librga.so" "$OUT_DIR/$PKG_NAME/lib/librga.so"
+        echo "  librga.so  (from $RGA_PREFIX)"
+    else
+        echo "  错误: 未找到 $RGA_PREFIX/lib/librga.so"
+        return 1
+    fi
+
     # librknnrt SONAME 为 librknnrt.so（无版本后缀）；仅在 librkvc 链接了 RKNN 时打包
     echo "--- 复制 RKNN runtime (librknnrt) ---"
     local rkvc_for_rknn
@@ -240,8 +272,19 @@ package() {
             echo "  错误: librkvc 依赖 librknnrt.so，但构建机未找到该库"
             return 1
         fi
+
+        echo "--- 复制 RKNN 超分模型 (models/) ---"
+        local sr_model="$PROJECT_DIR/models/rkvc_sr_x3.crypt.rknn"
+        if [[ -f "$sr_model" ]]; then
+            cp "$sr_model" "$OUT_DIR/$PKG_NAME/models/rkvc_sr_x3.crypt.rknn"
+            echo "  models/rkvc_sr_x3.crypt.rknn  (from $sr_model)"
+        else
+            echo "  错误: 已打包 librknnrt，但缺少约定模型: $sr_model"
+            return 1
+        fi
     else
         echo "  跳过 (本构建未启用 RKNN / librkvc 未链接 librknnrt)"
+        echo "--- 跳过 RKNN 超分模型 (未链接 librknnrt) ---"
     fi
 
     cd "$OUT_DIR/$PKG_NAME/lib"
@@ -299,6 +342,10 @@ package() {
         patchelf --set-rpath '$ORIGIN' "$OUT_DIR/$PKG_NAME/lib/librknnrt.so" 2>/dev/null && \
             echo "  librknnrt.so" || true
     fi
+    if [[ -f "$OUT_DIR/$PKG_NAME/lib/librga.so" ]]; then
+        patchelf --set-rpath '$ORIGIN' "$OUT_DIR/$PKG_NAME/lib/librga.so" 2>/dev/null && \
+            echo "  librga.so" || true
+    fi
 
     cp "$PROJECT_DIR"/include/rkvc/*.h "$OUT_DIR/$PKG_NAME/include/rkvc/"
     cat > "$OUT_DIR/$PKG_NAME/share/pkgconfig/rkvc.pc" <<EOF
@@ -348,7 +395,7 @@ EOF
         fi
     done <<< "$ldd_output"
 
-    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librknnrt; do
+    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librga librknnrt; do
         if echo "$ldd_output" | grep -q "$lib"; then
             if echo "$ldd_output" | grep "$lib" | grep -vq "$OUT_DIR/$PKG_NAME/lib/"; then
                 echo "  错误: $lib 未解析到包内 lib/"
@@ -367,8 +414,8 @@ EOF
 
     echo "--- 目标板前置依赖 (须由系统包管理器提供) ---"
     echo "  libdrm2           (DRM 渲染)"
-    echo "  librga            (Rockchip 2D 加速, 可选)"
-    echo "  NPU 驱动/固件     (rkvc_sr AI 超分; librknnrt 已随包携带)"
+    echo "  NPU 驱动/固件     (rkvc_sr AI 超分; librknnrt + models/ 已随包携带)"
+    echo "  /dev/rga          (RGA 设备节点; librga 已随包携带)"
     echo ""
     echo "  安装示例: sudo apt install libdrm-dev"
 }
@@ -378,6 +425,7 @@ main() {
     check_deps
     build_mpp
     build_svt
+    install_rga
     build_ffmpeg
     build_rkvc
     package

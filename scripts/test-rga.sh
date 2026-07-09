@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/build-common.sh" 2>/dev/null || true
 rkvc_limit_build_jobs 2>/dev/null || true
 
-BUILD_DIR="${RKVC_BUILD_DIR:-$ROOT_DIR/build}"
+TESTS_DIR="${RKVC_BUILD_DIR:-$ROOT_DIR/.build/tests}"
 SOAK_FRAMES="${RKVC_RGA_SOAK_FRAMES:-200}"
 
 if [[ ! -e /dev/rga ]]; then
@@ -32,34 +32,35 @@ if [[ ! -r /dev/rga || ! -w /dev/rga ]]; then
 fi
 
 echo "[info] RGA device: $(ls -la /dev/rga)"
-echo "[info] build dir:  $BUILD_DIR"
+echo "[info] tests dir: $TESTS_DIR"
 echo "[info] soak frames: $SOAK_FRAMES"
 
-if [[ ! -x "$BUILD_DIR/test_scale" ]]; then
-    echo "[info] building test_scale ..."
-    if [[ -d "$BUILD_DIR" ]]; then
-        cmake --build "$BUILD_DIR" --target test_scale -j"${BUILD_JOBS:-4}"
-    else
-        cmake --preset tests -S "$ROOT_DIR" -B "$ROOT_DIR/build-tests"
-        cmake --build "$ROOT_DIR/build-tests" --target test_scale -j"${BUILD_JOBS:-4}"
-        BUILD_DIR="$ROOT_DIR/build-tests"
-    fi
+# 测试二进制在 .build/tests/；勿误用 .build/release 里可能过期的 test_*。
+echo "[info] ensuring test_scale in $TESTS_DIR ..."
+if [[ ! -f "$TESTS_DIR/build.ninja" && ! -f "$TESTS_DIR/Makefile" ]]; then
+    cmake -S "$ROOT_DIR" -B "$TESTS_DIR" -G Ninja \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DRKVC_BUILD_TESTS=ON \
+        -DRKVC_BUILD_EXAMPLES=OFF \
+        -DRKVC_BUILD_CLI=OFF \
+        -DRKVC_ENABLE_FAULT_INJECTION=ON
 fi
+cmake --build "$TESTS_DIR" --target test_scale -j"${BUILD_JOBS:-4}"
 
 export RKVC_RUN_HARDWARE_TESTS=1
 export RKVC_RGA_SOAK_FRAMES="$SOAK_FRAMES"
 
 echo "[run] test_scale (hardware + soak=$SOAK_FRAMES)"
-"$BUILD_DIR/test_scale"
+"$TESTS_DIR/test_scale"
 
-if command -v ctest >/dev/null 2>&1 && [[ -f "$BUILD_DIR/CTestTestfile.cmake" ]]; then
+if command -v ctest >/dev/null 2>&1 && [[ -f "$TESTS_DIR/CTestTestfile.cmake" ]]; then
     echo "[run] ctest -R test_scale"
-    ctest --test-dir "$BUILD_DIR" -j1 -R '^test_scale$' --output-on-failure
+    (cd "$TESTS_DIR" && ctest -j1 -R '^test_scale$' --output-on-failure)
 fi
 
-if [[ -n "${RKVC_TEST_RAW_NV12:-}" && -r "${RKVC_TEST_RAW_NV12}" && -x "$BUILD_DIR/test_hardware" ]]; then
+if [[ -n "${RKVC_TEST_RAW_NV12:-}" && -r "${RKVC_TEST_RAW_NV12}" && -x "$TESTS_DIR/test_hardware" ]]; then
     echo "[run] test_session_encode_decode_upscale_3x (raw=$RKVC_TEST_RAW_NV12)"
-    "$BUILD_DIR/test_hardware" test_session_encode_decode_upscale_3x
+    "$TESTS_DIR/test_hardware" test_session_encode_decode_upscale_3x
 fi
 
 echo "[ok] RGA gate passed"

@@ -12,8 +12,8 @@ rkvc_limit_build_jobs
 
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SVT_SRC="$PROJECT_DIR/third_party/SVT-AV1"
-SVT_BUILD="$PROJECT_DIR/build-deps/svt-av1-build"
-SVT_PREFIX="$PROJECT_DIR/build-deps/svt-av1-install"
+SVT_BUILD="$PROJECT_DIR/.build/deps/svt-av1-build"
+SVT_PREFIX="$PROJECT_DIR/.build/deps/svt-av1-install"
 
 CLEAN=0
 [[ "${1:-}" == "--clean" ]] && CLEAN=1

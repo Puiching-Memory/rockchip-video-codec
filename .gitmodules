@@ -1,10 +1,17 @@
 [submodule "third_party/ffmpeg-rockchip"]
 	path = third_party/ffmpeg-rockchip
 	url = https://github.com/nyanmisaka/ffmpeg-rockchip.git
+	shallow = true
 [submodule "third_party/mpp"]
 	path = third_party/mpp
 	url = https://github.com/rockchip-linux/mpp.git
+	shallow = true
 [submodule "third_party/SVT-AV1"]
 	path = third_party/SVT-AV1
 	url = https://gitlab.com/AOMediaCodec/SVT-AV1.git
 	branch = v4.1.0
+	shallow = true
+[submodule "third_party/librga"]
+	path = third_party/librga
+	url = https://github.com/airockchip/librga.git
+	shallow = true

@@ -3,7 +3,7 @@
 #
 # 用法:
 #   ./scripts/run-bench.sh /path/to/video.mp4
-#   RUN_CODECS=h264,rkvc-v2 RKVC_BUILD=build ./scripts/run-bench.sh clip.mp4
+#   RUN_CODECS=h264,rkvc-v2 RKVC_BUILD=.build/release ./scripts/run-bench.sh clip.mp4
 #   PLOT_ONLY=1 ./scripts/run-bench.sh
 
 set -euo pipefail
@@ -16,5 +16,5 @@ if [[ ! -x "$BENCH_SH" ]]; then
     chmod +x "$BENCH_SH"
 fi
 
-export RKVC_BUILD="${RKVC_BUILD:-${RKVC_BUILD_DIR:-$PROJECT_DIR/build}}"
+export RKVC_BUILD="${RKVC_BUILD:-${RKVC_BUILD_DIR:-$PROJECT_DIR/.build/release}}"
 exec "$BENCH_SH" "$@"

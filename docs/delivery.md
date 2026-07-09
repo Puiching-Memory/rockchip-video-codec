@@ -71,7 +71,7 @@ gantt
 | **P3** 下采样 + RGA 上采样 | `enc_scale_denom` + `post_upscale_algo` | ✅ 已交付 | 2026-06-30 |
 | **P4** RKNN AI 超分 | `rkvc_sr` 节点、双缓冲异步推理 | ✅ 已交付 | **2026-07-02**（v0.2.1） |
 | **P5** RD 基准与演示 | `bench/config.json`、对比演示 MP4 | ✅ 已交付 | 2026-07-02 |
-| **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` | ✅ 已交付 | **2026-07-09**（v0.2.2） |
+| **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` + `models/` | ✅ 已交付 | **2026-07-09**（v0.2.3） |
 | **P6** YUV-native 模型 | 消除 NV12↔RGB CSC，降延迟 | 📋 设计稿 | 待定（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
 | **P7** 在线采集/组网 | V4L2、`LIVE_CAPTURE`、完整 UDP/RTP | ⏳ 未接入 | 待定 |
 
@@ -98,12 +98,12 @@ gantt
 ### 源码与版本
 
 - [ ] `CMakeLists.txt` `project(VERSION)` 与 `rkvc_version()` / `rkvc_info -v` 一致
-- [ ] `git submodule` 已初始化（`third_party/SVT-AV1`、`mpp`、`ffmpeg-rockchip`）
+- [ ] `git submodule` 已初始化（浅克隆：`third_party/{SVT-AV1,mpp,ffmpeg-rockchip,librga}`）
 - [ ] `CHANGELOG.md` 已记录本次变更
 
 ### 构建产物
 
-- [ ] Release 构建成功：`cmake --preset default && cmake --build --preset default`
+- [ ] Release 构建成功：`cmake --preset default && cmake --build --preset default`（产物在 `.build/release/`，约定见 [build-layout.md](build-layout.md)）
 - [ ] CLI：`rkvc_encode`、`rkvc_decode`、`rkvc_transcode`、`rkvc_info`、`rkvc_bench`、`rkvc_session_upscale`、`rkvc_yuv_upscale`
 - [ ] 示例程序（含 `example_encode_file`、`example_decode_formats` 等）
 
@@ -112,11 +112,11 @@ gantt
 ```bash
 ./scripts/package-portable.sh
 source scripts/build-common.sh
-./scripts/test-portable.sh "build/portable/$(rkvc_portable_pkg_dir)"
+./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir)"
 ```
 
-- [ ] 产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librknnrt`）
-- [ ] 包内 `./test.sh`：**99 项**全过
+- [ ] 产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librga` + `librknnrt` + `models/`）
+- [ ] 包内 `./test.sh` 全过（含可选 `rkvc_sr` NPU 冒烟）
 - [ ] 包内 `./network-e2e-test.sh` 冒烟通过（v2 占位，非完整 UDP/RTP 回环）
 
 ### 测试门禁
@@ -124,18 +124,22 @@ source scripts/build-common.sh
 ```bash
 ./scripts/test-strict.sh
 export RKVC_RUN_HARDWARE_TESTS=1
-ctest --test-dir build-tests -j1 -R 'test_session_' --output-on-failure
+ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
+./scripts/test-rga.sh
+./scripts/test-npu-sr.sh
 ```
 
-- [ ] `tests` preset：**16** 个 CTest 目标（9 单元 + 7 硬件子用例）
-- [ ] `full-tests` preset：**18** 个 CTest 目标（+ `test_cli_args`、`test_bench_permission_failure`）
+- [ ] `tests` preset：**17** 个 CTest 目标（9 单元 + 8 硬件子用例）
+- [ ] `full-tests` preset：**19** 个 CTest 目标（+ `test_cli_args`、`test_bench_permission_failure`）
 - [ ] RK3588 实机硬件用例通过（夹具自生成，无需 `tests/fixtures/`）
+- [ ] NPU 门禁：`./scripts/test-npu-sr.sh`（需 `models/rkvc_sr_x3.crypt.rknn`）
 
 ### 设备与环境
 
 - [ ] SoC：RK3588 / RK3588S，BSP 内核 5.10 或 6.1
-- [ ] 设备权限：`/dev/mpp_service`、`/dev/dma_heap/*`、`/dev/rga`、`/dev/dri/*`（见 [getting-started.md](getting-started.md)）
-- [ ] 依赖脚本已执行：`build-svt.sh`、`rebuild-ffmpeg-rkmpp.sh`；CI 另需 `install-librga.sh`
+- [ ] 设备权限：`/dev/mpp_service`、`/dev/dma_heap/*`、`/dev/rga`、`/dev/dri/*`、NPU（`/sys/kernel/debug/rknpu/version` 或 `*npu-render*`）（见 [getting-started.md](getting-started.md)）
+- [ ] 依赖脚本已执行：`build-svt.sh`、`install-librga.sh`、`rebuild-ffmpeg-rkmpp.sh`
+- [ ] AI 超分模型：`models/rkvc_sr_x3.crypt.rknn`（gitignore；打包时自动拷贝）
 
 ---
 
@@ -193,7 +197,7 @@ ctest --test-dir build-tests -j1 -R 'test_session_' --output-on-failure
 复现计时：
 
 ```bash
-build/rkvc_session_upscale -i clip.mp4 -o out.nv12 \
+.build/release/rkvc_session_upscale -i clip.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 \
   --post-upscale rkvc_sr --rkvc-sr-model rkvc_sr_x3.crypt.rknn --print-timing
 ```
@@ -330,7 +334,7 @@ CLI 快速验证解码端：
 ```bash
 export RKVC_LOG_LEVEL=debug   # 或代码中 rkvc_set_log_level(AV_LOG_DEBUG)
 rkvc_info -j
-./build/rkvc_bench -i test.mp4
+./.build/release/rkvc_bench -i test.mp4
 ```
 
 ---

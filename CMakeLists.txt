@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.2
+    VERSION 0.2.3
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -30,7 +30,7 @@ option(RKVC_BUILD_SHARED   "Build shared library"      ON)
 option(RKVC_BUILD_STATIC   "Build static library"      ON)
 option(RKVC_BUILD_EXAMPLES "Build example programs"    ON)
 option(RKVC_BUILD_GUI_EXAMPLES "Build optional SDL2 GUI examples" ON)
-option(RKVC_BUILD_TOOLS    "Build CLI tools"           ON)
+option(RKVC_BUILD_CLI      "Build CLI programs (cli/)" ON)
 option(RKVC_BUILD_TESTS    "Build unit tests (CMocka)" OFF)
 option(RKVC_ENABLE_ASAN    "Enable AddressSanitizer"   OFF)
 option(RKVC_ENABLE_UBSAN   "Enable UndefinedBehaviorSanitizer" OFF)
@@ -53,7 +53,7 @@ set(AVCODEC_LIB_DIRS
 # ── MPP (rockchip mpp) ───────────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库
 set(MPP_BUILD_DIR "${CMAKE_BINARY_DIR}/mpp_build" CACHE PATH "MPP build output directory")
-set(MPP_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/build-deps/mpp-install" CACHE PATH "MPP install prefix")
+set(MPP_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/mpp-install" CACHE PATH "MPP install prefix")
 if(EXISTS "${MPP_INSTALL_PREFIX}/lib/librockchip_mpp.so")
     set(MPP_LIB_DIR "${MPP_INSTALL_PREFIX}/lib")
 else()
@@ -63,12 +63,24 @@ set(MPP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/mpp/inc")
 
 # SVT-AV1 (submodule, 直连 libSvtAv1Enc)
 set(SVT_SRC_DIR "${CMAKE_SOURCE_DIR}/third_party/SVT-AV1")
-set(SVT_PREFIX "${CMAKE_SOURCE_DIR}/build-deps/svt-av1-install" CACHE PATH "SVT-AV1 install prefix")
+set(SVT_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/svt-av1-install" CACHE PATH "SVT-AV1 install prefix")
 set(SVT_INCLUDE_DIR "${SVT_PREFIX}/include")
+
+# librga (submodule 预编译库，经 scripts/install-librga.sh 安装)
+set(RGA_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/librga-install" CACHE PATH "librga install prefix")
+set(RGA_INCLUDE_DIR "${RGA_PREFIX}/include")
+if(NOT EXISTS "${RGA_PREFIX}/lib/librga.so")
+    message(FATAL_ERROR
+        "librga not found at ${RGA_PREFIX}/lib/librga.so\n"
+        "  Run: git submodule update --init --depth 1 third_party/librga\n"
+        "       ./scripts/install-librga.sh")
+endif()
+
 set(RKVC_DEP_LIB_DIRS
     ${AVCODEC_LIB_DIRS}
     ${MPP_LIB_DIR}
     ${SVT_PREFIX}/lib
+    ${RGA_PREFIX}/lib
 )
 
 set(RKVC_RPATH_LINK_OPTIONS "")
@@ -184,6 +196,7 @@ if(RKVC_BUILD_SHARED)
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
             ${SVT_INCLUDE_DIR}
+            ${RGA_INCLUDE_DIR}
             ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
@@ -215,6 +228,7 @@ if(RKVC_BUILD_STATIC)
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
             ${SVT_INCLUDE_DIR}
+            ${RGA_INCLUDE_DIR}
             ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
@@ -298,42 +312,42 @@ if(RKVC_BUILD_EXAMPLES)
     endif()
 endif()
 
-# ── CLI 工具 (安装到 bin/) ────────────────────────────────────────────
-if(RKVC_BUILD_TOOLS)
-    set(RKVC_TOOL_SOURCES
-        tools/rkvc_bench.c
-        tools/rkvc_encode.c
-        tools/rkvc_decode.c
-        tools/rkvc_transcode.c
-        tools/rkvc_yuv_upscale.c
-        tools/rkvc_session_upscale.c
-        tools/rkvc_info.c
+# ── CLI (cli/ → 安装到 bin/) ──────────────────────────────────────────
+if(RKVC_BUILD_CLI)
+    set(RKVC_CLI_SOURCES
+        cli/rkvc_bench.c
+        cli/rkvc_encode.c
+        cli/rkvc_decode.c
+        cli/rkvc_transcode.c
+        cli/rkvc_yuv_upscale.c
+        cli/rkvc_session_upscale.c
+        cli/rkvc_info.c
     )
 
-    set(RKVC_TOOLS "")
-    foreach(TOOL_SRC ${RKVC_TOOL_SOURCES})
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${TOOL_SRC}")
-            get_filename_component(TOOL_NAME ${TOOL_SRC} NAME_WE)
-            add_executable(${TOOL_NAME} ${TOOL_SRC})
-            target_link_libraries(${TOOL_NAME} PRIVATE rkvc)
-            target_include_directories(${TOOL_NAME}
+    set(RKVC_CLI_TARGETS "")
+    foreach(CLI_SRC ${RKVC_CLI_SOURCES})
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${CLI_SRC}")
+            get_filename_component(CLI_NAME ${CLI_SRC} NAME_WE)
+            add_executable(${CLI_NAME} ${CLI_SRC})
+            target_link_libraries(${CLI_NAME} PRIVATE rkvc)
+            target_include_directories(${CLI_NAME}
                 PRIVATE ${AVCODEC_INCLUDE_DIRS})
-            target_link_directories(${TOOL_NAME}
+            target_link_directories(${CLI_NAME}
                 PRIVATE ${RKVC_DEP_LIB_DIRS})
-            target_link_options(${TOOL_NAME}
+            target_link_options(${CLI_NAME}
                 PRIVATE ${RKVC_RPATH_LINK_OPTIONS})
             # RPATH: 安装后从 bin/ 找 ../lib/ 中的 .so
-            set_target_properties(${TOOL_NAME} PROPERTIES
+            set_target_properties(${CLI_NAME} PROPERTIES
                 INSTALL_RPATH "$ORIGIN/../lib"
                 BUILD_RPATH   "${CMAKE_CURRENT_BINARY_DIR};${RKVC_DEP_LIB_DIRS}"
             )
-            list(APPEND RKVC_TOOLS ${TOOL_NAME})
+            list(APPEND RKVC_CLI_TARGETS ${CLI_NAME})
         endif()
     endforeach()
 
     add_custom_target(bench-rd
         COMMAND ${CMAKE_SOURCE_DIR}/scripts/run-bench.sh
-        DEPENDS ${RKVC_TOOLS}
+        DEPENDS ${RKVC_CLI_TARGETS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Run RD benchmark (requires SRC_VIDEO or pass video path to script)"
         VERBATIM
@@ -361,9 +375,9 @@ if(RKVC_INSTALL)
         )
     endif()
 
-    # 安装 CLI 工具到 bin/
-    if(RKVC_TOOLS)
-        install(TARGETS ${RKVC_TOOLS}
+    # 安装 CLI 到 bin/
+    if(RKVC_CLI_TARGETS)
+        install(TARGETS ${RKVC_CLI_TARGETS}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         )
     endif()
@@ -410,7 +424,7 @@ endif()
 
 # 自定义 tidy 目标 (不影响正常编译)
 find_program(CLANG_TIDY_CMD NAMES "clang-tidy")
-if(CLANG_TIDY_CMD AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/build/compile_commands.json")
+if(CLANG_TIDY_CMD AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.build/release/compile_commands.json")
     file(GLOB TIDY_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.c)
     add_custom_target(tidy
         COMMAND ${CLANG_TIDY_CMD}
@@ -449,6 +463,7 @@ if(RKVC_BUILD_TESTS)
     string(REPLACE ";" ":" RKVC_TEST_LIBRARY_PATH "${RKVC_DEP_LIB_DIRS}")
     set(RKVC_TEST_ENVIRONMENT
         "LD_LIBRARY_PATH=${RKVC_TEST_LIBRARY_PATH}:$ENV{LD_LIBRARY_PATH}"
+        "RKVC_SOURCE_ROOT=${CMAKE_SOURCE_DIR}"
     )
     if(RKVC_ENABLE_ASAN OR RKVC_ENABLE_UBSAN)
         list(APPEND RKVC_TEST_ENVIRONMENT
@@ -506,6 +521,7 @@ if(RKVC_BUILD_TESTS)
         test_session_encode_h264
         test_session_av1_storage
         test_session_encode_decode_upscale_3x
+        test_session_encode_decode_upscale_3x_ai_sr
     )
     foreach(hw_case ${RKVC_HW_TEST_CASES})
         add_test(NAME ${hw_case} COMMAND test_hardware ${hw_case})
@@ -518,8 +534,8 @@ if(RKVC_BUILD_TESTS)
     endforeach()
 
     set(RKVC_CHECK_DEPENDS ${RKVC_TEST_TARGETS})
-    if(RKVC_BUILD_TOOLS)
-        list(APPEND RKVC_CHECK_DEPENDS ${RKVC_TOOLS})
+    if(RKVC_BUILD_CLI)
+        list(APPEND RKVC_CHECK_DEPENDS ${RKVC_CLI_TARGETS})
     endif()
 
     add_custom_target(check
@@ -530,7 +546,7 @@ if(RKVC_BUILD_TESTS)
         VERBATIM
     )
 
-    if(RKVC_BUILD_TOOLS)
+    if(RKVC_BUILD_CLI)
         add_test(NAME test_cli_args
             COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_cli_args.sh
                     ${CMAKE_CURRENT_BINARY_DIR}

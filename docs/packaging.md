@@ -6,17 +6,17 @@
 
 ```bash
 git submodule update --init --depth 1
-git submodule update --init --depth 1 third_party/SVT-AV1
 
 ./scripts/package-portable.sh
+# 编译树: .build/portable/（preset portable）
+# 成品包: .build/dist/rkvc-<version>-linux-<arch>-portable/
 
-# 包名由 CMake project(VERSION) 生成，例如:
-#   build/portable/rkvc-<version>-linux-aarch64-portable
+# 包名由 CMake project(VERSION) 生成
 source scripts/build-common.sh
-./scripts/test-portable.sh "build/portable/$(rkvc_portable_pkg_dir)"
+./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir)"
 ```
 
-产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librknnrt`）
+产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librga` + `librknnrt` + `models/`）
 
 ```
 rkvc-*-linux-aarch64-portable/
@@ -36,12 +36,15 @@ rkvc-*-linux-aarch64-portable/
 │   ├── libswscale.so.7
 │   ├── libSvtAv1Enc.so.4    # v2 新增
 │   ├── librockchip_mpp.so.1
+│   ├── librga.so            # RGA 用户态库（submodule）
 │   ├── librknnrt.so         # RKNN NPU runtime（rkvc_sr）
 │   └── ...
+├── models/
+│   └── rkvc_sr_x3.crypt.rknn  # 约定 3× AI 超分模型（随 librknnrt 一并打包）
 ├── include/rkvc/            # v2 头文件
 ├── share/pkgconfig/rkvc.pc
 ├── examples/                # 示例源码与二进制
-├── test.sh                  # 一键自测（99 项）
+├── test.sh                  # 一键自测
 ├── network-e2e-test.sh      # v2 冒烟测试
 ├── portable-test-helpers.sh
 ├── README.md / USAGE.md / DEVELOPMENT.md / EXAMPLES.md
@@ -59,6 +62,11 @@ cd rkvc-*-linux-aarch64-portable
 ./bin/rkvc_info -j
 ./bin/rkvc_transcode -i in.mp4 -o out.mp4 -p balanced
 
+# AI 超分（需目标机 NPU 驱动）
+./bin/rkvc_session_upscale -i in.mp4 -o out.nv12 \
+  --width 1920 --height 1080 --enc-scale-denom 3 \
+  --post-upscale rkvc_sr --rkvc-sr-model models/rkvc_sr_x3.crypt.rknn
+
 # 二次开发
 gcc -o myapp myapp.c -Iinclude -Llib -lrkvc
 LD_LIBRARY_PATH=lib ./myapp
@@ -68,23 +76,24 @@ LD_LIBRARY_PATH=lib ./myapp
 
 ### 可复现性
 
-所有二进制从源码构建：
+所有二进制从源码 / 子模块构建：
 
 - **rockchip-mpp**: `third_party/mpp/` 子模块
 - **ffmpeg-rockchip**: `third_party/ffmpeg-rockchip/`，含 AV1 硬解
 - **SVT-AV1**: `third_party/SVT-AV1/` 子模块
+- **librga**: `third_party/librga/` 子模块（预编译用户态库）
 - **rkvc**: 项目源码
 
 包内自测确认关键库解析到包内 `lib/`，避免串入系统旧版本。
 
-**系统依赖（不进包）**：`librga`（RGA 缩放/CSC）仍需目标机提供；可用源码树 `./scripts/install-librga.sh` 安装。NPU 驱动/固件不随包分发。
+**系统依赖（不进包）**：NPU 驱动/固件不随包分发；`librga`、`librknnrt` 与约定模型 `models/rkvc_sr_x3.crypt.rknn` 在启用对应功能时随包携带。目标机仍需 `/dev/rga` 等设备节点。
 
 ## DEB 包
 
 ```bash
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-ninja -C build -j4 package
-sudo dpkg -i build/packages/rkvc_*_arm64.deb
+cmake -B .build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
+ninja -C .build/release -j4 package
+sudo dpkg -i .build/release/packages/rkvc_*_arm64.deb
 ```
 
 > **说明**：DEB 包依赖系统上的 ffmpeg-rockchip 和 librockchip-mpp（与可移植包的自包含策略不同）。
@@ -94,8 +103,8 @@ sudo dpkg -i build/packages/rkvc_*_arm64.deb
 开发者 SDK 包（不含 ffmpeg 依赖）：
 
 ```bash
-ninja -C build -j4 package
-# 产物: build/packages/rkvc-*-Linux.tar.gz
+ninja -C .build/release -j4 package
+# 产物: .build/release/packages/rkvc-*-Linux.tar.gz
 ```
 
 ## 打包脚本

@@ -47,7 +47,7 @@
 - [ ] 跳过 NV12↔RGB CSC，仅保留必要的 RGA 下采样预处理
 - [ ] `rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH` 无需改 CLI
 - [ ] bench `post-upscale` 路线增加 `{codec}+up{N}x-rkvc_sr_yuv` 实验名（可选）
-- [ ] 硬件回归：`test_session_encode_decode_upscale_3x` 扩展 AI_SR 用例（需模型文件）
+- [ ] 硬件回归：`test_session_encode_decode_upscale_3x_ai_sr`（已覆盖现网 RGB `rkvc_sr`；YUV-native 模型上线后复用同用例）
 
 ## 训练数据建议
 

@@ -2,12 +2,12 @@
   "paths": {
     "ffmpeg": "third_party/ffmpeg-rockchip/ffmpeg",
     "ffprobe": "third_party/ffmpeg-rockchip/ffprobe",
-    "svt_enc": "build-deps/svt-av1-install/bin/SvtAv1EncApp",
-    "rkvc_build": "build",
-    "mpp_lib": "build-deps/mpp-install/lib",
+    "svt_enc": ".build/deps/svt-av1-install/bin/SvtAv1EncApp",
+    "rkvc_build": ".build/release",
+    "mpp_lib": ".build/deps/mpp-install/lib",
     "ffmpeg_src": "third_party/ffmpeg-rockchip",
-    "svt_prefix": "build-deps/svt-av1-install",
-    "rkvc_sr_model": "rkvc_sr_x3.crypt.rknn",
+    "svt_prefix": ".build/deps/svt-av1-install",
+    "rkvc_sr_model": "models/rkvc_sr_x3.crypt.rknn",
     "superres_decode_ffmpeg": null
   },
   "clip": {

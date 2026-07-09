@@ -40,13 +40,13 @@ SVT_SUPERRES_FFMPEG=/path/to/ffmpeg-with-libaom   # 须在 config.json paths.sup
 
 ```bash
 # rkvc_session_upscale：硬解 + 后处理上采样（bench 内自动调用）
-build/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
+.build/release/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 --post-upscale bilinear --print-timing
 
 # AI 超分（需模型文件）
-build/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
+.build/release/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 \
-  --post-upscale rkvc_sr --rkvc-sr-model rkvc_sr_x3.crypt.rknn --print-timing
+  --post-upscale rkvc_sr --rkvc-sr-model models/rkvc_sr_x3.crypt.rknn --print-timing
 ```
 
 下采样参考帧仍用 `rkvc_yuv_upscale`（仅 prep 阶段）。
@@ -74,8 +74,8 @@ Session 字段：`enc_scale_denom`、`post_upscale_algo`。**编码 CLI**（`rkv
 # 1. 构建依赖与 rkvc
 ./scripts/build-svt.sh
 ./scripts/rebuild-ffmpeg-rkmpp.sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j4
+cmake -B .build/release -DCMAKE_BUILD_TYPE=Release
+cmake --build .build/release -j4
 
 # 2. （可选）绘图 Python 环境
 cd bench && uv sync    # 或 pip install matplotlib numpy

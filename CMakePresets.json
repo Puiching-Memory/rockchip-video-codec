@@ -4,27 +4,29 @@
     "configurePresets": [
         {
             "name": "default",
-            "displayName": "Default (Release)",
+            "displayName": "Default (Release) → .build/release/",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build",
+            "binaryDir": "${sourceDir}/.build/release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
             }
         },
         {
             "name": "debug",
-            "displayName": "Debug",
+            "displayName": "Debug → .build/debug/",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-debug",
+            "binaryDir": "${sourceDir}/.build/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
             }
         },
         {
             "name": "tidy",
-            "displayName": "clang-tidy Check",
+            "displayName": "clang-tidy Check → .build/debug/",
             "inherits": "debug",
             "cacheVariables": {
                 "CMAKE_C_CLANG_TIDY": "clang-tidy;--header-filter=${sourceDir}/include/.*"
@@ -32,26 +34,26 @@
         },
         {
             "name": "tests",
-            "displayName": "Unit Tests",
+            "displayName": "Unit Tests → .build/tests/",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-tests",
+            "binaryDir": "${sourceDir}/.build/tests",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "RKVC_BUILD_SHARED": "OFF",
                 "RKVC_BUILD_EXAMPLES": "OFF",
-                "RKVC_BUILD_TOOLS": "OFF",
+                "RKVC_BUILD_CLI": "OFF",
                 "RKVC_BUILD_TESTS": "ON",
                 "RKVC_ENABLE_FAULT_INJECTION": "ON",
                 "RKVC_INSTALL": "OFF",
-                "MPP_BUILD_DIR": "${sourceDir}/build-deps/mpp-build"
+                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
             }
         },
         {
             "name": "asan",
-            "displayName": "ASan + UBSan Tests",
+            "displayName": "ASan + UBSan Tests → .build/asan/",
             "inherits": "tests",
-            "binaryDir": "${sourceDir}/build-asan",
+            "binaryDir": "${sourceDir}/.build/asan",
             "cacheVariables": {
                 "RKVC_ENABLE_ASAN": "ON",
                 "RKVC_ENABLE_UBSAN": "ON"
@@ -59,20 +61,30 @@
         },
         {
             "name": "full-tests",
-            "displayName": "Unit Tests + CLI Tools",
+            "displayName": "Unit Tests + CLI → .build/full-tests/",
             "inherits": "tests",
-            "binaryDir": "${sourceDir}/build-full-tests",
+            "binaryDir": "${sourceDir}/.build/full-tests",
             "cacheVariables": {
-                "RKVC_BUILD_TOOLS": "ON"
+                "RKVC_BUILD_CLI": "ON"
             }
         },
         {
             "name": "coverage",
-            "displayName": "Coverage Tests",
+            "displayName": "Coverage Tests → .build/coverage/",
             "inherits": "tests",
-            "binaryDir": "${sourceDir}/build-coverage",
+            "binaryDir": "${sourceDir}/.build/coverage",
             "cacheVariables": {
                 "RKVC_ENABLE_COVERAGE": "ON"
+            }
+        },
+        {
+            "name": "portable",
+            "displayName": "Portable package tree → .build/portable/",
+            "inherits": "default",
+            "binaryDir": "${sourceDir}/.build/portable",
+            "cacheVariables": {
+                "CMAKE_INSTALL_RPATH_USE_LINK_PATH": "ON",
+                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
             }
         }
     ],
@@ -80,6 +92,12 @@
         {
             "name": "default",
             "configurePreset": "default",
+            "jobs": 4,
+            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
+        },
+        {
+            "name": "debug",
+            "configurePreset": "debug",
             "jobs": 4,
             "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
         },
@@ -106,6 +124,12 @@
             "configurePreset": "coverage",
             "jobs": 4,
             "targets": ["check"]
+        },
+        {
+            "name": "portable",
+            "configurePreset": "portable",
+            "jobs": 4,
+            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
         },
         {
             "name": "docs",

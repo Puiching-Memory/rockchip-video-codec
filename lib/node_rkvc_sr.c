@@ -365,6 +365,17 @@ rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
     if (rknn_load_model(model_path, &ctx->ctx) != RKVC_OK)
         goto fail;
 
+    {
+        rknn_sdk_version ver;
+        memset(&ver, 0, sizeof(ver));
+        if (rknn_query(ctx->ctx, RKNN_QUERY_SDK_VERSION, &ver, sizeof(ver)) ==
+            RKNN_SUCC) {
+            RKVC_LOG("rknnrt api=%s drv=%s", ver.api_version, ver.drv_version);
+        } else {
+            RKVC_LOG("rknn_query SDK_VERSION failed");
+        }
+    }
+
     rknn_set_core_mask(ctx->ctx, RKNN_NPU_CORE_0_1_2);
 
     rknn_input_output_num io_num;

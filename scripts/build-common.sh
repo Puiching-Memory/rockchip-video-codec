@@ -7,6 +7,17 @@
 #   ver="$(rkvc_project_version)"
 #
 # 可通过环境变量 BUILD_JOBS 下调（如 2），但不会超过 RKVC_BUILD_JOBS_MAX（默认 4）。
+#
+# 构建目录约定（唯一权威：CMakePresets.json / docs/build-layout.md）:
+#   .build/release/     default Release
+#   .build/debug/       debug / tidy
+#   .build/tests/       tests
+#   .build/asan/        asan
+#   .build/full-tests/  full-tests
+#   .build/coverage/    coverage
+#   .build/portable/    portable 编译树
+#   .build/dist/        可移植包成品
+#   .build/deps/        第三方依赖（MPP / SVT / FFmpeg）
 
 # 仓库根目录（本文件位于 scripts/）
 rkvc_repo_root() {

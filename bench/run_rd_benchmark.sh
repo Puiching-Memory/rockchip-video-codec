@@ -70,7 +70,7 @@ SVT_ENC="${SVT_ENC:-$SVT_PREFIX/bin/SvtAv1EncApp}"
 RKVC_TRANS="$RKVC_BUILD/rkvc_transcode"
 RKVC_YUV_UPSCALE="$RKVC_BUILD/rkvc_yuv_upscale"
 RKVC_SESSION_UPSCALE="$RKVC_BUILD/rkvc_session_upscale"
-RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/rkvc_sr_x3.crypt.rknn}"
+RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/models/rkvc_sr_x3.crypt.rknn}"
 export RKVC_SR_MODEL
 RKVC_ENC="$RKVC_BUILD/rkvc_encode"
 
@@ -131,7 +131,7 @@ usage() {
 前置条件:
   ./scripts/build-svt.sh
   ./scripts/rebuild-ffmpeg-rkmpp.sh
-  cmake -B build && cmake --build build -j4
+  cmake -B .build/release && cmake --build .build/release -j4
 EOF
 }
 

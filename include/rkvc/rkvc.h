@@ -116,6 +116,7 @@ typedef struct {
     int has_av1_dec;    /**< `av1_rkmpp` 解码可用 */
     int has_dma_heap;   /**< `/dev/dma_heap/*` 可访问 */
     int has_rga;        /**< `/dev/rga` 可访问 */
+    int has_rknn;       /**< RKNN 已编译且 NPU 可访问（`rkvc_sr`） */
     int max_width;      /**< 支持最大宽度（RK3588：7680） */
     int max_height;     /**< 支持最大高度（RK3588：4320） */
 } rkvc_caps;

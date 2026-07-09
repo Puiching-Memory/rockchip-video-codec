@@ -17,8 +17,8 @@ RUN_CODECS=h264,rkvc-v2 ./scripts/run-bench.sh clip.mp4
 v2 的 `rkvc_bench` 对同一输入文件分别跑 `REALTIME` / `BALANCED` / `QUALITY` 三档 policy 的完整转码管线，输出 E2E fps。
 
 ```bash
-./build/rkvc_bench -i clip.mp4
-./build/rkvc_bench -i clip.mp4 -o /tmp/bench_out -s 1920x1080
+./.build/release/rkvc_bench -i clip.mp4
+./.build/release/rkvc_bench -i clip.mp4 -o /tmp/bench_out -s 1920x1080
 ```
 
 须通过 `-i` 指定输入容器；可先运行 `example_encode_file -o test.mp4` 生成短片段。
@@ -47,7 +47,7 @@ rkvc v2 session E2E bench (input=clip.mp4)
 `latency_test` 模拟摄像头实时采集，经编码 → 解码全链路，测量每帧端到端延迟。
 
 ```bash
-cd build
+cd .build/release
 
 # 低延迟模式 (推荐)
 ./example_latency_test -l
@@ -74,8 +74,8 @@ cd build
 ## PSNR 质量测试
 
 ```bash
-./build/example_psnr_test -i input.mp4
-./build/example_psnr_test -i input.mp4 -v -n 100
+./.build/release/example_psnr_test -i input.mp4
+./.build/release/example_psnr_test -i input.mp4 -v -n 100
 ```
 
 输出 Y/U/V 平均 PSNR、加权平均 PSNR 及最低帧 PSNR。

@@ -16,15 +16,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          fetch-depth: 1
+
+      - name: Init submodules (shallow)
+        run: git submodule update --init --depth 1 --recursive
 
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang-tidy cmake ninja-build
 
-      - name: Install librga
-        run: sudo ./scripts/install-librga.sh
+      - name: Install librga (from submodule)
+        run: ./scripts/install-librga.sh
 
       - name: Generate ffmpeg config headers
         run: |
@@ -33,17 +36,16 @@ jobs:
 
       - name: Build SVT-AV1 submodule
         run: |
-          git submodule update --init --depth 1 third_party/SVT-AV1
           chmod +x scripts/build-svt.sh
           ./scripts/build-svt.sh
 
       - name: Create compile_commands.json
         run: |
-          cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake -B .build/release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
       - name: Run clang-tidy
         run: |
-          clang-tidy -p build \
+          clang-tidy -p .build/release \
             --header-filter=include/.* \
             lib/*.c 2>&1 | tee tidy-report.txt
           # 允许警告但不允许错误
@@ -56,15 +58,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          fetch-depth: 1
+
+      - name: Init submodules (shallow)
+        run: git submodule update --init --depth 1 --recursive
 
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build libcmocka-dev libdrm-dev
 
-      - name: Install librga
-        run: sudo ./scripts/install-librga.sh
+      - name: Install librga (from submodule)
+        run: ./scripts/install-librga.sh
 
       - name: Build MPP
         run: |
@@ -76,7 +81,6 @@ jobs:
 
       - name: Build SVT-AV1 submodule
         run: |
-          git submodule update --init --depth 1 third_party/SVT-AV1
           chmod +x scripts/build-svt.sh
           ./scripts/build-svt.sh
 
@@ -87,25 +91,25 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -B build -G Ninja \
+          cmake -B .build/release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DRKVC_BUILD_TESTS=ON \
             -DMPP_BUILD_DIR=/tmp/mpp-build
 
       - name: Build
-        run: ninja -C build
+        run: ninja -C .build/release
 
       - name: Test
         env:
           RKVC_VALGRIND_HARDWARE: "0"
-        run: cd build && ctest --output-on-failure --output-junit results.xml
+        run: cd .build/release && ctest --output-on-failure --output-junit results.xml
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results
-          path: build/results.xml
+          path: .build/release/results.xml
 
   package:
     name: Package
@@ -114,7 +118,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          submodules: recursive
+          fetch-depth: 1
+
+      - name: Init submodules (shallow)
+        run: git submodule update --init --depth 1 --recursive
 
       - name: Install dependencies
         run: |
@@ -122,8 +129,8 @@ jobs:
           sudo apt-get install -y -qq \
             cmake ninja-build patchelf libdrm-dev gcc pkg-config
 
-      - name: Install librga
-        run: sudo ./scripts/install-librga.sh
+      - name: Install librga (from submodule)
+        run: ./scripts/install-librga.sh
 
       - name: Build MPP
         run: |
@@ -135,7 +142,6 @@ jobs:
 
       - name: Build SVT-AV1 submodule
         run: |
-          git submodule update --init --depth 1 third_party/SVT-AV1
           chmod +x scripts/build-svt.sh
           ./scripts/build-svt.sh
 
@@ -146,8 +152,8 @@ jobs:
 
       - name: Build and package
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DMPP_BUILD_DIR=/tmp/mpp-build
-          ninja -C build package
+          cmake -B .build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DMPP_BUILD_DIR=/tmp/mpp-build
+          ninja -C .build/release package
 
       - name: Build portable package
         run: ./scripts/package-portable.sh
@@ -159,10 +165,12 @@ jobs:
         run: |
           # shellcheck source=scripts/build-common.sh
           source scripts/build-common.sh
-          ./scripts/test-portable.sh "build/portable/$(rkvc_portable_pkg_dir)"
+          ./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir)"
 
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
           name: packages
-          path: build/packages/*.tar.gz
+          path: |
+            .build/release/packages/*.tar.gz
+            .build/dist/*.tar.gz

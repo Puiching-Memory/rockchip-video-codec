@@ -215,6 +215,21 @@ if [ -x "$PKG_DIR/network-e2e-test.sh" ]; then
 else
     fail "缺失或不可执行: network-e2e-test.sh"
 fi
+if [ -f "$PKG_DIR/lib/librknnrt.so" ]; then
+    pass "存在: lib/librknnrt.so"
+    if [ -f "$PKG_DIR/models/rkvc_sr_x3.crypt.rknn" ]; then
+        pass "存在: models/rkvc_sr_x3.crypt.rknn"
+    else
+        fail "已打包 librknnrt 但缺失: models/rkvc_sr_x3.crypt.rknn"
+    fi
+else
+    warn "未打包 librknnrt.so（本构建可能未启用 RKNN）"
+fi
+if [ -f "$PKG_DIR/lib/librga.so" ]; then
+    pass "存在: lib/librga.so"
+else
+    fail "缺失: lib/librga.so"
+fi
 echo ""
 
 # 2. 动态库依赖
@@ -224,7 +239,7 @@ check_bundled_libs() {
     local name="$2"
     local ldd_output="$3"
 
-    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librknnrt; do
+    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librga librknnrt; do
         if echo "$ldd_output" | grep -q "$lib"; then
             if echo "$ldd_output" | grep "$lib" | grep -vq "$PKG_DIR/lib/"; then
                 fail "$name: $lib 未解析到包内 lib/"
@@ -313,7 +328,7 @@ else
     fail "rkvc_info --json 输出异常 (exit=$json_status)"
     show_output "rkvc_info --json" "$json_output"
 fi
-for field in version h264_enc hevc_enc av1_enc h264_dec hevc_dec av1_dec dma_heap rga max_width max_height; do
+for field in version h264_enc hevc_enc av1_enc h264_dec hevc_dec av1_dec dma_heap rga rknn max_width max_height; do
     if echo "$json_output" | grep -q "\"$field\""; then
         pass "rkvc_info --json 字段: $field"
     else
@@ -431,6 +446,42 @@ if [ -x "$PKG_DIR/bin/rkvc_session_upscale" ] && [ -f "$TMPDIR/test.mp4" ]; then
         fail "rkvc_session_upscale 后处理上采样失败 (exit=$up_status, size=$up_size)"
         show_output "rkvc_session_upscale" "$up_out"
     fi
+fi
+
+# NPU / rkvc_sr smoke（需包内模型 + NPU；无 NPU 时默认 skip）
+SR_MODEL="$PKG_DIR/models/rkvc_sr_x3.crypt.rknn"
+if [ ! -f "$PKG_DIR/lib/librknnrt.so" ] || [ ! -f "$SR_MODEL" ]; then
+    warn "跳过 rkvc_sr NPU 冒烟 (包内无 librknnrt 或 models/)"
+elif portable_skip_npu_tests; then
+    warn "跳过 rkvc_sr NPU 冒烟 (无 NPU；实机设 RKVC_RUN_HARDWARE_TESTS=1 强制)"
+elif ! portable_npu_accessible; then
+    fail "RKVC_RUN_HARDWARE_TESTS=1 但 NPU 不可访问"
+elif [ -x "$PKG_DIR/bin/rkvc_session_upscale" ] && [ -x "$PKG_DIR/bin/rkvc_encode" ]; then
+    generate_raw_nv12 "$TMPDIR/sr_raw.nv12" 1920 1080 2
+    capture_run sr_enc_status sr_enc_out env LD_LIBRARY_PATH="$PKG_DIR/lib" \
+        "$PKG_DIR/bin/rkvc_encode" -i "$TMPDIR/sr_raw.nv12" -o "$TMPDIR/sr_enc.mp4" \
+        -s 1920x1080 -p realtime --enc-scale-denom 3
+    if [ "$sr_enc_status" -ne 0 ] || [ ! -f "$TMPDIR/sr_enc.mp4" ]; then
+        fail "rkvc_sr 前置编码失败 (exit=$sr_enc_status)"
+        show_output "rkvc_encode (sr)" "$sr_enc_out"
+    else
+        capture_run sr_up_status sr_up_out env LD_LIBRARY_PATH="$PKG_DIR/lib" \
+            "$PKG_DIR/bin/rkvc_session_upscale" \
+            -i "$TMPDIR/sr_enc.mp4" -o "$TMPDIR/sr_out.nv12" \
+            --width 1920 --height 1080 --enc-scale-denom 3 \
+            --post-upscale rkvc_sr --rkvc-sr-model "$SR_MODEL"
+        sr_frame=$((1920 * 1080 * 3 / 2))
+        sr_size=0
+        [ -f "$TMPDIR/sr_out.nv12" ] && sr_size=$(file_size "$TMPDIR/sr_out.nv12")
+        if [ "$sr_up_status" -eq 0 ] && [ "$sr_size" -ge "$sr_frame" ]; then
+            pass "rkvc_session_upscale rkvc_sr 3× NPU 冒烟"
+        else
+            fail "rkvc_session_upscale rkvc_sr 失败 (exit=$sr_up_status, size=$sr_size)"
+            show_output "rkvc_session_upscale rkvc_sr" "$sr_up_out"
+        fi
+    fi
+else
+    warn "跳过 rkvc_sr NPU 冒烟 (缺少 encode/upscale 工具)"
 fi
 fi
 

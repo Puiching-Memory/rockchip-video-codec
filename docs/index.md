@@ -19,6 +19,7 @@
 ### 开发与集成
 
 - [快速开始](getting-started.md) — 依赖构建、编译、首次运行
+- [构建目录约定](build-layout.md) — 全部收在 `.build/`（release / tests / deps / dist …）
 - [架构](architecture.md) — Session 图、Codec Router、节点管线
 - [API 参考](api.md) — v2 公共 API（完整函数/结构体说明）
 - [v1 → v2 迁移](migration.md) — 破坏性升级迁移指南

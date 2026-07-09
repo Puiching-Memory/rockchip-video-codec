@@ -52,6 +52,30 @@ static const char *fixture_h264(void)
     return gen;
 }
 
+/** 约定模型：RKVC_SR_MODEL 覆盖，否则 $RKVC_SOURCE_ROOT/models/rkvc_sr_x3.crypt.rknn */
+static const char *resolve_sr_model_path(char *buf, size_t buf_sz)
+{
+    const char *env = getenv("RKVC_SR_MODEL");
+    if (env && env[0]) {
+        struct stat st;
+        if (stat(env, &st) == 0 && S_ISREG(st.st_mode))
+            return env;
+        return NULL;
+    }
+
+    const char *root = getenv("RKVC_SOURCE_ROOT");
+    if (!root || !root[0])
+        return NULL;
+
+    snprintf(buf, buf_sz, "%s/models/rkvc_sr_x3.crypt.rknn", root);
+    {
+        struct stat st;
+        if (stat(buf, &st) == 0 && S_ISREG(st.st_mode))
+            return buf;
+    }
+    return NULL;
+}
+
 static void skip_unless_hw(void)
 {
     if (!rkvc_test_hardware_opted_in())
@@ -285,6 +309,74 @@ static void test_session_encode_decode_upscale_3x(void **state)
     remove(dec_path);
 }
 
+static void test_session_encode_decode_upscale_3x_ai_sr(void **state)
+{
+    (void)state;
+    skip_unless_hw();
+
+    rkvc_caps caps;
+    rkvc_query_caps(&caps);
+    if (!caps.has_rga || !caps.has_rknn)
+        skip();
+
+    char model_buf[PATH_MAX];
+    const char *model = resolve_sr_model_path(model_buf, sizeof(model_buf));
+    if (!model)
+        skip();
+
+    const char *raw = getenv("RKVC_TEST_RAW_NV12");
+    if (!raw || !raw[0])
+        raw = rkvc_test_fixture_nv12_1080p();
+    if (!raw)
+        fail();
+
+    char enc_path[PATH_MAX];
+    char dec_path[PATH_MAX];
+    if (test_mktemp_file(enc_path, sizeof(enc_path), "/tmp/rkvc_v2_enc_ai_", ".mp4") != 0)
+        fail();
+    if (test_mktemp_file(dec_path, sizeof(dec_path), "/tmp/rkvc_v2_dec_ai_", ".nv12") != 0) {
+        remove(enc_path);
+        fail();
+    }
+
+    rkvc_pipeline_desc enc = {0};
+    rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_ENCODE, &enc);
+    enc.input_path       = raw;
+    enc.output_path      = enc_path;
+    enc.policy           = RKVC_POLICY_REALTIME;
+    enc.width            = 1920;
+    enc.height           = 1080;
+    enc.enc_scale_denom  = 3;
+
+    rkvc_session *s = NULL;
+    assert_int_equal(rkvc_session_create(&enc, &s), RKVC_OK);
+    rkvc_err err = rkvc_session_run_file(s);
+    rkvc_session_destroy(s);
+    assert_int_equal(err, RKVC_OK);
+
+    rkvc_pipeline_desc dec = {0};
+    rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_DECODE, &dec);
+    dec.input_path                   = enc_path;
+    dec.output_path                  = dec_path;
+    dec.width                        = 1920;
+    dec.height                       = 1080;
+    dec.enc_scale_denom              = 3;
+    dec.post_upscale_algo            = RKVC_UPSCALE_AI_SR;
+    dec.post_upscale_rkvc_model_path = model;
+
+    assert_int_equal(rkvc_session_create(&dec, &s), RKVC_OK);
+    err = rkvc_session_run_file(s);
+    rkvc_session_destroy(s);
+    assert_int_equal(err, RKVC_OK);
+
+    struct stat st;
+    assert_int_equal(stat(dec_path, &st), 0);
+    assert_true((size_t)st.st_size >= (size_t)1920 * 1080 * 3 / 2);
+
+    remove(enc_path);
+    remove(dec_path);
+}
+
 static const struct CMUnitTest tests[] = {
     cmocka_unit_test(test_session_transcode_h264),
     cmocka_unit_test(test_session_transcode_balanced),
@@ -293,6 +385,7 @@ static const struct CMUnitTest tests[] = {
     cmocka_unit_test(test_session_encode_h264),
     cmocka_unit_test(test_session_av1_storage),
     cmocka_unit_test(test_session_encode_decode_upscale_3x),
+    cmocka_unit_test(test_session_encode_decode_upscale_3x_ai_sr),
 };
 
 int main(int argc, char **argv)

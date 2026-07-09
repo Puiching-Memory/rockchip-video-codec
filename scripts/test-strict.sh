@@ -30,13 +30,13 @@ run_matrix() {
 
 cd "$ROOT_DIR"
 
-run_matrix tests build-tests
-run_matrix asan build-asan
-run_matrix coverage build-coverage
+run_matrix tests .build/tests
+run_matrix asan .build/asan
+run_matrix coverage .build/coverage
 
 if command -v valgrind >/dev/null 2>&1; then
-    echo "==> valgrind: build-tests"
-    mapfile -t TEST_BINS < <(find "$ROOT_DIR/build-tests" -maxdepth 1 -type f -perm -111 -name 'test_*' | sort)
+    echo "==> valgrind: .build/tests"
+    mapfile -t TEST_BINS < <(find "$ROOT_DIR/.build/tests" -maxdepth 1 -type f -perm -111 -name 'test_*' | sort)
     for test_bin in "${TEST_BINS[@]}"; do
         test_name="$(basename "$test_bin")"
         if [ "$test_name" = "test_hardware" ] || [ "$test_name" = "test_scale" ]; then
@@ -61,12 +61,12 @@ fi
 
 if command -v gcovr >/dev/null 2>&1; then
     echo "==> coverage summary"
-    COVERAGE_DIR="$ROOT_DIR/build-coverage/coverage"
+    COVERAGE_DIR="$ROOT_DIR/.build/coverage/coverage"
     mkdir -p "$COVERAGE_DIR"
 
     GCOVR_ARGS=(
         --root "$ROOT_DIR"
-        "$ROOT_DIR/build-coverage"
+        "$ROOT_DIR/.build/coverage"
         --exclude "$ROOT_DIR/third_party/.*"
         --exclude "$ROOT_DIR/tests/.*"
         --print-summary

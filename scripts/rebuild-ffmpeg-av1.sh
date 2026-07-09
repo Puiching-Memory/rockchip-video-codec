@@ -15,7 +15,7 @@ rkvc_limit_build_jobs
 
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FFMPEG_SRC="$PROJECT_DIR/third_party/ffmpeg-rockchip"
-MPP_PREFIX="${MPP_PREFIX:-$PROJECT_DIR/build-deps/mpp-install}"
+MPP_PREFIX="${MPP_PREFIX:-$PROJECT_DIR/.build/deps/mpp-install}"
 FFMPEG_PREFIX="$FFMPEG_SRC"
 
 CLEAN=0
@@ -69,7 +69,7 @@ configure_ffmpeg() {
 main() {
     echo "=== rebuild-ffmpeg-av1 (prefix=$FFMPEG_PREFIX) ==="
     if [[ ! -f "$MPP_PREFIX/lib/librockchip_mpp.so" ]]; then
-        echo "错误: 请先构建 MPP (build-deps/mpp-install 或 package-portable.sh)"
+        echo "错误: 请先构建 MPP (.build/deps/mpp-install 或 package-portable.sh)"
         exit 1
     fi
     configure_ffmpeg

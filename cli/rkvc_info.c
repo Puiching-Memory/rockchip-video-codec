@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     if (json) {
         printf("{\"version\":\"%s\",\"h264_enc\":%s,\"hevc_enc\":%s,"
                "\"av1_enc\":%s,\"h264_dec\":%s,\"hevc_dec\":%s,"
-               "\"av1_dec\":%s,\"dma_heap\":%s,\"rga\":%s,"
+               "\"av1_dec\":%s,\"dma_heap\":%s,\"rga\":%s,\"rknn\":%s,"
                "\"max_width\":%d,\"max_height\":%d}\n",
                rkvc_version(),
                caps.has_h264_enc ? "true" : "false",
@@ -54,14 +54,15 @@ int main(int argc, char **argv)
                caps.has_av1_dec ? "true" : "false",
                caps.has_dma_heap ? "true" : "false",
                caps.has_rga ? "true" : "false",
+               caps.has_rknn ? "true" : "false",
                caps.max_width, caps.max_height);
     } else {
         printf("rkvc %s\n", rkvc_version());
         printf("H.264 enc/dec: %d/%d\n", caps.has_h264_enc, caps.has_h264_dec);
         printf("HEVC  enc/dec: %d/%d\n", caps.has_hevc_enc, caps.has_hevc_dec);
         printf("AV1   enc/dec: %d/%d\n", caps.has_av1_enc, caps.has_av1_dec);
-        printf("DMA heap: %d  RGA: %d  max %dx%d\n",
-               caps.has_dma_heap, caps.has_rga,
+        printf("DMA heap: %d  RGA: %d  RKNN: %d  max %dx%d\n",
+               caps.has_dma_heap, caps.has_rga, caps.has_rknn,
                caps.max_width, caps.max_height);
     }
     return 0;

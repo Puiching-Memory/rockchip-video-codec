@@ -25,6 +25,32 @@ portable_skip_hardware_tests() {
     return 0
 }
 
+# NPU 可访问：debugfs 版本节点，或 DRM by-path 下的 npu-render。
+portable_npu_accessible() {
+    if [ -r /sys/kernel/debug/rknpu/version ]; then
+        return 0
+    fi
+    local path
+    for path in /dev/dri/by-path/*npu-render*; do
+        if [ -e "$path" ] && [ -r "$path" ] && [ -w "$path" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# 与 MPP 硬件段一致：无 NPU 时默认 skip；RKVC_RUN_HARDWARE_TESTS=1 则要求有 NPU。
+portable_skip_npu_tests() {
+    if portable_npu_accessible; then
+        return 1
+    fi
+    if [ -n "${RKVC_RUN_HARDWARE_TESTS:-}" ] && \
+       [ "${RKVC_RUN_HARDWARE_TESTS}" != "0" ]; then
+        return 1
+    fi
+    return 0
+}
+
 generate_raw_nv12() {
     local path="$1" w="$2" h="$3" n="${4:-10}"
     local y_plane=$((w * h))
