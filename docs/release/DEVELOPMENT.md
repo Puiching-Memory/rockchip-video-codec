@@ -36,7 +36,7 @@ v2 核心概念：
 |------|------|------|
 | 管线描述 | `rkvc_pipeline_desc` | 模板、policy、分辨率、路径等 |
 | 会话 | `rkvc_session` | 管线实例 |
-| 端口 | `rkvc_port` | `capture` / `output` / `preview` |
+| 端口 | `rkvc_port` | `capture` / `output`（`preview` 为占位，当前无数据） |
 | 缓冲 | `rkvc_buffer` | 视频帧或码流 |
 | 路由 | `rkvc_route_plan` | Router 解析结果 |
 
@@ -209,14 +209,17 @@ policy 说明：
 ## 下采样 + 上采样
 
 ```c
-d.enc_scale_denom   = 2;                    // 编码前宽高各减半
-d.post_upscale_algo = RKVC_UPSCALE_BILINEAR; // 解码后 RGA 还原
-d.post_upscale_rkvc_model_path = NULL;      // RKVC_UPSCALE_AI_SR 时必填
-d.width  = 1920;  // 显示分辨率不变
+/* 编码/转码：仅下采样 */
+d.enc_scale_denom   = 2;
+d.width  = 1920;  /* 显示/参考分辨率 */
 d.height = 1080;
+
+/* 解码 / session_upscale：解码后再上采样 */
+d.post_upscale_algo = RKVC_UPSCALE_BILINEAR;
+d.post_upscale_rkvc_model_path = NULL;  /* RKVC_UPSCALE_AI_SR 时必填 */
 ```
 
-AI 超分：`post_upscale_algo = RKVC_UPSCALE_AI_SR` + `post_upscale_rkvc_model_path`；或 CLI `rkvc_session_upscale --post-upscale rkvc_sr`。YUV-native 模型规格见项目 `docs/sr-model-yuv-spec.md`。
+AI 超分：`post_upscale_algo = RKVC_UPSCALE_AI_SR` + `post_upscale_rkvc_model_path`；或 CLI `rkvc_session_upscale --post-upscale rkvc_sr`。`rkvc_encode` 的编码路径**不会**应用 `post_upscale_algo`。YUV-native 模型规格见项目 `docs/sr-model-yuv-spec.md`。
 
 ## 能力查询
 

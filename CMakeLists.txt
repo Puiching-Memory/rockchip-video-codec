@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.1
+    VERSION 0.2.2
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )

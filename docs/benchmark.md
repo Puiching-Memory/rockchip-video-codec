@@ -82,14 +82,16 @@ cd build
 
 ## 下采样 + 后处理上采样基准
 
-评估低分辨率编码 + 传统上采样还原的画质损失：
+评估低分辨率编码 + 上采样还原的画质损失：
 
 ```bash
 RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh clip.mp4
 ENC_SCALE_DENOM=2 UPSCALE_ALGOS=nearest,bilinear,bicubic \
   RUN_CODECS=post-upscale ./scripts/run-bench.sh clip.mp4
+ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
+  RUN_CODECS=post-upscale ./scripts/run-bench.sh clip.mp4
 ```
 
-rkvc Session 对应参数：`enc_scale_denom`、`post_upscale_algo`，或 CLI `--enc-scale-denom 2 --post-upscale bilinear`。
+Session 字段：`enc_scale_denom`、`post_upscale_algo`。CLI 请用 `rkvc_session_upscale --enc-scale-denom N --post-upscale …`（**不是** `rkvc_encode --post-upscale`；编码工具只做下采样）。
 
-独立 RGA 批处理（不经 Session）可用 `rkvc_yuv_upscale` 或 `rkvc_upscale_ctx_*` API；`rkvc_session_get_stats()` 的 `rga_sec` / `postproc_sec` 反映 Session 路径上的 RGA 耗时。
+独立 RGA 批处理（不经 Session）可用 `rkvc_yuv_upscale` 或 `rkvc_upscale_ctx_*` API；`rkvc_session_get_stats()` 的 `rga_sec` / `postproc_sec` 反映 Session 路径上的后处理耗时。

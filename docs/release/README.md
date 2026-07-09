@@ -2,7 +2,7 @@
 
 高性能硬件视频编解码库，专为 RK3588 平台优化。支持 H.264 / HEVC / AV1 三族编解码，通过 Codec Router 按场景自动选型。
 
-**版本**: 0.2.1
+**版本**: 运行 `./bin/rkvc_info -v` 查看
 
 ## 功能特性
 
@@ -10,15 +10,9 @@
 - **硬件加速** — RKMPP 硬编硬解，支持 8K
 - **SVT-AV1** — QUALITY 策略软件编码 + av1_rkmpp 硬解
 - **Session API** — 统一文件/流式编解码接口
-- **RGA 缩放** — 硬件下采样 + 传统/AI 上采样后处理（`rkvc_sr`）
+- **RGA / AI 上采样** — 解码路径后处理（`rkvc_session_upscale`；含 `rkvc_sr`）
 
-## 性能 (1080p E2E)
-
-| policy | E2E fps |
-|--------|---------|
-| REALTIME (H.264) | ~36 |
-| BALANCED (HEVC) | ~27 |
-| QUALITY (AV1) | ~24 |
+性能数字见包内 `USAGE.md` 或源码树 `docs/benchmark.md`（1080p E2E：REALTIME ~36 / BALANCED ~27 / QUALITY ~24 fps）。
 
 ## 环境要求
 

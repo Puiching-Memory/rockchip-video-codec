@@ -97,7 +97,7 @@ graph TD
 |------|------|----------|------|
 | `capture` | 输入 | `RKVC_BUF_VIDEO` | 采集/原始帧入口 |
 | `output` | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流 |
-| `preview` | 输出 | `RKVC_BUF_VIDEO` | 预览支路（部分模板） |
+| `preview` | 输出 | `RKVC_BUF_VIDEO` | **占位**：队列已创建，当前无节点向其 push（LiveCapture 规划） |
 
 文件模式通过 `rkvc_session_run_file()` 阻塞跑完整条管线，无需手动操作端口。
 
@@ -140,6 +140,8 @@ graph TD
 ```
 
 对应字段：`enc_scale_denom`（编码前下采样分母）、`post_upscale_algo`（`nearest` / `bilinear` / `bicubic` / `rkvc_sr`，RGA 或 RKVC 神经网络超分）。`width`/`height` 始终为显示/参考分辨率。
+
+**注意**：编码模板（`FILE_ENCODE` / `FILE_TRANSCODE`）只应用下采样；上采样仅在解码模板与 `rkvc_session_upscale` 中执行。
 
 `rkvc_sr` 走 RKVC 神经网络超分（`lib/node_rkvc_sr.c`）。现网模型在 RGB 域训练，推理含 NV12↔RGB CSC；下一代 **YUV-native** 模型规格见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
 

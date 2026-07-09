@@ -2,25 +2,17 @@
 
 面向 RK3588 的 C 库，基于 [ffmpeg-rockchip](https://github.com/nyanmisaka/ffmpeg-rockchip) RKMPP 硬件加速与 SVT-AV1，提供 **Session + Pipeline + Codec Router** 统一 API。
 
-当前版本：**0.2.1**
+当前版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()` / `rkvc_info -v`
 
 ## 功能特性
 
 - **Codec Router** — `REALTIME`→H.264 RKMPP、`BALANCED`→HEVC RKMPP、`QUALITY`→SVT-AV1 + `av1_rkmpp` 硬解
-- **Session API** — `rkvc_session` + 命名端口 `capture` / `output` / `preview`
+- **Session API** — `rkvc_session` + 命名端口 `capture` / `output`（`preview` 占位）
 - **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频帧与码流；RGA 硬件缩放
 - **模板管线** — 文件编解码、转码、AV1 存储、LiveCapture（V4L2 待接）
 - **下采样 + 后处理上采样** — `enc_scale_denom` + `post_upscale_algo`（RGA 插值 / `rkvc_sr` RKNN 超分）
 
-## 性能 (RK3588, 1080p E2E)
-
-| 路线 | E2E fps | policy |
-|------|---------|--------|
-| H.264 RKMPP | ~36 | `REALTIME` |
-| HEVC RKMPP | ~27 | `BALANCED` |
-| SVT-AV1 + av1_rkmpp | ~24 | `QUALITY` |
-
-完整 RD 码率-画质对比见 [bench/README.md](../bench/README.md)。
+性能数字与 RD 曲线见 [benchmark.md](benchmark.md) / [bench/README.md](../bench/README.md)。
 
 ## 导航
 

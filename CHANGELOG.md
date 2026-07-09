@@ -2,6 +2,23 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.2] - 2026-07-09
+
+### 发布重点
+
+rkvc **0.2.2** 将 **RKNN 运行时 `librknnrt.so`** 纳入可移植包，使 `rkvc_sr` AI 超分路径在目标板上不再依赖系统预装该库（仍需 NPU 驱动/固件；`librga` 仍为系统可选依赖）。
+
+### 变更
+
+- 版本号升至 **0.2.2**（`CMakeLists.txt` `project(VERSION)` 为唯一来源）。
+- **`scripts/package-portable.sh`**：若 `librkvc` 链接了 `librknnrt.so`，则拷贝进包内 `lib/`，并纳入自包含校验。
+- **`scripts/test-portable.sh`**：校验 `librknnrt` 解析到包内 `lib/`。
+- **版本去硬编码**：`scripts/build-common.sh` 提供 `rkvc_project_version` / `rkvc_portable_pkg_dir`；CI 与文档示例改用通配符或 helper，不再写死当前版本；`scripts/check-version-literals.sh` 防回归。
+
+### 测试
+
+- **可移植包**：`rkvc-*-linux-aarch64-portable.tar.gz` 解压后 `./test.sh` **99 项 / 0 失败**。
+
 ## [0.2.1] - 2026-07-02
 
 ### 发布重点

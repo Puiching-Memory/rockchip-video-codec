@@ -10,13 +10,16 @@ git submodule update --init --depth 1 third_party/SVT-AV1
 
 ./scripts/package-portable.sh
 
-./scripts/test-portable.sh build/portable/rkvc-0.2.1-linux-aarch64-portable
+# 包名由 CMake project(VERSION) 生成，例如:
+#   build/portable/rkvc-<version>-linux-aarch64-portable
+source scripts/build-common.sh
+./scripts/test-portable.sh "build/portable/$(rkvc_portable_pkg_dir)"
 ```
 
-产物：`rkvc-0.2.1-linux-aarch64-portable.tar.gz`（约 4.5 MB）
+产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librknnrt`）
 
 ```
-rkvc-0.2.1-linux-aarch64-portable/
+rkvc-*-linux-aarch64-portable/
 ├── bin/
 │   ├── rkvc_encode
 │   ├── rkvc_decode
@@ -33,6 +36,7 @@ rkvc-0.2.1-linux-aarch64-portable/
 │   ├── libswscale.so.7
 │   ├── libSvtAv1Enc.so.4    # v2 新增
 │   ├── librockchip_mpp.so.1
+│   ├── librknnrt.so         # RKNN NPU runtime（rkvc_sr）
 │   └── ...
 ├── include/rkvc/            # v2 头文件
 ├── share/pkgconfig/rkvc.pc
@@ -46,8 +50,8 @@ rkvc-0.2.1-linux-aarch64-portable/
 ### 使用
 
 ```bash
-tar xzf rkvc-0.2.1-linux-aarch64-portable.tar.gz
-cd rkvc-0.2.1-linux-aarch64-portable
+tar xzf rkvc-*-linux-aarch64-portable.tar.gz
+cd rkvc-*-linux-aarch64-portable
 
 ./test.sh
 ./network-e2e-test.sh
@@ -73,16 +77,17 @@ LD_LIBRARY_PATH=lib ./myapp
 
 包内自测确认关键库解析到包内 `lib/`，避免串入系统旧版本。
 
+**系统依赖（不进包）**：`librga`（RGA 缩放/CSC）仍需目标机提供；可用源码树 `./scripts/install-librga.sh` 安装。NPU 驱动/固件不随包分发。
+
 ## DEB 包
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C build -j4 package
-sudo dpkg -i build/packages/rkvc_0.2.1_arm64.deb
+sudo dpkg -i build/packages/rkvc_*_arm64.deb
 ```
 
-!!! note
-    DEB 包依赖系统上的 ffmpeg-rockchip 和 librockchip-mpp。
+> **说明**：DEB 包依赖系统上的 ffmpeg-rockchip 和 librockchip-mpp（与可移植包的自包含策略不同）。
 
 ## CPack TGZ
 
@@ -90,7 +95,7 @@ sudo dpkg -i build/packages/rkvc_0.2.1_arm64.deb
 
 ```bash
 ninja -C build -j4 package
-# 产物: build/packages/rkvc-0.2.1-Linux.tar.gz
+# 产物: build/packages/rkvc-*-Linux.tar.gz
 ```
 
 ## 打包脚本

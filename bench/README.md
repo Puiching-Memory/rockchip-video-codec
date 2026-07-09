@@ -13,8 +13,9 @@ RK3588 端到端 **码率-画质（RD）** 与 **性能** 对比框架，已集�
 | `rkvc-realtime` | Session `realtime` → H.264 RKMPP |
 | `rkvc-balanced` | Session `balanced` → HEVC RKMPP |
 | `rkvc-quality` | Session `quality` → SVT-AV1 p11 + av1_rkmpp（与 `svt-av1` 基线同 preset） |
-| `post-upscale` | **下采样编码 + 上采样后处理**（bench / Session 均用 RGA 硬件） |
+| `post-upscale` | **下采样编码 + 上采样后处理**（RGA 插值或 `rkvc_sr`；与 Session 解码路径一致） |
 | `svt-av1+up3x-bilinear` | 单算法路线（`ENC_SCALE_DENOM=3` 时 CSV 名为 `svt-av1+up{N}x-{algo}`） |
+| `svt-av1+up3x-rkvc_sr` | 同上，AI 超分（需 `RKVC_SR_MODEL` / `paths.rkvc_sr_model`） |
 | `svt-av1+superres` | **实验 / 搁置**：SVT-AV1 + AV1 内建 superres（见下节） |
 
 ## AV1 内建 superres（实验，搁置）
@@ -33,14 +34,19 @@ SVT_SUPERRES_DENOM=9         # fixed 时分母 9~16（8/9 ~ 8/16 水平缩放）
 SVT_SUPERRES_FFMPEG=/path/to/ffmpeg-with-libaom   # 须在 config.json paths.superres_decode_ffmpeg 配置
 ```
 
-## 下采样 + 后处理上采样（评估 NN 占位）
+## 下采样 + 后处理上采样
 
-模拟未来「低分辨率编码 → 解码 → NN/传统上采样」管线，post-upscale 路线与 **Session 产品路径一致**（RKMPP 硬解 DMABUF → RGA 上采样，含 SVT-AV1 IVF）：
+模拟「低分辨率编码 → 解码 → RGA / NN 上采样」管线。bench 的 post-upscale 与 **Session 解码产品路径**一致（`rkvc_session_upscale`：RKMPP 硬解 → RGA 或 `rkvc_sr`）：
 
 ```bash
-# rkvc_session_upscale：单进程 Session decode + RGA（bench 内自动调用）
+# rkvc_session_upscale：硬解 + 后处理上采样（bench 内自动调用）
 build/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 --post-upscale bilinear --print-timing
+
+# AI 超分（需模型文件）
+build/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
+  --width 1920 --height 1080 --enc-scale-denom 3 \
+  --post-upscale rkvc_sr --rkvc-sr-model rkvc_sr_x3.crypt.rknn --print-timing
 ```
 
 下采样参考帧仍用 `rkvc_yuv_upscale`（仅 prep 阶段）。
@@ -49,14 +55,18 @@ build/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
 # 仅跑 post-upscale 路线（对比 SVT-AV1 全分辨率基线）
 RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh /path/to/1080p.mp4
 
-# 3× 下采样（1080p→360p）编码 + 上采样还原，对比全分辨率 SVT-AV1
+# 3× 下采样 + RGA 三档插值
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=nearest,bilinear,bicubic \
+  RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh /path/to/1080p.mp4
+
+# 含 AI 超分（默认 config 的 upscale_algos 不含 rkvc_sr，需显式打开）
+ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
   RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh /path/to/1080p.mp4
 ```
 
-管线：`REF → 1/N 下采样 → SVT-AV1 编 → av1_rkmpp 解 → 传统上采样 → 与全分辨率 REF 比 PSNR/SSIM`。
+管线：`REF → 1/N 下采样 → 编码 → 硬解 → 上采样 → 与全分辨率 REF 比 PSNR/SSIM`。
 
-rkvc Session 侧对应字段：`enc_scale_denom`、`post_upscale_algo`（`rkvc_encode --enc-scale-denom 2 --post-upscale bilinear`）。
+Session 字段：`enc_scale_denom`、`post_upscale_algo`。**编码 CLI**（`rkvc_encode`）只做下采样；上采样请用 `rkvc_session_upscale` 或 decode 模板。
 
 ## 快速开始
 
@@ -126,7 +136,8 @@ BENCH_CONFIG=bench/my_config.json ./scripts/run-bench.sh clip.mp4
 - `TARGET_KBPS` — 见 `config.json` → `target_kbps`
 - `SVT_RD_MODE` — SVT-AV1 RD 扫点：`calibrated`（默认，CRF/CQP 校准表）或 `vbr`（`--rc 1 --tbr`）
 - `ENC_SCALE_DENOM` — post-upscale 编码下采样分母（默认 `2`）
-- `UPSCALE_ALGOS` — 上采样算法（RGA 硬件），逗号分隔（默认 `nearest,bilinear,bicubic`）
+- `UPSCALE_ALGOS` — 上采样算法，逗号分隔（默认 `nearest,bilinear,bicubic`；可加 `rkvc_sr`）
+- `RKVC_SR_MODEL` — `rkvc_sr` 模型路径（默认见 `config.json` → `paths.rkvc_sr_model`）
 - `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality`
 - `CLIP_SEC` — 截取秒数（默认 `4`）
 - `CLIP_OFFSET` — 截取位置：`middle`（默认，居中）| `start`

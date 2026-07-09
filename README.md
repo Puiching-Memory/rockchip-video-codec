@@ -5,9 +5,9 @@
 ## 功能
 
 - **Codec Router** — `REALTIME`→H.264 RKMPP、`BALANCED`→HEVC、`QUALITY`→SVT-AV1+硬解
-- **Session API** — `rkvc_session` + 命名端口 `capture`/`output`/`preview`
+- **Session API** — `rkvc_session` + 命名端口 `capture` / `output`（`preview` 占位）
 - **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频/码流；RGA NV12 缩放
-- **后处理上采样** — RGA 插值（`nearest`/`bilinear`/`bicubic`）或 RKNN 超分（`rkvc_sr`）
+- **后处理上采样** — 解码路径：RGA 插值或 RKNN 超分（`rkvc_sr`）；编码路径仅 `enc_scale_denom` 下采样
 - **模板管线** — 文件编解码、转码、AV1 存储、LiveCapture（V4L2 待接）
 
 ## 性能 (RK3588, 1080p E2E, bench/)
@@ -24,13 +24,16 @@
 git submodule update --init --depth 1 third_party/SVT-AV1
 ./scripts/build-svt.sh
 ./scripts/rebuild-ffmpeg-rkmpp.sh   # h264/hevc/av1 硬解 + h264/hevc 硬编
+./scripts/install-librga.sh         # 若系统无 librga
 
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j4
+cmake --preset default
+cmake --build --preset default
 
 ./build/example_encode_file -o /tmp/bench_in.mp4 -s 640x480 -n 30
 ./build/rkvc_bench -i /tmp/bench_in.mp4
 ```
+
+完整依赖与权限见 [docs/getting-started.md](docs/getting-started.md)。
 
 ## RD 基准测试（bench/）
 
@@ -66,18 +69,19 @@ rkvc_session_destroy(s);
 ## 测试
 
 ```bash
-cmake -B build -DRKVC_BUILD_TESTS=ON
-cmake --build build -j4
-ctest --test-dir build -j1 --output-on-failure
+cmake --preset tests
+cmake --build --preset tests
+ctest --preset tests -j1 --output-on-failure
 
-# RK3588 硬件（每用例独立进程，串行）
-RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build -j1 -R test_session
+# RK3588 硬件（每用例独立进程，串行；产物在 build-tests/）
+RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build-tests -j1 -R 'test_session_' --output-on-failure
 ```
 
 ## 依赖
 
 - Rockchip BSP、MPP、`third_party/ffmpeg-rockchip`（`rebuild-ffmpeg-rkmpp.sh`）
-- SVT-AV1 submodule、libdrm、RGA
+- SVT-AV1 submodule、libdrm、RGA（`install-librga.sh`）
+- 可选：`librknnrt`（`rkvc_sr`；可移植包可自带）
 
 ## 文档
 
@@ -85,13 +89,15 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir build -j1 -R test_session
 |------|------|
 | [docs/index.md](docs/index.md) | 文档首页与导航 |
 | [docs/getting-started.md](docs/getting-started.md) | 构建与首次运行 |
-| [docs/api.md](docs/api.md) | v2 API 完整参考（含头文件 Doxygen 注释） |
+| [docs/api.md](docs/api.md) | v2 API 完整参考 |
 | [docs/architecture.md](docs/architecture.md) | Session / Router / 节点架构 |
 | [docs/migration.md](docs/migration.md) | v0.1.x → v0.2.x 迁移 |
 | [docs/benchmark.md](docs/benchmark.md) | 性能与 RD 基准 |
 | [docs/testing.md](docs/testing.md) | 测试矩阵 |
 | [docs/packaging.md](docs/packaging.md) | 可便携包与分发 |
 | [docs/delivery.md](docs/delivery.md) | 客户交付清单 |
-| [docs/release/](docs/release/) | 发布包用户文档（USAGE / DEVELOPMENT / EXAMPLES） |
+| [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | YUV-native SR 设计稿 |
+| [docs/release/](docs/release/) | 发布包用户文档 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
 
-版本：**0.2.1**（v2 Session API；0.2.0 起破坏性替换 v1 `encoder`/`decoder`/`stream` API）
+版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()`（v2 Session API；0.2.0 起破坏性替换 v1 `encoder`/`decoder`/`stream` API）

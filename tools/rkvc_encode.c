@@ -13,8 +13,9 @@ static void usage(void)
 {
     printf("rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 [-p realtime|balanced|quality] "
            "[--rc-mode vbr|cbr|cqp] [--qp N] [--enc-scale-denom N] "
-           "[--post-upscale nearest|bilinear|bicubic] "
-           "[--svt-lp N] [--svt-rtc]\n");
+           "[--svt-lp N] [--svt-rtc]\n"
+           "  Note: --enc-scale-denom downscales before encode only.\n"
+           "  Post-upscale (RGA / rkvc_sr) uses rkvc_session_upscale, not this tool.\n");
 }
 
 static rkvc_policy parse_policy(const char *s)
@@ -148,6 +149,10 @@ int main(int argc, char **argv)
             fprintf(stderr, "invalid post-upscale: %s\n", upscale_s);
             return 1;
         }
+        /* FILE_ENCODE never applies post_upscale; keep parsing for compat. */
+        fprintf(stderr,
+                "warning: --post-upscale is ignored by rkvc_encode "
+                "(encode path only downscales); use rkvc_session_upscale\n");
         d.post_upscale_algo = algo;
     }
 

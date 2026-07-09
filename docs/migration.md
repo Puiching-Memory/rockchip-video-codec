@@ -154,7 +154,7 @@ git submodule update --init --depth 1 third_party/SVT-AV1
 
 ## 可移植包
 
-包名由 `rkvc-0.1.x-linux-aarch64-portable` 更新为 **`rkvc-0.2.1-linux-aarch64-portable`**（0.2.0 起 v2 API）。
+包名由 `rkvc-0.1.x-linux-aarch64-portable` 更新为 **`rkvc-*-linux-aarch64-portable`**（0.2.0 起 v2 API；具体版本由 `package-portable.sh` 从 CMake 生成）。
 
 相较 v1 包新增：
 

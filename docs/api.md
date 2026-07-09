@@ -27,7 +27,7 @@ v2 以 **Session + Pipeline + Codec Router** 替代 v1 的 `encoder` / `decoder`
 ```c
 rkvc_err rkvc_init(void);              // 线程安全，可多次调用（pthread_once）
 void     rkvc_deinit(void);            // 不反初始化 FFmpeg 全局状态
-const char  *rkvc_version(void);       // "0.2.1"
+const char  *rkvc_version(void);       // 与 CMake project(VERSION) 一致
 uint32_t     rkvc_version_number(void); // major<<16 | minor<<8 | patch
 const char  *rkvc_err_str(rkvc_err err);
 ```
@@ -144,20 +144,6 @@ typedef enum {
 ```
 
 数值与 MPP / FFmpeg `rkmppenc` 的 `rc_mode` 一致。
-
----
-
-## 编码预设（保留）
-
-```c
-typedef enum {
-    RKVC_PRESET_FAST = 0,
-    RKVC_PRESET_MEDIUM,
-    RKVC_PRESET_SLOW,
-} rkvc_preset;
-```
-
-v1 遗留类型，v2 `rkvc_pipeline_desc` 使用 `rkvc_policy` 代替；当前 pipeline API 未直接暴露此枚举。
 
 ---
 
@@ -313,7 +299,7 @@ rkvc_err rkvc_session_run_file(rkvc_session *session);  // 文件模板阻塞跑
 |------|------|----------|------|
 | `capture` | 输入 | `RKVC_BUF_VIDEO` | 采集/原始帧入口 |
 | `output` | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流 |
-| `preview` | 输出 | `RKVC_BUF_VIDEO` | 预览支路（部分模板） |
+| `preview` | 输出 | `RKVC_BUF_VIDEO` | **占位**：队列已创建，当前无模板向其 push（LiveCapture 规划） |
 
 文件模式用 `rkvc_session_run_file()`，无需手动操作端口。详见 [architecture.md](architecture.md)。
 
@@ -491,7 +477,7 @@ rkvc_err rkvc_upscale_ctx_process(rkvc_upscale_ctx *ctx);
 
 内部缓冲为 NV12 紧凑布局，可直接 `pread`/`pwrite` 或 `memcpy`。对应 CLI：`rkvc_yuv_upscale`。
 
-`rkvc_encode` 的 `--post-upscale` 仅支持 `nearest`/`bilinear`/`bicubic`；**AI 超分**请用 `rkvc_session_upscale` 或 `post_upscale_algo=RKVC_UPSCALE_AI_SR`。
+**路径分工**：`FILE_ENCODE` / `rkvc_encode` 仅应用 `enc_scale_denom`（编码前下采样）；`post_upscale_algo` 只在 **解码路径**（`FILE_DECODE` / `rkvc_session_upscale`）生效。AI 超分：`post_upscale_algo=RKVC_UPSCALE_AI_SR` + 模型路径，或 CLI `rkvc_session_upscale --post-upscale rkvc_sr`。
 
 ---
 
@@ -499,18 +485,17 @@ rkvc_err rkvc_upscale_ctx_process(rkvc_upscale_ctx *ctx);
 
 | 工具 | 用途 |
 |------|------|
-| `rkvc_encode` | 原始 NV12 → MP4（`-p realtime\|balanced\|quality`；`--svt-lp`/`--svt-rtc`） |
+| `rkvc_encode` | 原始 NV12 → MP4（`-p`；`--enc-scale-denom`；`--svt-lp`/`--svt-rtc`） |
 | `rkvc_decode` | 容器/码流 → 原始 NV12 |
 | `rkvc_transcode` | 容器 → 容器，Router 选 codec（`--svt-lp`/`--svt-rtc`） |
 | `rkvc_bench` | 三档 policy E2E fps 对比（**须** `-i INPUT.mp4`） |
 | `rkvc_info` | 硬件能力查询（`-j` JSON） |
-| `rkvc_session_upscale` | 硬解 + 后处理上采样（含 `rkvc_sr` + `--rkvc-sr-model`） |
+| `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA / `rkvc_sr` + `--rkvc-sr-model`） |
 | `rkvc_yuv_upscale` | YUV420p 批处理 RGA 缩放（`rkvc_upscale_ctx_*`） |
 
 ```bash
 rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 -p balanced \
-  --rc-mode cbr -b 4000000 --enc-scale-denom 2 --post-upscale bilinear \
-  --svt-lp 4 --svt-rtc 0
+  --rc-mode cbr -b 4000000 --enc-scale-denom 2 --svt-lp 4 --svt-rtc 0
 
 rkvc_transcode -i in.mp4 -o out.mp4 -p quality -b 6000000 --svt-lp 4
 
@@ -531,13 +516,4 @@ rkvc_info -j
 
 ## v1 → v2 迁移
 
-详见 [migration.md](migration.md)。
-
-| v1 | v2 |
-|----|-----|
-| `rkvc_encoder_send_frame` | `rkvc_port_push(capture, buf)` 或 `rkvc_session_run_file` |
-| `rkvc_encoder_receive_packet` | `rkvc_port_pull(output, &buf, timeout)` |
-| `rkvc_decoder_receive_frame` | 解码模板 + `port_pull("output")` |
-| `rkvc_frame_alloc` | `rkvc_buffer_alloc_video_host` |
-| `rkvc_stream_push/pull` | Session 端口队列 |
-| `rkvc_encode --testsrc` | `example_encode_file` 或自备 NV12 输入 |
+概念对照与代码示例见 [migration.md](migration.md)。

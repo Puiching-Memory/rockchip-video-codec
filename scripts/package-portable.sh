@@ -30,9 +30,9 @@ MPP_PREFIX="$PROJECT_DIR/build-deps/mpp-install"
 RKVC_BUILD="$PROJECT_DIR/build-portable"
 OUT_DIR="$PROJECT_DIR/build/portable"
 
-VERSION="$(grep -A1 'project(rkvc' "$PROJECT_DIR/CMakeLists.txt" | grep 'VERSION' | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')"
+VERSION="$(rkvc_project_version)"
 ARCH="$(uname -m)"
-PKG_NAME="rkvc-${VERSION}-linux-${ARCH}-portable"
+PKG_NAME="$(rkvc_portable_pkg_dir)"
 
 CLEAN=0
 [[ "${1:-}" == "--clean" ]] && CLEAN=1
@@ -212,6 +212,38 @@ package() {
         echo "  $(basename "$real")"
     done
 
+    # librknnrt SONAME 为 librknnrt.so（无版本后缀）；仅在 librkvc 链接了 RKNN 时打包
+    echo "--- 复制 RKNN runtime (librknnrt) ---"
+    local rkvc_for_rknn
+    rkvc_for_rknn="$(ls -1 "$OUT_DIR/$PKG_NAME/lib"/librkvc.so.*.*.* 2>/dev/null | sort -V | tail -1)"
+    if [[ -f "$rkvc_for_rknn" ]] && readelf -d "$rkvc_for_rknn" 2>/dev/null | grep -q 'NEEDED.*\[librknnrt\.so\]'; then
+        local rknnrt=""
+        for cand in \
+            /usr/lib/aarch64-linux-gnu/librknnrt.so \
+            /lib/aarch64-linux-gnu/librknnrt.so \
+            /usr/lib/librknnrt.so \
+            /usr/local/lib/librknnrt.so; do
+            if [[ -f "$cand" ]]; then
+                rknnrt="$(readlink -f "$cand")"
+                break
+            fi
+        done
+        if [[ -z "$rknnrt" ]]; then
+            rknnrt="$(ldd "$rkvc_for_rknn" 2>/dev/null | awk '/librknnrt\.so/ {print $3; exit}')"
+            [[ -n "$rknnrt" && -f "$rknnrt" ]] || rknnrt=""
+        fi
+        if [[ -n "$rknnrt" && -f "$rknnrt" ]]; then
+            # SONAME=librknnrt.so，直接以该名放入包内，供 RPATH/$ORIGIN 解析
+            cp "$rknnrt" "$OUT_DIR/$PKG_NAME/lib/librknnrt.so"
+            echo "  librknnrt.so  (from $rknnrt)"
+        else
+            echo "  错误: librkvc 依赖 librknnrt.so，但构建机未找到该库"
+            return 1
+        fi
+    else
+        echo "  跳过 (本构建未启用 RKNN / librkvc 未链接 librknnrt)"
+    fi
+
     cd "$OUT_DIR/$PKG_NAME/lib"
     for real in lib*.so.*; do
         [[ -f "$real" ]] || continue
@@ -263,6 +295,10 @@ package() {
         patchelf --set-rpath '$ORIGIN' "$lib" && \
             echo "  $(basename "$lib")"
     done
+    if [[ -f "$OUT_DIR/$PKG_NAME/lib/librknnrt.so" ]]; then
+        patchelf --set-rpath '$ORIGIN' "$OUT_DIR/$PKG_NAME/lib/librknnrt.so" 2>/dev/null && \
+            echo "  librknnrt.so" || true
+    fi
 
     cp "$PROJECT_DIR"/include/rkvc/*.h "$OUT_DIR/$PKG_NAME/include/rkvc/"
     cat > "$OUT_DIR/$PKG_NAME/share/pkgconfig/rkvc.pc" <<EOF
@@ -312,7 +348,7 @@ EOF
         fi
     done <<< "$ldd_output"
 
-    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp; do
+    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librknnrt; do
         if echo "$ldd_output" | grep -q "$lib"; then
             if echo "$ldd_output" | grep "$lib" | grep -vq "$OUT_DIR/$PKG_NAME/lib/"; then
                 echo "  错误: $lib 未解析到包内 lib/"
@@ -332,6 +368,7 @@ EOF
     echo "--- 目标板前置依赖 (须由系统包管理器提供) ---"
     echo "  libdrm2           (DRM 渲染)"
     echo "  librga            (Rockchip 2D 加速, 可选)"
+    echo "  NPU 驱动/固件     (rkvc_sr AI 超分; librknnrt 已随包携带)"
     echo ""
     echo "  安装示例: sudo apt install libdrm-dev"
 }

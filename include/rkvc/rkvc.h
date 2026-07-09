@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 /**
- * @brief 库版本字符串，如 `"0.2.1"`。
+ * @brief 库版本字符串（与 CMake `project(VERSION)` 一致）。
  */
 const char *rkvc_version(void);
 

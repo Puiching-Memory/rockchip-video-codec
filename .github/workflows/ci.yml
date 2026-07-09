@@ -152,8 +152,14 @@ jobs:
       - name: Build portable package
         run: ./scripts/package-portable.sh
 
+      - name: Check version literals
+        run: ./scripts/check-version-literals.sh
+
       - name: Test portable package
-        run: ./scripts/test-portable.sh build/portable/rkvc-0.2.1-linux-aarch64-portable
+        run: |
+          # shellcheck source=scripts/build-common.sh
+          source scripts/build-common.sh
+          ./scripts/test-portable.sh "build/portable/$(rkvc_portable_pkg_dir)"
 
       - name: Upload packages
         uses: actions/upload-artifact@v7

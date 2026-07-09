@@ -224,7 +224,7 @@ check_bundled_libs() {
     local name="$2"
     local ldd_output="$3"
 
-    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp; do
+    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librknnrt; do
         if echo "$ldd_output" | grep -q "$lib"; then
             if echo "$ldd_output" | grep "$lib" | grep -vq "$PKG_DIR/lib/"; then
                 fail "$name: $lib 未解析到包内 lib/"

@@ -24,14 +24,14 @@ rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 \
   -r 30 -b 4000000 \
   --rc-mode cbr|vbr|cqp --qp 26 \
   --enc-scale-denom 2 \
-  --post-upscale bilinear|bicubic|nearest \
   --svt-lp N --svt-rtc
 ```
 
 **注意**：
 
 - `-i` 必须为原始 NV12 文件，不接受 .mp4 / .h265 等压缩文件
-- `--post-upscale` 仅 RGA 三档；**`rkvc_sr` 请用 `rkvc_session_upscale`**
+- `--enc-scale-denom N`：编码前 RGA 下采样（宽高各 /N）；**解码后上采样不在本工具内**
+- 后处理上采样（RGA / `rkvc_sr`）请用 `rkvc_session_upscale` 或 `FILE_DECODE` + `post_upscale_algo`
 - v2 已移除 `--testsrc`、`--stdin`、`--stdout`；测试图案请用 `example_encode_file`
 
 ### rkvc_decode
@@ -125,9 +125,17 @@ rkvc_transcode -i input.mp4 -o quality.mp4 -p quality -b 6000000
 
 ### 下采样编码 + 上采样还原
 
+编码侧只负责低分辨率入库；还原在解码/后处理工具中完成：
+
 ```bash
+# 1) 全分辨率 NV12 → 1/2 分辨率编码（仅下采样）
 rkvc_encode -i raw.nv12 -o half_enc.mp4 -s 1920x1080 \
-  --enc-scale-denom 2 --post-upscale bilinear -p quality
+  --enc-scale-denom 2 -p quality
+
+# 2) 硬解 + RGA / AI 上采样还原到显示分辨率
+rkvc_session_upscale -i half_enc.mp4 -o restored.nv12 \
+  --width 1920 --height 1080 \
+  --enc-scale-denom 2 --post-upscale bilinear
 ```
 
 ## 环境变量

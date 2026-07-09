@@ -7,11 +7,10 @@
 | SoC | Rockchip RK3588 / RK3588S |
 | 内核 | Rockchip BSP 5.10 或 6.1 |
 | 构建 | CMake >= 3.16（裸 `cmake -B`）；**CMake Presets 需 >= 3.21**、Ninja（推荐）、GCC/Clang（C11） |
-| 系统包 | libdrm-dev、patchelf（可移植包打包） |
+| 系统包 | libdrm-dev、**librga**（RGA 缩放/CSC；可用 `./scripts/install-librga.sh`）、patchelf（可移植包打包） |
 | 测试 | CMocka（可选，`RKVC_BUILD_TESTS=ON`） |
 
-!!! note
-    ffmpeg-rockchip、rockchip-mpp、SVT-AV1 均从 `third_party/` 子模块源码构建，无需系统预装。
+> **说明**：ffmpeg-rockchip、rockchip-mpp、SVT-AV1 均从 `third_party/` 子模块源码构建，无需系统预装。`librga` / `librknnrt` 为系统或打包脚本按需处理（可移植包携带 `librknnrt`，**不**携带 `librga`）。
 
 ## 设备权限
 
@@ -43,6 +42,9 @@ git submodule update --init --depth 1 third_party/SVT-AV1
 
 # ffmpeg-rockchip：H.264/HEVC/AV1 RKMPP 编解码
 ./scripts/rebuild-ffmpeg-rkmpp.sh
+
+# RGA（若系统无 librga / 头文件）
+./scripts/install-librga.sh
 ```
 
 ## 编译 rkvc
