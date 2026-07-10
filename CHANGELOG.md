@@ -2,6 +2,31 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.5] - 2026-07-10
+
+### 发布重点
+
+rkvc **0.2.5** 落地在线采集与智能压缩原语：**V4L2 `LIVE_CAPTURE`**、**ROI（MPP 硬区域 QP）**、**进程级多 Session 配额**、**MPP 硬 ROI 桥接**（ffmpeg-rockchip `rkmppenc`）、**UDP/RTP 码流收发原语**，以及 **运行中热切换**（码率/GOP/IDR）与 **`preview` 端口接线**。
+
+### 新增
+
+- **`node_v4l2`**：NV12 MPLANE/单平面采集；`pipeline_desc.capture_device` / `capture_max_frames` / `capture_timeout_ms`。
+- **`LIVE_CAPTURE`**：`rkvc_session_run_file` 走 `live_capture_loop`；采集帧同时推 `capture` 与 `preview`（满则丢最旧）；示例 `example_live_capture`、`example_stream_device_pair`。
+- **ROI API**（`include/rkvc/roi.h`）：`rkvc_session_set_roi` / `clear_roi`。
+- **MPP 硬 ROI**：`rkmppenc` 读取 `AV_FRAME_DATA_REGIONS_OF_INTEREST` → `KEY_ROI_DATA`；`force_intra` 经帧 metadata `rkvc_roi_force_intra`；`rkvc_mpp_enc_send_frame_roi`；仅 H.264/HEVC；SVT 忽略 ROI（无像素 fallback）。
+- **Runtime 配额**（`include/rkvc/runtime.h`）：`max_sessions` / `max_enc_sessions` / `max_npu_sessions`；超限 `rkvc_session_create` → `RKVC_ERR_AGAIN`。
+- **`include/rkvc/net.h` / `lib/net.c`**：`rkvc_net_open/send/recv/finish`；UDP 16B 分片头（最多 16 片）；RTP over UDP（PT=96，Marker 帧尾）。
+- **热切换**（`include/rkvc/reconfig.h`）：`set_bitrate` / `set_gop` / `request_idr` / `reconfigure`；MPP 经 `rkmppenc` 运行时 `MPP_ENC_SET_CFG`。
+- **V4L2 mock**：`capture_device="mock"` 合成 NV12；单元测试 `test_v4l2`（节点级始终跑；Session 短录需硬件标志）。
+- **示例** `example_net_loopback`；单元测试 `test_roi_runtime`、`test_reconfig`、`test_v4l2`、`test_net`。
+- **`network-e2e-test.sh`**：调用 `example_net_loopback` 做 UDP+RTP 冒烟。
+
+### 变更
+
+- 版本号升至 **0.2.5**。
+- `rkvc.h` 纳入 `roi.h` / `runtime.h` / `net.h` / `reconfig.h`。
+- 子模块补丁：`patches/ffmpeg-rockchip/0001-rkmppenc-roi-runtime-rc.patch`（由 `rebuild-ffmpeg-rkmpp.sh` 构建前幂等应用；含硬 ROI + 运行时 RC）。
+
 ## [0.2.4] - 2026-07-09
 
 ### 发布重点

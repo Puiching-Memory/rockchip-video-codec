@@ -61,3 +61,45 @@ rkvc_limit_build_jobs() {
     BUILD_JOBS="$jobs"
     export BUILD_JOBS
 }
+
+# 将父仓库 patches/ffmpeg-rockchip/*.patch 幂等应用到 ffmpeg-rockchip 源码树。
+# 补丁归属父仓库，子模块 gitlink 保持干净；构建后工作区可能显示本地修改（勿提交）。
+rkvc_apply_ffmpeg_patches() {
+    local ffmpeg_src="${1:-}"
+    local root patch_dir patch
+    root="$(rkvc_repo_root)"
+    if [[ -z "$ffmpeg_src" ]]; then
+        ffmpeg_src="$root/third_party/ffmpeg-rockchip"
+    fi
+    patch_dir="$root/patches/ffmpeg-rockchip"
+
+    if [[ ! -d "$ffmpeg_src" ]]; then
+        echo "错误: ffmpeg 源码目录不存在: $ffmpeg_src" >&2
+        return 1
+    fi
+    if [[ ! -d "$patch_dir" ]]; then
+        return 0
+    fi
+
+    shopt -s nullglob
+    local patches=( "$patch_dir"/*.patch )
+    shopt -u nullglob
+    if [[ ${#patches[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    echo "--- 应用 ffmpeg-rockchip 补丁 ($patch_dir) ---"
+    for patch in "${patches[@]}"; do
+        local base
+        base="$(basename "$patch")"
+        if git -C "$ffmpeg_src" apply --check "$patch" >/dev/null 2>&1; then
+            git -C "$ffmpeg_src" apply "$patch"
+            echo "  applied: $base"
+        elif git -C "$ffmpeg_src" apply --reverse --check "$patch" >/dev/null 2>&1; then
+            echo "  already applied: $base"
+        else
+            echo "错误: 无法应用补丁 $base（与当前 ffmpeg-rockchip 源码不匹配）" >&2
+            return 1
+        fi
+    done
+}

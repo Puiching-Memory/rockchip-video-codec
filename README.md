@@ -8,7 +8,9 @@
 - **Session API** — `rkvc_session` + 命名端口 `capture` / `output`（`preview` 占位）
 - **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频/码流；RGA NV12 缩放
 - **后处理上采样** — 解码路径：RGA 插值或 RKNN 超分（`rkvc_sr`）；编码路径仅 `enc_scale_denom` 下采样
-- **模板管线** — 文件编解码、转码、AV1 存储、LiveCapture（V4L2 待接）
+- **模板管线** — 文件编解码、转码、AV1 存储、**LiveCapture（V4L2）**
+- **ROI / 配额** — `rkvc_session_set_roi`（MPP 硬区域 QP）；`rkvc_runtime_set_quota`
+- **UDP/RTP 原语** — `rkvc_net_send` / `recv`（分片重组；无国标信令）
 
 ## 性能 (RK3588, 1080p E2E, bench/)
 

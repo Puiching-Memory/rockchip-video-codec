@@ -4,6 +4,7 @@
 # 解码: h264_rkmpp, hevc_rkmpp, av1_rkmpp + 软解 h264/hevc/rawvideo
 # 编码: h264_rkmpp, hevc_rkmpp
 # 滤镜: scale, hwdownload, scale_rkrga, psnr, ssim
+# 构建前自动应用 patches/ffmpeg-rockchip/*.patch（ROI / 运行时 RC 等）
 # 修改 configure 选项后请使用 --clean 重编
 #
 # 用法:
@@ -95,6 +96,7 @@ main() {
         echo "错误: pkg-config 找不到 librga（期望 $RGA_PREFIX/lib/pkgconfig/librga.pc）"
         exit 1
     fi
+    rkvc_apply_ffmpeg_patches "$FFMPEG_SRC"
     configure_ffmpeg
 }
 

@@ -148,6 +148,7 @@ typedef struct rkvc_mux rkvc_mux;
 typedef struct rkvc_mpp_dec rkvc_mpp_dec;
 typedef struct rkvc_mpp_enc rkvc_mpp_enc;
 typedef struct rkvc_svt_enc rkvc_svt_enc;
+typedef struct rkvc_v4l2_cap rkvc_v4l2_cap;
 
 typedef struct {
     const char *input_path;
@@ -202,6 +203,14 @@ typedef struct {
     rkvc_rc_mode      rc_mode;
 } rkvc_svt_enc_config;
 
+typedef struct {
+    const char *device;
+    int         width;
+    int         height;
+    int         fps_num;
+    int         fps_den;
+} rkvc_v4l2_config;
+
 rkvc_err rkvc_demux_open(rkvc_demux **out, const rkvc_demux_config *cfg);
 void rkvc_demux_close(rkvc_demux *d);
 rkvc_err rkvc_demux_read_packet(rkvc_demux *d, rkvc_buffer **pkt);
@@ -223,6 +232,18 @@ rkvc_err rkvc_mpp_dec_drain(rkvc_mpp_dec *dec);
 rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg);
 void rkvc_mpp_enc_close(rkvc_mpp_enc *enc);
 rkvc_err rkvc_mpp_enc_send_frame(rkvc_mpp_enc *enc, rkvc_buffer *frame);
+/**
+ * 发送帧并附带 ROI（写入 AVFrame REGIONS_OF_INTEREST，由 rkmppenc 桥到 MPP）。
+ * `rois==NULL` 或 `roi_count==0` 时行为同 `rkvc_mpp_enc_send_frame`。
+ */
+rkvc_err rkvc_mpp_enc_send_frame_roi(rkvc_mpp_enc *enc, rkvc_buffer *frame,
+                                     const rkvc_roi_rect *rois, int roi_count);
+/** 更新 AVCodecContext bit_rate/gop；下一帧由 rkmppenc 推到 MPP。 */
+rkvc_err rkvc_mpp_enc_apply_rc(rkvc_mpp_enc *enc, int64_t bitrate, int gop_size);
+/** 发送帧；`force_idr!=0` 时将该帧标为 I 以触发 MPP IDR。 */
+rkvc_err rkvc_mpp_enc_send_frame_roi_ex(rkvc_mpp_enc *enc, rkvc_buffer *frame,
+                                        const rkvc_roi_rect *rois, int roi_count,
+                                        int force_idr);
 rkvc_err rkvc_mpp_enc_receive_packet(rkvc_mpp_enc *enc, rkvc_buffer **pkt);
 rkvc_err rkvc_mpp_enc_drain(rkvc_mpp_enc *enc);
 
@@ -232,6 +253,12 @@ rkvc_err rkvc_svt_enc_send_frame(rkvc_svt_enc *enc, rkvc_buffer *frame);
 rkvc_err rkvc_svt_enc_receive_packet(rkvc_svt_enc *enc, rkvc_buffer **pkt);
 rkvc_err rkvc_svt_enc_drain(rkvc_svt_enc *enc);
 rkvc_err rkvc_svt_enc_write_header(rkvc_svt_enc *enc, AVCodecParameters *par);
+
+rkvc_err rkvc_v4l2_open(rkvc_v4l2_cap **out, const rkvc_v4l2_config *cfg);
+void rkvc_v4l2_close(rkvc_v4l2_cap *c);
+rkvc_err rkvc_v4l2_read_frame(rkvc_v4l2_cap *c, rkvc_buffer **out,
+                              int timeout_ms);
+void rkvc_v4l2_get_size(const rkvc_v4l2_cap *c, int *w, int *h);
 
 rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
@@ -282,12 +309,23 @@ rkvc_err rkvc_rga_scale_ctx_process(rkvc_rga_scale_ctx *ctx,
                                     const rkvc_buffer *src,
                                     rkvc_buffer **out);
 
+/* ── Runtime quota ────────────────────────────────────────────────── */
+
+#define RKVC_RT_FLAG_SESSION 1
+#define RKVC_RT_FLAG_ENC     2
+#define RKVC_RT_FLAG_NPU     4
+
+rkvc_err rkvc_runtime_try_register(const rkvc_pipeline_desc *desc,
+                                   int *out_flags);
+void rkvc_runtime_unregister(int flags);
+
 /* ── Session ──────────────────────────────────────────────────────── */
 
 struct rkvc_session {
     rkvc_pipeline_desc  desc;
     rkvc_route_plan     route;
     rkvc_buffer_pool   *pool;
+    int                 runtime_flags;
 
     rkvc_port           port_capture;
     rkvc_port           port_output;
@@ -303,8 +341,14 @@ struct rkvc_session {
     rkvc_mpp_dec         *dec;
     rkvc_mpp_enc         *enc;
     rkvc_svt_enc         *svt;
+    rkvc_v4l2_cap        *v4l2;
     rkvc_rga_scale_ctx   *rga_scale;
     rkvc_rknn_sr_ctx     *rknn_sr;
+
+    rkvc_roi_rect         rois[RKVC_ROI_MAX];
+    int                   roi_count;
+
+    unsigned              reconfig_pending; /**< RKVC_RECONFIG_* 位 */
 
     rkvc_session_stats    stats;
     int64_t               first_ts_us;
@@ -313,5 +357,8 @@ struct rkvc_session {
 void rkvc_session_stats_tick(rkvc_session *s, int frame_out);
 void rkvc_session_stats_frame_in(rkvc_session *s);
 void rkvc_session_stats_drop(rkvc_session *s);
+
+/** 编码前应用挂起的热切换；`force_idr` 输出是否强制本帧 IDR。 */
+rkvc_err rkvc_session_apply_reconfig(rkvc_session *s, int *force_idr);
 
 #endif /* RKVC_INTERNAL_H */

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.4
+    VERSION 0.2.5
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -111,11 +111,16 @@ set(RKVC_SOURCES
     lib/port.c
     lib/scheduler.c
     lib/session.c
+    lib/session_roi.c
+    lib/session_reconfig.c
+    lib/runtime.c
+    lib/net.c
     lib/node_demux.c
     lib/node_mux.c
     lib/node_mpp_dec.c
     lib/node_mpp_enc.c
     lib/node_svt_enc.c
+    lib/node_v4l2.c
     lib/node_rga.c
     lib/node_post_upscale.c
     lib/node_dma_to_host.c
@@ -255,7 +260,7 @@ endif()
 if(RKVC_BUILD_EXAMPLES)
     set(EXAMPLE_TARGETS "")
 
-    foreach(EXAMPLE encode_file decode_file decode_formats stream_encode stream_decode stream_transcode stream_device_pair transcode latency_test psnr_test)
+    foreach(EXAMPLE encode_file decode_file decode_formats stream_encode stream_decode stream_transcode stream_device_pair transcode latency_test psnr_test live_capture net_loopback)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/${EXAMPLE}.c")
             add_executable(example_${EXAMPLE} examples/${EXAMPLE}.c)
             target_link_libraries(example_${EXAMPLE} PRIVATE rkvc)
@@ -279,6 +284,9 @@ if(RKVC_BUILD_EXAMPLES)
 
     if(TARGET example_stream_device_pair)
         target_link_libraries(example_stream_device_pair PRIVATE pthread)
+    endif()
+    if(TARGET example_net_loopback)
+        target_link_libraries(example_net_loopback PRIVATE pthread)
     endif()
 
     if(RKVC_BUILD_GUI_EXAMPLES)
@@ -452,6 +460,10 @@ if(RKVC_BUILD_TESTS)
         tests/test_hardware.c
         tests/test_scale.c
         tests/test_post_upscale.c
+        tests/test_roi_runtime.c
+        tests/test_reconfig.c
+        tests/test_v4l2.c
+        tests/test_net.c
     )
 
     if(RKVC_ENABLE_FAULT_INJECTION)

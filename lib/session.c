@@ -196,9 +196,74 @@ static void port_init(rkvc_port *p, const char *name, int depth,
     p->session = s;
 }
 
+static void session_close_nodes(rkvc_session *s)
+{
+    if (!s)
+        return;
+    if (s->mux) {
+        rkvc_mux_close(s->mux);
+        s->mux = NULL;
+    }
+    if (s->enc) {
+        rkvc_mpp_enc_close(s->enc);
+        s->enc = NULL;
+    }
+    if (s->svt) {
+        rkvc_svt_enc_close(s->svt);
+        s->svt = NULL;
+    }
+    if (s->dec) {
+        rkvc_mpp_dec_close(s->dec);
+        s->dec = NULL;
+    }
+    if (s->demux) {
+        rkvc_demux_close(s->demux);
+        s->demux = NULL;
+    }
+    if (s->v4l2) {
+        rkvc_v4l2_close(s->v4l2);
+        s->v4l2 = NULL;
+    }
+    if (s->rga_scale) {
+        rkvc_rga_scale_ctx_destroy(s->rga_scale);
+        s->rga_scale = NULL;
+    }
+    if (s->rknn_sr) {
+        rkvc_rknn_sr_ctx_destroy(s->rknn_sr);
+        s->rknn_sr = NULL;
+    }
+}
+
 static rkvc_err session_open_nodes(rkvc_session *s)
 {
+    /* 允许 start 失败后重试：先关掉上次半开的节点，避免 FD/指针泄漏 */
+    session_close_nodes(s);
+
     const rkvc_pipeline_desc *d = &s->desc;
+
+    if (d->template_id == RKVC_TEMPLATE_LIVE_CAPTURE) {
+        if (!d->capture_device || !d->capture_device[0] || !d->output_path)
+            return RKVC_ERR_INVALID;
+
+        rkvc_v4l2_config vc = {
+            .device  = d->capture_device,
+            .width   = d->width,
+            .height  = d->height,
+            .fps_num = d->fps_num,
+            .fps_den = d->fps_den,
+        };
+        rkvc_err err = rkvc_v4l2_open(&s->v4l2, &vc);
+        if (err != RKVC_OK)
+            return err;
+
+        int aw = 0, ah = 0;
+        rkvc_v4l2_get_size(s->v4l2, &aw, &ah);
+        if (aw > 0 && ah > 0) {
+            s->desc.width = aw;
+            s->desc.height = ah;
+            s->desc.pixel_format = RKVC_PIX_FMT_NV12;
+        }
+    }
 
     if (d->template_id == RKVC_TEMPLATE_FILE_TRANSCODE ||
         d->template_id == RKVC_TEMPLATE_FILE_DECODE ||
@@ -226,8 +291,7 @@ static rkvc_err session_open_nodes(rkvc_session *s)
             return err;
     }
 
-    if (d->template_id == RKVC_TEMPLATE_FILE_ENCODE ||
-        d->template_id == RKVC_TEMPLATE_LIVE_CAPTURE) {
+    if (d->template_id == RKVC_TEMPLATE_FILE_ENCODE) {
         if (!d->output_path)
             return RKVC_ERR_INVALID;
     }
@@ -334,13 +398,23 @@ rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc,
     *out = NULL;
     rkvc_init();
 
+    int rt_flags = 0;
+    rkvc_err rerr = rkvc_runtime_try_register(desc, &rt_flags);
+    if (rerr != RKVC_OK)
+        return rerr;
+
     rkvc_session *s = rkvc_calloc(1, sizeof(*s));
-    if (!s)
+    if (!s) {
+        rkvc_runtime_unregister(rt_flags);
         return RKVC_ERR_NOMEM;
+    }
 
     s->desc = *desc;
+    s->runtime_flags = rt_flags;
     if (s->desc.queue_depth <= 0)
         s->desc.queue_depth = RKVC_PORT_QUEUE_DEFAULT;
+    if (s->desc.capture_timeout_ms <= 0)
+        s->desc.capture_timeout_ms = 1000;
 
     pthread_mutex_init(&s->lock, NULL);
 
@@ -373,8 +447,10 @@ rkvc_err rkvc_session_start(rkvc_session *session)
         return RKVC_OK;
 
     rkvc_err err = session_open_nodes(session);
-    if (err != RKVC_OK)
+    if (err != RKVC_OK) {
+        session_close_nodes(session);
         return err;
+    }
 
     session->running = 1;
     session->stats.running = 1;
@@ -431,20 +507,7 @@ void rkvc_session_destroy(rkvc_session *session)
         return;
 
     rkvc_session_stop(session);
-    if (session->mux)
-        rkvc_mux_close(session->mux);
-    if (session->enc)
-        rkvc_mpp_enc_close(session->enc);
-    if (session->svt)
-        rkvc_svt_enc_close(session->svt);
-    if (session->dec)
-        rkvc_mpp_dec_close(session->dec);
-    if (session->demux)
-        rkvc_demux_close(session->demux);
-    if (session->rga_scale)
-        rkvc_rga_scale_ctx_destroy(session->rga_scale);
-    if (session->rknn_sr)
-        rkvc_rknn_sr_ctx_destroy(session->rknn_sr);
+    session_close_nodes(session);
 
     rkvc_port_queue_destroy(session->port_capture.queue);
     rkvc_port_queue_destroy(session->port_output.queue);
@@ -452,6 +515,7 @@ void rkvc_session_destroy(rkvc_session *session)
 
     rkvc_buffer_pool_destroy(session->pool);
     pthread_mutex_destroy(&session->lock);
+    rkvc_runtime_unregister(session->runtime_flags);
     rkvc_free(session);
 }
 
@@ -483,15 +547,34 @@ static rkvc_err drain_encoder_packets(rkvc_session *s)
 
 static rkvc_err encode_one_frame(rkvc_session *s, rkvc_buffer *frame)
 {
+    /* MPP 硬 ROI：session ROI → AVFrame side data → rkmppenc → KEY_ROI_DATA。
+     * SVT 无硬 ROI，忽略 set_roi（不做像素 fallback）。 */
+    rkvc_roi_rect rois[RKVC_ROI_MAX];
+    int roi_n = 0;
+    int force_idr = 0;
+
+    rkvc_err rerr = rkvc_session_apply_reconfig(s, &force_idr);
+    if (rerr != RKVC_OK)
+        return rerr;
+
+    pthread_mutex_lock(&s->lock);
+    roi_n = s->roi_count;
+    if (roi_n > 0)
+        memcpy(rois, s->rois, (size_t)roi_n * sizeof(rois[0]));
+    pthread_mutex_unlock(&s->lock);
+
+    rkvc_err err;
     if (s->enc) {
-        rkvc_err err = rkvc_mpp_enc_send_frame(s->enc, frame);
+        err = rkvc_mpp_enc_send_frame_roi_ex(s->enc, frame,
+                                             roi_n > 0 ? rois : NULL, roi_n,
+                                             force_idr);
         if (err != RKVC_OK && err != RKVC_ERR_AGAIN)
             return err;
         return drain_encoder_packets(s);
     }
 
     for (;;) {
-        rkvc_err err = rkvc_svt_enc_send_frame(s->svt, frame);
+        err = rkvc_svt_enc_send_frame(s->svt, frame);
         if (err == RKVC_OK)
             return drain_encoder_packets(s);
         if (err == RKVC_ERR_AGAIN) {
@@ -865,6 +948,86 @@ static rkvc_err load_raw_frame(FILE *fp, rkvc_buffer *frame, int w, int h,
     return RKVC_OK;
 }
 
+static rkvc_err live_capture_loop(rkvc_session *s)
+{
+    if (!s->v4l2)
+        return RKVC_ERR_INVALID;
+
+    rkvc_err err = RKVC_OK;
+    int frames = 0;
+    const int max_frames = s->desc.capture_max_frames;
+    const int timeout_ms = s->desc.capture_timeout_ms > 0
+                               ? s->desc.capture_timeout_ms
+                               : 1000;
+
+    while (!s->stop_requested) {
+        if (max_frames > 0 && frames >= max_frames)
+            break;
+
+        rkvc_buffer *frame = NULL;
+        err = rkvc_v4l2_read_frame(s->v4l2, &frame, timeout_ms);
+        if (err == RKVC_ERR_AGAIN)
+            continue;
+        if (err != RKVC_OK)
+            return err;
+
+        if (rkvc_port_push(&s->port_capture, frame) == RKVC_ERR_AGAIN) {
+            rkvc_buffer *drop = NULL;
+            if (rkvc_port_pull(&s->port_capture, &drop, 0) == RKVC_OK)
+                rkvc_buffer_unref(drop);
+            (void)rkvc_port_push(&s->port_capture, frame);
+        }
+        /* preview：同帧侧抽，满则丢最旧（低延迟预览） */
+        if (rkvc_port_push(&s->port_preview, frame) == RKVC_ERR_AGAIN) {
+            rkvc_buffer *drop = NULL;
+            if (rkvc_port_pull(&s->port_preview, &drop, 0) == RKVC_OK)
+                rkvc_buffer_unref(drop);
+            (void)rkvc_port_push(&s->port_preview, frame);
+        }
+        rkvc_session_stats_frame_in(s);
+        frames++;
+
+        rkvc_buffer *enc_frame = NULL;
+        err = session_downscale_for_encode(s, frame, &enc_frame);
+        if (err != RKVC_OK) {
+            rkvc_buffer_unref(frame);
+            return err;
+        }
+
+        err = encode_one_frame(s, enc_frame);
+        if (enc_frame != frame)
+            rkvc_buffer_unref(enc_frame);
+        rkvc_buffer_unref(frame);
+        if (err != RKVC_OK)
+            return err;
+    }
+
+    if (s->enc)
+        rkvc_mpp_enc_drain(s->enc);
+    else if (s->svt)
+        rkvc_svt_enc_drain(s->svt);
+
+    for (;;) {
+        rkvc_buffer *pkt = NULL;
+        if (s->enc)
+            err = rkvc_mpp_enc_receive_packet(s->enc, &pkt);
+        else
+            err = rkvc_svt_enc_receive_packet(s->svt, &pkt);
+        if (err == RKVC_ERR_EOF)
+            break;
+        if (err == RKVC_ERR_AGAIN)
+            continue;
+        if (err != RKVC_OK)
+            return err;
+        rkvc_mux_write_packet(s->mux, pkt);
+        rkvc_port_push(&s->port_output, pkt);
+        rkvc_session_stats_tick(s, 1);
+        rkvc_buffer_unref(pkt);
+    }
+
+    return RKVC_OK;
+}
+
 static rkvc_err encode_file_loop(rkvc_session *s)
 {
     if (!s->desc.input_path)
@@ -960,8 +1123,10 @@ rkvc_err rkvc_session_run_file(rkvc_session *session)
     switch (session->desc.template_id) {
     case RKVC_TEMPLATE_FILE_TRANSCODE:
     case RKVC_TEMPLATE_AV1_STORAGE:
-    case RKVC_TEMPLATE_LIVE_CAPTURE:
         err = transcode_loop(session);
+        break;
+    case RKVC_TEMPLATE_LIVE_CAPTURE:
+        err = live_capture_loop(session);
         break;
     case RKVC_TEMPLATE_FILE_DECODE:
         err = decode_loop(session);

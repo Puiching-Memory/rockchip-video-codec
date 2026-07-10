@@ -72,6 +72,7 @@ main() {
         echo "错误: 请先构建 MPP (.build/deps/mpp-install 或 package-portable.sh)"
         exit 1
     fi
+    rkvc_apply_ffmpeg_patches "$FFMPEG_SRC"
     configure_ffmpeg
 }
 

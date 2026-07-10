@@ -15,6 +15,10 @@
 #include "rkvc/policy.h"
 #include "rkvc/port.h"
 #include "rkvc/session.h"
+#include "rkvc/roi.h"
+#include "rkvc/runtime.h"
+#include "rkvc/net.h"
+#include "rkvc/reconfig.h"
 
 #ifdef __cplusplus
 extern "C" {

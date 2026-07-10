@@ -32,8 +32,12 @@
 | 流式 Session API | ✅ 可用 | `example_stream_encode` / `stream_decode` / `stream_transcode` |
 | 三策略实时转码 | ✅ 可用 | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
 | 非实时高质量 | ✅ 可用 | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps） |
-| V4L2 采集 (`LIVE_CAPTURE`) | ⏳ 占位 | 模板已定义，节点未接入 |
-| UDP/RTP 网络回环 | ⏳ 冒烟 | `network-e2e-test.sh` 仅 v2 占位，非完整生产链路 |
+| V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用 | `capture_device` + `example_live_capture`；`"mock"` 合成源可测 |
+| UDP/RTP 网络回环 | ✅ 原语 | `rkvc_net_*` + `example_net_loopback` / `network-e2e-test.sh` |
+| ROI | ✅ 硬路径 | H.264/HEVC：`rkmppenc`→MPP `KEY_ROI_DATA`（相对 QP / force_intra）；SVT 忽略 |
+| 多 Session 配额 | ✅ 可用 | `rkvc_runtime_set_quota` |
+| 热切换（码率/GOP/IDR） | ✅ 可用 | `rkvc_session_set_bitrate` / `set_gop` / `request_idr`（MPP） |
+| `preview` 端口 | ✅ LIVE_CAPTURE | 与 `capture` 同帧侧抽；满则丢最旧 |
 
 **在线 vs 离线差异小结**：
 
@@ -74,7 +78,7 @@ gantt
 | **P5** RD 基准与演示 | `bench/config.json`、对比演示 MP4 | ✅ 已交付 | 2026-07-02 |
 | **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` + `models/` | ✅ 已交付 | **2026-07-09**（v0.2.3） |
 | **P6** YUV-native 模型 | 消除 NV12↔RGB CSC，降延迟 | 📋 设计稿 | 待定（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
-| **P7** 在线采集/组网 | V4L2、`LIVE_CAPTURE`、完整 UDP/RTP | ⏳ 未接入 | 待定 |
+| **P7** 在线采集/组网 | V4L2、ROI/配额、UDP/RTP 原语 | ✅ 原语完成 | 2026-07-10 |
 
 ---
 
@@ -117,7 +121,7 @@ source scripts/build-common.sh
 
 - [ ] 产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librga` + `librknnrt` + `models/`）
 - [ ] 包内 `./test.sh` 全过（含可选 `rkvc_sr` NPU 冒烟）
-- [ ] 包内 `./network-e2e-test.sh` 冒烟通过（v2 占位，非完整 UDP/RTP 回环）
+- [ ] 包内 `./network-e2e-test.sh` 冒烟通过（UDP/RTP 本机回环）
 
 ### 测试门禁
 
@@ -313,7 +317,7 @@ CLI 快速验证解码端：
 ## 已知限制
 
 - 仅支持 RK3588 / RK3588S；可移植包须在 **aarch64 目标机**构建
-- `LIVE_CAPTURE` / V4L2 与完整 UDP/RTP 回环尚未接入
+- 板端摄像头 `STREAMON` 可能因 ISP 未就绪返回 `EPERM`；完整 GB28181/WebRTC 信令属应用层
 - `rkvc_encode -i` 仅接受原始 NV12；`--enc-scale-denom` 只做编码前下采样
 - **后处理上采样**（RGA / `rkvc_sr`）仅 `rkvc_session_upscale` / `FILE_DECODE`；编码路径请用 `rkvc_encode --enc-scale-denom`
 - `QUALITY` 依赖 SVT-AV1 软件编码，CPU 占用高于硬编

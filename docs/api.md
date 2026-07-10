@@ -234,7 +234,7 @@ typedef struct rkvc_pipeline_desc {
 | `RKVC_TEMPLATE_FILE_DECODE` | `BALANCED` | 容器 → 原始 NV12 |
 | `RKVC_TEMPLATE_FILE_TRANSCODE` | `BALANCED` | 转码（Router 选 codec） |
 | `RKVC_TEMPLATE_AV1_STORAGE` | `QUALITY` | 强制 AV1 SVT 存储档 |
-| `RKVC_TEMPLATE_LIVE_CAPTURE` | `REALTIME` | 低延迟 H.264（V4L2 待接），`low_latency=1` |
+| `RKVC_TEMPLATE_LIVE_CAPTURE` | `REALTIME` | 低延迟 H.264 + V4L2，`low_latency=1` |
 
 ### 默认值（`rkvc_pipeline_desc_defaults`）
 
@@ -295,7 +295,7 @@ rkvc_err rkvc_session_run_file(rkvc_session *session);  // 文件模板阻塞跑
 |------|------|----------|------|
 | `capture` | 输入 | `RKVC_BUF_VIDEO` | 采集/原始帧入口 |
 | `output` | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流 |
-| `preview` | 输出 | `RKVC_BUF_VIDEO` | **占位**：队列已创建，当前无模板向其 push（LiveCapture 规划） |
+| `preview` | 输出 | `RKVC_BUF_VIDEO` | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
 
 文件模式用 `rkvc_session_run_file()`，无需手动操作端口。详见 [architecture.md](architecture.md)。
 

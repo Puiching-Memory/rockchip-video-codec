@@ -21,6 +21,7 @@
 | 异常注入 | `tests/test_fault_injection.c` | 确定性 OOM 模拟 |
 | 硬件集成 | `tests/test_hardware.c` | **默认跳过**；`RKVC_RUN_HARDWARE_TESTS=1` 时执行（含 RGA 3× 与 `rkvc_sr` AI 3×） |
 | RGA 缩放 | `tests/test_scale.c` | 参数/布局始终运行；RGA 用例需硬件标志 |
+| V4L2 mock | `tests/test_v4l2.c` | `capture_device=mock` 合成 NV12；Session 短录需 `RKVC_RUN_HARDWARE_TESTS=1` |
 | RGA 推广门禁 | `scripts/test-rga.sh` | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga` |
 | NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh` | AI 3× 硬件用例 + 可选 session smoke；需 NPU + `models/rkvc_sr_x3.crypt.rknn` |
 | CLI 脚本 | `tests/test_cli_args.sh` | CLI 参数错误（`full-tests` preset） |

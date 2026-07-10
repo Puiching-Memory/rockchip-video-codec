@@ -42,7 +42,8 @@ git submodule update --init --depth 1
 # librga（airockchip 预编译库 → .build/deps/librga-install）
 ./scripts/install-librga.sh
 
-# ffmpeg-rockchip：H.264/HEVC/AV1 RKMPP 编解码（自动使用上述 librga）
+# ffmpeg-rockchip：H.264/HEVC/AV1 RKMPP 编解码（自动使用上述 librga；
+# 并应用 patches/ffmpeg-rockchip/*.patch）
 ./scripts/rebuild-ffmpeg-rkmpp.sh
 ```
 

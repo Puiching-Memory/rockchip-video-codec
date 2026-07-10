@@ -18,7 +18,7 @@ typedef enum {
     RKVC_TEMPLATE_FILE_ENCODE = 0,   /**< 原始 NV12 → 容器文件 */
     RKVC_TEMPLATE_FILE_DECODE,       /**< 容器 → 原始 NV12 */
     RKVC_TEMPLATE_FILE_TRANSCODE,    /**< 容器 → 容器（Router 选 codec） */
-    RKVC_TEMPLATE_LIVE_CAPTURE,      /**< 低延迟采集编码（V4L2 待接） */
+    RKVC_TEMPLATE_LIVE_CAPTURE,      /**< 低延迟 V4L2 采集 → 编码（需 `capture_device`） */
     RKVC_TEMPLATE_AV1_STORAGE,       /**< 强制 AV1 SVT 存储档 */
 } rkvc_pipeline_template;
 
@@ -47,6 +47,19 @@ typedef struct rkvc_pipeline_desc {
 
     const char    *input_path;      /**< 文件解码/转码输入路径 */
     const char    *output_path;     /**< 文件编码/转码输出路径 */
+    /**
+     * V4L2 设备路径（`LIVE_CAPTURE` 必填，如 `/dev/video-camera0`）。
+     * 特殊值 `"mock"` / `"mock:..."`：合成 NV12，无需真实摄像头（单元测试用）。
+     * 采集格式固定协商 NV12；`width`/`height`/`fps_*` 为请求值，实际以驱动为准。
+     */
+    const char    *capture_device;
+    /**
+     * `LIVE_CAPTURE` 最大采集帧数；0 表示直到 `rkvc_session_stop` / 错误。
+     * 便于无摄像头环境下的短测。
+     */
+    int            capture_max_frames;
+    /** `LIVE_CAPTURE` 单帧等待超时（毫秒），默认 1000。 */
+    int            capture_timeout_ms;
 
     /**
      * 编码前下采样分母（1=全分辨率编码；2=宽高各减半后编码）。

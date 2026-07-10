@@ -97,10 +97,12 @@ rkvc_err rkvc_session_get_stats(const rkvc_session *session,
 void rkvc_session_destroy(rkvc_session *session);
 
 /**
- * @brief 文件模板：阻塞跑完整条管线（encode / decode / transcode）。
+ * @brief 文件 / 采集模板：阻塞跑完整条管线。
  *
- * 内部 `start` → 处理 `input_path`/`output_path` → `stop`。
- * 流式模板（仅 `output_path`、手动 push）请勿使用此函数。
+ * - `FILE_*` / `AV1_STORAGE`：处理 `input_path`/`output_path`
+ * - `LIVE_CAPTURE`：从 `capture_device` 拉帧编码到 `output_path`
+ *
+ * 内部 `start` → 处理 → `stop`。纯端口流式（手动 push/pull）请勿使用。
  *
  * @return `RKVC_OK` 或 I/O / 编解码错误。
  */

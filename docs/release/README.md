@@ -39,7 +39,7 @@
 ./network-e2e-test.sh
 ```
 
-v2 版本生成短测试码流并验证 `stream_device_pair` 占位；完整 UDP/RTP 回环待 LiveCapture 模板接入。
+调用 `example_net_loopback` 做 UDP + RTP 本机回环冒烟（不含国标/WebRTC 信令）。
 
 ### 硬件能力查询
 
