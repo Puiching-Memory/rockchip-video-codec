@@ -21,7 +21,6 @@
 #include <libavutil/pixdesc.h>
 #include <libavutil/time.h>
 #include <libswscale/swscale.h>
-#include <svt-av1/EbSvtAv1Enc.h>
 
 #define AV_PIX_FMT_RKMPP AV_PIX_FMT_DRM_PRIME
 

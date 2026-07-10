@@ -193,10 +193,8 @@ rkvc_err rkvc_mpp_enc_send_frame_roi_ex(rkvc_mpp_enc *enc, rkvc_buffer *frame,
     if (err != RKVC_OK)
         return err;
 
-    if (avf->pts == AV_NOPTS_VALUE)
-        avf->pts = enc->next_pts++;
-    else
-        enc->next_pts = avf->pts + 1;
+    /* 解复用 PTS 与编码器 time_base 不同；统一用单调帧序号，避免 MP4 帧率错乱。 */
+    avf->pts = enc->next_pts++;
 
     if (force_idr)
         avf->pict_type = AV_PICTURE_TYPE_I;

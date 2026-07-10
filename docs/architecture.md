@@ -75,8 +75,8 @@ graph TD
 | `REALTIME` | H.264 RKMPP | `h264_rkmpp` | `h264_rkmpp` |
 | `BALANCED` | HEVC RKMPP | `hevc_rkmpp` | `hevc_rkmpp` |
 | `BALANCED`（1080p+ 且 ≥50fps） | H.264 RKMPP | `h264_rkmpp` | `h264_rkmpp` |
-| `QUALITY` | AV1 | `svt-av1` (preset 11) | `av1_rkmpp` |
-| `OFFLINE` | AV1（非实时高质量） | `svt-av1` (preset 4，≥1fps@1080p) | `av1_rkmpp` |
+| `QUALITY` | AV1 | `libsvtav1` (preset 11) | `av1_rkmpp` |
+| `OFFLINE` | AV1（非实时高质量） | `libsvtav1` (preset 4，≥1fps@1080p) | `av1_rkmpp` |
 
 显式设置 `codec` 为 `H264` / `HEVC` / `AV1` 时跳过 policy 路由，强制对应编解码族。
 

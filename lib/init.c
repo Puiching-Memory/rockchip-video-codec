@@ -287,7 +287,7 @@ rkvc_err rkvc_query_caps(rkvc_caps *caps)
                           && hw_usable);
     caps->has_hevc_enc = (avcodec_find_encoder_by_name("hevc_rkmpp") != NULL
                           && hw_usable);
-    caps->has_av1_enc  = 1; /* SVT-AV1 submodule */
+    caps->has_av1_enc  = (avcodec_find_encoder_by_name("libsvtav1") != NULL);
 
     caps->has_h264_dec = (avcodec_find_decoder_by_name("h264_rkmpp") != NULL
                           && hw_usable);

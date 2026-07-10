@@ -53,7 +53,7 @@ static void fill_av1_svt(rkvc_route_plan *plan, int preset, const char *reason)
     plan->codec        = RKVC_CODEC_AV1;
     plan->enc_backend  = RKVC_ENC_BACKEND_SVT;
     plan->dec_backend  = RKVC_DEC_BACKEND_MPP;
-    plan->enc_name     = "svt-av1";
+    plan->enc_name     = "libsvtav1";
     plan->dec_name     = "av1_rkmpp";
     plan->svt_preset   = preset;
     plan->reason       = reason;

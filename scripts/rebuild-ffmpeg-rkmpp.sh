@@ -2,7 +2,7 @@
 # scripts/rebuild-ffmpeg-rkmpp.sh — ffmpeg-rockchip 全量 RKMPP (H.264/HEVC/AV1)
 #
 # 解码: h264_rkmpp, hevc_rkmpp, av1_rkmpp + 软解 h264/hevc/rawvideo
-# 编码: h264_rkmpp, hevc_rkmpp
+# 编码: h264_rkmpp, hevc_rkmpp, libsvtav1 (SVT-AV1)
 # 滤镜: scale, hwdownload, scale_rkrga, psnr, ssim
 # 构建前自动应用 patches/ffmpeg-rockchip/*.patch（ROI / 运行时 RC 等）
 # 修改 configure 选项后请使用 --clean 重编
@@ -21,6 +21,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 FFMPEG_SRC="$PROJECT_DIR/third_party/ffmpeg-rockchip"
 MPP_PREFIX="${MPP_PREFIX:-$PROJECT_DIR/.build/deps/mpp-install}"
 RGA_PREFIX="${RGA_PREFIX:-$PROJECT_DIR/.build/deps/librga-install}"
+SVT_PREFIX="${SVT_PREFIX:-$PROJECT_DIR/.build/deps/svt-av1-install}"
 FFMPEG_PREFIX="$FFMPEG_SRC"
 
 CLEAN=0
@@ -38,8 +39,8 @@ configure_ffmpeg() {
         extra_configure+=(--prefix="$FFMPEG_PREFIX")
     fi
 
-    export PKG_CONFIG_PATH="$RGA_PREFIX/lib/pkgconfig:$MPP_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    export LD_LIBRARY_PATH="$RGA_PREFIX/lib:$MPP_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    export PKG_CONFIG_PATH="$SVT_PREFIX/lib/pkgconfig:$RGA_PREFIX/lib/pkgconfig:$MPP_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    export LD_LIBRARY_PATH="$SVT_PREFIX/lib:$RGA_PREFIX/lib:$MPP_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
     cd "$FFMPEG_SRC"
 
@@ -52,6 +53,7 @@ configure_ffmpeg() {
         "${extra_configure[@]}" \
         --enable-gpl --enable-version3 --enable-nonfree \
         --enable-rkmpp --enable-libdrm --enable-rkrga \
+        --enable-libsvtav1 \
         --enable-pic \
         --disable-doc --enable-ffmpeg --enable-ffprobe --disable-network \
         --enable-swscale --disable-swresample \
@@ -62,6 +64,7 @@ configure_ffmpeg() {
         --enable-decoder=h264 --enable-decoder=hevc \
         --enable-decoder=rawvideo \
         --enable-encoder=h264_rkmpp --enable-encoder=hevc_rkmpp \
+        --enable-encoder=libsvtav1 \
         --enable-encoder=rawvideo --enable-encoder=wrapped_avframe \
         --enable-parser=h264 --enable-parser=hevc --enable-parser=av1 \
         --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb \
@@ -78,7 +81,7 @@ configure_ffmpeg() {
     if [[ "$FFMPEG_PREFIX" != "$FFMPEG_SRC" ]]; then
         make install
     fi
-    echo "--- ffmpeg 构建完成 (h264/hevc/av1 rkmpp) ---"
+    echo "--- ffmpeg 构建完成 (h264/hevc/av1 rkmpp + libsvtav1) ---"
 }
 
 main() {
@@ -94,6 +97,16 @@ main() {
     if ! PKG_CONFIG_PATH="$RGA_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" \
             pkg-config --exists librga; then
         echo "错误: pkg-config 找不到 librga（期望 $RGA_PREFIX/lib/pkgconfig/librga.pc）"
+        exit 1
+    fi
+    if [[ ! -f "$SVT_PREFIX/lib/libSvtAv1Enc.so" ]] && \
+       ! ls "$SVT_PREFIX"/lib/libSvtAv1Enc.so.* >/dev/null 2>&1; then
+        echo "--- 构建 SVT-AV1 到 $SVT_PREFIX ---"
+        "$SCRIPT_DIR/build-svt.sh"
+    fi
+    if ! PKG_CONFIG_PATH="$SVT_PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" \
+            pkg-config --exists SvtAv1Enc; then
+        echo "错误: pkg-config 找不到 SvtAv1Enc（期望 $SVT_PREFIX/lib/pkgconfig/SvtAv1Enc.pc）"
         exit 1
     fi
     rkvc_apply_ffmpeg_patches "$FFMPEG_SRC"

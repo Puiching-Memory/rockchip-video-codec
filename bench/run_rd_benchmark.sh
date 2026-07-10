@@ -169,20 +169,33 @@ plot_results() {
     local frames="${1:-62}"
     local title_rd title_perf
     local plot_extra=()
+    local has_upscale=0
     load_session_meta_for_plot
     if [[ -n "${FRAMES:-}" ]]; then
         frames="$FRAMES"
     fi
     if [[ -f "$SESSION_CODECS" ]]; then
         plot_extra+=(--session-codecs "$SESSION_CODECS")
+        if grep -E '\+up[0-9]+x-' "$SESSION_CODECS" >/dev/null 2>&1; then
+            has_upscale=1
+        fi
     fi
-    if [[ -n "${WIDTH:-}" && "${WIDTH}" -gt 0 ]]; then
+    # CSV 里也可能有 upscale 路线（accumulate 模式）
+    if [[ "$has_upscale" -eq 0 && -f "$CSV" ]] && \
+            awk -F, 'NR>1 && $1 ~ /\+up[0-9]+x-/ {found=1; exit} END{exit !found}' "$CSV"; then
+        has_upscale=1
+    fi
+
+    if [[ "$has_upscale" -eq 1 && -n "${WIDTH:-}" && "${WIDTH}" -gt 0 ]]; then
         enc_dims
         title_rd="E2E RD Curve (${CLIP_SEC}s@${CLIP_START}s, ${WIDTH}x${HEIGHT} vs ${ENC_W}x${ENC_H} + ${ENC_SCALE_DENOM}x upscale)"
         title_perf="E2E Performance (${CLIP_SEC}s@${CLIP_START}s, 1080p vs ${ENC_H}p+${ENC_SCALE_DENOM}x up)"
+    elif [[ -n "${WIDTH:-}" && "${WIDTH}" -gt 0 ]]; then
+        title_rd="E2E RD Curve (${CLIP_SEC}s@${CLIP_START}s, ${WIDTH}x${HEIGHT})"
+        title_perf="E2E Performance (${CLIP_SEC}s@${CLIP_START}s, ${WIDTH}x${HEIGHT})"
     else
-        title_rd="E2E RD Curve (${CLIP_SEC}s@${CLIP_START:-0}s, post-upscale ${ENC_SCALE_DENOM}x)"
-        title_perf="E2E Performance (${CLIP_SEC}s@${CLIP_START:-0}s, post-upscale ${ENC_SCALE_DENOM}x)"
+        title_rd="E2E RD Curve (${CLIP_SEC}s@${CLIP_START:-0}s)"
+        title_perf="E2E Performance (${CLIP_SEC}s@${CLIP_START:-0}s)"
     fi
 
     if [[ -f "$BENCH_ROOT/.venv/bin/python" ]]; then
@@ -234,7 +247,8 @@ sync_ref_to_ram() {
 clip_meta_key() {
     local mtime
     mtime=$(stat -c %Y "$SRC_VIDEO" 2>/dev/null || echo 0)
-    echo "${CLIP_SEC}|${CLIP_OFFSET}|${CLIP_START}|${SRC_VIDEO}|${mtime}"
+    # v2: 容器输入改为 YUV 重封装（禁止 -c copy 负 PTS）
+    echo "v2|${CLIP_SEC}|${CLIP_OFFSET}|${CLIP_START}|${SRC_VIDEO}|${mtime}"
 }
 
 compute_clip_start() {
@@ -354,10 +368,24 @@ prepare_clip() {
                 -rc_mode "$PREP_ELEM_RC_MODE" -qp_init "$PREP_ELEM_QP" -g "$PREP_ELEM_GOP" -an \
                 "$CLIP_MP4" 2>/dev/null
         else
-            "$PREP_FFMPEG" -y -ss "$CLIP_START" -t "$CLIP_SEC" -i "$SRC_VIDEO" -c copy -an "$CLIP_MP4" 2>/dev/null
-            "$PREP_FFMPEG" -y -i "$CLIP_MP4" -pix_fmt yuv420p -f yuv4mpegpipe "$REF_Y4M_RAM" 2>/dev/null
-            "$PREP_FFMPEG" -y -i "$CLIP_MP4" -pix_fmt yuv420p -f rawvideo "$REF_YUV_RAM" 2>/dev/null
-            "$PREP_FFMPEG" -y -i "$CLIP_MP4" -pix_fmt nv12 -f rawvideo "$REF_NV12_RAM" 2>/dev/null
+            # 先解码到 REF，再从 YUV 重封装 clip.mp4。
+            # 禁止 -c copy：中段切片会带负 PTS / 开 GOP 冗余包，rkmpp 硬解会 drop/dup，
+            # 且与 REF 帧数不一致，导致 rkvc_transcode RD 测质错位。
+            "$PREP_FFMPEG" -y -ss "$CLIP_START" -t "$CLIP_SEC" -i "$SRC_VIDEO" \
+                -an -pix_fmt yuv420p -f yuv4mpegpipe "$REF_Y4M_RAM" 2>/dev/null
+            "$PREP_FFMPEG" -y -ss "$CLIP_START" -t "$CLIP_SEC" -i "$SRC_VIDEO" \
+                -an -pix_fmt yuv420p -f rawvideo "$REF_YUV_RAM" 2>/dev/null
+            "$PREP_FFMPEG" -y -ss "$CLIP_START" -t "$CLIP_SEC" -i "$SRC_VIDEO" \
+                -an -pix_fmt nv12 -f rawvideo "$REF_NV12_RAM" 2>/dev/null
+
+            local _w _h _fps
+            _w=$("$FFPROBE" -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$SRC_VIDEO")
+            _h=$("$FFPROBE" -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$SRC_VIDEO")
+            _fps=$("$FFPROBE" -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$SRC_VIDEO")
+            "$PREP_FFMPEG" -y -f rawvideo -pix_fmt yuv420p -video_size "${_w}x${_h}" \
+                -framerate "$_fps" -i "$REF_YUV_RAM" -c:v "$PREP_ELEM_ENCODER" \
+                -rc_mode "$PREP_ELEM_RC_MODE" -qp_init "$PREP_ELEM_QP" -g "$PREP_ELEM_GOP" -an \
+                "$CLIP_MP4" 2>/dev/null
         fi
     fi
 }
@@ -584,7 +612,8 @@ ffmpeg_to_yuv420p_raw() {
     fi
 
     dec=$(ffmpeg_rkmpp_decoder_for_file "$input")
-    "$FFMPEG" -y -c:v "$dec" -i "$input" -pix_fmt yuv420p \
+    # passthrough：按包输出，避免错误时间戳触发 CFR drop/dup 导致与 REF 错位。
+    "$FFMPEG" -y -c:v "$dec" -i "$input" -fps_mode passthrough -pix_fmt yuv420p \
         "$@" -f rawvideo "$out_yuv" 2>>"$log"
 }
 

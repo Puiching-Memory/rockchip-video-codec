@@ -61,10 +61,8 @@ else()
 endif()
 set(MPP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/mpp/inc")
 
-# SVT-AV1 (submodule, 直连 libSvtAv1Enc)
-set(SVT_SRC_DIR "${CMAKE_SOURCE_DIR}/third_party/SVT-AV1")
+# SVT-AV1：由 ffmpeg-rockchip libsvtav1 链接；此处仅保留运行时 .so 搜索路径
 set(SVT_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/svt-av1-install" CACHE PATH "SVT-AV1 install prefix")
-set(SVT_INCLUDE_DIR "${SVT_PREFIX}/include")
 
 # librga (submodule 预编译库，经 scripts/install-librga.sh 安装)
 set(RGA_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/librga-install" CACHE PATH "librga install prefix")
@@ -97,7 +95,6 @@ set(FFMPEG_LIBS -Wl,--start-group avcodec avformat avutil swscale -Wl,--end-grou
 set(EXTRA_LIBS
     -Wl,--no-as-needed
     rockchip_mpp
-    SvtAv1Enc
     -Wl,--as-needed
     z drm pthread m rga rt
 )
@@ -200,7 +197,6 @@ if(RKVC_BUILD_SHARED)
         PRIVATE
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
-            ${SVT_INCLUDE_DIR}
             ${RGA_INCLUDE_DIR}
             ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
@@ -232,7 +228,6 @@ if(RKVC_BUILD_STATIC)
         PRIVATE
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
-            ${SVT_INCLUDE_DIR}
             ${RGA_INCLUDE_DIR}
             ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
@@ -494,7 +489,6 @@ if(RKVC_BUILD_TESTS)
                 ${CMAKE_CURRENT_SOURCE_DIR}/lib
                 ${CMOCKA_INCLUDE_DIRS}
                 ${AVCODEC_INCLUDE_DIRS}
-                ${SVT_INCLUDE_DIR}
         )
         target_link_directories(${TEST_NAME}
             PRIVATE

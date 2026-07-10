@@ -26,6 +26,7 @@ rkvc **0.2.5** 落地在线采集与智能压缩原语：**V4L2 `LIVE_CAPTURE`**
 - 版本号升至 **0.2.5**。
 - `rkvc.h` 纳入 `roi.h` / `runtime.h` / `net.h` / `reconfig.h`。
 - 子模块补丁：`patches/ffmpeg-rockchip/0001-rkmppenc-roi-runtime-rc.patch`（由 `rebuild-ffmpeg-rkmpp.sh` 构建前幂等应用；含硬 ROI + 运行时 RC）。
+- **ffmpeg-rockchip 切至 `8.1` 分支**；AV1 编码经 FFmpeg **`libsvtav1`**（不再直连 `EbSvtAv1Enc`）；`third_party/SVT-AV1` 仍为构建/运行时依赖。
 
 ## [0.2.4] - 2026-07-09
 

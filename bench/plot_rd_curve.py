@@ -12,7 +12,7 @@ from pathlib import Path
 
 import math
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter, ScalarFormatter
+from matplotlib.ticker import FuncFormatter, FixedLocator, NullFormatter, ScalarFormatter
 
 UPSCALE_CODEC_RE = re.compile(
     r"^(?P<base>h264|h265|svt-av1-hq|svt-av1)\+up(?P<scale>\d+)x-(?P<algo>[A-Za-z0-9_]+)$"
@@ -561,13 +561,19 @@ def plot_rd(
     if xscale == "log":
         x_left = max(br_min * 0.88, 8.0)
         x_right = max(br_max * 1.12, x_left * 1.5)
+        ticks = _log_axis_ticks(x_left, x_right)
         for ax in (ax_psnr, ax_ssim):
             ax.set_xscale("log")
             ax.set_xlim(x_left, x_right)
-            ax.xaxis.set_major_locator(LogLocator(base=10))
+            # 1-2-5 刻度；避免 LogLocator(base=10) 在 200–7000 区间只剩一个「1000」
+            if ticks:
+                ax.xaxis.set_major_locator(FixedLocator(ticks))
             ax.xaxis.set_minor_formatter(NullFormatter())
             ax.xaxis.set_major_formatter(FuncFormatter(_log_kbps_formatter))
             ax.xaxis.set_tick_params(which="minor", size=0)
+            for label in ax.get_xticklabels():
+                label.set_rotation(0)
+                label.set_ha("center")
     else:
         ax_psnr.set_xlim(br_min - br_pad, br_max + br_pad)
         ax_ssim.set_xlim(br_min - br_pad, br_max + br_pad)
@@ -628,7 +634,7 @@ def main() -> None:
         "--max-kbps",
         type=float,
         default=None,
-        help="过滤 actual_kbps 上限（默认 max(target_kbps)×1.15）",
+        help="过滤 actual_kbps 上限（默认 max(target_kbps)×3）",
     )
     parser.add_argument(
         "--session-codecs",

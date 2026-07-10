@@ -1,6 +1,7 @@
 [submodule "third_party/ffmpeg-rockchip"]
 	path = third_party/ffmpeg-rockchip
 	url = https://github.com/nyanmisaka/ffmpeg-rockchip.git
+	branch = 8.1
 	shallow = true
 [submodule "third_party/mpp"]
 	path = third_party/mpp

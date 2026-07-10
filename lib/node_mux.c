@@ -9,6 +9,9 @@ struct rkvc_mux {
     AVFormatContext  *fmt;
     AVStream         *stream;
     AVPacket         *pkt;
+    /* 编码器侧时间基（帧序号：1/fps）；write_header 后 stream->time_base 可能被 muxer 改写 */
+    AVRational        pkt_time_base;
+    AVRational        frame_rate;
 };
 
 static const char *guess_muxer(const char *path)
@@ -76,7 +79,13 @@ rkvc_err rkvc_mux_open(rkvc_mux **out, const rkvc_mux_config *cfg,
         return rkvc_from_averror(ret);
     }
 
-    m->stream->time_base = (AVRational){cfg->fps_den, cfg->fps_num};
+    int fps_num = cfg->fps_num > 0 ? cfg->fps_num : 30;
+    int fps_den = cfg->fps_den > 0 ? cfg->fps_den : 1;
+    m->pkt_time_base = (AVRational){fps_den, fps_num};
+    m->frame_rate = (AVRational){fps_num, fps_den};
+    m->stream->time_base = m->pkt_time_base;
+    m->stream->avg_frame_rate = m->frame_rate;
+    m->stream->r_frame_rate = m->frame_rate;
 
     if (!(m->fmt->oformat->flags & AVFMT_NOFILE)) {
         ret = avio_open(&m->fmt->pb, cfg->output_path, AVIO_FLAG_WRITE);
@@ -128,8 +137,12 @@ rkvc_err rkvc_mux_write_packet(rkvc_mux *m, const rkvc_buffer *pkt)
         return RKVC_ERR_NOMEM;
 
     memcpy(m->pkt->data, pkt->data, pkt->size);
-    m->pkt->pts  = pkt->pts;
-    m->pkt->dts  = pkt->dts >= 0 ? pkt->dts : pkt->pts;
+    m->pkt->pts = av_rescale_q(pkt->pts, m->pkt_time_base, m->stream->time_base);
+    {
+        int64_t dts_src = pkt->dts >= 0 ? pkt->dts : pkt->pts;
+        m->pkt->dts = av_rescale_q(dts_src, m->pkt_time_base, m->stream->time_base);
+    }
+    m->pkt->duration = av_rescale_q(1, av_inv_q(m->frame_rate), m->stream->time_base);
     m->pkt->stream_index = m->stream->index;
     if (pkt->key_frame)
         m->pkt->flags |= AV_PKT_FLAG_KEY;

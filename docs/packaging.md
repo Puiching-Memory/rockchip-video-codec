@@ -30,11 +30,11 @@ rkvc-*-linux-aarch64-portable/
 │   └── rkvc_bench
 ├── lib/
 │   ├── librkvc.so*
-│   ├── libavcodec.so.60     # ffmpeg-rockchip (H.264/HEVC/AV1 RKMPP)
-│   ├── libavformat.so.60
-│   ├── libavutil.so.58
-│   ├── libswscale.so.7
-│   ├── libSvtAv1Enc.so.4    # QUALITY / AV1 编码
+│   ├── libavcodec.so.62     # ffmpeg-rockchip 8.1 (H.264/HEVC/AV1 RKMPP + libsvtav1)
+│   ├── libavformat.so.62
+│   ├── libavutil.so.60
+│   ├── libswscale.so.9
+│   ├── libSvtAv1Enc.so.4    # QUALITY / AV1 编码（FFmpeg libsvtav1 依赖）
 │   ├── librockchip_mpp.so.1
 │   ├── librga.so            # RGA 用户态库（submodule）
 │   ├── librknnrt.so         # RKNN NPU runtime（rkvc_sr）
