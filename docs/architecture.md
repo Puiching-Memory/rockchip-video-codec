@@ -70,35 +70,35 @@ graph TD
 
 `rkvc_route_resolve()` 根据 `rkvc_pipeline_desc` 中的 `policy`、`codec`、分辨率与帧率选择路线：
 
-| policy | 默认路线 | 编码器 | 解码器 |
-|--------|----------|--------|--------|
-| `REALTIME` | H.264 RKMPP | `h264_rkmpp` | `h264_rkmpp` |
-| `BALANCED` | HEVC RKMPP | `hevc_rkmpp` | `hevc_rkmpp` |
-| `BALANCED`（1080p+ 且 ≥50fps） | H.264 RKMPP | `h264_rkmpp` | `h264_rkmpp` |
-| `QUALITY` | AV1 | `libsvtav1` (preset 11) | `av1_rkmpp` |
-| `OFFLINE` | AV1（非实时高质量） | `libsvtav1` (preset 4，≥1fps@1080p) | `av1_rkmpp` |
+| policy                         | 默认路线            | 编码器                              | 解码器       |
+| ------------------------------ | ------------------- | ----------------------------------- | ------------ |
+| `REALTIME`                     | H.264 RKMPP         | `h264_rkmpp`                        | `h264_rkmpp` |
+| `BALANCED`                     | HEVC RKMPP          | `hevc_rkmpp`                        | `hevc_rkmpp` |
+| `BALANCED`（1080p+ 且 ≥50fps） | H.264 RKMPP         | `h264_rkmpp`                        | `h264_rkmpp` |
+| `QUALITY`                      | AV1                 | `libsvtav1` (preset 11)             | `av1_rkmpp`  |
+| `OFFLINE`                      | AV1（非实时高质量） | `libsvtav1` (preset 4，≥1fps@1080p) | `av1_rkmpp`  |
 
 显式设置 `codec` 为 `H264` / `HEVC` / `AV1` 时跳过 policy 路由，强制对应编解码族。
 
 ## 管线模板
 
-| 模板 | 用途 | 典型节点链 |
-|------|------|------------|
-| `FILE_ENCODE` | 原始 NV12 → 容器 | mux ← mpp/svt enc ← (rga 下采样) |
-| `FILE_DECODE` | 容器 → 原始 NV12 | dma_to_host ← (post_upscale) ← mpp dec ← demux |
-| `FILE_TRANSCODE` | 容器 → 容器 | mux ← enc ← (rga) ← mpp dec ← demux |
-| `AV1_STORAGE` | AV1 存储档 | 强制 AV1 SVT + av1_rkmpp |
-| `LIVE_CAPTURE` | 低延迟 V4L2 采集编码 | v4l2 → (rga) → mpp/svt enc → mux |
+| 模板             | 用途                 | 典型节点链                                     |
+| ---------------- | -------------------- | ---------------------------------------------- |
+| `FILE_ENCODE`    | 原始 NV12 → 容器     | mux ← mpp/svt enc ← (rga 下采样)               |
+| `FILE_DECODE`    | 容器 → 原始 NV12     | dma_to_host ← (post_upscale) ← mpp dec ← demux |
+| `FILE_TRANSCODE` | 容器 → 容器          | mux ← enc ← (rga) ← mpp dec ← demux            |
+| `AV1_STORAGE`    | AV1 存储档           | 强制 AV1 SVT + av1_rkmpp                       |
+| `LIVE_CAPTURE`   | 低延迟 V4L2 采集编码 | v4l2 → (rga) → mpp/svt enc → mux               |
 
 ## Session 端口
 
 每个 Session 暴露三个命名端口，用于流式 push/pull：
 
-| 端口 | 方向 | 数据类型 | 说明 |
-|------|------|----------|------|
-| `capture` | 输入 | `RKVC_BUF_VIDEO` | 采集/原始帧入口 |
-| `output` | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流 |
-| `preview` | 输出 | `RKVC_BUF_VIDEO` | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
+| 端口      | 方向 | 数据类型                                 | 说明                                              |
+| --------- | ---- | ---------------------------------------- | ------------------------------------------------- |
+| `capture` | 输入 | `RKVC_BUF_VIDEO`                         | 采集/原始帧入口                                   |
+| `output`  | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流                                  |
+| `preview` | 输出 | `RKVC_BUF_VIDEO`                         | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
 
 文件模式通过 `rkvc_session_run_file()` 阻塞跑完整条管线，无需手动操作端口。
 
@@ -106,12 +106,12 @@ graph TD
 
 `port.c` 实现有界 FIFO（默认深度 3，由 `queue_depth` 配置）：
 
-| 操作 | 队列满/空 | 返回值 |
-|------|-----------|--------|
-| `rkvc_port_push` | 满 | `RKVC_ERR_AGAIN` |
-| `rkvc_port_pull(..., 0)` | 空 | `RKVC_ERR_AGAIN`（非阻塞） |
-| `rkvc_port_pull(..., N)` | 空超时 | `RKVC_ERR_AGAIN` |
-| `rkvc_port_pull(..., -1)` | — | 阻塞直至有数据 |
+| 操作                      | 队列满/空 | 返回值                     |
+| ------------------------- | --------- | -------------------------- |
+| `rkvc_port_push`          | 满        | `RKVC_ERR_AGAIN`           |
+| `rkvc_port_pull(..., 0)`  | 空        | `RKVC_ERR_AGAIN`（非阻塞） |
+| `rkvc_port_pull(..., N)`  | 空超时    | `RKVC_ERR_AGAIN`           |
+| `rkvc_port_pull(..., -1)` | —         | 阻塞直至有数据             |
 
 详见 [api.md](api.md#port)。
 
@@ -134,8 +134,8 @@ graph TD
 
 ## ROI（区域相对 QP）
 
-| API | H.264/HEVC（MPP） | SVT-AV1 |
-|-----|-------------------|---------|
+| API                    | H.264/HEVC（MPP）                                                                            | SVT-AV1               |
+| ---------------------- | -------------------------------------------------------------------------------------------- | --------------------- |
 | `rkvc_session_set_roi` | 硬 ROI：`AVRegionOfInterest` + metadata `rkvc_roi_force_intra` → `rkmppenc` → `KEY_ROI_DATA` | 忽略（无硬 ROI 桥接） |
 
 公开结构为 `rkvc_roi_rect{x,y,w,h,qp_offset,force_intra}`；`qp_offset→qoffset` 换算只在 `node_mpp_enc` 一处。桥接层（`rkmppenc`）必要：编码仍走 `avcodec_send_frame`，外部无法直接写 `MppFrame` meta。
@@ -144,11 +144,11 @@ graph TD
 
 `include/rkvc/reconfig.h`：应用层带宽自适应调用；策略状态机不进 SDK。
 
-| API | MPP（H.264/HEVC） | SVT-AV1 |
-|-----|-------------------|---------|
+| API                       | MPP（H.264/HEVC）                                         | SVT-AV1                           |
+| ------------------------- | --------------------------------------------------------- | --------------------------------- |
 | `set_bitrate` / `set_gop` | 下一帧写 `AVCodecContext`，`rkmppenc` → `MPP_ENC_SET_CFG` | 仅更新 `desc`（运行中改参需重建） |
-| `request_idr` | 下一帧 `pict_type=I` → `MPP_ENC_SET_IDR_FRAME` | 挂起标志无硬效果 |
-| `reconfigure` | 按 `flags` 批量上述项 | 同左 |
+| `request_idr`             | 下一帧 `pict_type=I` → `MPP_ENC_SET_IDR_FRAME`            | 挂起标志无硬效果                  |
+| `reconfigure`             | 按 `flags` 批量上述项                                     | 同左                              |
 
 分辨率 / profile 变更需重建 Session（mux/SPS 绑定），不在本 API。
 
@@ -156,9 +156,9 @@ graph TD
 
 `rkvc_net`（`include/rkvc/net.h`）提供码流收发，**不**绑定 Session：
 
-| 模式 | 协议 | 用途 |
-|------|------|------|
-| `RKVC_NET_UDP` | 16B 分片头 + 载荷（最多 16 片） | 任意裸码流 / Annex-B |
+| 模式           | 协议                                       | 用途                          |
+| -------------- | ------------------------------------------ | ----------------------------- |
+| `RKVC_NET_UDP` | 16B 分片头 + 载荷（最多 16 片）            | 任意裸码流 / Annex-B          |
 | `RKVC_NET_RTP` | 12B RTP（PT=96）+ ≤1400B 分片，Marker 帧尾 | 简化 RTP；非完整 RFC / 无 SIP |
 
 典型用法：Session `output` 拉码流 → `rkvc_net_send_buffer`；对端 `rkvc_net_recv` → 解码 Session。GB28181 / WebRTC 信令属应用层。
@@ -179,13 +179,13 @@ graph TD
 
 ## 辅助模块
 
-| 模块 | 文件 | 公共 API |
-|------|------|----------|
-| 初始化 | `init.c` | `rkvc_init` / `rkvc_deinit` / `rkvc_version` |
-| 能力 | `init.c` | `rkvc_query_caps` / `rkvc_check_hw_permissions` |
-| FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_hash_file` |
-| 输入探测 | `utils.c` | `rkvc_probe_input_format` |
-| 名称转换 | `router.c` | `rkvc_codec_name` / `rkvc_policy_name` |
+| 模块        | 文件            | 公共 API                                        |
+| ----------- | --------------- | ----------------------------------------------- |
+| 初始化      | `init.c`        | `rkvc_init` / `rkvc_deinit` / `rkvc_version`    |
+| 能力        | `init.c`        | `rkvc_query_caps` / `rkvc_check_hw_permissions` |
+| FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_hash_file`         |
+| 输入探测    | `utils.c`       | `rkvc_probe_input_format`                       |
+| 名称转换    | `router.c`      | `rkvc_codec_name` / `rkvc_policy_name`          |
 
 ## RKMPP 解码器初始化
 

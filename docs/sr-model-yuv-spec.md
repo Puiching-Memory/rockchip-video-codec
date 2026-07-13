@@ -8,13 +8,13 @@
 
 ## 与现网 `rkvc_sr` 的差异
 
-| 维度 | 现网（RGB） | YUV-native（目标） |
-|------|-------------|-------------------|
-| 训练域 | RGB24 NHWC | NV12 / YUV420P 平面 |
-| 推理输入 | RGA CSC → RGB → int8 NCHW | 直接 Y/UV 量化 |
-| 推理输出 | int8 NCHW → RGB → RGA CSC → NV12 | 直接 Y/UV 反量化 |
-| CSC 开销 | 每帧 2 次 RGA 色彩转换 | 无（或仅下采样 RGA） |
-| API | `post_upscale_algo=rkvc_sr` + `post_upscale_rkvc_model_path` | 相同字段，新 `.rknn` 模型 |
+| 维度     | 现网（RGB）                                                  | YUV-native（目标）        |
+| -------- | ------------------------------------------------------------ | ------------------------- |
+| 训练域   | RGB24 NHWC                                                   | NV12 / YUV420P 平面       |
+| 推理输入 | RGA CSC → RGB → int8 NCHW                                    | 直接 Y/UV 量化            |
+| 推理输出 | int8 NCHW → RGB → RGA CSC → NV12                             | 直接 Y/UV 反量化          |
+| CSC 开销 | 每帧 2 次 RGA 色彩转换                                       | 无（或仅下采样 RGA）      |
+| API      | `post_upscale_algo=rkvc_sr` + `post_upscale_rkvc_model_path` | 相同字段，新 `.rknn` 模型 |
 
 ## 模型 I/O 约定（草案）
 

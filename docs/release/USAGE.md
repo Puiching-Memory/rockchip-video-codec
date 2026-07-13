@@ -145,11 +145,11 @@ rkvc_session_upscale -i half_enc.mp4 -o restored.nv12 \
 
 ## 环境变量
 
-| 变量 | 说明 |
-|------|------|
-| `LD_LIBRARY_PATH` | 二次开发时指向包内 `lib/` |
-| `PKG_CONFIG_PATH` | 指向 `share/pkgconfig/` |
-| `RKVC_LOG_LEVEL` | 调试日志（`debug`）；等效于代码中 `rkvc_set_log_level(AV_LOG_DEBUG)` |
+| 变量              | 说明                                                                 |
+| ----------------- | -------------------------------------------------------------------- |
+| `LD_LIBRARY_PATH` | 二次开发时指向包内 `lib/`                                            |
+| `PKG_CONFIG_PATH` | 指向 `share/pkgconfig/`                                              |
+| `RKVC_LOG_LEVEL`  | 调试日志（`debug`）；等效于代码中 `rkvc_set_log_level(AV_LOG_DEBUG)` |
 
 程序内也可调用 `rkvc_set_log_level()` / `rkvc_get_log_level()`（级别与 FFmpeg `AV_LOG_*` 一致）。
 
@@ -157,9 +157,9 @@ rkvc_session_upscale -i half_enc.mp4 -o restored.nv12 \
 
 所有 API 返回 `rkvc_err` 枚举。常见错误：
 
-| 错误码 | 含义 | 处理 |
-|--------|------|------|
-| `RKVC_ERR_PERMISSION` | 设备权限不足 | 检查 `/dev/mpp_service` 等 |
-| `RKVC_ERR_FORMAT` | 输入格式不匹配 | 编码用 NV12；压缩文件用 decode/transcode |
-| `RKVC_ERR_HW` | 硬件初始化失败 | `rkvc_info -j` 诊断 |
-| `RKVC_ERR_AGAIN` | 缓冲区满/需更多输入 | 流式模式重试或 drain |
+| 错误码                | 含义                | 处理                                     |
+| --------------------- | ------------------- | ---------------------------------------- |
+| `RKVC_ERR_PERMISSION` | 设备权限不足        | 检查 `/dev/mpp_service` 等               |
+| `RKVC_ERR_FORMAT`     | 输入格式不匹配      | 编码用 NV12；压缩文件用 decode/transcode |
+| `RKVC_ERR_HW`         | 硬件初始化失败      | `rkvc_info -j` 诊断                      |
+| `RKVC_ERR_AGAIN`      | 缓冲区满/需更多输入 | 流式模式重试或 drain                     |

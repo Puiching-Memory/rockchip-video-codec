@@ -12,13 +12,13 @@
 
 适用于录像文件、批量转码、RD 评测等**非实时**场景，通过 `rkvc_session_run_file()` 一次性跑完整条管线。
 
-| 模式 | 模板 / 工具 | 典型用途 | 输入 → 输出 |
-|------|-------------|----------|-------------|
-| 文件编码 | `FILE_ENCODE` / `rkvc_encode` | 原始 NV12 入库 | NV12 → MP4（H.264/HEVC/AV1） |
-| 文件转码 | `FILE_TRANSCODE` / `rkvc_transcode` | 码流换格式/换策略 | 容器 → 容器 |
-| 文件解码 | `FILE_DECODE` / `rkvc_decode` | 回放、后处理 | 容器 → NV12 |
-| 低分辨率编码 + 上采样还原 | `rkvc_session_upscale` | AI/RGA 画质评估 | 容器 → NV12（全分辨率） |
-| RD 基准 | `scripts/run-bench.sh` | 码率-画质曲线 | 1080p 片段 → CSV/图表 |
+| 模式                      | 模板 / 工具                         | 典型用途          | 输入 → 输出                  |
+| ------------------------- | ----------------------------------- | ----------------- | ---------------------------- |
+| 文件编码                  | `FILE_ENCODE` / `rkvc_encode`       | 原始 NV12 入库    | NV12 → MP4（H.264/HEVC/AV1） |
+| 文件转码                  | `FILE_TRANSCODE` / `rkvc_transcode` | 码流换格式/换策略 | 容器 → 容器                  |
+| 文件解码                  | `FILE_DECODE` / `rkvc_decode`       | 回放、后处理      | 容器 → NV12                  |
+| 低分辨率编码 + 上采样还原 | `rkvc_session_upscale`              | AI/RGA 画质评估   | 容器 → NV12（全分辨率）      |
+| RD 基准                   | `scripts/run-bench.sh`              | 码率-画质曲线     | 1080p 片段 → CSV/图表        |
 
 **特点**：吞吐优先，可跑满存储 I/O；`QUALITY` 策略下 SVT-AV1 **软编码**会占满多核 CPU，但编解码均可离线批处理。
 
@@ -26,18 +26,18 @@
 
 适用于摄像头采集、低延迟预览、流式推拉等**实时**场景，通过 Session **命名端口**（`capture` / `output`；`preview` 为占位）逐帧 push/pull。
 
-| 能力 | 状态 | 说明 |
-|------|------|------|
-| 低延迟编解码链路 | ✅ 可测 | `example_latency_test`：1080p 低延迟模式编码 ~7 ms/帧，端到端 ~69 ms（P50 ~76 ms） |
-| 流式 Session API | ✅ 可用 | `example_stream_encode` / `stream_decode` / `stream_transcode` |
-| 三策略实时转码 | ✅ 可用 | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
-| 非实时高质量 | ✅ 可用 | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps） |
-| V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用 | `capture_device` + `example_live_capture`；`"mock"` 合成源可测 |
-| UDP/RTP 网络回环 | ✅ 原语 | `rkvc_net_*` + `example_net_loopback` / `network-e2e-test.sh` |
-| ROI | ✅ 硬路径 | H.264/HEVC：`rkmppenc`→MPP `KEY_ROI_DATA`（相对 QP / force_intra）；SVT 忽略 |
-| 多 Session 配额 | ✅ 可用 | `rkvc_runtime_set_quota` |
-| 热切换（码率/GOP/IDR） | ✅ 可用 | `rkvc_session_set_bitrate` / `set_gop` / `request_idr`（MPP） |
-| `preview` 端口 | ✅ LIVE_CAPTURE | 与 `capture` 同帧侧抽；满则丢最旧 |
+| 能力                       | 状态           | 说明                                                                                   |
+| -------------------------- | -------------- | -------------------------------------------------------------------------------------- |
+| 低延迟编解码链路           | ✅ 可测         | `example_latency_test`：1080p 低延迟模式编码 ~7 ms/帧，端到端 ~69 ms（P50 ~76 ms）     |
+| 流式 Session API           | ✅ 可用         | `example_stream_encode` / `stream_decode` / `stream_transcode`                         |
+| 三策略实时转码             | ✅ 可用         | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
+| 非实时高质量               | ✅ 可用         | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps）                              |
+| V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用         | `capture_device` + `example_live_capture`；`"mock"` 合成源可测                         |
+| UDP/RTP 网络回环           | ✅ 原语         | `rkvc_net_*` + `example_net_loopback` / `network-e2e-test.sh`                          |
+| ROI                        | ✅ 硬路径       | H.264/HEVC：`rkmppenc`→MPP `KEY_ROI_DATA`（相对 QP / force_intra）；SVT 忽略           |
+| 多 Session 配额            | ✅ 可用         | `rkvc_runtime_set_quota`                                                               |
+| 热切换（码率/GOP/IDR）     | ✅ 可用         | `rkvc_session_set_bitrate` / `set_gop` / `request_idr`（MPP）                          |
+| `preview` 端口             | ✅ LIVE_CAPTURE | 与 `capture` 同帧侧抽；满则丢最旧                                                      |
 
 **在线 vs 离线差异小结**：
 
@@ -68,32 +68,32 @@ gantt
     完整 UDP/RTP 在线回环                 :crit, net, 2026-07-03, 2026-10-31
 ```
 
-| 节点 | 内容 | 状态 | 完成时间 |
-|------|------|------|----------|
-| **P0** 硬件编解码基座 | ffmpeg-rockchip + MPP：H.264/HEVC 硬编硬解 | ✅ 已交付 | 2026-05 ~ 06 |
-| **P1** Session 架构 | Codec Router、管线模板、可移植包 | ✅ 已交付 | **2026-06-30**（v0.2.0） |
-| **P2** AV1 存储档 | SVT-AV1 软编 + `av1_rkmpp` 硬解 | ✅ 已交付 | 2026-06-30 |
-| **P3** 下采样 + RGA 上采样 | `enc_scale_denom` + `post_upscale_algo` | ✅ 已交付 | 2026-06-30 |
-| **P4** RKNN AI 超分 | `rkvc_sr` 节点、双缓冲异步推理 | ✅ 已交付 | **2026-07-02**（v0.2.1） |
-| **P5** RD 基准与演示 | `bench/config.json`、对比演示 MP4 | ✅ 已交付 | 2026-07-02 |
-| **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` + `models/` | ✅ 已交付 | **2026-07-09**（v0.2.3） |
-| **P6** YUV-native 模型 | 消除 NV12↔RGB CSC，降延迟 | 📋 设计稿 | 待定（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
-| **P7** 在线采集/组网 | V4L2、ROI/配额、UDP/RTP 原语 | ✅ 原语完成 | 2026-07-10 |
+| 节点                         | 内容                                       | 状态       | 完成时间                                                |
+| ---------------------------- | ------------------------------------------ | ---------- | ------------------------------------------------------- |
+| **P0** 硬件编解码基座        | ffmpeg-rockchip + MPP：H.264/HEVC 硬编硬解 | ✅ 已交付   | 2026-05 ~ 06                                            |
+| **P1** Session 架构          | Codec Router、管线模板、可移植包           | ✅ 已交付   | **2026-06-30**（v0.2.0）                                |
+| **P2** AV1 存储档            | SVT-AV1 软编 + `av1_rkmpp` 硬解            | ✅ 已交付   | 2026-06-30                                              |
+| **P3** 下采样 + RGA 上采样   | `enc_scale_denom` + `post_upscale_algo`    | ✅ 已交付   | 2026-06-30                                              |
+| **P4** RKNN AI 超分          | `rkvc_sr` 节点、双缓冲异步推理             | ✅ 已交付   | **2026-07-02**（v0.2.1）                                |
+| **P5** RD 基准与演示         | `bench/config.json`、对比演示 MP4          | ✅ 已交付   | 2026-07-02                                              |
+| **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` + `models/`    | ✅ 已交付   | **2026-07-09**（v0.2.3）                                |
+| **P6** YUV-native 模型       | 消除 NV12↔RGB CSC，降延迟                  | 📋 设计稿   | 待定（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
+| **P7** 在线采集/组网         | V4L2、ROI/配额、UDP/RTP 原语               | ✅ 原语完成 | 2026-07-10                                              |
 
 ---
 
 ## 文档导航
 
-| 主题 | 文档 |
-|------|------|
-| 快速构建与首次运行 | [getting-started.md](getting-started.md) |
-| 架构与节点 | [architecture.md](architecture.md) |
-| API 参考 | [api.md](api.md)（含 Doxygen 生成说明） |
-| 打包与可移植包 | [packaging.md](packaging.md) |
-| 测试与质量门禁 | [testing.md](testing.md) |
-| 性能与 RD 基准 | [benchmark.md](benchmark.md) |
+| 主题                      | 文档                                         |
+| ------------------------- | -------------------------------------------- |
+| 快速构建与首次运行        | [getting-started.md](getting-started.md)     |
+| 架构与节点                | [architecture.md](architecture.md)           |
+| API 参考                  | [api.md](api.md)（含 Doxygen 生成说明）      |
+| 打包与可移植包            | [packaging.md](packaging.md)                 |
+| 测试与质量门禁            | [testing.md](testing.md)                     |
+| 性能与 RD 基准            | [benchmark.md](benchmark.md)                 |
 | YUV-native 超分（设计稿） | [sr-model-yuv-spec.md](sr-model-yuv-spec.md) |
-| 发布包用户文档 | [release/README.md](release/README.md) |
+| 发布包用户文档            | [release/README.md](release/README.md)       |
 
 ---
 
@@ -149,14 +149,14 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ## 功能验收要点
 
-| 能力 | 验收方式 |
-|------|----------|
-| 四策略转码 | `rkvc_transcode -p realtime\|balanced\|quality\|offline` |
-| E2E fps | `rkvc_bench -i clip.mp4`（须 `-i` 指定输入） |
-| RGA 后处理上采样 | `rkvc_session_upscale --enc-scale-denom 2 --post-upscale bilinear` |
+| 能力              | 验收方式                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| 四策略转码        | `rkvc_transcode -p realtime\|balanced\|quality\|offline`                                    |
+| E2E fps           | `rkvc_bench -i clip.mp4`（须 `-i` 指定输入）                                                |
+| RGA 后处理上采样  | `rkvc_session_upscale --enc-scale-denom 2 --post-upscale bilinear`                          |
 | RKNN 超分（可选） | `rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH`（需 `RKVC_ENABLE_RKNN`） |
-| 多像素格式解码 | `./example_decode_formats [input.mp4]` |
-| RD 基准 | `./scripts/run-bench.sh /path/to/1080p.mp4` |
+| 多像素格式解码    | `./example_decode_formats [input.mp4]`                                                      |
+| RD 基准           | `./scripts/run-bench.sh /path/to/1080p.mp4`                                                 |
 
 ---
 
@@ -178,23 +178,23 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ### 单帧耗时（1080p，3× 路线，RD 基准实测）
 
-| 阶段 | 耗时/帧（约） | 硬件 | 说明 |
-|------|---------------|------|------|
-| 硬解码 | **< 0.2 ms** | VPU（RKMPP） | `decode_sec` ≈ 0.02 s / 122 帧 |
-| AI 超分推理 + CSC | **~14 ms** | NPU + RGA | `postproc_sec` ≈ 1.7 s / 122 帧（含 RKNN 与 NV12↔RGB） |
-| NEON 量化/反量化 | 含于 postproc | CPU（A76） | `rkvc_sr_neon.c` |
-| **解码 + AI 还原合计** | **~14 ms/帧（~70 fps）** | VPU + NPU | 仅解码侧；不含编码 |
-| 全链路 E2E（含 3× 编码） | **~73 ms/帧** | VPU + NPU + CPU | 含 SVT-AV1 软编 + 硬解 + AI 还原（500 kbps 测点） |
+| 阶段                     | 耗时/帧（约）            | 硬件            | 说明                                                   |
+| ------------------------ | ------------------------ | --------------- | ------------------------------------------------------ |
+| 硬解码                   | **< 0.2 ms**             | VPU（RKMPP）    | `decode_sec` ≈ 0.02 s / 122 帧                         |
+| AI 超分推理 + CSC        | **~14 ms**               | NPU + RGA       | `postproc_sec` ≈ 1.7 s / 122 帧（含 RKNN 与 NV12↔RGB） |
+| NEON 量化/反量化         | 含于 postproc            | CPU（A76）      | `rkvc_sr_neon.c`                                       |
+| **解码 + AI 还原合计**   | **~14 ms/帧（~70 fps）** | VPU + NPU       | 仅解码侧；不含编码                                     |
+| 全链路 E2E（含 3× 编码） | **~73 ms/帧**            | VPU + NPU + CPU | 含 SVT-AV1 软编 + 硬解 + AI 还原（500 kbps 测点）      |
 
 ### CPU / NPU / 硬编支持
 
-| 资源 | 在线（`REALTIME`） | 离线（`QUALITY` + AI 还原） |
-|------|-------------------|---------------------------|
-| **CPU** | 低（硬编 H.264，调度为主） | 高（SVT-AV1 软编占满多核；AI 路径 NEON 量化） |
-| **NPU** | 解码后处理时占用（`rkvc_sr`） | 同左；`rknn_set_core_mask` 使用三核 |
-| **VPU 硬编** | ✅ H.264 / HEVC（`h264_rkmpp` / `hevc_rkmpp`） | ✅ 同左 |
-| **VPU 硬解** | ✅ H.264 / HEVC / AV1（`av1_rkmpp`） | ✅ 同左 |
-| **AV1 编码** | — | ❌ 无硬编；SVT-AV1 **软件编码**（`libSvtAv1Enc.so`） |
+| 资源         | 在线（`REALTIME`）                            | 离线（`QUALITY` + AI 还原）                         |
+| ------------ | --------------------------------------------- | --------------------------------------------------- |
+| **CPU**      | 低（硬编 H.264，调度为主）                    | 高（SVT-AV1 软编占满多核；AI 路径 NEON 量化）       |
+| **NPU**      | 解码后处理时占用（`rkvc_sr`）                 | 同左；`rknn_set_core_mask` 使用三核                 |
+| **VPU 硬编** | ✅ H.264 / HEVC（`h264_rkmpp` / `hevc_rkmpp`） | ✅ 同左                                              |
+| **VPU 硬解** | ✅ H.264 / HEVC / AV1（`av1_rkmpp`）           | ✅ 同左                                              |
+| **AV1 编码** | —                                             | ❌ 无硬编；SVT-AV1 **软件编码**（`libSvtAv1Enc.so`） |
 
 > **结论**：AI 超分是**解码后处理**，不替代编码器；低码率优势来自「360p 编码 + 3× AI 还原」。在线场景若需 AI 还原，需保证 NPU 预算 ~15 ms/帧（1080p 输出）。
 
@@ -212,20 +212,20 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ### 指标通俗说明
 
-| 指标 | 含义 | 怎么读 |
-|------|------|--------|
-| **PSNR**（峰值信噪比，dB） | 重建画面与原始画面的像素误差；**越高越好** | > 40 dB 肉眼难辨差异；30~35 dB 轻微模糊；< 28 dB 明显失真 |
-| **SSIM**（结构相似度，0~1） | 衡量亮度/对比度/结构是否保留；**越接近 1 越好** | > 0.95 极好；0.80~0.90 可接受；< 0.75 细节损失明显 |
-| **码率**（kbps） | 每秒传输的数据量；**越低越省带宽** | 同画质下码率越低越优；AI 路线目标是在**更低码率**下逼近全分辨率画质 |
+| 指标                        | 含义                                            | 怎么读                                                              |
+| --------------------------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| **PSNR**（峰值信噪比，dB）  | 重建画面与原始画面的像素误差；**越高越好**      | > 40 dB 肉眼难辨差异；30~35 dB 轻微模糊；< 28 dB 明显失真           |
+| **SSIM**（结构相似度，0~1） | 衡量亮度/对比度/结构是否保留；**越接近 1 越好** | > 0.95 极好；0.80~0.90 可接受；< 0.75 细节损失明显                  |
+| **码率**（kbps）            | 每秒传输的数据量；**越低越省带宽**              | 同画质下码率越低越优；AI 路线目标是在**更低码率**下逼近全分辨率画质 |
 
 ### 关键帧对比（演示片）
 
 左右对比演示片由 `scripts/make-comparison-demo.sh` 生成：**左** = 1080p 全分辨率 AV1 参考；**右** = 1/3 分辨率低码率 AV1 + **RKVC SR 3×** 还原。
 
-| 场景 | 参考码率 | 低码率 + AI 还原 | 演示输出（生成后） |
-|------|----------|------------------|-------------------|
-| 集装箱物流港口 | 1600 kbps | 350 kbps | `bench/results/demos/container_logistics_port_comparison.mp4` |
-| 帆船海洋 | 4000 kbps | 900 kbps | `bench/results/demos/sailboat_ocean_comparison.mp4` |
+| 场景           | 参考码率  | 低码率 + AI 还原 | 演示输出（生成后）                                            |
+| -------------- | --------- | ---------------- | ------------------------------------------------------------- |
+| 集装箱物流港口 | 1600 kbps | 350 kbps         | `bench/results/demos/container_logistics_port_comparison.mp4` |
+| 帆船海洋       | 4000 kbps | 900 kbps         | `bench/results/demos/sailboat_ocean_comparison.mp4`           |
 
 ```bash
 ./scripts/make-comparison-demo.sh   # 需源视频与 RKVC SR 模型；见 bench/demo_videos.json
@@ -243,10 +243,10 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 > 数据来源：`bench/results/rd_data.csv`（RK3588 实测）
 
-| 方案 | 实际码率 | PSNR 加权 | SSIM | 相对全分辨率 AV1 |
-|------|----------|-----------|------|------------------|
-| SVT-AV1 **全分辨率**（基线） | 1423 kbps | **32.4 dB** | **0.879** | — |
-| 3× 下采样 + **双线性**上采样 | 1494 kbps | 27.0 dB | 0.775 | 带宽相近，画质 **-5.4 dB** |
+| 方案                         | 实际码率  | PSNR 加权   | SSIM      | 相对全分辨率 AV1                                       |
+| ---------------------------- | --------- | ----------- | --------- | ------------------------------------------------------ |
+| SVT-AV1 **全分辨率**（基线） | 1423 kbps | **32.4 dB** | **0.879** | —                                                      |
+| 3× 下采样 + **双线性**上采样 | 1494 kbps | 27.0 dB     | 0.775     | 带宽相近，画质 **-5.4 dB**                             |
 | 3× 下采样 + **`rkvc_sr` AI** | 1494 kbps | **29.0 dB** | **0.821** | 比双线性 **+2.0 dB / +0.046 SSIM**，仍低于全分辨率基线 |
 
 **解读**：在相近码率下，AI 超分显著优于传统插值（边缘更锐利、纹理更少涂抹），但尚不能完全追平全分辨率编码；适合**带宽敏感**且可接受轻微画质损失的场景。YUV-native 模型上线后预期进一步缩小与基线的差距。
@@ -264,10 +264,10 @@ ENC_SCALE_DENOM=3 RUN_CODECS=svt-av1,post-upscale \
 
 ### 解码服务器算力要求（仅解码 / 解码 + AI 还原）
 
-| 部署形态 | 最低配置 | 推荐配置 | 预期吞吐（1080p） |
-|----------|----------|----------|-------------------|
-| **纯硬解**（H.264/HEVC/AV1） | RK3588 · 2 GB RAM · Linux aarch64 | 4 GB RAM · 散热良好 | **> 60 fps**（单路，VPU 瓶颈） |
-| **硬解 + RGA 双线性 3× 还原** | 同上 + `/dev/rga` | 4 GB RAM | **~15~20 fps**（RGA 上采样为主） |
+| 部署形态                        | 最低配置                                   | 推荐配置             | 预期吞吐（1080p）                                          |
+| ------------------------------- | ------------------------------------------ | -------------------- | ---------------------------------------------------------- |
+| **纯硬解**（H.264/HEVC/AV1）    | RK3588 · 2 GB RAM · Linux aarch64          | 4 GB RAM · 散热良好  | **> 60 fps**（单路，VPU 瓶颈）                             |
+| **硬解 + RGA 双线性 3× 还原**   | 同上 + `/dev/rga`                          | 4 GB RAM             | **~15~20 fps**（RGA 上采样为主）                           |
 | **硬解 + `rkvc_sr` AI 3× 还原** | RK3588 · 4 GB RAM · NPU 驱动 · `librknnrt` | 8 GB RAM（多路并发） | **~70 fps** 单路理论（~14 ms/帧）；多路按 NPU 份额线性分摊 |
 
 **系统依赖**（解码端必需）：
@@ -287,21 +287,21 @@ librockchip_mpp · ffmpeg-rockchip · librga · librknnrt（AI 路径）
 
 ### 支持架构
 
-| 架构 / 平台 | 支持情况 | 说明 |
-|-------------|----------|------|
-| **Linux aarch64**（RK3588 / RK3588S） | ✅ **官方支持** | 可移植包 `rkvc-*-linux-aarch64-portable.tar.gz` 须在目标机构建 |
-| **Linux aarch64**（RK3568 / RK3566 等） | ❌ **未支持** | MPP/VPU 版本不同、NPU 算力弱（RK3568 NPU ≈ 1 TOPS vs RK3588 ≈ 6 TOPS），**未做兼容测试** |
-| **Android**（aarch64） | ⚠️ **未官方交付** | 代码依赖 Linux 设备节点与 BSP 用户态库；理论上可用 Rockchip Android BSP + NDK 移植，**当前无 APK/AAR 与 CI 验证** |
-| **x86_64 / 其他** | ❌ 不支持 | RKMPP / RGA / RKNN 均为 Rockchip 专有硬件栈 |
+| 架构 / 平台                             | 支持情况         | 说明                                                                                                              |
+| --------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Linux aarch64**（RK3588 / RK3588S）   | ✅ **官方支持**   | 可移植包 `rkvc-*-linux-aarch64-portable.tar.gz` 须在目标机构建                                                    |
+| **Linux aarch64**（RK3568 / RK3566 等） | ❌ **未支持**     | MPP/VPU 版本不同、NPU 算力弱（RK3568 NPU ≈ 1 TOPS vs RK3588 ≈ 6 TOPS），**未做兼容测试**                          |
+| **Android**（aarch64）                  | ⚠️ **未官方交付** | 代码依赖 Linux 设备节点与 BSP 用户态库；理论上可用 Rockchip Android BSP + NDK 移植，**当前无 APK/AAR 与 CI 验证** |
+| **x86_64 / 其他**                       | ❌ 不支持         | RKMPP / RGA / RKNN 均为 Rockchip 专有硬件栈                                                                       |
 
 ### 常见问题
 
-| 问题 | 答复 |
-|------|------|
-| 解码服务器能否用 x86 + 软解？ | 本仓库 **不提供** x86 构建；软解 AV1 可用系统 FFmpeg，但不在 rkvc 交付范围 |
-| RK3568 能否跑 `rkvc_sr`？ | **不能作为交付目标**；NPU 型号与 RKNN 模型均面向 RK3588 导出 |
-| Android 上能否跑起来？ | 需自行移植并替换设备访问层；建议以 **RK3588 Linux 板** 作为首批集成平台 |
-| 多路并发怎么估？ | 单路 AI 还原约 14 ms/帧 → 1 路 1080p@30 fps 余量充足；4 路并发需实测 NPU 调度与散热 |
+| 问题                          | 答复                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------- |
+| 解码服务器能否用 x86 + 软解？ | 本仓库 **不提供** x86 构建；软解 AV1 可用系统 FFmpeg，但不在 rkvc 交付范围          |
+| RK3568 能否跑 `rkvc_sr`？     | **不能作为交付目标**；NPU 型号与 RKNN 模型均面向 RK3588 导出                        |
+| Android 上能否跑起来？        | 需自行移植并替换设备访问层；建议以 **RK3588 Linux 板** 作为首批集成平台             |
+| 多路并发怎么估？              | 单路 AI 还原约 14 ms/帧 → 1 路 1080p@30 fps 余量充足；4 路并发需实测 NPU 调度与散热 |
 
 CLI 快速验证解码端：
 
@@ -327,13 +327,13 @@ CLI 快速验证解码端：
 
 ## 故障排查（速查）
 
-| 症状 | 处理 |
-|------|------|
-| `RKVC_ERR_PERMISSION` | 检查设备节点权限（见上） |
-| `RKVC_ERR_FORMAT` | 编码用 NV12；压缩文件用 decode/transcode |
-| `RKVC_ERR_HW` / `NOT_FOUND` | `rkvc_info -j`；重跑 `rebuild-ffmpeg-rkmpp.sh`、`build-svt.sh` |
-| AV1 失败 | 确认 `libSvtAv1Enc.so` 存在 |
-| `rkvc_bench` 无输入 | `rkvc_bench -i clip.mp4` 或先 `example_encode_file -o test.mp4` |
+| 症状                        | 处理                                                            |
+| --------------------------- | --------------------------------------------------------------- |
+| `RKVC_ERR_PERMISSION`       | 检查设备节点权限（见上）                                        |
+| `RKVC_ERR_FORMAT`           | 编码用 NV12；压缩文件用 decode/transcode                        |
+| `RKVC_ERR_HW` / `NOT_FOUND` | `rkvc_info -j`；重跑 `rebuild-ffmpeg-rkmpp.sh`、`build-svt.sh`  |
+| AV1 失败                    | 确认 `libSvtAv1Enc.so` 存在                                     |
+| `rkvc_bench` 无输入         | `rkvc_bench -i clip.mp4` 或先 `example_encode_file -o test.mp4` |
 
 ```bash
 export RKVC_LOG_LEVEL=debug   # 或代码中 rkvc_set_log_level(AV_LOG_DEBUG)
@@ -345,8 +345,8 @@ rkvc_info -j
 
 ## 许可与第三方
 
-| 组件 | 许可 | 位置 |
-|------|------|------|
-| ffmpeg-rockchip | LGPL/GPL | `third_party/ffmpeg-rockchip/` |
-| Rockchip MPP | Apache 2.0 | `third_party/mpp/` |
-| SVT-AV1 | BSD-3 / PATENTS | `third_party/SVT-AV1/` |
+| 组件            | 许可            | 位置                           |
+| --------------- | --------------- | ------------------------------ |
+| ffmpeg-rockchip | LGPL/GPL        | `third_party/ffmpeg-rockchip/` |
+| Rockchip MPP    | Apache 2.0      | `third_party/mpp/`             |
+| SVT-AV1         | BSD-3 / PATENTS | `third_party/SVT-AV1/`         |

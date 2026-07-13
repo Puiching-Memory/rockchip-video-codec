@@ -35,12 +35,12 @@ rkvc v2 session E2E bench (input=clip.mp4)
 
 ### RK3588 实测 (1080p E2E 转码)
 
-| policy | 路线 | E2E fps |
-|--------|------|---------|
-| `REALTIME` | H.264 RKMPP | ~36 |
-| `BALANCED` | HEVC RKMPP | ~27 |
-| `QUALITY` | SVT-AV1 p11 + av1_rkmpp | ~24 |
-| `OFFLINE` | SVT-AV1 p4 + av1_rkmpp | ~2（非实时，≥1） |
+| policy     | 路线                    | E2E fps          |
+| ---------- | ----------------------- | ---------------- |
+| `REALTIME` | H.264 RKMPP             | ~36              |
+| `BALANCED` | HEVC RKMPP              | ~27              |
+| `QUALITY`  | SVT-AV1 p11 + av1_rkmpp | ~24              |
+| `OFFLINE`  | SVT-AV1 p4 + av1_rkmpp  | ~2（非实时，≥1） |
 
 > 吞吐细分测试请使用 RD 套件或示例程序。
 
@@ -64,10 +64,10 @@ cd .build/release
 
 | 指标 | 编码延迟 | 端到端延迟 |
 | ---- | -------- | ---------- |
-| 平均 | ~7 ms | ~69 ms |
-| P50 | ~7 ms | ~76 ms |
-| P95 | ~8 ms | ~84 ms |
-| 最大 | ~8 ms | ~111 ms |
+| 平均 | ~7 ms    | ~69 ms     |
+| P50  | ~7 ms    | ~76 ms     |
+| P95  | ~8 ms    | ~84 ms     |
+| 最大 | ~8 ms    | ~111 ms    |
 
 - **编码延迟**: 采集帧生成到编码包输出
 - **端到端延迟**: 采集帧生成到解码帧输出，含编解码器硬件流水线

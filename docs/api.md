@@ -4,15 +4,15 @@ v2 以 **Session + Pipeline + Codec Router** 替代 v1 的 `encoder` / `decoder`
 
 ## 头文件
 
-| 头文件 | 说明 |
-|--------|------|
-| `types.h` | 错误码、像素格式、码率控制、上采样枚举 |
-| `rkvc.h` | 主入口：版本、init、日志、caps、探测、RGA 上采样 |
-| `buffer.h` | `rkvc_buffer` 视频/码流统一缓冲 |
-| `policy.h` | `rkvc_policy`、`rkvc_codec`、Codec Router |
-| `pipeline.h` | `rkvc_pipeline_desc`、管线模板 |
-| `session.h` | `rkvc_session` 生命周期与统计 |
-| `port.h` | `rkvc_port_push` / `rkvc_port_pull` |
+| 头文件       | 说明                                             |
+| ------------ | ------------------------------------------------ |
+| `types.h`    | 错误码、像素格式、码率控制、上采样枚举           |
+| `rkvc.h`     | 主入口：版本、init、日志、caps、探测、RGA 上采样 |
+| `buffer.h`   | `rkvc_buffer` 视频/码流统一缓冲                  |
+| `policy.h`   | `rkvc_policy`、`rkvc_codec`、Codec Router        |
+| `pipeline.h` | `rkvc_pipeline_desc`、管线模板                   |
+| `session.h`  | `rkvc_session` 生命周期与统计                    |
+| `port.h`     | `rkvc_port_push` / `rkvc_port_pull`              |
 
 ```c
 #include "rkvc/rkvc.h"   // 包含以上全部头文件
@@ -100,31 +100,31 @@ rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size
 
 ## 错误码
 
-| 错误码 | 值 | 含义 |
-|--------|-----|------|
-| `RKVC_OK` | 0 | 成功 |
-| `RKVC_ERR_NOMEM` | -1 | 内存分配失败 |
-| `RKVC_ERR_INVALID` | -2 | 参数无效 |
-| `RKVC_ERR_NOT_FOUND` | -3 | 编解码器或设备未找到 |
-| `RKVC_ERR_IO` | -4 | I/O 错误 |
-| `RKVC_ERR_HW` | -5 | 硬件加速初始化失败 |
-| `RKVC_ERR_EOF` | -6 | 流结束 |
-| `RKVC_ERR_AGAIN` | -7 | 队列满/空、需重试（非致命） |
-| `RKVC_ERR_MUX` | -8 | 封装器错误 |
-| `RKVC_ERR_INTERNAL` | -9 | 内部 FFmpeg 错误 |
-| `RKVC_ERR_PERMISSION` | -10 | 设备节点权限不足 |
-| `RKVC_ERR_FORMAT` | -11 | 输入数据格式不匹配 |
+| 错误码                | 值  | 含义                        |
+| --------------------- | --- | --------------------------- |
+| `RKVC_OK`             | 0   | 成功                        |
+| `RKVC_ERR_NOMEM`      | -1  | 内存分配失败                |
+| `RKVC_ERR_INVALID`    | -2  | 参数无效                    |
+| `RKVC_ERR_NOT_FOUND`  | -3  | 编解码器或设备未找到        |
+| `RKVC_ERR_IO`         | -4  | I/O 错误                    |
+| `RKVC_ERR_HW`         | -5  | 硬件加速初始化失败          |
+| `RKVC_ERR_EOF`        | -6  | 流结束                      |
+| `RKVC_ERR_AGAIN`      | -7  | 队列满/空、需重试（非致命） |
+| `RKVC_ERR_MUX`        | -8  | 封装器错误                  |
+| `RKVC_ERR_INTERNAL`   | -9  | 内部 FFmpeg 错误            |
+| `RKVC_ERR_PERMISSION` | -10 | 设备节点权限不足            |
+| `RKVC_ERR_FORMAT`     | -11 | 输入数据格式不匹配          |
 
 ---
 
 ## 像素格式
 
-| 格式 | 枚举 | 说明 |
-|------|------|------|
-| NV12 | `RKVC_PIX_FMT_NV12` | 默认，VPU 原生 |
-| YUV420P | `RKVC_PIX_FMT_YUV420P` | Planar 4:2:0 |
-| NV16 | `RKVC_PIX_FMT_NV16` | 4:2:2 semi-planar |
-| P010 | `RKVC_PIX_FMT_P010` | 10-bit 4:2:0 |
+| 格式    | 枚举                   | 说明              |
+| ------- | ---------------------- | ----------------- |
+| NV12    | `RKVC_PIX_FMT_NV12`    | 默认，VPU 原生    |
+| YUV420P | `RKVC_PIX_FMT_YUV420P` | Planar 4:2:0      |
+| NV16    | `RKVC_PIX_FMT_NV16`    | 4:2:2 semi-planar |
+| P010    | `RKVC_PIX_FMT_P010`    | 10-bit 4:2:0      |
 
 ---
 
@@ -228,30 +228,30 @@ typedef struct rkvc_pipeline_desc {
 
 ### 模板
 
-| 模板 | 默认 policy | 说明 |
-|------|-------------|------|
-| `RKVC_TEMPLATE_FILE_ENCODE` | `REALTIME` | 原始 NV12 → 编码文件 |
-| `RKVC_TEMPLATE_FILE_DECODE` | `BALANCED` | 容器 → 原始 NV12 |
-| `RKVC_TEMPLATE_FILE_TRANSCODE` | `BALANCED` | 转码（Router 选 codec） |
-| `RKVC_TEMPLATE_AV1_STORAGE` | `QUALITY` | 强制 AV1 SVT 存储档 |
-| `RKVC_TEMPLATE_LIVE_CAPTURE` | `REALTIME` | 低延迟 H.264 + V4L2，`low_latency=1` |
+| 模板                           | 默认 policy | 说明                                 |
+| ------------------------------ | ----------- | ------------------------------------ |
+| `RKVC_TEMPLATE_FILE_ENCODE`    | `REALTIME`  | 原始 NV12 → 编码文件                 |
+| `RKVC_TEMPLATE_FILE_DECODE`    | `BALANCED`  | 容器 → 原始 NV12                     |
+| `RKVC_TEMPLATE_FILE_TRANSCODE` | `BALANCED`  | 转码（Router 选 codec）              |
+| `RKVC_TEMPLATE_AV1_STORAGE`    | `QUALITY`   | 强制 AV1 SVT 存储档                  |
+| `RKVC_TEMPLATE_LIVE_CAPTURE`   | `REALTIME`  | 低延迟 H.264 + V4L2，`low_latency=1` |
 
 ### 默认值（`rkvc_pipeline_desc_defaults`）
 
-| 字段 | 默认 |
-|------|------|
-| template | `FILE_TRANSCODE` |
-| policy | `BALANCED` |
-| codec | `AUTO` |
-| 分辨率 | 1920×1080@30 |
-| bitrate | 4_000_000 |
-| pixel_format | NV12 |
-| gop_size | 60 |
-| queue_depth | 3 |
-| rc_mode | CBR |
-| qp_init | -1 |
-| enc_scale_denom | 1 |
-| post_upscale_algo | NONE |
+| 字段              | 默认             |
+| ----------------- | ---------------- |
+| template          | `FILE_TRANSCODE` |
+| policy            | `BALANCED`       |
+| codec             | `AUTO`           |
+| 分辨率            | 1920×1080@30     |
+| bitrate           | 4_000_000        |
+| pixel_format      | NV12             |
+| gop_size          | 60               |
+| queue_depth       | 3                |
+| rc_mode           | CBR              |
+| qp_init           | -1               |
+| enc_scale_denom   | 1                |
+| post_upscale_algo | NONE             |
 
 ```c
 rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void);
@@ -291,11 +291,11 @@ rkvc_err rkvc_session_run_file(rkvc_session *session);  // 文件模板阻塞跑
 
 ### Session 端口
 
-| 端口 | 方向 | 数据类型 | 说明 |
-|------|------|----------|------|
-| `capture` | 输入 | `RKVC_BUF_VIDEO` | 采集/原始帧入口 |
-| `output` | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流 |
-| `preview` | 输出 | `RKVC_BUF_VIDEO` | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
+| 端口      | 方向 | 数据类型                                 | 说明                                              |
+| --------- | ---- | ---------------------------------------- | ------------------------------------------------- |
+| `capture` | 输入 | `RKVC_BUF_VIDEO`                         | 采集/原始帧入口                                   |
+| `output`  | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流                                  |
+| `preview` | 输出 | `RKVC_BUF_VIDEO`                         | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
 
 文件模式用 `rkvc_session_run_file()`，无需手动操作端口。详见 [architecture.md](architecture.md)。
 
@@ -368,11 +368,11 @@ rkvc_err rkvc_port_push(rkvc_port *port, rkvc_buffer *buf);
 rkvc_err rkvc_port_pull(rkvc_port *port, rkvc_buffer **buf, int timeout_ms);
 ```
 
-| `timeout_ms` | 行为 |
-|--------------|------|
-| `0` | 非阻塞；队列空 → `RKVC_ERR_AGAIN` |
-| `> 0` | 等待至多 N 毫秒；超时 → `RKVC_ERR_AGAIN` |
-| `< 0` | 无限阻塞直至有数据 |
+| `timeout_ms` | 行为                                     |
+| ------------ | ---------------------------------------- |
+| `0`          | 非阻塞；队列空 → `RKVC_ERR_AGAIN`        |
+| `> 0`        | 等待至多 N 毫秒；超时 → `RKVC_ERR_AGAIN` |
+| `< 0`        | 无限阻塞直至有数据                       |
 
 `push` 队列满时返回 `RKVC_ERR_AGAIN`（深度由 `queue_depth` 控制）。内部对 `buf` 引用计数 +1。
 
@@ -481,15 +481,15 @@ rkvc_err rkvc_upscale_ctx_process(rkvc_upscale_ctx *ctx);
 
 源码在 `cli/`（构建选项 `RKVC_BUILD_CLI`；安装到 `bin/`）。
 
-| 程序 | 用途 |
-|------|------|
-| `rkvc_encode` | 原始 NV12 → MP4（`-p`；`--enc-scale-denom`；`--svt-lp`/`--svt-rtc`） |
-| `rkvc_decode` | 容器/码流 → 原始 NV12 |
-| `rkvc_transcode` | 容器 → 容器，Router 选 codec（`--svt-lp`/`--svt-rtc`） |
-| `rkvc_bench` | 四档 policy E2E fps 对比（**须** `-i INPUT.mp4`） |
-| `rkvc_info` | 硬件能力查询（`-j` JSON） |
-| `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA / `rkvc_sr` + `--rkvc-sr-model`） |
-| `rkvc_yuv_upscale` | YUV420p 批处理 RGA 缩放（`rkvc_upscale_ctx_*`） |
+| 程序                   | 用途                                                                 |
+| ---------------------- | -------------------------------------------------------------------- |
+| `rkvc_encode`          | 原始 NV12 → MP4（`-p`；`--enc-scale-denom`；`--svt-lp`/`--svt-rtc`） |
+| `rkvc_decode`          | 容器/码流 → 原始 NV12                                                |
+| `rkvc_transcode`       | 容器 → 容器，Router 选 codec（`--svt-lp`/`--svt-rtc`）               |
+| `rkvc_bench`           | 四档 policy E2E fps 对比（**须** `-i INPUT.mp4`）                    |
+| `rkvc_info`            | 硬件能力查询（`-j` JSON）                                            |
+| `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA / `rkvc_sr` + `--rkvc-sr-model`）           |
+| `rkvc_yuv_upscale`     | YUV420p 批处理 RGA 缩放（`rkvc_upscale_ctx_*`）                      |
 
 ```bash
 rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 -p balanced \

@@ -14,12 +14,12 @@
 
 ## 性能 (RK3588, 1080p E2E, bench/)
 
-| 路线 | E2E fps | policy |
-|------|---------|--------|
-| H.264 RKMPP | ~36 | REALTIME |
-| HEVC RKMPP | ~27 | BALANCED |
-| SVT-AV1 p11 + av1_rkmpp | ~24 | QUALITY |
-| SVT-AV1 p4 + av1_rkmpp | ~2 | OFFLINE（非实时，≥1 fps） |
+| 路线                    | E2E fps | policy                    |
+| ----------------------- | ------- | ------------------------- |
+| H.264 RKMPP             | ~36     | REALTIME                  |
+| HEVC RKMPP              | ~27     | BALANCED                  |
+| SVT-AV1 p11 + av1_rkmpp | ~24     | QUALITY                   |
+| SVT-AV1 p4 + av1_rkmpp  | ~2      | OFFLINE（非实时，≥1 fps） |
 
 ## 快速开始
 
@@ -87,19 +87,19 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 
 ## 文档
 
-| 文档 | 说明 |
-|------|------|
-| [docs/index.md](docs/index.md) | 文档首页与导航 |
-| [docs/getting-started.md](docs/getting-started.md) | 构建与首次运行 |
-| [docs/build-layout.md](docs/build-layout.md) | 构建目录约定（全部在 `.build/`） |
-| [docs/api.md](docs/api.md) | v2 API 完整参考 |
-| [docs/architecture.md](docs/architecture.md) | Session / Router / 节点架构 |
-| [docs/benchmark.md](docs/benchmark.md) | 性能与 RD 基准 |
-| [docs/testing.md](docs/testing.md) | 测试矩阵 |
-| [docs/packaging.md](docs/packaging.md) | 可便携包与分发 |
-| [docs/delivery.md](docs/delivery.md) | 客户交付清单 |
-| [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | YUV-native SR 设计稿 |
-| [docs/release/](docs/release/) | 发布包用户文档 |
-| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
+| 文档                                                   | 说明                             |
+| ------------------------------------------------------ | -------------------------------- |
+| [docs/index.md](docs/index.md)                         | 文档首页与导航                   |
+| [docs/getting-started.md](docs/getting-started.md)     | 构建与首次运行                   |
+| [docs/build-layout.md](docs/build-layout.md)           | 构建目录约定（全部在 `.build/`） |
+| [docs/api.md](docs/api.md)                             | v2 API 完整参考                  |
+| [docs/architecture.md](docs/architecture.md)           | Session / Router / 节点架构      |
+| [docs/benchmark.md](docs/benchmark.md)                 | 性能与 RD 基准                   |
+| [docs/testing.md](docs/testing.md)                     | 测试矩阵                         |
+| [docs/packaging.md](docs/packaging.md)                 | 可便携包与分发                   |
+| [docs/delivery.md](docs/delivery.md)                   | 客户交付清单                     |
+| [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | YUV-native SR 设计稿             |
+| [docs/release/](docs/release/)                         | 发布包用户文档                   |
+| [CHANGELOG.md](CHANGELOG.md)                           | 版本变更记录                     |
 
 版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()`（Session + Codec Router API）

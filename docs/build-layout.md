@@ -6,26 +6,26 @@
 
 ## 目录一览
 
-| 目录 | Preset | 用途 |
-|------|--------|------|
-| `.build/release/` | `default` | 日常 Release：库、CLI、示例 |
-| `.build/debug/` | `debug` / `tidy` | Debug / clang-tidy |
-| `.build/tests/` | `tests` | 单元测试 + fault injection |
-| `.build/asan/` | `asan` | ASan + UBSan |
-| `.build/full-tests/` | `full-tests` | 测试 + CLI 脚本用例 |
-| `.build/coverage/` | `coverage` | gcov 覆盖率 |
-| `.build/portable/` | `portable` | 可移植包**编译树** |
-| `.build/dist/` | （`package-portable.sh`） | 可移植包**成品** |
-| `.build/deps/` | （脚本） | MPP / SVT-AV1 / FFmpeg / librga install |
+| 目录                 | Preset                    | 用途                                    |
+| -------------------- | ------------------------- | --------------------------------------- |
+| `.build/release/`    | `default`                 | 日常 Release：库、CLI、示例             |
+| `.build/debug/`      | `debug` / `tidy`          | Debug / clang-tidy                      |
+| `.build/tests/`      | `tests`                   | 单元测试 + fault injection              |
+| `.build/asan/`       | `asan`                    | ASan + UBSan                            |
+| `.build/full-tests/` | `full-tests`              | 测试 + CLI 脚本用例                     |
+| `.build/coverage/`   | `coverage`                | gcov 覆盖率                             |
+| `.build/portable/`   | `portable`                | 可移植包**编译树**                      |
+| `.build/dist/`       | （`package-portable.sh`） | 可移植包**成品**                        |
+| `.build/deps/`       | （脚本）                  | MPP / SVT-AV1 / FFmpeg / librga install |
 
 ## 产物落点（勿混用）
 
-| 产物 | 路径 |
-|------|------|
-| 日常二进制 / `librkvc` | `.build/release/` |
-| CTest / `test_*` | `.build/tests/`（或 asan / coverage / full-tests） |
-| 可移植包成品 | `.build/dist/rkvc-<ver>-linux-<arch>-portable/` |
-| 依赖安装前缀 | `.build/deps/{mpp,svt-av1,ffmpeg,librga}-install/` |
+| 产物                   | 路径                                               |
+| ---------------------- | -------------------------------------------------- |
+| 日常二进制 / `librkvc` | `.build/release/`                                  |
+| CTest / `test_*`       | `.build/tests/`（或 asan / coverage / full-tests） |
+| 可移植包成品           | `.build/dist/rkvc-<ver>-linux-<arch>-portable/`    |
+| 依赖安装前缀           | `.build/deps/{mpp,svt-av1,ffmpeg,librga}-install/` |
 
 同名二进制出现在多个子目录是**预期行为**（配置不同）。文档与日常开发一律用 `.build/release/`；测试用对应 preset 目录；打可移植包用 `./scripts/package-portable.sh`。
 

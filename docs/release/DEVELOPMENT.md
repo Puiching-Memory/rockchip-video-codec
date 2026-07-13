@@ -32,13 +32,13 @@ target_link_libraries(myapp PRIVATE rkvc::shared)
 
 v2 核心概念：
 
-| 概念 | 类型 | 说明 |
-|------|------|------|
-| 管线描述 | `rkvc_pipeline_desc` | 模板、policy、分辨率、路径等 |
-| 会话 | `rkvc_session` | 管线实例 |
-| 端口 | `rkvc_port` | `capture` / `output`（`preview` 为占位，当前无数据） |
-| 缓冲 | `rkvc_buffer` | 视频帧或码流 |
-| 路由 | `rkvc_route_plan` | Router 解析结果 |
+| 概念     | 类型                 | 说明                                                 |
+| -------- | -------------------- | ---------------------------------------------------- |
+| 管线描述 | `rkvc_pipeline_desc` | 模板、policy、分辨率、路径等                         |
+| 会话     | `rkvc_session`       | 管线实例                                             |
+| 端口     | `rkvc_port`          | `capture` / `output`（`preview` 为占位，当前无数据） |
+| 缓冲     | `rkvc_buffer`        | 视频帧或码流                                         |
+| 路由     | `rkvc_route_plan`    | Router 解析结果                                      |
 
 头文件：
 
@@ -48,15 +48,15 @@ v2 核心概念：
 
 完整 API 说明见源码树 [docs/api.md](../api.md)；可移植包内可参考下文各节及 `include/rkvc/*.h` 头文件注释。
 
-| 头文件 | 主要内容 |
-|--------|----------|
-| `types.h` | `rkvc_err`、`rkvc_pix_fmt`、`rkvc_rc_mode`、`rkvc_upscale_algo` |
-| `buffer.h` | `rkvc_buffer` 分配、平面访问、码流视图 |
-| `policy.h` | `rkvc_policy`、`rkvc_codec`、`rkvc_route_resolve` |
-| `pipeline.h` | `rkvc_pipeline_desc`、模板 |
-| `session.h` | `rkvc_session_*`、统计 |
-| `port.h` | `rkvc_port_push` / `rkvc_port_pull` |
-| `rkvc.h` | init、日志、caps、探测、RGA 上采样 |
+| 头文件       | 主要内容                                                        |
+| ------------ | --------------------------------------------------------------- |
+| `types.h`    | `rkvc_err`、`rkvc_pix_fmt`、`rkvc_rc_mode`、`rkvc_upscale_algo` |
+| `buffer.h`   | `rkvc_buffer` 分配、平面访问、码流视图                          |
+| `policy.h`   | `rkvc_policy`、`rkvc_codec`、`rkvc_route_resolve`               |
+| `pipeline.h` | `rkvc_pipeline_desc`、模板                                      |
+| `session.h`  | `rkvc_session_*`、统计                                          |
+| `port.h`     | `rkvc_port_push` / `rkvc_port_pull`                             |
+| `rkvc.h`     | init、日志、caps、探测、RGA 上采样                              |
 
 ## 文件转码
 
@@ -138,11 +138,11 @@ while (rkvc_port_pull(out, &pkt, 100) == RKVC_OK) {
 
 ### `timeout_ms` 语义
 
-| 值 | 行为 |
-|----|------|
-| `0` | 非阻塞；队列空 → `RKVC_ERR_AGAIN` |
+| 值    | 行为                                     |
+| ----- | ---------------------------------------- |
+| `0`   | 非阻塞；队列空 → `RKVC_ERR_AGAIN`        |
 | `> 0` | 等待至多 N 毫秒；超时 → `RKVC_ERR_AGAIN` |
-| `< 0` | 无限阻塞直至有数据 |
+| `< 0` | 无限阻塞直至有数据                       |
 
 `push` 在队列满时返回 `RKVC_ERR_AGAIN`（深度由 `d.queue_depth` 控制，默认 3）。
 

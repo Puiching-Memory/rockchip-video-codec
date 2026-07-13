@@ -2,13 +2,13 @@
 
 ## 环境要求
 
-| 组件 | 要求 |
-|------|------|
-| SoC | Rockchip RK3588 / RK3588S |
-| 内核 | Rockchip BSP 5.10 或 6.1 |
-| 构建 | CMake >= 3.16（裸 `cmake -B`）；**CMake Presets 需 >= 3.21**、Ninja（推荐）、GCC/Clang（C11） |
-| 系统包 | libdrm-dev、patchelf（可移植包打包） |
-| 测试 | CMocka（可选，`RKVC_BUILD_TESTS=ON`） |
+| 组件   | 要求                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------- |
+| SoC    | Rockchip RK3588 / RK3588S                                                                     |
+| 内核   | Rockchip BSP 5.10 或 6.1                                                                      |
+| 构建   | CMake >= 3.16（裸 `cmake -B`）；**CMake Presets 需 >= 3.21**、Ninja（推荐）、GCC/Clang（C11） |
+| 系统包 | libdrm-dev、patchelf（可移植包打包）                                                          |
+| 测试   | CMocka（可选，`RKVC_BUILD_TESTS=ON`）                                                         |
 
 > **说明**：ffmpeg-rockchip、rockchip-mpp、SVT-AV1、librga 均从 `third_party/` 子模块获取（浅克隆）。`librga` 经 `./scripts/install-librga.sh` 安装到 `.build/deps/librga-install/`，**不再依赖**开发板系统预装。可移植包携带 `librga` 与 `librknnrt`；NPU 驱动/固件仍需目标机提供。
 

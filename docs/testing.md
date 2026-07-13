@@ -9,35 +9,35 @@
 
 ## 当前测试矩阵
 
-| 层级 | 目标 | 说明 |
-|------|------|------|
-| 类型与默认 | `tests/test_types.c` | 版本、pipeline 默认值、init 幂等 |
-| Codec Router | `tests/test_router.c` | policy → H.264/HEVC/AV1 路由 |
-| Buffer | `tests/test_buffer.c` | 视频/码流分配、引用计数 |
-| 公共契约 | `tests/test_contracts.c` | caps、端口名、模板 |
-| 内部一致性 | `tests/test_internal.c` | FFmpeg 错误映射、像素格式、端口队列 |
-| 后处理上采样 | `tests/test_post_upscale.c` | 算法名、pipeline 默认值 |
-| 权限门控 | `tests/test_permissions.c` | fake `/dev` 权限回归（fault injection preset） |
-| 异常注入 | `tests/test_fault_injection.c` | 确定性 OOM 模拟 |
-| 硬件集成 | `tests/test_hardware.c` | **默认跳过**；`RKVC_RUN_HARDWARE_TESTS=1` 时执行（含 RGA 3× 与 `rkvc_sr` AI 3×） |
-| RGA 缩放 | `tests/test_scale.c` | 参数/布局始终运行；RGA 用例需硬件标志 |
-| V4L2 mock | `tests/test_v4l2.c` | `capture_device=mock` 合成 NV12；Session 短录需 `RKVC_RUN_HARDWARE_TESTS=1` |
-| RGA 推广门禁 | `scripts/test-rga.sh` | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga` |
-| NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh` | AI 3× 硬件用例 + 可选 session smoke；需 NPU + `models/rkvc_sr_x3.crypt.rknn` |
-| CLI 脚本 | `tests/test_cli_args.sh` | CLI 参数错误（`full-tests` preset） |
-| 可移植包 | `scripts/test-portable.sh` | 包完整性、RPATH、三策略 bench、后处理上采样、`rkvc_sr` NPU 冒烟、pkg-config |
-| 动态分析 | `asan` preset | ASan + UBSan |
-| 覆盖率 | `coverage` preset | gcov instrumentation |
-| 严格门禁 | `scripts/test-strict.sh` | 顺序执行 tests / asan / coverage |
+| 层级                 | 目标                           | 说明                                                                             |
+| -------------------- | ------------------------------ | -------------------------------------------------------------------------------- |
+| 类型与默认           | `tests/test_types.c`           | 版本、pipeline 默认值、init 幂等                                                 |
+| Codec Router         | `tests/test_router.c`          | policy → H.264/HEVC/AV1 路由                                                     |
+| Buffer               | `tests/test_buffer.c`          | 视频/码流分配、引用计数                                                          |
+| 公共契约             | `tests/test_contracts.c`       | caps、端口名、模板                                                               |
+| 内部一致性           | `tests/test_internal.c`        | FFmpeg 错误映射、像素格式、端口队列                                              |
+| 后处理上采样         | `tests/test_post_upscale.c`    | 算法名、pipeline 默认值                                                          |
+| 权限门控             | `tests/test_permissions.c`     | fake `/dev` 权限回归（fault injection preset）                                   |
+| 异常注入             | `tests/test_fault_injection.c` | 确定性 OOM 模拟                                                                  |
+| 硬件集成             | `tests/test_hardware.c`        | **默认跳过**；`RKVC_RUN_HARDWARE_TESTS=1` 时执行（含 RGA 3× 与 `rkvc_sr` AI 3×） |
+| RGA 缩放             | `tests/test_scale.c`           | 参数/布局始终运行；RGA 用例需硬件标志                                            |
+| V4L2 mock            | `tests/test_v4l2.c`            | `capture_device=mock` 合成 NV12；Session 短录需 `RKVC_RUN_HARDWARE_TESTS=1`      |
+| RGA 推广门禁         | `scripts/test-rga.sh`          | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga`                        |
+| NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh`       | AI 3× 硬件用例 + 可选 session smoke；需 NPU + `models/rkvc_sr_x3.crypt.rknn`     |
+| CLI 脚本             | `tests/test_cli_args.sh`       | CLI 参数错误（`full-tests` preset）                                              |
+| 可移植包             | `scripts/test-portable.sh`     | 包完整性、RPATH、三策略 bench、后处理上采样、`rkvc_sr` NPU 冒烟、pkg-config      |
+| 动态分析             | `asan` preset                  | ASan + UBSan                                                                     |
+| 覆盖率               | `coverage` preset              | gcov instrumentation                                                             |
+| 严格门禁             | `scripts/test-strict.sh`       | 顺序执行 tests / asan / coverage                                                 |
 
 `RKVC_ENABLE_FAULT_INJECTION` 默认关闭，仅在 `tests` preset 中启用。
 
 ### CTest 目标统计
 
-| preset | CTest 目标数 | 说明 |
-|--------|-------------|------|
-| `tests` | 17 | 9 个单元测试 + 8 个硬件子用例 |
-| `full-tests` | 19 | 上述 + `test_cli_args` + `test_bench_permission_failure` |
+| preset       | CTest 目标数 | 说明                                                     |
+| ------------ | ------------ | -------------------------------------------------------- |
+| `tests`      | 17           | 9 个单元测试 + 8 个硬件子用例                            |
+| `full-tests` | 19           | 上述 + `test_cli_args` + `test_bench_permission_failure` |
 
 硬件测试拆为 8 个独立 CTest 用例（含三策略转码、RGA 3× 上采样与 `rkvc_sr` AI 3×），未设置 `RKVC_RUN_HARDWARE_TESTS=1` 时 **exit 77（Skipped）**；设置后夹具自生成，无需 `tests/fixtures/` 内嵌文件。AI 用例另需 `caps.has_rknn` 与约定模型 `models/rkvc_sr_x3.crypt.rknn`（可用 `RKVC_SR_MODEL` 覆盖）。
 
