@@ -50,6 +50,12 @@ cmake --build "$TESTS_DIR" --target test_scale -j"${BUILD_JOBS:-4}"
 export RKVC_RUN_HARDWARE_TESTS=1
 export RKVC_RGA_SOAK_FRAMES="$SOAK_FRAMES"
 
+# test_* 直接运行需补回依赖库路径：DT_RUNPATH 不解析传递依赖
+#（libavcodec.so → libSvtAv1Enc.so.4）；ctest 自行注入故无需此处。
+if command -v rkvc_dep_library_path >/dev/null 2>&1; then
+    export LD_LIBRARY_PATH="$(rkvc_dep_library_path)${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 echo "[run] test_scale (hardware + soak=$SOAK_FRAMES)"
 "$TESTS_DIR/test_scale"
 

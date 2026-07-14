@@ -62,6 +62,31 @@ rkvc_limit_build_jobs() {
     export BUILD_JOBS
 }
 
+# 测试二进制依赖的动态库搜索路径（与 CMake RKVC_DEP_LIB_DIRS 一致）。
+#
+# test_* 二进制把依赖库写进 DT_RUNPATH，但 DT_RUNPATH 不用于解析传递依赖
+#（例如 libavcodec.so → libSvtAv1Enc.so.4），故不经 ctest 而直接运行 test_*
+# 时仍需补回依赖库路径。返回以 ':' 分隔、仅含已存在目录的路径。
+rkvc_dep_library_path() {
+    local root ffmpeg_src dir
+    root="$(rkvc_repo_root)"
+    ffmpeg_src="$root/third_party/ffmpeg-rockchip"
+
+    local dirs=()
+    for dir in \
+        "$ffmpeg_src/libavcodec" "$ffmpeg_src/libavformat" \
+        "$ffmpeg_src/libavutil" "$ffmpeg_src/libswscale" \
+        "$root/.build/deps/mpp-install/lib" \
+        "$root/.build/deps/mpp-build/mpp" \
+        "$root/.build/deps/svt-av1-install/lib" \
+        "$root/.build/deps/librga-install/lib"; do
+        [[ -d "$dir" ]] && dirs+=("$dir")
+    done
+
+    local IFS=:
+    echo "${dirs[*]}"
+}
+
 # 追踪本次脚本应用过的补丁，供退出时自动还原（跨函数共享）。
 _RKVC_FFMPEG_PATCHES_APPLIED=()
 _RKVC_FFMPEG_PATCH_SRC=""

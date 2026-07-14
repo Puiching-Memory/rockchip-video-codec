@@ -64,6 +64,12 @@ export RKVC_RUN_HARDWARE_TESTS=1
 export RKVC_SOURCE_ROOT="$ROOT_DIR"
 export RKVC_SR_MODEL="$MODEL"
 
+# test_* 直接运行需补回依赖库路径：DT_RUNPATH 不解析传递依赖
+#（libavcodec.so → libSvtAv1Enc.so.4）；ctest 自行注入故无需此处。
+if command -v rkvc_dep_library_path >/dev/null 2>&1; then
+    export LD_LIBRARY_PATH="$(rkvc_dep_library_path)${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+fi
+
 echo "[run] test_session_encode_decode_upscale_3x_ai_sr"
 "$TESTS_DIR/test_hardware" test_session_encode_decode_upscale_3x_ai_sr
 
