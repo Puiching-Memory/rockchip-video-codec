@@ -117,25 +117,9 @@ rkvc_err rkvc_demux_read_packet(rkvc_demux *d, rkvc_buffer **pkt_out)
         av_packet_unref(d->pkt);
     }
 
-    rkvc_buffer *b = rkvc_calloc(1, sizeof(*b));
+    rkvc_buffer *b = rkvc_buffer_from_avpacket(d->pkt);
     if (!b)
         return RKVC_ERR_NOMEM;
-
-    b->kind = RKVC_BUF_BITSTREAM;
-    pthread_mutex_init(&b->lock, NULL);
-    b->ref_count = 1;
-
-    b->data = rkvc_malloc((size_t)d->pkt->size);
-    if (!b->data) {
-        rkvc_buffer_unref(b);
-        return RKVC_ERR_NOMEM;
-    }
-    memcpy(b->data, d->pkt->data, (size_t)d->pkt->size);
-    b->size      = (size_t)d->pkt->size;
-    b->owns_data = 1;
-    b->pts       = d->pkt->pts;
-    b->dts       = d->pkt->dts;
-    b->key_frame = (d->pkt->flags & AV_PKT_FLAG_KEY) ? 1 : 0;
 
     *pkt_out = b;
     return RKVC_OK;

@@ -2,6 +2,34 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.6] - 2026-07-14
+
+### 发布重点
+
+rkvc **0.2.6** 修复代码审查发现的线程安全与诊断缺陷：**计时统计数据竞争**（解码循环中四个 `*_sec` 字段此前无锁写入）、**`stop_requested` 跨线程可见性**、**输出端口溢出无丢弃统计**，以及 **hw 设备/像素格式回退静默** 与 **`av_init_packet` 弃用调用**。均为防御性加固，无 API 变更，无行为回归。
+
+### 修复
+
+- **计时统计数据竞争**：`decode_loop` / `decode_loop_ai_sr` 中 `decode_sec` / `rga_sec` / `write_sec` / `postproc_sec` 此前在工作线程**无锁写入**，而 `rkvc_session_get_stats` 在锁内读取。新增 `rkvc_session_stats_add_timing()` / `rkvc_session_stats_reset_timing()`（`scheduler.c`），全部写入统一经 mutex 保护，与 `frames_in` / `frames_out` 计数器一致。
+- **`stop_requested` 可见性**：改为 `volatile int`（`internal.h`），防止编译器在 `while (!stop_requested)` 轮询中缓存寄存器值。
+- **`start` / `stop` 加锁**：`running` / `stats.running` 更新纳入 `session->lock`。
+- **输出端口溢出统计**：新增 `session_push_output()`（`session.c`），`output` 端口队列满时计入 `frames_dropped`（mux 写盘不受影响）。
+
+### 变更
+
+- **hw 设备错误诊断**（`node_mpp_enc.c`）：RKMPP hw 设备初始化失败时输出 `AV_LOG_WARNING`，替换原先的 `(void)herr` 静默丢弃。
+- **像素格式回退日志**（`utils.c`）：`rkvc_from_av_pix_fmt` 遇到未知 `AVPixelFormat` 回退 NV12 时输出 WARNING。
+- **`av_init_packet` 弃用替换**（`node_mpp_dec.c`）：栈上 `AVPacket` + `av_init_packet` 改为 `av_packet_alloc` / `av_packet_free`（堆分配引用计数对象），消除 `-Wdeprecated-declarations` 警告并面向未来 FFmpeg ABI 解耦。
+- **编码器收尾去重**（`session.c`）：`transcode_loop` / `live_capture_loop` / `encode_file_loop` 三处 ~15 行逐字相同的 drain + flush 尾部块抽取为 `session_flush_encoder()`，并新增 `session_receive_packet()` 收敛 9 处 `if (s->enc) ... else svt` 后端分派；`session.c` 减少 ~40 行。
+- **码流包构造去重**（`buffer_pool.c` / `node_demux.c` / `node_mpp_enc.c` / `node_svt_enc.c`）：三处逐字相同的 ~14 行 `AVPacket → rkvc_buffer` 手动构造抽取为 `rkvc_buffer_from_avpacket()`；两份复制的 `host_frame_from_buffer()` 合并为 `rkvc_buffer_to_host_frame()`。
+- **CI 链接修复**（`CMakeLists.txt`）：`FFMPEG_LIBS` 增加 `SvtAv1Enc`；静态 `libavcodec.a` 内的 `libsvtav1` 编码器引用 `svt_av1_enc_*` 符号，此前未显式链接导致 `librkvc.so` 及 examples 链接失败（`undefined reference`）。
+- **子模块补丁自动还原**（`scripts/build-common.sh`）：`rkvc_apply_ffmpeg_patches` 成功应用补丁后注册 EXIT 陷阱，脚本退出（成功或失败）时由新增 `rkvc_restore_ffmpeg_clean` 逆序反向应用补丁，`ffmpeg-rockchip` 子模块工作区始终恢复干净状态，不再残留 `-dirty` gitlink；`patches/ffmpeg-rockchip/README.md` 同步说明。
+
+### 测试
+
+- 版本号升至 **0.2.6**；编译零警告（此前唯一的 `av_init_packet` 弃用警告已消除）。
+- 21 项 CTest 通过（12 单元 + 9 硬件跳过）；`test_net` 在禁用 socket 的沙箱环境中失败（环境限制，非代码缺陷）。
+
 ## [0.2.5] - 2026-07-10
 
 ### 发布重点

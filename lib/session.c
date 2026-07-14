@@ -531,15 +531,44 @@ static void session_push_output(rkvc_session *s, rkvc_buffer *buf)
         rkvc_session_stats_drop(s);
 }
 
+static rkvc_err session_receive_packet(rkvc_session *s, rkvc_buffer **pkt)
+{
+    if (s->enc)
+        return rkvc_mpp_enc_receive_packet(s->enc, pkt);
+    return rkvc_svt_enc_receive_packet(s->svt, pkt);
+}
+
+static rkvc_err session_flush_encoder(rkvc_session *s)
+{
+    if (s->enc)
+        rkvc_mpp_enc_drain(s->enc);
+    else if (s->svt)
+        rkvc_svt_enc_drain(s->svt);
+
+    for (;;) {
+        rkvc_buffer *pkt = NULL;
+        rkvc_err err = session_receive_packet(s, &pkt);
+        if (err == RKVC_ERR_EOF)
+            break;
+        if (err == RKVC_ERR_AGAIN)
+            continue;
+        if (err != RKVC_OK)
+            return err;
+        err = rkvc_mux_write_packet(s->mux, pkt);
+        session_push_output(s, pkt);
+        rkvc_session_stats_tick(s, 1);
+        rkvc_buffer_unref(pkt);
+        if (err != RKVC_OK)
+            return err;
+    }
+    return RKVC_OK;
+}
+
 static rkvc_err drain_encoder_packets(rkvc_session *s)
 {
     for (;;) {
         rkvc_buffer *pkt = NULL;
-        rkvc_err err;
-        if (s->enc)
-            err = rkvc_mpp_enc_receive_packet(s->enc, &pkt);
-        else
-            err = rkvc_svt_enc_receive_packet(s->svt, &pkt);
+        rkvc_err err = session_receive_packet(s, &pkt);
 
         if (err == RKVC_ERR_AGAIN)
             return RKVC_OK;
@@ -650,30 +679,7 @@ static rkvc_err transcode_loop(rkvc_session *s)
             return err;
     }
 
-    if (s->enc)
-        rkvc_mpp_enc_drain(s->enc);
-    else
-        rkvc_svt_enc_drain(s->svt);
-
-    for (;;) {
-        rkvc_buffer *pkt = NULL;
-        if (s->enc)
-            err = rkvc_mpp_enc_receive_packet(s->enc, &pkt);
-        else
-            err = rkvc_svt_enc_receive_packet(s->svt, &pkt);
-        if (err == RKVC_ERR_EOF)
-            break;
-        if (err == RKVC_ERR_AGAIN)
-            continue;
-        if (err != RKVC_OK)
-            return err;
-        rkvc_mux_write_packet(s->mux, pkt);
-        session_push_output(s, pkt);
-        rkvc_session_stats_tick(s, 1);
-        rkvc_buffer_unref(pkt);
-    }
-
-    return RKVC_OK;
+    return session_flush_encoder(s);
 }
 
 static rkvc_err session_write_display(rkvc_session *s, FILE *fp,
@@ -1015,30 +1021,7 @@ static rkvc_err live_capture_loop(rkvc_session *s)
             return err;
     }
 
-    if (s->enc)
-        rkvc_mpp_enc_drain(s->enc);
-    else if (s->svt)
-        rkvc_svt_enc_drain(s->svt);
-
-    for (;;) {
-        rkvc_buffer *pkt = NULL;
-        if (s->enc)
-            err = rkvc_mpp_enc_receive_packet(s->enc, &pkt);
-        else
-            err = rkvc_svt_enc_receive_packet(s->svt, &pkt);
-        if (err == RKVC_ERR_EOF)
-            break;
-        if (err == RKVC_ERR_AGAIN)
-            continue;
-        if (err != RKVC_OK)
-            return err;
-        rkvc_mux_write_packet(s->mux, pkt);
-        session_push_output(s, pkt);
-        rkvc_session_stats_tick(s, 1);
-        rkvc_buffer_unref(pkt);
-    }
-
-    return RKVC_OK;
+    return session_flush_encoder(s);
 }
 
 static rkvc_err encode_file_loop(rkvc_session *s)
@@ -1098,30 +1081,7 @@ static rkvc_err encode_file_loop(rkvc_session *s)
     if (loop_err != RKVC_OK)
         return loop_err;
 
-    if (s->enc)
-        rkvc_mpp_enc_drain(s->enc);
-    else
-        rkvc_svt_enc_drain(s->svt);
-
-    for (;;) {
-        rkvc_buffer *pkt = NULL;
-        if (s->enc)
-            err = rkvc_mpp_enc_receive_packet(s->enc, &pkt);
-        else
-            err = rkvc_svt_enc_receive_packet(s->svt, &pkt);
-        if (err == RKVC_ERR_EOF)
-            break;
-        if (err == RKVC_ERR_AGAIN)
-            continue;
-        if (err != RKVC_OK)
-            return err;
-        rkvc_mux_write_packet(s->mux, pkt);
-        session_push_output(s, pkt);
-        rkvc_session_stats_tick(s, 1);
-        rkvc_buffer_unref(pkt);
-    }
-
-    return RKVC_OK;
+    return session_flush_encoder(s);
 }
 
 rkvc_err rkvc_session_run_file(rkvc_session *session)

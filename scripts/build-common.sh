@@ -62,8 +62,13 @@ rkvc_limit_build_jobs() {
     export BUILD_JOBS
 }
 
+# 追踪本次脚本应用过的补丁，供退出时自动还原（跨函数共享）。
+_RKVC_FFMPEG_PATCHES_APPLIED=()
+_RKVC_FFMPEG_PATCH_SRC=""
+
 # 将父仓库 patches/ffmpeg-rockchip/*.patch 幂等应用到 ffmpeg-rockchip 源码树。
-# 补丁归属父仓库，子模块 gitlink 保持干净；构建后工作区可能显示本地修改（勿提交）。
+# 补丁归属父仓库，子模块 gitlink 始终保持干净：成功处理后注册 EXIT 陷阱，
+# 脚本退出（成功或失败）时由 rkvc_restore_ffmpeg_clean 自动还原源码树。
 rkvc_apply_ffmpeg_patches() {
     local ffmpeg_src="${1:-}"
     local root patch_dir patch
@@ -94,12 +99,46 @@ rkvc_apply_ffmpeg_patches() {
         base="$(basename "$patch")"
         if git -C "$ffmpeg_src" apply --check "$patch" >/dev/null 2>&1; then
             git -C "$ffmpeg_src" apply "$patch"
+            _RKVC_FFMPEG_PATCHES_APPLIED+=( "$patch" )
             echo "  applied: $base"
         elif git -C "$ffmpeg_src" apply --reverse --check "$patch" >/dev/null 2>&1; then
+            _RKVC_FFMPEG_PATCHES_APPLIED+=( "$patch" )
             echo "  already applied: $base"
         else
             echo "错误: 无法应用补丁 $base（与当前 ffmpeg-rockchip 源码不匹配）" >&2
             return 1
         fi
     done
+
+    _RKVC_FFMPEG_PATCH_SRC="$ffmpeg_src"
+
+    # 成功处理后注册退出陷阱：脚本退出时自动还原子模块干净状态
+    if [[ ${#_RKVC_FFMPEG_PATCHES_APPLIED[@]} -gt 0 ]]; then
+        trap rkvc_restore_ffmpeg_clean EXIT
+    fi
+}
+
+# 还原 ffmpeg-rockchip 源码树到打补丁前的干净状态。
+# 逆序逐个反向应用补丁；作为脚本 EXIT 陷阱自动触发，无需手动调用。
+rkvc_restore_ffmpeg_clean() {
+    local src="$_RKVC_FFMPEG_PATCH_SRC"
+    [[ -z "$src" || ! -d "$src" ]] && return 0
+
+    local i patch base
+    # 逆序还原，保证多补丁时应用/还原顺序一致
+    for (( i=${#_RKVC_FFMPEG_PATCHES_APPLIED[@]}-1; i>=0; i-- )); do
+        patch="${_RKVC_FFMPEG_PATCHES_APPLIED[$i]}"
+        base="$(basename "$patch")"
+        if git -C "$src" apply --reverse --check "$patch" >/dev/null 2>&1; then
+            git -C "$src" apply --reverse "$patch"
+            echo "  restored: $base"
+        fi
+    done
+
+    # 安全兜底：若仍有已跟踪文件残留修改，强制还原
+    if ! git -C "$src" diff --quiet -- 2>/dev/null; then
+        git -C "$src" checkout -- . >/dev/null 2>&1 || true
+    fi
+
+    _RKVC_FFMPEG_PATCHES_APPLIED=()
 }

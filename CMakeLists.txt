@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.5
+    VERSION 0.2.6
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -61,7 +61,6 @@ else()
 endif()
 set(MPP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/mpp/inc")
 
-# SVT-AV1：由 ffmpeg-rockchip libsvtav1 链接；此处仅保留运行时 .so 搜索路径
 set(SVT_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/svt-av1-install" CACHE PATH "SVT-AV1 install prefix")
 
 # librga (submodule 预编译库，经 scripts/install-librga.sh 安装)
@@ -90,7 +89,12 @@ endforeach()
 # FFmpeg 静态库存在循环依赖，需要用 --start-group/--end-group 包裹。
 # libswscale 用于解码器在硬件无法直接输出请求格式时的软件像素格式转换
 # (例如 8-bit HEVC 流硬件只能下载为 NV12，需 sws_scale 转 YUV420P/NV16/P010)。
-set(FFMPEG_LIBS -Wl,--start-group avcodec avformat avutil swscale -Wl,--end-group)
+# SvtAv1Enc：FFmpeg libsvtav1 编码器静态链接引用 SVT-AV1 符号（svt_av1_enc_*），
+# 必须在 avcodec 之后显式链接（静态 FFmpeg 不传递依赖）。
+set(FFMPEG_LIBS
+    -Wl,--start-group avcodec avformat avutil swscale -Wl,--end-group
+    SvtAv1Enc
+)
 # 外部依赖：MPP、zlib、drm
 set(EXTRA_LIBS
     -Wl,--no-as-needed

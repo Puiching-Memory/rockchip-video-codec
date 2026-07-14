@@ -109,6 +109,8 @@ struct rkvc_buffer {
 
 rkvc_buffer *rkvc_buffer_wrap_avframe(AVFrame *frame, int take_ownership);
 rkvc_buffer *rkvc_buffer_from_drm_frame(AVFrame *hw_frame);
+rkvc_buffer *rkvc_buffer_from_avpacket(const AVPacket *avpkt);
+rkvc_err rkvc_buffer_to_host_frame(rkvc_buffer *buf, AVFrame **frame_out);
 
 /* ── Buffer pool (DMA heap) ───────────────────────────────────────── */
 

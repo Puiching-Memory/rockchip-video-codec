@@ -338,6 +338,59 @@ rkvc_err rkvc_buffer_alloc_bitstream(rkvc_buffer **out,
     return RKVC_OK;
 }
 
+rkvc_buffer *rkvc_buffer_from_avpacket(const AVPacket *avpkt)
+{
+    if (!avpkt || avpkt->size <= 0)
+        return NULL;
+
+    rkvc_buffer *b = rkvc_calloc(1, sizeof(*b));
+    if (!b)
+        return NULL;
+
+    b->kind = RKVC_BUF_BITSTREAM;
+    buffer_init_lock(b);
+
+    b->data = rkvc_malloc((size_t)avpkt->size);
+    if (!b->data) {
+        rkvc_buffer_unref(b);
+        return NULL;
+    }
+    memcpy(b->data, avpkt->data, (size_t)avpkt->size);
+    b->size      = (size_t)avpkt->size;
+    b->owns_data = 1;
+    b->pts       = avpkt->pts;
+    b->dts       = avpkt->dts;
+    b->key_frame = (avpkt->flags & AV_PKT_FLAG_KEY) ? 1 : 0;
+
+    return b;
+}
+
+rkvc_err rkvc_buffer_to_host_frame(rkvc_buffer *buf, AVFrame **frame_out)
+{
+    if (!buf || buf->kind != RKVC_BUF_VIDEO || !frame_out)
+        return RKVC_ERR_INVALID;
+
+    if (buf->mem_type == RKVC_MEM_DMABUF) {
+        rkvc_buffer *host = NULL;
+        rkvc_err err = rkvc_dma_to_host(buf, &host);
+        if (err != RKVC_OK)
+            return err;
+        *frame_out = av_frame_clone(host->av_frame);
+        rkvc_buffer_unref(host);
+        if (!*frame_out)
+            return RKVC_ERR_NOMEM;
+        return RKVC_OK;
+    }
+
+    if (!buf->av_frame)
+        return RKVC_ERR_INVALID;
+
+    *frame_out = av_frame_clone(buf->av_frame);
+    if (!*frame_out)
+        return RKVC_ERR_NOMEM;
+    return RKVC_OK;
+}
+
 rkvc_buffer *rkvc_buffer_ref(rkvc_buffer *buf)
 {
     if (!buf)

@@ -19,31 +19,6 @@ struct rkvc_svt_enc {
     int64_t         next_pts;
 };
 
-static rkvc_err host_frame_from_buffer(rkvc_buffer *buf, AVFrame **frame_out)
-{
-    if (!buf || buf->kind != RKVC_BUF_VIDEO)
-        return RKVC_ERR_INVALID;
-
-    if (buf->mem_type == RKVC_MEM_DMABUF) {
-        rkvc_buffer *host = NULL;
-        rkvc_err err = rkvc_dma_to_host(buf, &host);
-        if (err != RKVC_OK)
-            return err;
-        *frame_out = av_frame_clone(host->av_frame);
-        rkvc_buffer_unref(host);
-        if (!*frame_out)
-            return RKVC_ERR_NOMEM;
-        return RKVC_OK;
-    }
-
-    if (!buf->av_frame)
-        return RKVC_ERR_INVALID;
-
-    *frame_out = av_frame_clone(buf->av_frame);
-    if (!*frame_out)
-        return RKVC_ERR_NOMEM;
-    return RKVC_OK;
-}
 
 static rkvc_err ensure_yuv420p(rkvc_svt_enc *enc, AVFrame *src, AVFrame **out)
 {
@@ -234,7 +209,7 @@ rkvc_err rkvc_svt_enc_send_frame(rkvc_svt_enc *enc, rkvc_buffer *frame)
         return rkvc_svt_enc_drain(enc);
 
     AVFrame *avf = NULL;
-    rkvc_err err = host_frame_from_buffer(frame, &avf);
+    rkvc_err err = rkvc_buffer_to_host_frame(frame, &avf);
     if (err != RKVC_OK)
         return err;
 
@@ -270,24 +245,9 @@ rkvc_err rkvc_svt_enc_receive_packet(rkvc_svt_enc *enc, rkvc_buffer **out)
         return rkvc_from_averror(ret);
     }
 
-    rkvc_buffer *b = rkvc_calloc(1, sizeof(*b));
+    rkvc_buffer *b = rkvc_buffer_from_avpacket(enc->pkt);
     if (!b)
         return RKVC_ERR_NOMEM;
-
-    b->kind = RKVC_BUF_BITSTREAM;
-    pthread_mutex_init(&b->lock, NULL);
-    b->ref_count = 1;
-    b->data = rkvc_malloc((size_t)enc->pkt->size);
-    if (!b->data) {
-        rkvc_buffer_unref(b);
-        return RKVC_ERR_NOMEM;
-    }
-    memcpy(b->data, enc->pkt->data, (size_t)enc->pkt->size);
-    b->size      = (size_t)enc->pkt->size;
-    b->owns_data = 1;
-    b->pts       = enc->pkt->pts;
-    b->dts       = enc->pkt->dts;
-    b->key_frame = (enc->pkt->flags & AV_PKT_FLAG_KEY) ? 1 : 0;
 
     *out = b;
     return RKVC_OK;
