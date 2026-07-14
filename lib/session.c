@@ -452,8 +452,10 @@ rkvc_err rkvc_session_start(rkvc_session *session)
         return err;
     }
 
+    pthread_mutex_lock(&session->lock);
     session->running = 1;
     session->stats.running = 1;
+    pthread_mutex_unlock(&session->lock);
     return RKVC_OK;
 }
 
@@ -462,8 +464,10 @@ rkvc_err rkvc_session_stop(rkvc_session *session)
     if (!session)
         return RKVC_ERR_INVALID;
     session->stop_requested = 1;
+    pthread_mutex_lock(&session->lock);
     session->running = 0;
     session->stats.running = 0;
+    pthread_mutex_unlock(&session->lock);
     return RKVC_OK;
 }
 
@@ -495,6 +499,7 @@ rkvc_err rkvc_session_get_stats(const rkvc_session *session,
     if (!session || !stats)
         return RKVC_ERR_INVALID;
 
+    /* lock 仅用于同步统计快照，不修改会话逻辑状态；const 弃用符合公共只读契约 */
     pthread_mutex_lock((pthread_mutex_t *)&session->lock);
     *stats = session->stats;
     pthread_mutex_unlock((pthread_mutex_t *)&session->lock);
@@ -519,6 +524,13 @@ void rkvc_session_destroy(rkvc_session *session)
     rkvc_free(session);
 }
 
+static void session_push_output(rkvc_session *s, rkvc_buffer *buf)
+{
+    rkvc_err perr = rkvc_port_push(&s->port_output, buf);
+    if (perr == RKVC_ERR_AGAIN)
+        rkvc_session_stats_drop(s);
+}
+
 static rkvc_err drain_encoder_packets(rkvc_session *s)
 {
     for (;;) {
@@ -537,7 +549,7 @@ static rkvc_err drain_encoder_packets(rkvc_session *s)
             return err;
 
         err = rkvc_mux_write_packet(s->mux, pkt);
-        rkvc_port_push(&s->port_output, pkt);
+        session_push_output(s, pkt);
         rkvc_session_stats_tick(s, 1);
         rkvc_buffer_unref(pkt);
         if (err != RKVC_OK)
@@ -656,7 +668,7 @@ static rkvc_err transcode_loop(rkvc_session *s)
         if (err != RKVC_OK)
             return err;
         rkvc_mux_write_packet(s->mux, pkt);
-        rkvc_port_push(&s->port_output, pkt);
+        session_push_output(s, pkt);
         rkvc_session_stats_tick(s, 1);
         rkvc_buffer_unref(pkt);
     }
@@ -689,7 +701,7 @@ static rkvc_err session_write_display(rkvc_session *s, FILE *fp,
     }
     rkvc_buffer_unref(cpu);
     if (err == RKVC_OK) {
-        rkvc_port_push(&s->port_output, display);
+        session_push_output(s, display);
         rkvc_session_stats_tick(s, 1);
     }
     return err;
@@ -765,22 +777,23 @@ static rkvc_err decode_loop_ai_sr(rkvc_session *s, FILE *fp)
         if (err != RKVC_OK)
             return err;
 
-        s->stats.decode_sec += decode_sec;
+        rkvc_session_stats_add_timing(s, decode_sec, 0, 0, 0);
 
         if (has_pending) {
             rkvc_buffer *display = NULL;
             const double t_rga0 = session_now_sec();
             err = rkvc_rknn_sr_ctx_collect(s->rknn_sr, &display, 1);
             const double t_rga1 = session_now_sec();
-            s->stats.rga_sec += (t_rga1 - t_rga0);
-
+            double wr_delta = 0.0;
+            double pp_delta = 0.0;
             if (err == RKVC_OK) {
                 const double t_wr0 = session_now_sec();
                 err = session_write_display(s, fp, display);
                 const double t_wr1 = session_now_sec();
-                s->stats.write_sec += (t_wr1 - t_wr0);
-                s->stats.postproc_sec += (t_wr1 - t_rga0);
+                wr_delta = t_wr1 - t_wr0;
+                pp_delta = t_wr1 - t_rga0;
             }
+            rkvc_session_stats_add_timing(s, 0, t_rga1 - t_rga0, wr_delta, pp_delta);
             rkvc_buffer_unref(display);
             if (err != RKVC_OK)
                 return err;
@@ -790,7 +803,7 @@ static rkvc_err decode_loop_ai_sr(rkvc_session *s, FILE *fp)
         const double t_rga0 = session_now_sec();
         err = rkvc_rknn_sr_ctx_submit(s->rknn_sr, host);
         const double t_rga1 = session_now_sec();
-        s->stats.rga_sec += (t_rga1 - t_rga0);
+        rkvc_session_stats_add_timing(s, 0, t_rga1 - t_rga0, 0, 0);
         rkvc_buffer_unref(host);
         if (err != RKVC_OK)
             return err;
@@ -803,14 +816,16 @@ static rkvc_err decode_loop_ai_sr(rkvc_session *s, FILE *fp)
         const double t_rga0 = session_now_sec();
         err = rkvc_rknn_sr_ctx_collect(s->rknn_sr, &display, 1);
         const double t_rga1 = session_now_sec();
-        s->stats.rga_sec += (t_rga1 - t_rga0);
+        double wr_delta = 0.0;
+        double pp_delta = 0.0;
         if (err == RKVC_OK) {
             const double t_wr0 = session_now_sec();
             err = session_write_display(s, fp, display);
             const double t_wr1 = session_now_sec();
-            s->stats.write_sec += (t_wr1 - t_wr0);
-            s->stats.postproc_sec += (t_wr1 - t_rga0);
+            wr_delta = t_wr1 - t_wr0;
+            pp_delta = t_wr1 - t_rga0;
         }
+        rkvc_session_stats_add_timing(s, 0, t_rga1 - t_rga0, wr_delta, pp_delta);
         rkvc_buffer_unref(display);
     }
 
@@ -829,10 +844,7 @@ static rkvc_err decode_loop(rkvc_session *s)
     rkvc_err err = RKVC_OK;
     int dec_eof = 0;
 
-    s->stats.decode_sec   = 0.0;
-    s->stats.rga_sec      = 0.0;
-    s->stats.write_sec    = 0.0;
-    s->stats.postproc_sec = 0.0;
+    rkvc_session_stats_reset_timing(s);
 
     if (session_needs_post_upscale(s) && session_uses_ai_sr(s)) {
         err = decode_loop_ai_sr(s, fp);
@@ -886,16 +898,17 @@ static rkvc_err decode_loop(rkvc_session *s)
         const double t_rga1 = session_now_sec();
 
         double t_wr1 = t_rga1;
+        double wr_delta = 0.0;
         if (err == RKVC_OK && display && display->av_frame) {
             const double t_wr0 = session_now_sec();
             err = session_write_display(s, fp, display);
             t_wr1 = session_now_sec();
-            s->stats.write_sec += (t_wr1 - t_wr0);
+            wr_delta = t_wr1 - t_wr0;
         }
 
-        s->stats.decode_sec   += (t_dec1 - t_dec0);
-        s->stats.rga_sec      += (t_rga1 - t_rga0);
-        s->stats.postproc_sec += (t_wr1 - t_rga0);
+        rkvc_session_stats_add_timing(s, t_dec1 - t_dec0,
+                                      t_rga1 - t_rga0, wr_delta,
+                                      t_wr1 - t_rga0);
 
         if (display != host)
             rkvc_buffer_unref(display);
@@ -1020,7 +1033,7 @@ static rkvc_err live_capture_loop(rkvc_session *s)
         if (err != RKVC_OK)
             return err;
         rkvc_mux_write_packet(s->mux, pkt);
-        rkvc_port_push(&s->port_output, pkt);
+        session_push_output(s, pkt);
         rkvc_session_stats_tick(s, 1);
         rkvc_buffer_unref(pkt);
     }
@@ -1103,7 +1116,7 @@ static rkvc_err encode_file_loop(rkvc_session *s)
         if (err != RKVC_OK)
             return err;
         rkvc_mux_write_packet(s->mux, pkt);
-        rkvc_port_push(&s->port_output, pkt);
+        session_push_output(s, pkt);
         rkvc_session_stats_tick(s, 1);
         rkvc_buffer_unref(pkt);
     }

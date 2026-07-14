@@ -332,7 +332,7 @@ struct rkvc_session {
 
     pthread_t           worker;
     int                 running;
-    int                 stop_requested;
+    volatile int        stop_requested;
     pthread_mutex_t     lock;
 
     rkvc_demux           *demux;
@@ -356,6 +356,12 @@ struct rkvc_session {
 void rkvc_session_stats_tick(rkvc_session *s, int frame_out);
 void rkvc_session_stats_frame_in(rkvc_session *s);
 void rkvc_session_stats_drop(rkvc_session *s);
+void rkvc_session_stats_add_timing(rkvc_session *s,
+                                    double decode_delta,
+                                    double rga_delta,
+                                    double write_delta,
+                                    double postproc_delta);
+void rkvc_session_stats_reset_timing(rkvc_session *s);
 
 /** 编码前应用挂起的热切换；`force_idr` 输出是否强制本帧 IDR。 */
 rkvc_err rkvc_session_apply_reconfig(rkvc_session *s, int *force_idr);

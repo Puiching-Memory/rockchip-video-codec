@@ -117,17 +117,19 @@ rkvc_err rkvc_mpp_dec_send_packet(rkvc_mpp_dec *dec, const rkvc_buffer *pkt)
     if (!pkt || pkt->kind != RKVC_BUF_BITSTREAM)
         return RKVC_ERR_INVALID;
 
-    AVPacket avpkt;
-    av_init_packet(&avpkt);
-    avpkt.data = pkt->data;
-    avpkt.size = (int)pkt->size;
-    avpkt.pts  = pkt->pts;
-    avpkt.dts  = pkt->dts;
+    AVPacket *avpkt = av_packet_alloc();
+    if (!avpkt)
+        return RKVC_ERR_NOMEM;
 
-    int ret = avcodec_send_packet(dec->ctx, &avpkt);
-    if (ret == AVERROR(EAGAIN))
-        return RKVC_ERR_AGAIN;
-    return rkvc_from_averror(ret);
+    avpkt->data = pkt->data;
+    avpkt->size = (int)pkt->size;
+    avpkt->pts  = pkt->pts;
+    avpkt->dts  = pkt->dts;
+
+    int ret = avcodec_send_packet(dec->ctx, avpkt);
+    rkvc_err err = (ret == AVERROR(EAGAIN)) ? RKVC_ERR_AGAIN : rkvc_from_averror(ret);
+    av_packet_free(&avpkt);
+    return err;
 }
 
 static rkvc_err dec_sws_to_format(rkvc_mpp_dec *dec, AVFrame *frame,

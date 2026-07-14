@@ -97,9 +97,12 @@ rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg)
 
     AVBufferRef *hw = NULL;
     rkvc_err herr = rkvc_get_hw_device_ctx(&hw);
+    if (herr != RKVC_OK)
+        rkvc_log_print(AV_LOG_WARNING,
+                       "mpp_enc: RKMPP hw device init failed (err=%d), "
+                       "encoder open may fail next\n", herr);
     if (hw)
         av_buffer_unref(&hw);
-    (void)herr;
 
     rkvc_err err = rkvc_codec_open2(enc->ctx, codec, &enc_opts, "mpp_enc");
     rkvc_dict_free(&enc_opts);

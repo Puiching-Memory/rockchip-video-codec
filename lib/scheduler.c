@@ -40,3 +40,31 @@ void rkvc_session_stats_drop(rkvc_session *s)
     s->stats.frames_dropped++;
     pthread_mutex_unlock(&s->lock);
 }
+
+void rkvc_session_stats_add_timing(rkvc_session *s,
+                                    double decode_delta,
+                                    double rga_delta,
+                                    double write_delta,
+                                    double postproc_delta)
+{
+    if (!s)
+        return;
+    pthread_mutex_lock(&s->lock);
+    s->stats.decode_sec   += decode_delta;
+    s->stats.rga_sec      += rga_delta;
+    s->stats.write_sec    += write_delta;
+    s->stats.postproc_sec += postproc_delta;
+    pthread_mutex_unlock(&s->lock);
+}
+
+void rkvc_session_stats_reset_timing(rkvc_session *s)
+{
+    if (!s)
+        return;
+    pthread_mutex_lock(&s->lock);
+    s->stats.decode_sec   = 0.0;
+    s->stats.rga_sec      = 0.0;
+    s->stats.write_sec    = 0.0;
+    s->stats.postproc_sec = 0.0;
+    pthread_mutex_unlock(&s->lock);
+}

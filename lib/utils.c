@@ -287,7 +287,11 @@ rkvc_pix_fmt rkvc_from_av_pix_fmt(enum AVPixelFormat fmt)
     case AV_PIX_FMT_NV16:    return RKVC_PIX_FMT_NV16;
     case AV_PIX_FMT_P010LE:
     case AV_PIX_FMT_P010BE:  return RKVC_PIX_FMT_P010;
-    default:                  return RKVC_PIX_FMT_NV12;
+    default:
+        rkvc_log_print(AV_LOG_WARNING,
+                       "unknown AVPixelFormat %d, falling back to NV12\n",
+                       (int)fmt);
+        return RKVC_PIX_FMT_NV12;
     }
 }
 
