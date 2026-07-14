@@ -154,7 +154,7 @@ static int session_nv12_contiguous(const AVFrame *f)
         && (f->linesize[1] == f->linesize[0]);
 }
 
-static void session_write_nv12_frame(FILE *fp, const AVFrame *f)
+static rkvc_err session_write_nv12_frame(FILE *fp, const AVFrame *f)
 {
     const int h = f->height;
     const int ls = f->linesize[0];
@@ -162,29 +162,34 @@ static void session_write_nv12_frame(FILE *fp, const AVFrame *f)
 
     if (session_nv12_contiguous(f)) {
         const size_t nbytes = (size_t)ls * (size_t)h +
-                              (size_t)us * (size_t)(h / 2);
-        fwrite(f->data[0], 1, nbytes, fp);
-        return;
+                             (size_t)us * (size_t)(h / 2);
+        if (fwrite(f->data[0], 1, nbytes, fp) != nbytes)
+            return RKVC_ERR_IO;
+        return RKVC_OK;
     }
 
     for (int y = 0; y < h; y++)
-        fwrite(f->data[0] + y * ls, 1, (size_t)ls, fp);
+        if (fwrite(f->data[0] + y * ls, 1, (size_t)ls, fp) != (size_t)ls)
+            return RKVC_ERR_IO;
     for (int y = 0; y < h / 2; y++)
-        fwrite(f->data[1] + y * us, 1, (size_t)us, fp);
+        if (fwrite(f->data[1] + y * us, 1, (size_t)us, fp) != (size_t)us)
+            return RKVC_ERR_IO;
+    return RKVC_OK;
 }
 
-static void session_write_nv12_buffer(FILE *fp, const rkvc_buffer *buf)
+static rkvc_err session_write_nv12_buffer(FILE *fp, const rkvc_buffer *buf)
 {
     if (!buf || !buf->av_frame)
-        return;
+        return RKVC_ERR_INVALID;
 
     const AVFrame *f = buf->av_frame;
     rkvc_err err = rkvc_buffer_dmabuf_begin_cpu_read(buf);
     if (err != RKVC_OK)
-        return;
+        return err;
 
-    session_write_nv12_frame(fp, f);
+    err = session_write_nv12_frame(fp, f);
     rkvc_buffer_dmabuf_end_cpu_read(buf);
+    return err;
 }
 
 static void port_init(rkvc_port *p, const char *name, int depth,
@@ -551,7 +556,7 @@ static rkvc_err session_flush_encoder(rkvc_session *s)
         if (err == RKVC_ERR_EOF)
             break;
         if (err == RKVC_ERR_AGAIN)
-            continue;
+            break;
         if (err != RKVC_OK)
             return err;
         err = rkvc_mux_write_packet(s->mux, pkt);
@@ -701,9 +706,9 @@ static rkvc_err session_write_display(rkvc_session *s, FILE *fp,
     }
     if (err == RKVC_OK && write_buf->av_frame) {
         if (write_buf->mem_type == RKVC_MEM_DMABUF)
-            session_write_nv12_buffer(fp, write_buf);
+            err = session_write_nv12_buffer(fp, write_buf);
         else
-            session_write_nv12_frame(fp, write_buf->av_frame);
+            err = session_write_nv12_frame(fp, write_buf->av_frame);
     }
     rkvc_buffer_unref(cpu);
     if (err == RKVC_OK) {
@@ -920,6 +925,11 @@ static rkvc_err decode_loop(rkvc_session *s)
             rkvc_buffer_unref(display);
         rkvc_buffer_unref(host);
         rkvc_buffer_unref(frame);
+
+        if (err != RKVC_OK) {
+            fclose(fp);
+            return err;
+        }
     }
 
     fclose(fp);

@@ -90,6 +90,8 @@ struct rkvc_buffer {
 
     rkvc_mem_type     mem_type;
     int               fd;
+    void             *mmap_base;   /**< dma-heap mmap 基址（仅自分配 DMABUF，buffer_free 负责 munmap） */
+    size_t            mmap_size;   /**< mmap 映射字节数 */
     uint32_t          width;
     uint32_t          height;
     rkvc_pix_fmt      format;

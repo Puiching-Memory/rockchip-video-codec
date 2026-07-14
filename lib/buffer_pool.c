@@ -204,8 +204,11 @@ rkvc_err rkvc_buffer_pool_alloc_video(rkvc_buffer_pool *pool,
             return RKVC_ERR_NOMEM;
         }
 
-        b->mem_type = RKVC_MEM_DMABUF;
-        b->fd       = fd;
+        /* mmap 所有权移交 buffer：buffer_free 负责 munmap + close(fd) */
+        b->mem_type   = RKVC_MEM_DMABUF;
+        b->fd         = fd;
+        b->mmap_base  = map;
+        b->mmap_size  = (size_t)size;
         b->width    = (uint32_t)width;
         b->height   = (uint32_t)height;
         b->format   = format;
@@ -214,8 +217,6 @@ rkvc_err rkvc_buffer_pool_alloc_video(rkvc_buffer_pool *pool,
         b->av_frame = av_frame_alloc();
         if (!b->av_frame) {
             rkvc_buffer_unref(b);
-            munmap(map, (size_t)size);
-            close(fd);
             return RKVC_ERR_NOMEM;
         }
 
@@ -227,8 +228,6 @@ rkvc_err rkvc_buffer_pool_alloc_video(rkvc_buffer_pool *pool,
                                        map, av_fmt, width, height, 1);
         if (ret < 0) {
             rkvc_buffer_unref(b);
-            munmap(map, (size_t)size);
-            close(fd);
             return rkvc_from_averror(ret);
         }
 
@@ -404,18 +403,18 @@ rkvc_buffer *rkvc_buffer_ref(rkvc_buffer *buf)
 static void buffer_free(rkvc_buffer *b)
 {
     if (b->kind == RKVC_BUF_VIDEO) {
-        int close_fd = -1;
         if (b->owns_avframe && b->av_frame) {
-            /*
-             * RKMPP DRM 帧的 fd 由 AVFrame/MPP 池管理，av_frame_free 会归还；
-             * 仅对 dma-heap 自分配缓冲（NV12 等）在释放后 close fd。
-             */
-            if (b->mem_type == RKVC_MEM_DMABUF && b->fd >= 0 &&
-                b->av_frame->format != AV_PIX_FMT_DRM_PRIME)
-                close_fd = b->fd;
             av_frame_free(&b->av_frame);
-            if (close_fd >= 0)
-                close(close_fd);
+        }
+        /*
+         * dma-heap 自分配缓冲（mmap_base 非空）：close(fd) 不会解除映射，
+         * 须单独 munmap 并关闭自有 fd。RKMPP DRM 帧（mmap_base 为 NULL）
+         * 的 fd 由 AVFrame/MPP 池管理，av_frame_free 归还，此处不处理。
+         */
+        if (b->mmap_base) {
+            munmap(b->mmap_base, b->mmap_size);
+            if (b->fd >= 0)
+                close(b->fd);
         }
     } else if (b->kind == RKVC_BUF_BITSTREAM) {
         if (b->owns_data)

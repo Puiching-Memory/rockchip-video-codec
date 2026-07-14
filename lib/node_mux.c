@@ -9,6 +9,7 @@ struct rkvc_mux {
     AVFormatContext  *fmt;
     AVStream         *stream;
     AVPacket         *pkt;
+    int               header_written;
     /* 编码器侧时间基（帧序号：1/fps）；write_header 后 stream->time_base 可能被 muxer 改写 */
     AVRational        pkt_time_base;
     AVRational        frame_rate;
@@ -100,6 +101,7 @@ rkvc_err rkvc_mux_open(rkvc_mux **out, const rkvc_mux_config *cfg,
         rkvc_mux_close(m);
         return rkvc_from_averror(ret);
     }
+    m->header_written = 1;
 
     m->pkt = av_packet_alloc();
     if (!m->pkt) {
@@ -117,7 +119,8 @@ void rkvc_mux_close(rkvc_mux *m)
         return;
 
     if (m->fmt) {
-        av_write_trailer(m->fmt);
+        if (m->header_written)
+            av_write_trailer(m->fmt);
         if (!(m->fmt->oformat->flags & AVFMT_NOFILE) && m->fmt->pb)
             avio_closep(&m->fmt->pb);
         avformat_free_context(m->fmt);

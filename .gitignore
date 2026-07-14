@@ -79,3 +79,6 @@ nohup.out
 *.yuv
 *.y4m
 *.nv12
+
+# Office 文档（产品说明等，不入库）
+*.docx
