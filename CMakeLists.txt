@@ -295,14 +295,11 @@ if(_RKVC_DO_HARDEN)
     message(STATUS "Release hardening: ON")
     add_compile_options(
         -O3
-        -flto
-        -fvisibility=hidden
         -fmerge-all-constants
         -fno-unwind-tables
         -fno-asynchronous-unwind-tables
     )
     add_link_options(
-        -flto
         -Wl,-O2
         -Wl,-z,relro,-z,now
         -Wl,-z,noexecstack
