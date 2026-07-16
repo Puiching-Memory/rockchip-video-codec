@@ -109,13 +109,13 @@ if (e != RKVC_OK) {
 
 ## API
 
-| 函数 | 说明 |
-| --- | --- |
-| `rkvc_machine_id(out, size)` | 计算本机机器码（64 hex 字符） |
-| `rkvc_license_check(&info)` | 用默认路径校验，返回 `RKVC_OK` / 错误码 |
-| `rkvc_license_verify_file(path, &info)` | 校验指定授权文件 |
-| `rkvc_license_verify_blob(blob, len, &info)` | 校验已解码的二进制 blob（104 字节） |
-| `rkvc_license_default_path(out, size)` | 解析默认授权文件路径 |
+| 函数                                         | 说明                                    |
+| -------------------------------------------- | --------------------------------------- |
+| `rkvc_machine_id(out, size)`                 | 计算本机机器码（64 hex 字符）           |
+| `rkvc_license_check(&info)`                  | 用默认路径校验，返回 `RKVC_OK` / 错误码 |
+| `rkvc_license_verify_file(path, &info)`      | 校验指定授权文件                        |
+| `rkvc_license_verify_blob(blob, len, &info)` | 校验已解码的二进制 blob（104 字节）     |
+| `rkvc_license_default_path(out, size)`       | 解析默认授权文件路径                    |
 
 ## 密钥格式
 
