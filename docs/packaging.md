@@ -27,7 +27,8 @@ source scripts/build-common.sh
 3. 检查 `tools/keys/secret.key` + `public.key`，**不存在则自动生成**密钥对（首次）
 4. 用公钥自动注入 CMake 编译（`RKVC_LICENSE_PUBKEY_FILE`），不再使用演示密钥
 5. 用私钥签发**本机自测 license**（`.build/dist/<pkg>.lic`，不随包分发）
-6. 打包 `rkvc_lic` 到 `bin/`，供客户机采集机器码
+6. 打包**客户版** `rkvc_lic` 到 `bin/`，仅支持 `machine-id` 与 `verify`，
+   用于客户机采集机器码和自验证；**不含 `genkey`/`issue`/`inspect` 等签发能力**。
 
 ```bash
 # 强制授权版（首次自动生成密钥对）
@@ -45,14 +46,16 @@ RKVC_LICENSE_FILE=".build/dist/rkvc-<version>-linux-<arch>-portable-licensed.lic
 | _(无)_      | `RKVC_ENABLE_LICENSE=OFF` | _(无)_      | 无授权校验                          |
 | `--license` | `RKVC_ENABLE_LICENSE=ON`  | `-licensed` | `rkvc_init()` 须有效 license 方通过 |
 
-**密钥管理**：
+**密钥管理**（完整版 `rkvc_lic` 仅用于打包机内部；分发包内为裁剪版，无签发能力）：
 
 | 文件 | 路径 | gitignore | 用途 |
 | ---- | ---- | --------- | ---- |
 | 私钥 | `tools/keys/secret.key` | ✅ 已忽略 | 签发 license，保管在打包机 |
 | 公钥 | `tools/keys/public.key` | ❌ 可提交 | 嵌入 librkvc 编译 |
+| 打包方完整工具 | `.build/portable/rkvc_lic` | — | 打包脚本内部生成密钥、签发本机测试 license |
+| 客户机裁剪工具 | `bin/rkvc_lic` | — | 分发版，仅 `machine-id` / `verify` |
 
-**客户签发流程**：
+**客户签发流程**（客户机运行的是裁剪版，打包方使用完整版 `rkvc_lic`）：
 
 ```bash
 # 1. 客户机采集机器码（包内 rkvc_lic）

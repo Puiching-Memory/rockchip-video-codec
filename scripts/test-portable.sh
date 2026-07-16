@@ -649,6 +649,48 @@ else
     warn "跳过 license 校验 (未找到 *-licensed 包: $LIC_PKG_DIR)"
 fi
 
+# 验证分发版 rkvc_lic 仅含机器码采集/校验能力，不含 genkey/issue/inspect。
+# 这是安全负向测试：终端客户不应获得私钥签发能力。
+if [ -x "$PKG_DIR/bin/rkvc_lic" ]; then
+    echo ""
+    echo "--- 分发版 rkvc_lic 能力负向测试 ---"
+
+    capture_run lic_genkey_status lic_genkey_output "$PKG_DIR/bin/rkvc_lic" genkey
+    if [ "$lic_genkey_status" -ne 0 ] && \
+       echo "$lic_genkey_output" | grep -Eiq "usage|用法|machine-id|verify"; then
+        pass "分发版 rkvc_lic: genkey 已被禁用"
+    else
+        fail "分发版 rkvc_lic: genkey 不应可用"
+        show_output "rkvc_lic genkey" "$lic_genkey_output"
+    fi
+
+    capture_run lic_issue_status lic_issue_output "$PKG_DIR/bin/rkvc_lic" issue
+    if [ "$lic_issue_status" -ne 0 ] && \
+       echo "$lic_issue_output" | grep -Eiq "usage|用法|machine-id|verify"; then
+        pass "分发版 rkvc_lic: issue 已被禁用"
+    else
+        fail "分发版 rkvc_lic: issue 不应可用"
+        show_output "rkvc_lic issue" "$lic_issue_output"
+    fi
+
+    capture_run lic_inspect_status lic_inspect_output "$PKG_DIR/bin/rkvc_lic" inspect
+    if [ "$lic_inspect_status" -ne 0 ] && \
+       echo "$lic_inspect_output" | grep -Eiq "usage|用法|machine-id|verify"; then
+        pass "分发版 rkvc_lic: inspect 已被禁用"
+    else
+        fail "分发版 rkvc_lic: inspect 不应可用"
+        show_output "rkvc_lic inspect" "$lic_inspect_output"
+    fi
+
+    capture_run lic_machine_status lic_machine_output env -u LD_LIBRARY_PATH "$PKG_DIR/bin/rkvc_lic" machine-id
+    if [ "$lic_machine_status" -eq 0 ] && [ "${#lic_machine_output}" -eq 64 ]; then
+        pass "分发版 rkvc_lic: machine-id 可用"
+    else
+        fail "分发版 rkvc_lic: machine-id 不可用 (exit=$lic_machine_status)"
+        show_output "rkvc_lic machine-id" "$lic_machine_output"
+    fi
+fi
+
 # 总结
 echo ""
 echo "========================================="

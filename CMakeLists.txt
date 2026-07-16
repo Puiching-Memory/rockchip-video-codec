@@ -174,7 +174,9 @@ if(RKVC_ENABLE_LICENSE)
     set(RKVC_LICENSE_DEFS RKVC_ENABLE_LICENSE=1)
 
     if(RKVC_LICENSE_PUBKEY_FILE AND EXISTS "${RKVC_LICENSE_PUBKEY_FILE}")
-        # 从 32 字节公钥二进制生成 C 源文件（避免手动维护 license_pubkey.c）
+        # 从 32 字节公钥二进制生成 C 源文件（避免手动维护 license_pubkey.c）。
+        # 为避免 32 字节明文公钥直接出现在 .rodata，这里生成 XOR 混淆后的数组，
+        # 实际解密在 lib/license.c 运行时完成。
         file(READ "${RKVC_LICENSE_PUBKEY_FILE}" _pubkey_hex HEX)
         string(LENGTH "${_pubkey_hex}" _hex_len)
         math(EXPR _pubkey_bytes "${_hex_len} / 2")
@@ -182,22 +184,30 @@ if(RKVC_ENABLE_LICENSE)
             message(FATAL_ERROR
                 "RKVC_LICENSE_PUBKEY_FILE: expected 32 bytes, got ${_pubkey_bytes}")
         endif()
-        set(_c_arr "")
+        # 混淆参数须与 lib/license.c 中的解密逻辑一致：key_i = 0xA5 ^ (i * 7)
+        set(_PK_K 165)  # 0xA5
+        set(_PK_C1 7)
+        set(_enc_arr "")
         set(_i 0)
         while(_i LESS 64)
             string(SUBSTRING "${_pubkey_hex}" ${_i} 2 _byte)
-            string(APPEND _c_arr "0x${_byte},")
-            math(EXPR _i "${_i} + 2")
-            math(EXPR _col "(${_i} / 2) % 12")
-            if(_col EQUAL 0 AND _i LESS 64)
-                string(APPEND _c_arr "\n  ")
+            math(EXPR _b "0x${_byte}")
+            math(EXPR _idx "${_i} / 2")
+            math(EXPR _ki "(${_PK_K} ^ (${_idx} * ${_PK_C1})) & 0xFF")
+            math(EXPR _eb "(((${_b} ^ ${_ki}) + 0x100) & 0xFF)" OUTPUT_FORMAT HEXADECIMAL)
+            string(APPEND _enc_arr "${_eb},")
+            math(EXPR _next_i "${_i} + 2")
+            math(EXPR _col "(${_next_i} / 2) % 12")
+            if(_col EQUAL 0 AND _next_i LESS 64)
+                string(APPEND _enc_arr "\n  ")
             endif()
+            set(_i ${_next_i})
         endwhile()
         set(RKVC_LICENSE_PUBKEY_C "${CMAKE_BINARY_DIR}/generated/license_pubkey.c")
         file(WRITE "${RKVC_LICENSE_PUBKEY_C}"
             "/* 由 CMake 从 RKVC_LICENSE_PUBKEY_FILE 自动生成，勿手动编辑。 */\n"
             "#include <stdint.h>\n\n"
-            "const unsigned char rkvc_license_pubkey[32] = {\n  ${_c_arr}\n};\n\n"
+            "const uint8_t rkvc_license_pubkey_enc[32] = {\n  ${_enc_arr}\n};\n\n"
             "const unsigned rkvc_license_pubkey_len = 32;\n")
         list(APPEND RKVC_SOURCES "${RKVC_LICENSE_PUBKEY_C}")
         message(STATUS "License (1机1码): ON, pubkey=${RKVC_LICENSE_PUBKEY_FILE}")
@@ -252,6 +262,58 @@ if(RKVC_ENABLE_FAULT_INJECTION)
     target_compile_definitions(rkvc_instrumentation INTERFACE
         RKVC_ENABLE_FAULT_INJECTION=1
     )
+endif()
+
+# ── Release 加固 / 反编译增强 ──────────────────────────────────────
+# 原则：不改动源代码，仅在 Release 构建且未开启调试/测试/检测工具时启用。
+# 因此不影响日常二次开发（Debug / tests / asan / coverage 构建保持可调试）。
+#
+# 启用项：
+#   -O3 -flto                  链接时优化，让反编译后的控制流/函数边界更难读
+#   -fvisibility=hidden        默认隐藏所有符号（配合 librkvc.map 精确导出 API）
+#   -fmerge-all-constants      合并重复常量，增加字符串定位难度
+#   -fno-unwind-tables          移除异常展开表，减少元数据
+#   -fno-asynchronous-unwind-tables  同上
+#   -Wl,-z,relro,-z,now        FULL RELRO，防止 GOT 覆写
+#   -Wl,-z,noexecstack          不可执行栈
+#   -pie / -Wl,--strip-all     可执行文件位置无关 + 剥离符号
+option(RKVC_ENABLE_RELEASE_HARDENING
+    "Enable release hardening: LTO, full RELRO, PIE, strip, and symbol hiding"
+    ON)
+
+set(_RKVC_DO_HARDEN OFF)
+if(RKVC_ENABLE_RELEASE_HARDENING AND
+   CMAKE_BUILD_TYPE STREQUAL "Release" AND
+   NOT RKVC_ENABLE_ASAN AND
+   NOT RKVC_ENABLE_UBSAN AND
+   NOT RKVC_ENABLE_COVERAGE AND
+   NOT RKVC_ENABLE_FAULT_INJECTION)
+    set(_RKVC_DO_HARDEN ON)
+endif()
+
+if(_RKVC_DO_HARDEN)
+    message(STATUS "Release hardening: ON")
+    add_compile_options(
+        -O3
+        -flto
+        -fvisibility=hidden
+        -fmerge-all-constants
+        -fno-unwind-tables
+        -fno-asynchronous-unwind-tables
+    )
+    add_link_options(
+        -flto
+        -Wl,-O2
+        -Wl,-z,relro,-z,now
+        -Wl,-z,noexecstack
+    )
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    set(CMAKE_EXE_LINKER_FLAGS
+        "${CMAKE_EXE_LINKER_FLAGS} -pie -Wl,--strip-all")
+    set(CMAKE_SHARED_LINKER_FLAGS
+        "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--strip-all")
+else()
+    message(STATUS "Release hardening: OFF")
 endif()
 
 # ── 库目标 ─────────────────────────────────────────────────────────────
@@ -432,11 +494,19 @@ if(RKVC_BUILD_CLI)
 endif()
 
 # ── 授权工具（rkvc_lic：签发/管理，独立于 librkvc） ─────────────────
+# rkvc_lic_client 为分发到客户机的裁剪版：仅 machine-id/verify，
+# 不含 genkey/issue/inspect，避免把私钥签发能力随包分发给终端客户。
 if(RKVC_ENABLE_LICENSE)
     add_executable(rkvc_lic tools/rkvc_lic.c lib/license_machine.c lib/license_b64.c)
     target_include_directories(rkvc_lic PRIVATE
             ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
     target_link_libraries(rkvc_lic PRIVATE ${RKVC_LICENSE_LIBS})
+
+    add_executable(rkvc_lic_client tools/rkvc_lic.c lib/license_machine.c lib/license_b64.c)
+    target_compile_definitions(rkvc_lic_client PRIVATE RKVC_LIC_MACHINE_ONLY=1)
+    target_include_directories(rkvc_lic_client PRIVATE
+            ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    target_link_libraries(rkvc_lic_client PRIVATE ${RKVC_LICENSE_LIBS})
 endif()
 
 # ── 安装 ──────────────────────────────────────────────────────────────

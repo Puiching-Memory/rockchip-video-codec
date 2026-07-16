@@ -10,7 +10,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
+                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build",
+                "RKVC_ENABLE_RELEASE_HARDENING": "ON"
             }
         },
         {
@@ -84,7 +85,8 @@
             "binaryDir": "${sourceDir}/.build/portable",
             "cacheVariables": {
                 "CMAKE_INSTALL_RPATH_USE_LINK_PATH": "ON",
-                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
+                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build",
+                "RKVC_ENABLE_RELEASE_HARDENING": "ON"
             }
         }
     ],

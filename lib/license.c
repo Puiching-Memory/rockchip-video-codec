@@ -26,9 +26,49 @@
 #include "license_machine.h"
 #include "license_b64.h"
 
-/* 内嵌公钥（lib/license_pubkey.c，由 'rkvc_lic genkey' 生成） */
-extern const unsigned char rkvc_license_pubkey[32];
+/* 内嵌公钥（lib/license_pubkey.c，已 XOR 混淆，运行时再解密） */
+extern const uint8_t rkvc_license_pubkey_enc[32];
 extern const unsigned rkvc_license_pubkey_len;
+
+/* 解密公钥：key_i = 0xA5 ^ (i * 7)，与 CMake 生成逻辑保持一致。 */
+static void pubkey_decrypt(uint8_t *out, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+        out[i] = (uint8_t)(rkvc_license_pubkey_enc[i] ^ (0xA5u ^ (unsigned char)(i * 7u)));
+}
+
+/* 字符串混淆：key 为基值，逐字节按 (key + i) 异或。 */
+static void lic_deobf_str(const uint8_t *in, size_t len, char *out, uint8_t key)
+{
+    for (size_t i = 0; i < len; i++)
+        out[i] = (char)(in[i] ^ (uint8_t)(key + i));
+    out[len] = '\0';
+}
+
+#if defined(__linux__) && defined(__GNUC__)
+#include <sys/ptrace.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+/* 轻量反调试：若当前进程已处于被跟踪状态，self-trace 会失败。注意：
+ * PTRACE_TRACEME 成功后 TracerPid 会变为父进程 PID，因此只以 ptrace
+ * 是否失败作为判断依据，避免误报正常的自跟踪。 */
+static int lic_is_being_debugged(void)
+{
+    static int checked = 0;
+    static int result = 0;
+    if (checked) return result;
+    checked = 1;
+
+    if (ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0) {
+        result = 1;
+        return 1;
+    }
+    return 0;
+}
+#else
+static int lic_is_being_debugged(void) { return 0; }
+#endif
 
 /* 公共常量（license.h）须与共享线格式常量（license_layout.h）一致 */
 _Static_assert(RKVC_LICENSE_BLOB_SIZE ==
@@ -67,9 +107,12 @@ static int ed25519_verify(const uint8_t *data, size_t data_len,
         sig_len != crypto_sign_BYTES)
         return 0;
 
+    uint8_t pubkey[32];
+    pubkey_decrypt(pubkey, sizeof(pubkey));
+
     /* libsodium 原生支持 Ed25519 验签，无需 DER/PEM 包装 */
     return crypto_sign_verify_detached(sig, data, (unsigned long)data_len,
-                                       rkvc_license_pubkey) == 0 ? 1 : 0;
+                                       pubkey) == 0 ? 1 : 0;
 }
 
 static void bytes_to_hex(const uint8_t *bytes, size_t len, char *out)
@@ -160,7 +203,18 @@ rkvc_err rkvc_license_default_path(char *out_path, size_t out_size)
     const char *home = getenv("HOME");
     if (!home || home[0] == '\0')
         return RKVC_ERR_NOT_FOUND;
-    int n = snprintf(out_path, out_size, "%s/.config/rkvc/license.lic", home);
+
+    /* 默认路径后缀 "/.config/rkvc/license.lic"，XOR 混淆存储。 */
+    static const uint8_t lic_path_suffix_obf[] = {
+        0x94, 0x92, 0xde, 0xd1, 0xd1, 0xa6, 0xa8, 0xa5,
+        0xec, 0xb6, 0xae, 0xb0, 0xa4, 0xe7, 0xa5, 0xa3,
+        0xa8, 0xa9, 0xa3, 0xbd, 0xaa, 0xfe, 0xbd, 0xbb,
+        0xb0
+    };
+    char suffix[32];
+    lic_deobf_str(lic_path_suffix_obf, sizeof(lic_path_suffix_obf), suffix, 0xBBu);
+
+    int n = snprintf(out_path, out_size, "%s%s", home, suffix);
     if (n < 0 || (size_t)n >= out_size)
         return RKVC_ERR_INVALID;
     return RKVC_OK;
@@ -192,6 +246,9 @@ rkvc_err rkvc_license_verify_file(const char *path, rkvc_license_info *info)
 
 rkvc_err rkvc_license_check(rkvc_license_info *info)
 {
+    if (lic_is_being_debugged())
+        return RKVC_ERR_LICENSE;
+
     char path[512];
     rkvc_err e = rkvc_license_default_path(path, sizeof(path));
     if (e != RKVC_OK)

@@ -1,15 +1,22 @@
 /*
- * rkvc_lic - rkvc 1机1码 签发/管理工具（独立，仅依赖 libsodium）。
+ * rkvc_lic - rkvc 1机1码 授权辅助工具（独立，仅依赖 libsodium）。
  *
- *   rkvc_lic genkey    -o <dir>                      生成 Ed25519 密钥对
+ * 客户机分发版（编译期定义 RKVC_LIC_MACHINE_ONLY）：
  *   rkvc_lic machine-id                              打印本机机器码（hex）
+ *   rkvc_lic verify    -f <license.lic> -k <key>     校验签名+机器码
+ *
+ * 完整版（打包方内部使用）额外支持：
+ *   rkvc_lic genkey    -o <dir>                      生成 Ed25519 密钥对
  *   rkvc_lic issue     -m <hex> -k <secret.key>
  *                      [-p N] -o <file>              签发注册码
  *   rkvc_lic inspect   -f <license.lic>              解析注册码字段
- *   rkvc_lic verify    -f <license.lic> -k <key>     校验签名+机器码
+ *
+ * 编译时定义 RKVC_LIC_MACHINE_ONLY 可裁剪为客户机采集版：
+ * 仅保留 machine-id 与 verify，移除 genkey/issue/inspect，避免把私钥签发
+ * 能力随可移植包分发给终端客户。
  *
  * 密钥为原始二进制文件：secret.key（64 字节）、public.key（32 字节），
- * 均由 'rkvc_lic genkey' 产出。许可证 blob 布局见 lib/license.c（104 字节，小端）。
+ * 均由完整版 'rkvc_lic genkey' 产出。许可证 blob 布局见 lib/license.c（104 字节，小端）。
  */
 #define _GNU_SOURCE 1
 
@@ -139,6 +146,7 @@ static void build_signed(uint8_t*out,uint32_t product,const uint8_t*mid32){
 }
 
 /* ── 子命令 ────────────────────────────────────────────────────── */
+#ifndef RKVC_LIC_MACHINE_ONLY
 static int cmd_genkey(const char*outdir){
     if (sodium_init() < 0) { fprintf(stderr,"error: sodium_init failed\n"); return 1; }
 
@@ -172,12 +180,20 @@ static int cmd_genkey(const char*outdir){
     printf("\n\n⚠️  妥善保管 secret.key，切勿提交到仓库。\n");
     return 0;
 }
+#endif
 
 static int cmd_machine_id(void){
     char hex[65];if(machine_id(hex,sizeof(hex)))return 1;
     printf("%s\n",hex);return 0;
 }
 
+static void print_blob(const uint8_t*blob){
+    printf("magic      : 0x%08x\n",get_u32(blob));
+    printf("product_id : %u\n",get_u32(blob+4));
+    printf("machine_id : ");for(int i=0;i<32;i++)printf("%02x",blob[8+i]);printf("\n");
+}
+
+#ifndef RKVC_LIC_MACHINE_ONLY
 static int cmd_issue(const char*mid_hex,const char*secret_key,
                      uint32_t product,const char*outfile){
     uint8_t mid32[32];
@@ -199,12 +215,6 @@ static int cmd_issue(const char*mid_hex,const char*secret_key,
     return 0;
 }
 
-static void print_blob(const uint8_t*blob){
-    printf("magic      : 0x%08x\n",get_u32(blob));
-    printf("product_id : %u\n",get_u32(blob+4));
-    printf("machine_id : ");for(int i=0;i<32;i++)printf("%02x",blob[8+i]);printf("\n");
-}
-
 static int cmd_inspect(const char*file){
     FILE*f=fopen(file,"rb");if(!f){perror(file);return 1;}
     char text[512];size_t n=fread(text,1,sizeof(text)-1,f);fclose(f);text[n]='\0';
@@ -213,6 +223,7 @@ static int cmd_inspect(const char*file){
         fprintf(stderr,"error: cannot decode license\n");return 1;}
     print_blob(blob);return 0;
 }
+#endif
 
 static int cmd_verify(const char*file,const char*keyfile){
     FILE*f=fopen(file,"rb");if(!f){perror(file);return 1;}
@@ -240,14 +251,22 @@ static int cmd_verify(const char*file,const char*keyfile){
 static void usage(void){
     fprintf(stderr,
 "rkvc_lic — rkvc 1机1码 工具\n\n"
+#ifdef RKVC_LIC_MACHINE_ONLY
+"  rkvc_lic machine-id                              打印本机机器码（hex）\n"
+"  rkvc_lic verify    -f <license.lic> -k <key>     校验签名+机器码\n"
+"\n"
+"  此发行版仅包含机器码采集与校验功能，不含密钥生成/签发能力。\n"
+#else
 "  rkvc_lic genkey    -o <dir>                      生成 Ed25519 密钥对\n"
-"  rkvc_lic machine-id                              打印本机机器码\n"
+"  rkvc_lic machine-id                              打印本机机器码（hex）\n"
 "  rkvc_lic issue     -m <hex> -k <secret.key>\n"
 "                    [-p N] -o <file>              签发注册码\n"
 "  rkvc_lic inspect   -f <license.lic>              解析注册码字段\n"
 "  rkvc_lic verify    -f <license.lic> -k <key>     校验签名+机器码\n"
 "\n"
-"  <key> 可为 public.key（32 字节）或 secret.key（64 字节，自动派生公钥）。\n");
+"  <key> 可为 public.key（32 字节）或 secret.key（64 字节，自动派生公钥）。\n"
+#endif
+);
 }
 
 int main(int argc,char**argv){
@@ -259,6 +278,7 @@ int main(int argc,char**argv){
 
     if(!strcmp(cmd,"machine-id"))return cmd_machine_id();
 
+#ifndef RKVC_LIC_MACHINE_ONLY
     if(!strcmp(cmd,"genkey")){
         const char*outdir=NULL;
         for(int i=2;i<argc;i++){if(i+1<argc&&!strcmp(argv[i],"-o"))outdir=argv[++i];}
@@ -286,6 +306,7 @@ int main(int argc,char**argv){
         if(!file){usage();return 2;}
         return cmd_inspect(file);
     }
+#endif
     if(!strcmp(cmd,"verify")){
         const char*file=NULL,*key=NULL;
         for(int i=2;i<argc;i++){

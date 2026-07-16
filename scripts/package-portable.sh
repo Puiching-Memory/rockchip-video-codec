@@ -274,9 +274,9 @@ package() {
         [[ -f "$RKVC_BUILD/$tool" ]] && cp "$RKVC_BUILD/$tool" "$OUT_DIR/$PKG_NAME/bin/"
     done
 
-    if [[ $LICENSE -eq 1 && -f "$RKVC_BUILD/rkvc_lic" ]]; then
-        cp "$RKVC_BUILD/rkvc_lic" "$OUT_DIR/$PKG_NAME/bin/"
-        echo "  rkvc_lic  (授权签发/管理工具)"
+    if [[ $LICENSE -eq 1 && -f "$RKVC_BUILD/rkvc_lic_client" ]]; then
+        cp "$RKVC_BUILD/rkvc_lic_client" "$OUT_DIR/$PKG_NAME/bin/rkvc_lic"
+        echo "  rkvc_lic  (机器码采集/授权校验工具，不含签发能力)"
     fi
 
     echo "--- 复制示例程序二进制 ---"
