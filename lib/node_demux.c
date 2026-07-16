@@ -18,7 +18,9 @@ rkvc_err rkvc_demux_open(rkvc_demux **out, const rkvc_demux_config *cfg)
         return RKVC_ERR_INVALID;
 
     *out = NULL;
-    rkvc_init();
+    rkvc_err init_err = rkvc_init();
+    if (init_err != RKVC_OK)
+        return init_err;
 
     rkvc_demux *d = rkvc_calloc(1, sizeof(*d));
     if (!d)

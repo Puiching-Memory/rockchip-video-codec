@@ -18,6 +18,58 @@ source scripts/build-common.sh
 
 产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librga` + `librknnrt` + `models/`）
 
+### 授权构建（可选）
+
+打包时可选开启 1机1码强制授权。`--license` 会自动完成全部密钥管理：
+
+1. 构建 `libsodium` 子模块
+2. 编译临时 `rkvc_lic` 工具（仅依赖 libsodium）
+3. 检查 `tools/keys/secret.key` + `public.key`，**不存在则自动生成**密钥对（首次）
+4. 用公钥自动注入 CMake 编译（`RKVC_LICENSE_PUBKEY_FILE`），不再使用演示密钥
+5. 用私钥签发**本机自测 license**（`.build/dist/<pkg>.lic`，不随包分发）
+6. 打包 `rkvc_lic` 到 `bin/`，供客户机采集机器码
+
+```bash
+# 强制授权版（首次自动生成密钥对）
+./scripts/package-portable.sh --license
+# 成品包: .build/dist/rkvc-<version>-linux-<arch>-portable-licensed/
+# 自测license: .build/dist/rkvc-<version>-linux-<arch>-portable-licensed.lic
+
+# 本机自测（打包机自身）
+RKVC_LICENSE_FILE=".build/dist/rkvc-<version>-linux-<arch>-portable-licensed.lic" \
+  .build/dist/rkvc-<version>-linux-<arch>-portable-licensed/bin/rkvc_info --version
+```
+
+| 选项        | CMake                     | 包名后缀    | 运行时行为                          |
+| ----------- | ------------------------- | ----------- | ----------------------------------- |
+| _(无)_      | `RKVC_ENABLE_LICENSE=OFF` | _(无)_      | 无授权校验                          |
+| `--license` | `RKVC_ENABLE_LICENSE=ON`  | `-licensed` | `rkvc_init()` 须有效 license 方通过 |
+
+**密钥管理**：
+
+| 文件 | 路径 | gitignore | 用途 |
+| ---- | ---- | --------- | ---- |
+| 私钥 | `tools/keys/secret.key` | ✅ 已忽略 | 签发 license，保管在打包机 |
+| 公钥 | `tools/keys/public.key` | ❌ 可提交 | 嵌入 librkvc 编译 |
+
+**客户签发流程**：
+
+```bash
+# 1. 客户机采集机器码（包内 rkvc_lic）
+rkvc_lic machine-id
+
+# 2. 打包方签发 license（用打包机私钥）
+rkvc_lic issue -m <客户机器码> -k tools/keys/secret.key -o customer.lic
+
+# 3. 客户放置 license
+cp customer.lic ~/.config/rkvc/license.lic
+# 或设置环境变量
+export RKVC_LICENSE_FILE=/path/to/customer.lic
+```
+
+> **前置依赖**：`--license` 需 `third_party/libsodium` 子模块及
+> autotools（`autoconf` / `automake` / `libtool`）。`libsodium` 静态链接，不随包分发 `.so`。
+
 ```
 rkvc-*-linux-aarch64-portable/
 ├── bin/
@@ -109,15 +161,16 @@ ninja -C .build/release -j4 package
 
 ## 打包脚本
 
-| 脚本                                  | 用途                                     |
-| ------------------------------------- | ---------------------------------------- |
-| `scripts/package-portable.sh`         | 从源码构建可移植包                       |
-| `scripts/package-portable.sh --clean` | 清理重建                                 |
-| `scripts/test-portable.sh <dir>`      | 测试可移植包（99 项）                    |
-| `scripts/build-svt.sh`                | 构建 SVT-AV1                             |
-| `scripts/rebuild-ffmpeg-rkmpp.sh`     | 重建 ffmpeg-rockchip                     |
-| `<package>/test.sh`                   | 包内一键自测                             |
-| `<package>/network-e2e-test.sh`       | v2 冒烟（码流生成 + stream_device_pair） |
+| 脚本                                    | 用途                                        |
+| --------------------------------------- | ------------------------------------------- |
+| `scripts/package-portable.sh`           | 从源码构建可移植包                          |
+| `scripts/package-portable.sh --clean`   | 清理重建                                    |
+| `scripts/package-portable.sh --license` | 强制授权版（运行时校验 license + rkvc_lic） |
+| `scripts/test-portable.sh <dir>`        | 测试可移植包（99 项）                       |
+| `scripts/build-svt.sh`                  | 构建 SVT-AV1                                |
+| `scripts/rebuild-ffmpeg-rkmpp.sh`       | 重建 ffmpeg-rockchip                        |
+| `<package>/test.sh`                     | 包内一键自测                                |
+| `<package>/network-e2e-test.sh`         | v2 冒烟（码流生成 + stream_device_pair）    |
 
 ## 发布文档模板
 

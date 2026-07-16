@@ -19,6 +19,7 @@
 #include "rkvc/runtime.h"
 #include "rkvc/net.h"
 #include "rkvc/reconfig.h"
+#include "rkvc/license.h"
 
 #ifdef __cplusplus
 extern "C" {

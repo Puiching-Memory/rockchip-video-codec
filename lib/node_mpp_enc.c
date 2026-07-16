@@ -19,7 +19,9 @@ rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg)
         return RKVC_ERR_INVALID;
 
     *out = NULL;
-    rkvc_init();
+    rkvc_err init_err = rkvc_init();
+    if (init_err != RKVC_OK)
+        return init_err;
 
     const char *name = cfg->route->enc_name;
     const AVCodec *codec = avcodec_find_encoder_by_name(name);

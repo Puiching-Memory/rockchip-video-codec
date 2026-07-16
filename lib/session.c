@@ -401,7 +401,9 @@ rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc,
         return RKVC_ERR_INVALID;
 
     *out = NULL;
-    rkvc_init();
+    rkvc_err init_err = rkvc_init();
+    if (init_err != RKVC_OK)
+        return init_err;
 
     int rt_flags = 0;
     rkvc_err rerr = rkvc_runtime_try_register(desc, &rt_flags);

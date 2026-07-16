@@ -21,7 +21,9 @@ rkvc_err rkvc_mpp_dec_open(rkvc_mpp_dec **out, const rkvc_mpp_dec_config *cfg,
         return RKVC_ERR_INVALID;
 
     *out = NULL;
-    rkvc_init();
+    rkvc_err init_err = rkvc_init();
+    if (init_err != RKVC_OK)
+        return init_err;
 
     const char *name = cfg->route->dec_name;
     const AVCodec *codec = NULL;

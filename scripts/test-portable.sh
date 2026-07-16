@@ -13,6 +13,8 @@
 #   5. 编码、解码、转码、后处理上采样、网络冒烟（network-e2e-test.sh）
 #   6. 开发头文件与 pkg-config
 #   7. CLI 参数错误与包结构负向测试
+#   8. 强制授权版 license 校验（如存在 *-licensed 目录）
+#   9. 跨目录可移植性（复制到临时路径后无 LD_LIBRARY_PATH 运行）
 
 set -euo pipefail
 
@@ -560,6 +562,91 @@ if command -v patchelf >/dev/null 2>&1; then
         "$NEG_PKG/bin/rkvc_info" "negative/bin/rkvc_info" '$ORIGIN/../lib'
 else
     warn "跳过绝对 RPATH 注入负向测试 (缺少 patchelf)"
+fi
+
+# 跨目录可移植性：将包复制到另一路径后仍能无 LD_LIBRARY_PATH 运行
+# 验证 RPATH 使用 $ORIGIN，不依赖原始 PKG_DIR 绝对路径
+echo ""
+echo "--- 跨目录可移植性 ---"
+MOVED_PKG="$TMPDIR/package-moved"
+rm -rf "$MOVED_PKG"
+mkdir -p "$MOVED_PKG"
+(cd "$PKG_DIR" && tar cf - .) | (cd "$MOVED_PKG" && tar xf -)
+if [ -x "$MOVED_PKG/bin/rkvc_info" ]; then
+    capture_run moved_status moved_output env -u LD_LIBRARY_PATH "$MOVED_PKG/bin/rkvc_info" --version
+    if [ "$moved_status" -eq 0 ] && echo "$moved_output" | grep -q "^rkvc "; then
+        pass "跨目录运行: 移动后 rkvc_info --version 成功"
+    else
+        fail "跨目录运行: 移动后 rkvc_info --version 失败 (exit=$moved_status)"
+        show_output "moved rkvc_info --version" "$moved_output"
+    fi
+
+    capture_run moved_json_status moved_json_output env -u LD_LIBRARY_PATH "$MOVED_PKG/bin/rkvc_info" --json
+    if [ "$moved_json_status" -eq 0 ] && echo "$moved_json_output" | grep -q '"version"'; then
+        pass "跨目录运行: 移动后 rkvc_info --json 成功"
+    else
+        fail "跨目录运行: 移动后 rkvc_info --json 失败 (exit=$moved_json_status)"
+        show_output "moved rkvc_info --json" "$moved_json_output"
+    fi
+
+    capture_run moved_ldd_status moved_ldd_output env -u LD_LIBRARY_PATH ldd "$MOVED_PKG/bin/rkvc_info"
+    if [ "$moved_ldd_status" -eq 0 ] && ! echo "$moved_ldd_output" | grep -q "not found"; then
+        pass "跨目录运行: 移动后所有动态依赖已解析"
+    else
+        fail "跨目录运行: 移动后存在未解析依赖"
+        show_output "moved ldd" "$moved_ldd_output"
+    fi
+else
+    fail "跨目录运行: 复制后的包缺少 rkvc_info"
+fi
+
+echo ""
+echo "--- 强制授权版 license 校验 ---"
+LIC_PKG_DIR=""
+# 若当前包路径不是 licensed 版，尝试查找同级 *-licensed 目录
+if [[ "$PKG_DIR" == *-licensed ]]; then
+    LIC_PKG_DIR="$PKG_DIR"
+else
+    LIC_PKG_DIR="${PKG_DIR}-licensed"
+fi
+
+if [ -d "$LIC_PKG_DIR" ] && [ -x "$LIC_PKG_DIR/bin/rkvc_info" ]; then
+    echo "  授权版包: $LIC_PKG_DIR"
+
+    # 无 license 时应失败
+    capture_run lic_no_status lic_no_output \
+        env -u LD_LIBRARY_PATH -u RKVC_LICENSE_FILE "$LIC_PKG_DIR/bin/rkvc_info" --version
+    if [ "$lic_no_status" -ne 0 ] && \
+       echo "$lic_no_output" | grep -Eiq "license|lic|授权|unauthorized|denied"; then
+        pass "license: 无 license 时 rkvc_info 拒绝运行"
+    else
+        fail "license: 无 license 时 rkvc_info 未正确拒绝 (exit=$lic_no_status)"
+        show_output "licensed rkvc_info (no license)" "$lic_no_output"
+    fi
+
+    # 使用本机自测 license 时应成功
+    LIC_FILE="$LIC_PKG_DIR.lic"
+    if [ -f "$LIC_FILE" ]; then
+        capture_run lic_ok_status lic_ok_output \
+            env -u LD_LIBRARY_PATH RKVC_LICENSE_FILE="$LIC_FILE" "$LIC_PKG_DIR/bin/rkvc_info" --version
+        if [ "$lic_ok_status" -eq 0 ] && echo "$lic_ok_output" | grep -q "^rkvc "; then
+            pass "license: 有效 license 下 rkvc_info 正常运行"
+        else
+            fail "license: 有效 license 下 rkvc_info 运行失败 (exit=$lic_ok_status)"
+            show_output "licensed rkvc_info (with license)" "$lic_ok_output"
+        fi
+    else
+        warn "未找到本机自测 license: $LIC_FILE，跳过 license 正向测试"
+    fi
+
+    # rkvc_lic 工具存在性
+    if [ -x "$LIC_PKG_DIR/bin/rkvc_lic" ]; then
+        pass "license: 包内包含 rkvc_lic 工具"
+    else
+        fail "license: 授权版包缺少 rkvc_lic 工具"
+    fi
+else
+    warn "跳过 license 校验 (未找到 *-licensed 包: $LIC_PKG_DIR)"
 fi
 
 # 总结

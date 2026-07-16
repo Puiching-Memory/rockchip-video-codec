@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.6
+    VERSION 0.2.7
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -39,6 +39,7 @@ option(RKVC_ENABLE_FAULT_INJECTION "Enable deterministic test fault injection ho
 option(RKVC_ENABLE_TIDY    "Enable clang-tidy checks"  OFF)
 option(RKVC_BUILD_DOCS     "Build Doxygen API docs"    OFF)
 option(RKVC_ENABLE_RKNN    "Enable RKNN NPU super-resolution" ON)
+option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
 
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库
@@ -146,6 +147,68 @@ endif()
 
 add_library(rkvc_instrumentation INTERFACE)
 
+# ── 授权（1机1码，Ed25519） ────────────────────────────────────────
+# 通过 third_party/libsodium 子模块提供 SHA-256 + Ed25519，无需系统 OpenSSL/mbedTLS。
+# libsodium 使用 autotools 构建，沿用本项目对非 CMake 子模块（librga/SVT-AV1）的
+# 「install 脚本 + 前缀」惯例：先运行 ./scripts/install-libsodium.sh。
+# 单一选项 RKVC_ENABLE_LICENSE：开启即编译授权模块 + 运行时强制校验。
+#
+# 公钥来源（二选一）:
+#   RKVC_LICENSE_PUBKEY_FILE=<path>  指向 32 字节公钥二进制文件（生产密钥，推荐）
+#   未设置                           使用 lib/license_pubkey.c 演示公钥（仅开发）
+if(RKVC_ENABLE_LICENSE)
+    set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
+        CACHE PATH "libsodium install prefix (see scripts/install-libsodium.sh)")
+    if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
+        message(FATAL_ERROR
+            "libsodium not found at ${LIBSODIUM_PREFIX}/lib/libsodium.a\n"
+            "  Run: git submodule update --init third_party/libsodium\n"
+            "       ./scripts/install-libsodium.sh")
+    endif()
+    list(APPEND RKVC_SOURCES lib/license.c lib/license_machine.c lib/license_b64.c)
+    # libsodium 静态库依赖线程原语；旧 glibc(<2.34)/musl 上需显式链接 pthread，
+    # 用 Threads::Threads 让 librkvc 与 rkvc_lic 都自包含地拿到线程库。
+    find_package(Threads REQUIRED)
+    set(RKVC_LICENSE_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
+    set(RKVC_LICENSE_INCLUDES ${LIBSODIUM_PREFIX}/include)
+    set(RKVC_LICENSE_DEFS RKVC_ENABLE_LICENSE=1)
+
+    if(RKVC_LICENSE_PUBKEY_FILE AND EXISTS "${RKVC_LICENSE_PUBKEY_FILE}")
+        # 从 32 字节公钥二进制生成 C 源文件（避免手动维护 license_pubkey.c）
+        file(READ "${RKVC_LICENSE_PUBKEY_FILE}" _pubkey_hex HEX)
+        string(LENGTH "${_pubkey_hex}" _hex_len)
+        math(EXPR _pubkey_bytes "${_hex_len} / 2")
+        if(NOT _pubkey_bytes EQUAL 32)
+            message(FATAL_ERROR
+                "RKVC_LICENSE_PUBKEY_FILE: expected 32 bytes, got ${_pubkey_bytes}")
+        endif()
+        set(_c_arr "")
+        set(_i 0)
+        while(_i LESS 64)
+            string(SUBSTRING "${_pubkey_hex}" ${_i} 2 _byte)
+            string(APPEND _c_arr "0x${_byte},")
+            math(EXPR _i "${_i} + 2")
+            math(EXPR _col "(${_i} / 2) % 12")
+            if(_col EQUAL 0 AND _i LESS 64)
+                string(APPEND _c_arr "\n  ")
+            endif()
+        endwhile()
+        set(RKVC_LICENSE_PUBKEY_C "${CMAKE_BINARY_DIR}/generated/license_pubkey.c")
+        file(WRITE "${RKVC_LICENSE_PUBKEY_C}"
+            "/* 由 CMake 从 RKVC_LICENSE_PUBKEY_FILE 自动生成，勿手动编辑。 */\n"
+            "#include <stdint.h>\n\n"
+            "const unsigned char rkvc_license_pubkey[32] = {\n  ${_c_arr}\n};\n\n"
+            "const unsigned rkvc_license_pubkey_len = 32;\n")
+        list(APPEND RKVC_SOURCES "${RKVC_LICENSE_PUBKEY_C}")
+        message(STATUS "License (1机1码): ON, pubkey=${RKVC_LICENSE_PUBKEY_FILE}")
+    else()
+        list(APPEND RKVC_SOURCES lib/license_pubkey.c)
+        message(WARNING
+            "RKVC_ENABLE_LICENSE=ON but RKVC_LICENSE_PUBKEY_FILE not set;\n"
+            "  using DEMO public key from lib/license_pubkey.c — NOT for production")
+    endif()
+endif()
+
 if(RKVC_ENABLE_ASAN OR RKVC_ENABLE_UBSAN OR RKVC_ENABLE_COVERAGE)
     if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         message(FATAL_ERROR "Sanitizers and coverage require GCC or Clang")
@@ -206,8 +269,13 @@ if(RKVC_BUILD_SHARED)
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
     )
     target_link_directories(rkvc_shared PRIVATE ${RKVC_DEP_LIB_DIRS})
-    target_link_options(rkvc_shared PRIVATE ${RKVC_RPATH_LINK_OPTIONS})
-    target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS})
+    target_link_options(rkvc_shared PRIVATE
+        ${RKVC_RPATH_LINK_OPTIONS}
+        # 仅导出公共 API(rkvc_ 前缀),内部符号全部隐藏;并让库内对自身
+        # 符号的调用绑定到本 DSO 定义(防止 LD_PRELOAD 劫持校验链)。
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/librkvc.map"
+        "-Wl,-Bsymbolic-functions")
+    target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
     if(RKVC_RKNN_ENABLED)
         target_compile_definitions(rkvc_shared PRIVATE RKVC_ENABLE_RKNN=1)
     endif()
@@ -218,7 +286,8 @@ if(RKVC_BUILD_SHARED)
         POSITION_INDEPENDENT_CODE ON
     )
     # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(rkvc_shared PRIVATE ${RKVC_VERSION_COMPILE_DEFS})
+    target_compile_definitions(rkvc_shared PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS})
+    target_include_directories(rkvc_shared PRIVATE ${RKVC_LICENSE_INCLUDES})
     # soname alias
     add_library(rkvc::shared ALIAS rkvc_shared)
 endif()
@@ -238,13 +307,14 @@ if(RKVC_BUILD_STATIC)
     )
     target_link_directories(rkvc_static PUBLIC ${RKVC_DEP_LIB_DIRS})
     target_link_options(rkvc_static INTERFACE ${RKVC_RPATH_LINK_OPTIONS})
-    target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS})
+    target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
     if(RKVC_RKNN_ENABLED)
         target_compile_definitions(rkvc_static PRIVATE RKVC_ENABLE_RKNN=1)
     endif()
     set_target_properties(rkvc_static PROPERTIES OUTPUT_NAME rkvc)
     # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(rkvc_static PRIVATE ${RKVC_VERSION_COMPILE_DEFS})
+    target_compile_definitions(rkvc_static PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS})
+    target_include_directories(rkvc_static PRIVATE ${RKVC_LICENSE_INCLUDES})
     add_library(rkvc::static ALIAS rkvc_static)
 endif()
 
@@ -359,6 +429,14 @@ if(RKVC_BUILD_CLI)
         COMMENT "Run RD benchmark (requires SRC_VIDEO or pass video path to script)"
         VERBATIM
     )
+endif()
+
+# ── 授权工具（rkvc_lic：签发/管理，独立于 librkvc） ─────────────────
+if(RKVC_ENABLE_LICENSE)
+    add_executable(rkvc_lic tools/rkvc_lic.c lib/license_machine.c lib/license_b64.c)
+    target_include_directories(rkvc_lic PRIVATE
+            ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    target_link_libraries(rkvc_lic PRIVATE ${RKVC_LICENSE_LIBS})
 endif()
 
 # ── 安装 ──────────────────────────────────────────────────────────────

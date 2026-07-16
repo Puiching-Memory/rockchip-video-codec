@@ -2,7 +2,11 @@
 # scripts/package-portable.sh — 从源码构建可移植二进制包
 #
 # 用法:
-#   ./scripts/package-portable.sh [--clean]
+#   ./scripts/package-portable.sh [--clean] [--license]
+#
+# 选项:
+#   --clean             清理所有中间产物后全量重建
+#   --license           开启 1机1码强制授权 (RKVC_ENABLE_LICENSE=ON, 运行时校验)
 #
 # 流程:
 #   1. 从 third_party/mpp 子模块编译 rockchip-mpp
@@ -30,6 +34,7 @@ FFMPEG_PREFIX="$PROJECT_DIR/.build/deps/ffmpeg-install"
 MPP_BUILD="$PROJECT_DIR/.build/deps/mpp-build"
 MPP_PREFIX="$PROJECT_DIR/.build/deps/mpp-install"
 RGA_PREFIX="$PROJECT_DIR/.build/deps/librga-install"
+LIBSODIUM_PREFIX="$PROJECT_DIR/.build/deps/libsodium-install"
 RKVC_BUILD="$PROJECT_DIR/.build/portable"
 OUT_DIR="$PROJECT_DIR/.build/dist"
 
@@ -37,8 +42,22 @@ VERSION="$(rkvc_project_version)"
 ARCH="$(uname -m)"
 PKG_NAME="$(rkvc_portable_pkg_dir)"
 
+# 授权构建模式: 标准 / 强制授权
 CLEAN=0
-[[ "${1:-}" == "--clean" ]] && CLEAN=1
+LICENSE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --clean)   CLEAN=1 ;;
+        --license) LICENSE=1 ;;
+        *) echo "错误: 未知参数 '$1'"; exit 2 ;;
+    esac
+    shift
+done
+
+if [[ $LICENSE -eq 1 ]]; then
+    PKG_NAME="${PKG_NAME}-licensed"
+fi
 
 # 自动检测 CMake 生成器: 若系统有 ninja 且 build 目录用 Ninja 则使用 Ninja，否则 Unix Makefiles
 detect_generator() {
@@ -83,6 +102,20 @@ check_deps() {
     if [[ ! -f "$RGA_SRC/include/im2d.h" ]]; then
         echo "错误: librga 子模块未初始化，运行: git submodule update --init --depth 1 third_party/librga"
         exit 1
+    fi
+    if [[ $LICENSE -eq 1 ]]; then
+        if [[ ! -f "$PROJECT_DIR/third_party/libsodium/configure.ac" ]]; then
+            echo "错误: libsodium 子模块未初始化，运行: git submodule update --init third_party/libsodium"
+            exit 1
+        fi
+        local sod_missing=()
+        for cmd in autoreconf automake autoconf libtoolize; do
+            command -v "$cmd" >/dev/null || sod_missing+=("$cmd")
+        done
+        if [[ ${#sod_missing[@]} -gt 0 ]]; then
+            echo "错误: --license 需要 autotools 工具: ${sod_missing[*]} (autoconf/automake/libtool)"
+            exit 1
+        fi
     fi
 }
 
@@ -132,6 +165,66 @@ install_rga() {
     PREFIX="$RGA_PREFIX" "$SCRIPT_DIR/install-librga.sh"
 }
 
+build_libsodium() {
+    [[ $LICENSE -eq 1 ]] || return 0
+    echo "=== 构建 libsodium (submodule -> $LIBSODIUM_PREFIX) ==="
+    if [[ $CLEAN -eq 1 ]]; then
+        rm -rf "$LIBSODIUM_PREFIX"
+    fi
+    if [[ -f "$LIBSODIUM_PREFIX/lib/libsodium.a" ]]; then
+        echo "--- libsodium 已构建，跳过 (用 --clean 重建) ---"
+        return
+    fi
+    PREFIX="$LIBSODIUM_PREFIX" "$SCRIPT_DIR/install-libsodium.sh"
+}
+
+prepare_license_keys() {
+    [[ $LICENSE -eq 1 ]] || return 0
+    echo "=== 准备授权密钥 ==="
+
+    local keys_dir="$PROJECT_DIR/tools/keys"
+    local secret_key="$keys_dir/secret.key"
+    local public_key="$keys_dir/public.key"
+    local rkvc_lic="$PROJECT_DIR/.build/deps/rkvc_lic"
+
+    # 编译临时 rkvc_lic（仅依赖 libsodium，不走完整 CMake）。
+    # 总是重新编译：rkvc_lic 源码/头文件可能已更新，避免复用旧格式二进制。
+    echo "--- 编译 rkvc_lic (host) ---"
+    mkdir -p "$(dirname "$rkvc_lic")"
+    cc -O2 -o "$rkvc_lic" "$PROJECT_DIR/tools/rkvc_lic.c" \
+        -I"$PROJECT_DIR/lib" \
+        -I"$LIBSODIUM_PREFIX/include" \
+        "$LIBSODIUM_PREFIX/lib/libsodium.a" \
+        -lpthread
+
+    # 检查/生成密钥对（首次自动生成，之后复用）
+    if [[ ! -f "$secret_key" ]] || [[ ! -f "$public_key" ]]; then
+        echo "--- 生成 Ed25519 密钥对 ---"
+        mkdir -p "$keys_dir"
+        "$rkvc_lic" genkey -o "$keys_dir"
+        echo "⚠ 私钥: $secret_key (已 gitignore, 切勿提交/分发)"
+    else
+        echo "--- 密钥对已存在，复用 ---"
+    fi
+
+    # 签发本机自测 license（绑定打包机 machine-id, 永久有效）
+    echo "--- 签发本机自测 license ---"
+    local machine_id
+    machine_id="$("$rkvc_lic" machine-id)"
+    mkdir -p "$OUT_DIR"
+    RKVC_LICENSE_FILE="$OUT_DIR/${PKG_NAME}.lic"
+    "$rkvc_lic" issue -m "$machine_id" -k "$secret_key" -o "$RKVC_LICENSE_FILE"
+    echo "  license: $RKVC_LICENSE_FILE (本机自测用, 不随包分发)"
+
+    # 自验证
+    if "$rkvc_lic" verify -f "$RKVC_LICENSE_FILE" -k "$public_key" >/dev/null 2>&1; then
+        echo "  自验证: OK"
+    else
+        echo "  错误: license 自验证失败"
+        return 1
+    fi
+}
+
 build_ffmpeg() {
     echo "=== 构建 ffmpeg-rockchip (AV1 硬解) ==="
     RGA_PREFIX="$RGA_PREFIX" MPP_PREFIX="$MPP_PREFIX" \
@@ -148,12 +241,19 @@ build_rkvc() {
     gen="$(detect_generator)"
     echo "--- 使用生成器: $gen ---"
 
+    local cmake_license_args=()
+    if [[ $LICENSE -eq 1 ]]; then
+        cmake_license_args+=(-DRKVC_ENABLE_LICENSE=ON)
+        cmake_license_args+=(-DRKVC_LICENSE_PUBKEY_FILE="$PROJECT_DIR/tools/keys/public.key")
+    fi
+
     cmake -B "$RKVC_BUILD" -G "$gen" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_BUILD_PARALLEL_LEVEL="$BUILD_JOBS" \
         -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
         -DMPP_BUILD_DIR="$MPP_BUILD" \
         -DRGA_PREFIX="$RGA_PREFIX" \
+        "${cmake_license_args[@]+"${cmake_license_args[@]}"}" \
         "$PROJECT_DIR"
 
     local build_cmd
@@ -173,6 +273,11 @@ package() {
                 rkvc_session_upscale rkvc_yuv_upscale; do
         [[ -f "$RKVC_BUILD/$tool" ]] && cp "$RKVC_BUILD/$tool" "$OUT_DIR/$PKG_NAME/bin/"
     done
+
+    if [[ $LICENSE -eq 1 && -f "$RKVC_BUILD/rkvc_lic" ]]; then
+        cp "$RKVC_BUILD/rkvc_lic" "$OUT_DIR/$PKG_NAME/bin/"
+        echo "  rkvc_lic  (授权签发/管理工具)"
+    fi
 
     echo "--- 复制示例程序二进制 ---"
     for exe in "$RKVC_BUILD"/example_*; do
@@ -421,16 +526,31 @@ EOF
 }
 
 main() {
-    echo "=== 可移植包构建 (rkvc $VERSION, $ARCH) ==="
+    local mode="标准版"
+    [[ $LICENSE -eq 1 ]] && mode="强制授权版 (运行时校验)"
+    echo "=== 可移植包构建 (rkvc $VERSION, $ARCH, $mode) ==="
     check_deps
     build_mpp
     build_svt
     install_rga
+    build_libsodium
+    prepare_license_keys
     build_ffmpeg
     build_rkvc
     package
     echo ""
     echo "=== 完成: $OUT_DIR/$PKG_NAME.tar.gz ==="
+    if [[ $LICENSE -eq 1 ]]; then
+        echo ""
+        echo "⚠ 强制授权版: 目标机须放置有效 license 文件后方可运行"
+        echo "  本机自测: RKVC_LICENSE_FILE=\"$RKVC_LICENSE_FILE\" \\"
+        echo "            $OUT_DIR/$PKG_NAME/bin/rkvc_info --version"
+        echo ""
+        echo "  客户签发流程:"
+        echo "    1. 客户机运行: rkvc_lic machine-id"
+        echo "    2. 打包方签发: rkvc_lic issue -m <客户机器码> -k tools/keys/secret.key -o customer.lic"
+        echo "    3. 客户放置:   ~/.config/rkvc/license.lic 或设置 RKVC_LICENSE_FILE"
+    fi
 }
 
 main

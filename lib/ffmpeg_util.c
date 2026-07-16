@@ -175,7 +175,6 @@ rkvc_err rkvc_hash_buffer(const char *algo, const uint8_t *data, size_t len,
 {
     struct AVHashContext *ctx = NULL;
     int hash_size;
-    uint8_t *digest = NULL;
     rkvc_err err = RKVC_OK;
 
     if (!algo || !data || !out_hex || out_size == 0)
@@ -190,19 +189,11 @@ rkvc_err rkvc_hash_buffer(const char *algo, const uint8_t *data, size_t len,
         goto done;
     }
 
-    digest = av_malloc((size_t)hash_size * 2 + 1);
-    if (!digest) {
-        err = RKVC_ERR_NOMEM;
-        goto done;
-    }
-
     av_hash_init(ctx);
     av_hash_update(ctx, data, len);
-    av_hash_final_hex(ctx, digest, hash_size * 2 + 1);
-    memcpy(out_hex, digest, (size_t)hash_size * 2 + 1);
+    av_hash_final_hex(ctx, (uint8_t *)out_hex, hash_size * 2 + 1);
 
 done:
-    av_free(digest);
     av_hash_freep(&ctx);
     return err;
 }
@@ -214,7 +205,6 @@ rkvc_err rkvc_hash_file(const char *path, const char *algo,
     struct AVHashContext *ctx = NULL;
     uint8_t buf[65536];
     int hash_size;
-    uint8_t *digest = NULL;
     rkvc_err err = RKVC_OK;
 
     if (!path || !algo || !out_hex || out_size == 0)
@@ -235,12 +225,6 @@ rkvc_err rkvc_hash_file(const char *path, const char *algo,
         goto done;
     }
 
-    digest = av_malloc((size_t)hash_size * 2 + 1);
-    if (!digest) {
-        err = RKVC_ERR_NOMEM;
-        goto done;
-    }
-
     av_hash_init(ctx);
     for (;;) {
         size_t n = fread(buf, 1, sizeof(buf), fp);
@@ -253,13 +237,10 @@ rkvc_err rkvc_hash_file(const char *path, const char *algo,
         }
     }
 
-    if (err == RKVC_OK) {
-        av_hash_final_hex(ctx, digest, hash_size * 2 + 1);
-        memcpy(out_hex, digest, (size_t)hash_size * 2 + 1);
-    }
+    if (err == RKVC_OK)
+        av_hash_final_hex(ctx, (uint8_t *)out_hex, hash_size * 2 + 1);
 
 done:
-    av_free(digest);
     av_hash_freep(&ctx);
     fclose(fp);
     return err;

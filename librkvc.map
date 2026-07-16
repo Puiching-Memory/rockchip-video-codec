@@ -1,0 +1,16 @@
+/*
+ * librkvc.map — 共享库符号导出控制（链接器 version script）。
+ *
+ * 仅导出公共 API（rkvc_ 前缀）；其余符号（内部实现、license 校验内部函数、
+ * static 变量等）一律标记为 local，不出现在 .dynsym，外部无法 dlsym/LD_PRELOAD。
+ *
+ * 配合 -Bsymbolic-functions：库内部对 rkvc_* 函数的调用直接绑定到本 DSO 内
+ * 的定义，即使该符号被导出，LD_PRELOAD 也无法劫持库自身的内部调用链
+ *（如 rkvc_init() → rkvc_license_check() 的校验路径）。
+ */
+RKVC_1.0 {
+    global:
+        rkvc_*;
+    local:
+        *;
+};

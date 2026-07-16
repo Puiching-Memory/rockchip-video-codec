@@ -70,7 +70,9 @@ rkvc_err rkvc_svt_enc_open(rkvc_svt_enc **out, const rkvc_svt_enc_config *cfg)
         return RKVC_ERR_INVALID;
 
     *out = NULL;
-    rkvc_init();
+    rkvc_err init_err = rkvc_init();
+    if (init_err != RKVC_OK)
+        return init_err;
 
     const AVCodec *codec = avcodec_find_encoder_by_name("libsvtav1");
     if (!codec)

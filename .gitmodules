@@ -16,3 +16,7 @@
 	path = third_party/librga
 	url = https://github.com/airockchip/librga.git
 	shallow = true
+[submodule "third_party/libsodium"]
+	path = third_party/libsodium
+	url = https://github.com/jedisct1/libsodium.git
+	shallow = true

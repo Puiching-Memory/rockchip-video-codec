@@ -2,6 +2,45 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [0.2.7] - 2026-07-15
+
+### 发布重点
+
+rkvc **0.2.7** 新增可选的 **1机1码离线授权**（Ed25519 非对称签名 + 硬件指纹），库内嵌公钥本地校验，无需联网；开启后 `rkvc_init()` 强制校验，无有效授权则拒绝初始化。同时修复 **DMABUF 自分配缓冲的 mmap 内存泄漏**、**muxer 写头失败后 `av_write_trailer` 崩溃**、**NV12 写盘 `fwrite` 返回值被忽略**、**编码器 flush 遇到 `AGAIN` 时空转**，以及测试二进制直接运行时找不到传递依赖库的问题。授权模块默认关闭，开启不影响既有 API。
+
+### 新增
+
+- **1机1码离线授权**（`include/rkvc/license.h` / `lib/license.c`）：基于 Ed25519 非对称签名实现离线授权。机器码由本机硬件指纹（设备树序列号 -> Rockchip OTP -> 网卡 MAC）经 SHA-256 派生为 64 字符十六进制串；发码端用私钥对「magic + product + 机器码」做 Ed25519 签名，库内嵌公钥本地验签，私钥离线保管，攻击者拿到公钥也无法伪造注册码。授权一经签发永久有效，不含有效期字段、不做到期/防时间回拨校验。
+  - 许可证二进制布局 104 字节（小端）：`magic(4) | product_id(4) | machine_id[32] | signature[64]`，签名覆盖前 40 字节；注册码 = base64(blob)，授权文件为注册码文本。
+  - 公共 API：`rkvc_machine_id()`（采集机器码）、`rkvc_license_verify_file()` / `rkvc_license_verify_blob()`（校验签名 + 机器码匹配）、`rkvc_license_default_path()` / `rkvc_license_check()`（默认路径便捷校验）；`rkvc_license_info` 回填解析详情。
+  - 默认授权文件查找顺序：环境变量 `RKVC_LICENSE_FILE` -> `~/.config/rkvc/license.lic`。
+- **libsodium 子模块**（`third_party/libsodium`）：提供 Ed25519 签名/验签与 SHA-256。选用 libsodium 因其原生支持 pure EdDSA（mbedTLS 3.6/4.1 仅有声明无实现）；沿用本项目对非 CMake 子模块的「install 脚本 + 前缀」惯例，静态链接，部署无需额外 `.so`。
+- **`rkvc_lic` 签发/管理工具**（`tools/rkvc_lic.c`）：独立于 librkvc，仅依赖 libsodium。子命令：`genkey`（生成 Ed25519 密钥对）、`machine-id`（打印本机机器码）、`issue`（签发注册码）、`inspect`（解析字段）、`verify`（校验签名 + 机器码）。
+- **`scripts/install-libsodium.sh`**：从子模块源码 autotools 构建并安装静态库到 `.build/deps/libsodium-install`（需 `autoconf` / `automake` / `libtool`）。
+- **`docs/license.md`**：授权原理、构建、签发流程与密钥管理文档。
+- **错误码**（`include/rkvc/types.h`）：`RKVC_ERR_LICENSE`（-12，授权校验失败）、`RKVC_ERR_UNLICENSED`（-13，未找到授权）。
+
+### 变更
+
+- **CMake 授权选项**（`CMakeLists.txt`）：新增 `RKVC_ENABLE_LICENSE`（默认 OFF）。开启即编译 `lib/license.c` + 链接 libsodium，并在 `rkvc_init()` 运行时强制校验。公钥来源二选一：`RKVC_LICENSE_PUBKEY_FILE` 指向 32 字节公钥二进制文件时 CMake 自动生成 `license_pubkey.c`（生产推荐）；未设置则用 `lib/license_pubkey.c` 演示公钥并发出 WARNING。
+- **`rkvc_init()` 强制校验**（`lib/init.c`）：`RKVC_ENABLE_LICENSE` 开启时，`rkvc_init()` 首先调用 `rkvc_license_check()`，失败则记录日志并拒绝初始化（返回对应错误码），保证未授权设备无法使用库。
+- **`rkvc.h`** 纳入 `license.h`；`rkvc_err_str()` 补齐三个授权错误码描述。
+- **可移植包 `--license` 模式**（`scripts/package-portable.sh`）：新增 `--license` 选项，自动完成全部密钥管理——构建 libsodium、编译临时 `rkvc_lic`、检查/自动生成密钥对（首次）、用公钥注入 CMake 编译（`RKVC_LICENSE_PUBKEY_FILE`）、签发本机自测 license（不随包分发）、打包 `rkvc_lic` 到 `bin/`。成品包名后缀 `-licensed`，目标机须放置有效 license 后方可运行。`docs/packaging.md` 同步新增授权构建章节、密钥管理表与客户签发流程。
+- **测试二进制依赖库路径**（`scripts/build-common.sh` / `test-npu-sr.sh` / `test-rga.sh`）：`test_*` 二进制将依赖库写入 `DT_RUNPATH`，但 `DT_RUNPATH` 不解析传递依赖（如 `libavcodec.so` -> `libSvtAv1Enc.so.4`），导致不经 ctest 直接运行 `test_*` 时找不到依赖库。新增 `rkvc_dep_library_path()` 返回与 CMake `RKVC_DEP_LIB_DIRS` 一致的动态库路径（ffmpeg 子目录 / mpp / SVT-AV1 / librga 安装前缀），在两个测试脚本中经 `LD_LIBRARY_PATH` 注入；ctest 自行注入故无需改动。
+- `.gitignore`：忽略 `*.docx` 办公文档；忽略授权私钥与 license 文件（`*.pem` / `*.lic` / `tools/keys/*secret*` / `tools/keys/*.pem` / `tools/keys/public_key.h`，切勿提交）。
+- `.gitmodules`：新增 `third_party/libsodium`（shallow）。
+
+### 修复
+
+- **DMABUF 内存泄漏**（`lib/buffer_pool.c` / `lib/internal.h`）：`rkvc_buffer` 新增 `mmap_base` / `mmap_size` 字段记录 dma-heap 自分配缓冲的 mmap 基址与大小，由 `buffer_free` 统一执行 `munmap` + `close(fd)`。此前释放逻辑以 `AV_PIX_FMT_DRM_PRIME` 区分 RKMPP DRM 帧与 dma-heap 自分配缓冲并据此决定是否 `close(fd)`，但 `close(fd)` 不会解除映射，dma-heap 缓冲的 mmap 内存从未被 `munmap`；而 `av_frame_alloc` / `av_image_fill_arrays` 失败路径上的手动 `munmap` 在移交所有权后已属冗余。重构后以 `mmap_base` 非空作为自分配缓冲的唯一判据，覆盖分配失败与正常释放全路径，消除长时运行泄漏。
+- **muxer 写头失败崩溃**（`lib/node_mux.c`）：新增 `header_written` 标志，仅在 `av_write_header` 成功后才在 `rkvc_mux_close` 中调用 `av_write_trailer`，防止写头失败后对未初始化的 muxer 上下文调用 trailer 造成崩溃。
+- **NV12 写盘错误静默忽略**（`lib/session.c`）：`session_write_nv12_frame` / `session_write_nv12_buffer` 由 `void` 改为返回 `rkvc_err`，所有 `fwrite` 路径检查返回值并向上传播；`decode_loop` 写盘失败时关闭文件并返回错误，避免磁盘满 / I/O 错误时静默截断输出。
+- **编码器 flush 空转**（`lib/session.c`）：`session_flush_encoder` 中 flush 遇到 `RKVC_ERR_AGAIN` 时由 `continue` 改为 `break` 退出循环，避免在编码器无法产出更多包时无限重试空转。
+
+### 测试
+
+- 版本号升至 **0.2.7**（`CMakeLists.txt` `project(VERSION)` 为唯一来源）；编译零警告。授权模块默认关闭，不影响既有 21 项 CTest。
+
 ## [0.2.6] - 2026-07-14
 
 ### 发布重点

@@ -31,6 +31,8 @@ int main(int argc, char **argv)
     }
 
     if (show_version) {
+        if (rkvc_init() != RKVC_OK)
+            return 1;
         printf("rkvc %s (0x%06x)\n", rkvc_version(), rkvc_version_number());
         return 0;
     }

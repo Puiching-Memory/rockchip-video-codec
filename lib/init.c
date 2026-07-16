@@ -18,11 +18,22 @@
  * 强制所有编译路径都走 CMake，避免版本号出现第二个来源。
  */
 
-static pthread_once_t s_init_once = PTHREAD_ONCE_INIT;
+static pthread_mutex_t s_init_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_initialized = 0;
 
-static void rkvc_init_impl(void)
+static rkvc_err rkvc_init_impl(void)
 {
+#ifdef RKVC_ENABLE_LICENSE
+    rkvc_license_info lic;
+    rkvc_err e = rkvc_license_check(&lic);
+    if (e != RKVC_OK) {
+        RKVC_LOG("license check failed (%s), refusing to initialize",
+                 rkvc_err_str(e));
+        return e;
+    }
+    RKVC_LOG("license OK (product=%u)", lic.product_id);
+#endif
+
     rkvc_ffmpeg_utils_init();
 
     /* FFmpeg 全局初始化在较新版本中自动完成，此处确保网络子系统 */
@@ -32,12 +43,20 @@ static void rkvc_init_impl(void)
 #endif
     s_initialized = 1;
     RKVC_LOG("rkvc initialized");
+    return RKVC_OK;
 }
 
 rkvc_err rkvc_init(void)
 {
-    if (pthread_once(&s_init_once, rkvc_init_impl) != 0)
-        return RKVC_ERR_INTERNAL;
+    pthread_mutex_lock(&s_init_mutex);
+    if (!s_initialized) {
+        rkvc_err e = rkvc_init_impl();
+        if (e != RKVC_OK) {
+            pthread_mutex_unlock(&s_init_mutex);
+            return e;
+        }
+    }
+    pthread_mutex_unlock(&s_init_mutex);
     return RKVC_OK;
 }
 
@@ -76,6 +95,8 @@ const char *rkvc_err_str(rkvc_err err)
     case RKVC_ERR_INTERNAL:  return "internal error";
     case RKVC_ERR_PERMISSION: return "device permission denied";
     case RKVC_ERR_FORMAT:    return "input format mismatch";
+    case RKVC_ERR_LICENSE:   return "license verification failed";
+    case RKVC_ERR_UNLICENSED: return "no license found";
     }
     return "unknown error";
 }
