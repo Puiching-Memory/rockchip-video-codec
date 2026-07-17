@@ -268,6 +268,7 @@ typedef struct {
     rkvc_route_plan route;
     int             running;
     uint64_t        frames_in, frames_out, frames_dropped;
+    uint64_t        bytes_out;       // 输出累计字节数（码流/视频帧）
     double          avg_fps;
     double          decode_sec;    // 解码累计耗时（bench）
     double          rga_sec;         // RGA 上采样累计耗时

@@ -29,6 +29,7 @@ typedef struct {
     uint64_t        frames_in;      /**< 输入帧/包计数 */
     uint64_t        frames_out;     /**< 输出帧/包计数 */
     uint64_t        frames_dropped; /**< 丢弃帧数 */
+    uint64_t        bytes_out;      /**< 输出字节数（码流包或视频帧） */
     double          avg_fps;        /**< 平均帧率（输出侧） */
     double          decode_sec;     /**< 解码阶段累计耗时（秒） */
     double          rga_sec;        /**< RGA 上采样累计耗时（秒） */

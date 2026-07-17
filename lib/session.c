@@ -533,6 +533,10 @@ void rkvc_session_destroy(rkvc_session *session)
 
 static void session_push_output(rkvc_session *s, rkvc_buffer *buf)
 {
+    pthread_mutex_lock(&s->lock);
+    s->stats.bytes_out += buf ? buf->size : 0;
+    pthread_mutex_unlock(&s->lock);
+
     rkvc_err perr = rkvc_port_push(&s->port_output, buf);
     if (perr == RKVC_ERR_AGAIN)
         rkvc_session_stats_drop(s);
