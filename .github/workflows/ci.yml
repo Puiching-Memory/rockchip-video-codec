@@ -41,13 +41,18 @@ jobs:
 
       - name: Create compile_commands.json
         run: |
-          cmake -B .build/release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          # CI 不启用授权模块（与打包一致，无需 libsodium）
+          cmake -B .build/release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DRKVC_ENABLE_LICENSE=OFF
 
       - name: Run clang-tidy
         run: |
+          # license*.c 仅在 RKVC_ENABLE_LICENSE=ON 时参与构建，CI 默认关闭故跳过
+          mapfile -t TIDY_SRCS < <(find lib -maxdepth 1 -name '*.c' ! -name 'license*.c' | sort)
           clang-tidy -p .build/release \
             --header-filter=include/.* \
-            lib/*.c 2>&1 | tee tidy-report.txt
+            "${TIDY_SRCS[@]}" 2>&1 | tee tidy-report.txt
           # 允许警告但不允许错误
           ! grep "error:" tidy-report.txt
 
@@ -152,10 +157,14 @@ jobs:
 
       - name: Build and package
         run: |
-          cmake -B .build/release -G Ninja -DCMAKE_BUILD_TYPE=Release -DMPP_BUILD_DIR=/tmp/mpp-build
+          cmake -B .build/release -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMPP_BUILD_DIR=/tmp/mpp-build \
+            -DRKVC_ENABLE_LICENSE=OFF
           ninja -C .build/release package
 
       - name: Build portable package
+        # 标准版（不加 --license）；授权版仅本地/发码流程使用
         run: ./scripts/package-portable.sh
 
       - name: Check version literals
