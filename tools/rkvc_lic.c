@@ -70,11 +70,35 @@ static void b64_encode(const uint8_t *src, size_t len, char *dst) {
 }
 
 /* ── 机器码（委托共享实现 license_machine.c，与 lib/license.c 单一来源） ── */
-static int machine_id(char*out,size_t sz){
-    if(lic_machine_id_hex(out,sz)!=0){
-        fprintf(stderr,"error: cannot collect hardware fingerprint\n");
+static void print_fp_report(const lic_fp_info *info, int ok)
+{
+    fprintf(stderr, "fingerprint sources (priority dt-serial → otp → mac):\n");
+    fprintf(stderr, "  dt-serial : %s\n",
+            info->note_dt[0] ? info->note_dt : "(not probed)");
+    fprintf(stderr, "  otp       : %s\n",
+            info->note_otp[0] ? info->note_otp : "(not probed)");
+    fprintf(stderr, "  mac       : %s\n",
+            info->note_mac[0] ? info->note_mac : "(not probed)");
+    if (ok) {
+        fprintf(stderr, "selected   : %s\n", info->tag);
+        fprintf(stderr, "path       : %s\n", info->path);
+        fprintf(stderr, "raw        : %s\n", info->raw);
+        fprintf(stderr, "machine_id : %s\n", info->machine_id);
+    } else {
+        fprintf(stderr, "error: cannot collect hardware fingerprint\n");
+    }
+}
+
+static int machine_id(char *out, size_t sz)
+{
+    lic_fp_info info;
+    if (lic_machine_id_collect(&info) != 0) {
+        print_fp_report(&info, 0);
         return -1;
     }
+    if (sz < LIC_MACHINE_ID_HEX_LEN)
+        return -1;
+    memcpy(out, info.machine_id, LIC_MACHINE_ID_HEX_LEN);
     return 0;
 }
 
@@ -182,9 +206,17 @@ static int cmd_genkey(const char*outdir){
 }
 #endif
 
-static int cmd_machine_id(void){
-    char hex[65];if(machine_id(hex,sizeof(hex)))return 1;
-    printf("%s\n",hex);return 0;
+static int cmd_machine_id(void)
+{
+    lic_fp_info info;
+    if (lic_machine_id_collect(&info) != 0) {
+        print_fp_report(&info, 0);
+        return 1;
+    }
+    /* 诊断走 stderr；stdout 仅机器码，兼容 `mid=$(rkvc_lic machine-id)` */
+    print_fp_report(&info, 1);
+    printf("%s\n", info.machine_id);
+    return 0;
 }
 
 static void print_blob(const uint8_t*blob){
@@ -252,13 +284,13 @@ static void usage(void){
     fprintf(stderr,
 "rkvc_lic — rkvc 1机1码 工具\n\n"
 #ifdef RKVC_LIC_MACHINE_ONLY
-"  rkvc_lic machine-id                              打印本机机器码（hex）\n"
+"  rkvc_lic machine-id                              打印本机机器码（含指纹来源诊断）\n"
 "  rkvc_lic verify    -f <license.lic> -k <key>     校验签名+机器码\n"
 "\n"
 "  此发行版仅包含机器码采集与校验功能，不含密钥生成/签发能力。\n"
 #else
 "  rkvc_lic genkey    -o <dir>                      生成 Ed25519 密钥对\n"
-"  rkvc_lic machine-id                              打印本机机器码（hex）\n"
+"  rkvc_lic machine-id                              打印本机机器码（含指纹来源诊断）\n"
 "  rkvc_lic issue     -m <hex> -k <secret.key>\n"
 "                    [-p N] -o <file>              签发注册码\n"
 "  rkvc_lic inspect   -f <license.lic>              解析注册码字段\n"

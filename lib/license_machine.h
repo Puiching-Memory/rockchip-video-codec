@@ -14,12 +14,38 @@
 
 /** 机器码 hex 长度（64 字符 + NUL）；与公共 RKVC_MACHINE_ID_HEX_LEN 一致。 */
 #define LIC_MACHINE_ID_HEX_LEN 65
+#define LIC_FP_RAW_MAX         256
+#define LIC_FP_PATH_MAX        320
+#define LIC_FP_NOTE_MAX        160
 
 /**
- * @brief 采集本机硬件指纹并派生机器码。
+ * @brief 指纹采集详情（成功与失败均可填充 note_*，便于诊断）。
+ *
+ * 成功时 tag/path/raw/machine_id 有效；失败时 selected 字段为空串，
+ * note_dt / note_otp / note_mac 说明每一级为何未采用。
+ */
+typedef struct lic_fp_info {
+    char tag[32];                          /**< "dt-serial" | "otp" | "mac" */
+    char path[LIC_FP_PATH_MAX];            /**< 实际读取路径或网卡名 */
+    char raw[LIC_FP_RAW_MAX];              /**< 指纹原始值（文本） */
+    char machine_id[LIC_MACHINE_ID_HEX_LEN];
+    char note_dt[LIC_FP_NOTE_MAX];
+    char note_otp[LIC_FP_NOTE_MAX];
+    char note_mac[LIC_FP_NOTE_MAX];
+} lic_fp_info;
+
+/**
+ * @brief 采集本机硬件指纹并派生机器码（含各级探测说明）。
  *
  * 指纹来源优先级：设备树序列号 → Rockchip OTP → 网卡 MAC。
  * 算法："<tag>:<raw>" 经 SHA-256，输出 64 字符十六进制（+ NUL）。
+ *
+ * @return 0 成功；-1 失败（无法采集任一指纹）。
+ */
+int lic_machine_id_collect(lic_fp_info *info);
+
+/**
+ * @brief 采集本机硬件指纹并派生机器码（仅输出 hex）。
  *
  * @param out_hex  输出缓冲，容量须 >= LIC_MACHINE_ID_HEX_LEN。
  * @param out_size out_hex 容量。

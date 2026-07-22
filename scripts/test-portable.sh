@@ -683,7 +683,9 @@ if [ -x "$PKG_DIR/bin/rkvc_lic" ]; then
     fi
 
     capture_run lic_machine_status lic_machine_output env -u LD_LIBRARY_PATH "$PKG_DIR/bin/rkvc_lic" machine-id
-    if [ "$lic_machine_status" -eq 0 ] && [ "${#lic_machine_output}" -eq 64 ]; then
+    # machine-id 诊断在 stderr，stdout 末行为 64 hex；capture_run 合并了二者
+    if [ "$lic_machine_status" -eq 0 ] && \
+       echo "$lic_machine_output" | grep -Eq '(^|machine_id : )[0-9a-f]{64}$'; then
         pass "分发版 rkvc_lic: machine-id 可用"
     else
         fail "分发版 rkvc_lic: machine-id 不可用 (exit=$lic_machine_status)"

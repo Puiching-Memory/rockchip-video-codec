@@ -9,6 +9,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -29,49 +30,98 @@ static int read_file_text(const char *path, char *buf, size_t size)
     return n > 0 ? (int)n : -1;
 }
 
-static int read_dt_serial(char *buf, size_t size)
+static void note_open_fail(char *note, size_t note_sz, const char *path)
 {
-    return read_file_text("/proc/device-tree/serial-number", buf, size);
+    int e = errno;
+    if (e == ENOENT)
+        snprintf(note, note_sz, "missing (%s)", path);
+    else if (e == EACCES || e == EPERM)
+        snprintf(note, note_sz, "permission denied (%s)", path);
+    else
+        snprintf(note, note_sz, "open failed (%s): %s", path, strerror(e));
 }
 
-static int read_otp_hex(char *buf, size_t size)
+static int try_dt_serial(char *raw, size_t raw_sz, char *path_out, size_t path_sz,
+                         char *note, size_t note_sz)
 {
-    FILE *f = fopen("/sys/bus/nvmem/devices/rockchip-otp0/nvmem", "rb");
-    if (!f)
+    static const char *path = "/proc/device-tree/serial-number";
+    snprintf(path_out, path_sz, "%s", path);
+    errno = 0;
+    int n = read_file_text(path, raw, raw_sz);
+    if (n > 0) {
+        snprintf(note, note_sz, "ok");
+        return 0;
+    }
+    if (errno != 0)
+        note_open_fail(note, note_sz, path);
+    else
+        snprintf(note, note_sz, "empty or unreadable (%s)", path);
+    return -1;
+}
+
+static int try_otp(char *raw, size_t raw_sz, char *path_out, size_t path_sz,
+                   char *note, size_t note_sz)
+{
+    static const char *path = "/sys/bus/nvmem/devices/rockchip-otp0/nvmem";
+    snprintf(path_out, path_sz, "%s", path);
+    errno = 0;
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        note_open_fail(note, note_sz, path);
         return -1;
-    uint8_t raw[32];
-    size_t n = fread(raw, 1, sizeof(raw), f);
+    }
+    uint8_t bin[32];
+    size_t n = fread(bin, 1, sizeof(bin), f);
+    int err = ferror(f);
     fclose(f);
-    if (n == 0)
+    if (err || n == 0) {
+        snprintf(note, note_sz, "empty or read error (%s)", path);
         return -1;
+    }
+    if (n * 2 >= raw_sz) {
+        snprintf(note, note_sz, "buffer too small for %zu OTP bytes", n);
+        return -1;
+    }
     for (size_t i = 0; i < n; i++)
-        snprintf(buf + i * 2, size - i * 2, "%02x", raw[i]);
-    return (int)(n * 2);
+        snprintf(raw + i * 2, raw_sz - i * 2, "%02x", bin[i]);
+    snprintf(note, note_sz, "ok (%zu bytes)", n);
+    return 0;
 }
 
-static int read_first_mac(char *buf, size_t size)
+static int try_mac(char *raw, size_t raw_sz, char *path_out, size_t path_sz,
+                   char *note, size_t note_sz)
 {
     DIR *dir = opendir("/sys/class/net");
-    if (!dir)
+    if (!dir) {
+        note_open_fail(note, note_sz, "/sys/class/net");
         return -1;
+    }
     int found = 0;
     struct dirent *ent;
     while (!found && (ent = readdir(dir)) != NULL) {
         if (ent->d_name[0] == '.')
             continue;
-        char path[320];
-        snprintf(path, sizeof(path), "/sys/class/net/%s/virtual", ent->d_name);
+        char vpath[320];
+        snprintf(vpath, sizeof(vpath), "/sys/class/net/%s/virtual", ent->d_name);
         /* 跳过虚拟接口（lo/docker/br-…） */
-        if (access(path, F_OK) == 0)
+        if (access(vpath, F_OK) == 0)
             continue;
-        snprintf(path, sizeof(path), "/sys/class/net/%s/address", ent->d_name);
-        if (read_file_text(path, buf, size) > 0 &&
-            strcmp(buf, "00:00:00:00:00:00") != 0) {
+        char apath[320];
+        snprintf(apath, sizeof(apath), "/sys/class/net/%s/address", ent->d_name);
+        if (read_file_text(apath, raw, raw_sz) > 0 &&
+            strcmp(raw, "00:00:00:00:00:00") != 0) {
+            snprintf(path_out, path_sz, "%s", apath);
+            snprintf(note, note_sz, "ok (%.64s)", ent->d_name);
             found = 1;
         }
     }
     closedir(dir);
-    return found ? (int)strlen(buf) : -1;
+    if (!found) {
+        snprintf(note, note_sz, "no usable physical NIC MAC");
+        path_out[0] = '\0';
+        return -1;
+    }
+    return 0;
 }
 
 static void sha256_hex(const char *input, size_t input_len, char *out_hex)
@@ -83,21 +133,44 @@ static void sha256_hex(const char *input, size_t input_len, char *out_hex)
         snprintf(out_hex + i * 2, 3, "%02x", digest[i]);
 }
 
-int lic_machine_id_hex(char *out_hex, size_t out_size)
+int lic_machine_id_collect(lic_fp_info *info)
 {
-    if (!out_hex || out_size < LIC_MACHINE_ID_HEX_LEN)
+    if (!info)
         return -1;
+    memset(info, 0, sizeof(*info));
 
-    char raw[256];
+    char raw[LIC_FP_RAW_MAX];
+    char path[LIC_FP_PATH_MAX];
     const char *tag = NULL;
 
-    if (read_dt_serial(raw, sizeof(raw)) > 0) {
+    if (try_dt_serial(raw, sizeof(raw), path, sizeof(path),
+                      info->note_dt, sizeof(info->note_dt)) == 0) {
         tag = "dt-serial";
-    } else if (read_otp_hex(raw, sizeof(raw)) > 0) {
+    } else if (try_otp(raw, sizeof(raw), path, sizeof(path),
+                       info->note_otp, sizeof(info->note_otp)) == 0) {
         tag = "otp";
-    } else if (read_first_mac(raw, sizeof(raw)) > 0) {
+    } else if (try_mac(raw, sizeof(raw), path, sizeof(path),
+                       info->note_mac, sizeof(info->note_mac)) == 0) {
         tag = "mac";
-    } else {
+    }
+
+    /* 未选中的层级补全 note（成功短路时尚未探测的层级） */
+    if (tag && strcmp(tag, "dt-serial") == 0) {
+        snprintf(info->note_otp, sizeof(info->note_otp),
+                 "skipped (higher priority selected)");
+        snprintf(info->note_mac, sizeof(info->note_mac),
+                 "skipped (higher priority selected)");
+    } else if (tag && strcmp(tag, "otp") == 0) {
+        snprintf(info->note_mac, sizeof(info->note_mac),
+                 "skipped (higher priority selected)");
+    } else if (!tag) {
+        /* 三级均失败：补探测 otp/mac 若前面短路未跑到 */
+        if (info->note_otp[0] == '\0')
+            (void)try_otp(raw, sizeof(raw), path, sizeof(path),
+                          info->note_otp, sizeof(info->note_otp));
+        if (info->note_mac[0] == '\0')
+            (void)try_mac(raw, sizeof(raw), path, sizeof(path),
+                          info->note_mac, sizeof(info->note_mac));
         return -1;
     }
 
@@ -107,6 +180,21 @@ int lic_machine_id_hex(char *out_hex, size_t out_size)
     if (n < 0 || (size_t)n >= sizeof(concat))
         return -1;
 
-    sha256_hex(concat, (size_t)n, out_hex);
+    snprintf(info->tag, sizeof(info->tag), "%s", tag);
+    snprintf(info->path, sizeof(info->path), "%s", path);
+    snprintf(info->raw, sizeof(info->raw), "%s", raw);
+    sha256_hex(concat, (size_t)n, info->machine_id);
+    return 0;
+}
+
+int lic_machine_id_hex(char *out_hex, size_t out_size)
+{
+    if (!out_hex || out_size < LIC_MACHINE_ID_HEX_LEN)
+        return -1;
+
+    lic_fp_info info;
+    if (lic_machine_id_collect(&info) != 0)
+        return -1;
+    memcpy(out_hex, info.machine_id, LIC_MACHINE_ID_HEX_LEN);
     return 0;
 }
