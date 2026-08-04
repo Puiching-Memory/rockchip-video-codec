@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file buffer_pool.c
  * @brief rkvc_buffer 引用计数、主机/DMA 分配与池化。

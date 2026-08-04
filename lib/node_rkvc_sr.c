@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file node_rkvc_sr.c
  * @brief RKNN NPU 超分辨率（明文/加密模型、RGA CSC + NEON + 双缓冲异步推理）。

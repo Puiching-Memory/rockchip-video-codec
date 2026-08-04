@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file scheduler.c
  * @brief 轻量调度辅助（会话 worker 线程入口）。

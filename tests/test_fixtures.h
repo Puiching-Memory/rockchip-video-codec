@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file test_fixtures.h
  * @brief 硬件/集成测试用自生成夹具（不依赖 git 内嵌媒体文件）。

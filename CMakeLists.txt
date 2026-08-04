@@ -550,6 +550,11 @@ if(RKVC_INSTALL)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
     )
 
+    # 许可证文本
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rkvc
+    )
+
     # CMake config
     include(CMakePackageConfigHelpers)
     configure_package_config_file(

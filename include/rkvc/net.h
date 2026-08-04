@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file net.h
  * @brief UDP / RTP 码流收发原语（薄协议，不含 Session / 国标信令）。

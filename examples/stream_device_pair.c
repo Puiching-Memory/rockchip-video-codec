@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /** stream_device_pair.c — LIVE_CAPTURE 短录冒烟 */
 #include "rkvc/rkvc.h"
 #include <stdio.h>

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file port.c
  * @brief 有界端口队列 (bounded queue)，存储层使用 AVFifo。

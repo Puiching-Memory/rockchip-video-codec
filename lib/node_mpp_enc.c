@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file node_mpp_enc.c
  * @brief H.264/HEVC RKMPP 硬件编码。

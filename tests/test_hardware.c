@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file test_hardware.c
  * @brief Session 级硬件集成测试（需 RKVC_RUN_HARDWARE_TESTS=1）。

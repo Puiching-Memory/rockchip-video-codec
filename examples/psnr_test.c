@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /** psnr_test.c — v2 占位（完整 PSNR 需参考帧对） */
 #include "rkvc/rkvc.h"
 #include <stdio.h>

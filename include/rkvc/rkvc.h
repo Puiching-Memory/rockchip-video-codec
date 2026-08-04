@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc.h
  * @brief RK3588 Video Codec Library v2 — 主入口（包含全部公共头文件）。

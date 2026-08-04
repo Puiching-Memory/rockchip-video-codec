@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file ffmpeg_util.c
  * @brief FFmpeg libavutil 集成：日志、时间、字典/选项、哈希。

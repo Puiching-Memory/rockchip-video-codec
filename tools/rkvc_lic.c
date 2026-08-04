@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /*
  * rkvc_lic - rkvc 1机1码 授权辅助工具（独立，仅依赖 libsodium）。
  *

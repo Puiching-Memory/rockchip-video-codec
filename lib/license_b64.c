@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file license_b64.c
  * @brief 授权注册码 base64 解码（lib/license.c 与 tools/rkvc_lic.c 共享实现）。

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file types.h
  * @brief 公共类型定义：错误码、像素格式、码率控制、上采样算法。

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc_encode.c
  * @brief v2 Session CLI：原始 NV12 → 编码文件。

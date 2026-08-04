@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file net_loopback.c
  * @brief UDP/RTP 本机回环：编码若干帧 → net_send → net_recv 校验。

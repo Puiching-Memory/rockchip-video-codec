@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file session.h
  * @brief rkvc v2 会话：图式编解码管线生命周期与统计。

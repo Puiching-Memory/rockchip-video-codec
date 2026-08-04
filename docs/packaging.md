@@ -98,6 +98,13 @@ rkvc-*-linux-aarch64-portable/
 │   └── rkvc_sr_x3.crypt.rknn  # 约定 3× AI 超分模型（随 librknnrt 一并打包）
 ├── include/rkvc/            # v2 头文件
 ├── share/pkgconfig/rkvc.pc
+├── licenses/                # AGPLv3 与各第三方组件许可证（再分发义务）
+│   ├── AGPL-3.0.txt         # 本项目（AGPLv3，见源码树 LICENSE）
+│   ├── COPYING.LGPLv3       # ffmpeg-rockchip（LGPLv3 构建）
+│   ├── LICENSE.md           # SVT-AV1（BSD-2 + AOM 专利许可）
+│   ├── COPYING              # librga（Apache-2.0）
+│   ├── LICENSE              # libsodium（ISC）
+│   └── mpp-LICENSES/        # rockchip-mpp（Apache-2.0 / MIT）
 ├── examples/                # 示例源码与二进制
 ├── test.sh                  # 一键自测
 ├── network-e2e-test.sh      # v2 冒烟测试

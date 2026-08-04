@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file test_post_upscale.c
  * @brief 解码后上采样节点单元测试（RGA 硬件）。

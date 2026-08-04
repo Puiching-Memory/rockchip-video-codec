@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file session_roi.c
  * @brief ROI 配置（MPP 硬路径见 node_mpp_enc / rkmppenc）。

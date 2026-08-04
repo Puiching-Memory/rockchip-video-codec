@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file license_machine.h
  * @brief 硬件指纹采集与机器码派生（lib/license.c 与 tools/rkvc_lic.c 共享）。

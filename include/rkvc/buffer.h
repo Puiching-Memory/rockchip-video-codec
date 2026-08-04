@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file buffer.h
  * @brief rkvc v2 统一缓冲区：视频帧（主机 / DMA-BUF）与码流包。

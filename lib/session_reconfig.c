@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file session_reconfig.c
  * @brief 运行中码率 / GOP / IDR 热切换（帧边界生效）。

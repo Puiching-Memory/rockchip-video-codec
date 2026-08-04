@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc_bench.c
  * @brief v2 Session E2E 基准：对比 REALTIME / BALANCED / QUALITY / OFFLINE 路线。

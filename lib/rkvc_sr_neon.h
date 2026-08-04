@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc_sr_neon.h
  * @brief NEON 加速的 RKVC SR 量化/反量化（无 NEON 时回退标量）。

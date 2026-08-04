@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file test_fixtures.c
  * @brief 测试夹具生成（Session 编码，无外部样本文件）。

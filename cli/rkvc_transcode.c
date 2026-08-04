@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc_transcode.c
  * @brief v2 Session 转码 CLI（供 bench/ RD 基准与脚本调用）。

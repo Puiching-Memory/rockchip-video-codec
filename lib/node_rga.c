@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file node_rga.c
  * @brief RGA NV12 硬件缩放（importbuffer → imcheck → imresize → release）。

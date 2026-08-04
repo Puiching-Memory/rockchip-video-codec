@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /** live_capture.c — V4L2 LIVE_CAPTURE → H.264 短录 */
 #include "rkvc/rkvc.h"
 #include <stdio.h>

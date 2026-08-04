@@ -464,9 +464,30 @@ includedir=\${prefix}/include
 Name: rkvc
 Description: RK3588 AV1 Video Codec Library (SVT-AV1 + av1_rkmpp)
 Version: $VERSION
+License: AGPL-3.0-or-later
 Libs: -L\${libdir} -lrkvc
 Cflags: -I\${includedir}
 EOF
+
+    echo "--- 复制许可证文本 (AGPLv3 + 第三方) ---"
+    mkdir -p "$OUT_DIR/$PKG_NAME/licenses"
+    cp "$PROJECT_DIR/LICENSE" "$OUT_DIR/$PKG_NAME/licenses/AGPL-3.0.txt"
+    echo "  AGPL-3.0.txt"
+    local src_lic
+    for src_lic in \
+        "$PROJECT_DIR/third_party/ffmpeg-rockchip/COPYING.LGPLv3" \
+        "$PROJECT_DIR/third_party/SVT-AV1/LICENSE.md" \
+        "$PROJECT_DIR/third_party/librga/COPYING" \
+        "$PROJECT_DIR/third_party/libsodium/LICENSE"; do
+        if [[ -f "$src_lic" ]]; then
+            cp "$src_lic" "$OUT_DIR/$PKG_NAME/licenses/$(basename "$src_lic")"
+            echo "  $(basename "$src_lic")"
+        fi
+    done
+    if [[ -d "$PROJECT_DIR/third_party/mpp/LICENSES" ]]; then
+        cp -r "$PROJECT_DIR/third_party/mpp/LICENSES" "$OUT_DIR/$PKG_NAME/licenses/mpp-LICENSES"
+        echo "  mpp-LICENSES/"
+    fi
 
     echo "--- 复制发布文档 ---"
     if [[ -d "$PROJECT_DIR/docs/release" ]]; then

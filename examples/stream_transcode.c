@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /** stream_transcode.c — v2 文件转码（同 transcode） */
 #include "rkvc/rkvc.h"
 #include <stdio.h>

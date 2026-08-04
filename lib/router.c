@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file router.c
  * @brief Codec Router：H.264 / HEVC / AV1 三族 policy 路由。

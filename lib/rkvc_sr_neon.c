@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rknn_sr_neon.c
  * @brief NEON 加速的 RKNN SR 量化/反量化。

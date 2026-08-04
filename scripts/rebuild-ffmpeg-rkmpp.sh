@@ -51,7 +51,7 @@ configure_ffmpeg() {
 
     ./configure \
         "${extra_configure[@]}" \
-        --enable-gpl --enable-version3 --enable-nonfree \
+        --enable-version3 \
         --enable-rkmpp --enable-libdrm --enable-rkrga \
         --enable-libsvtav1 \
         --enable-pic \

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file node_v4l2.c
  * @brief V4L2 采集节点（NV12 / MPLANE）；`device=="mock"` 时走合成帧，无需摄像头。

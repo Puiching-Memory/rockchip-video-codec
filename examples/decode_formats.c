@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file decode_formats.c
  * @brief v2 示例：同一码流分别以 NV12 / YUV420P / NV16 / P010 解码，校验输出帧格式。

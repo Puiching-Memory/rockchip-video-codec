@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /** adaptive_bitrate.c — V4L2 采集 + 实时码率自适应示例
  *
  *  每 ADAPT_INTERVAL_MS 根据输出字节数估算实际码率，与目标带宽比较后

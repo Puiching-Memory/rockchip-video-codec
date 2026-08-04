@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc_session_upscale.c
  * @brief Bench/CLI：Session 硬解 (DMABUF) + RGA 后处理上采样 → NV12 文件。

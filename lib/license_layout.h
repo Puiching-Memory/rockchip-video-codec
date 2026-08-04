@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file license_layout.h
  * @brief 授权 blob 线格式常量（lib/license.c 与 tools/rkvc_lic.c 的单一来源）。

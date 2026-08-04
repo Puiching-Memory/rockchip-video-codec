@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file test_roi_runtime.c
  * @brief ROI / runtime 配额单元测试（无需硬件）。

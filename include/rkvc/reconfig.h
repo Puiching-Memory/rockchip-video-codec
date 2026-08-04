@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file reconfig.h
  * @brief Session 运行中热切换（码率 / GOP / 强制 IDR）。

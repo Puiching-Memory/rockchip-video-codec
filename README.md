@@ -38,6 +38,14 @@ cmake --build --preset default
 
 完整依赖与权限见 [docs/getting-started.md](docs/getting-started.md)。构建目录约定见 [docs/build-layout.md](docs/build-layout.md)。
 
+## 许可证
+
+本项目以 **GNU Affero General Public License v3 (AGPLv3)** 开源（见 [LICENSE](LICENSE)）。
+
+- 允许商用、修改、再分发，但**衍生/合并作品须以 AGPLv3 开源**；通过网络提供本程序服务的（含 SaaS）须向用户提供对应源码
+- 闭源商业使用需另行取得商业授权（配合 `RKVC_ENABLE_LICENSE` 授权机制）
+- `third_party/` 内各组件（ffmpeg-rockchip、SVT-AV1、mpp、librga、libsodium）版权归其各自所有者，适用各自许可证
+
 ## RD 基准测试（bench/）
 
 端到端码率-画质与性能对比，默认四路：**H.264 / H.265 / SVT-AV1 / rkvc**。

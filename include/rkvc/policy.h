@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file policy.h
  * @brief Codec 选择与路由策略（H.264 / HEVC / AV1）。

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file roi.h
  * @brief 编码侧 ROI（区域相对 QP / 可选 force_intra；不绑定检测模型）。

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file test_v4l2.c
  * @brief V4L2 mock 采集单元测试（无需真实摄像头）。

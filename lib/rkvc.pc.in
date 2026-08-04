@@ -6,6 +6,7 @@ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 Name: rkvc
 Description: RK3588 H.265 Video Codec Library (RKMPP)
 Version: @PROJECT_VERSION@
+License: AGPL-3.0-or-later
 Libs: -L${libdir} -lrkvc
 Cflags: -I${includedir}
 Requires.private: libavcodec libavformat libavutil

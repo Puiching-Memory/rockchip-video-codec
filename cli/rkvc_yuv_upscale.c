@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file rkvc_yuv_upscale.c
  * @brief NV12 / YUV420p 文件批量缩放（RGA 硬件，供 bench 等调用）。

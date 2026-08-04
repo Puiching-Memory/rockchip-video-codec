@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /**
  * @file node_dma_to_host.c
  * @brief DMA-BUF / DRM 帧下载到主机 NV12（SVT 支路）。

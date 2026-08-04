@@ -2,6 +2,14 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [Unreleased]
+
+### 变更
+
+- **开源协议切换为 AGPLv3**（[LICENSE](LICENSE)）：由 MIT 改为 GNU Affero General Public License v3。衍生/合并作品须以 AGPLv3 开源，网络服务须向用户提供源码；闭源商业使用需商业授权（与 `RKVC_ENABLE_LICENSE` 授权机制配套）。
+- **FFmpeg 构建改为 LGPLv3**（`scripts/rebuild-ffmpeg-rkmpp.sh` / `scripts/rebuild-ffmpeg-av1.sh`）：移除 `--enable-gpl --enable-nonfree`，保留 `--enable-version3`，消除与 AGPLv3 的许可冲突（AGPLv3 与 LGPLv3 兼容）。
+- **发行包补发许可证文本**（`scripts/package-portable.sh`）：AGPLv3 与各第三方组件许可证（ffmpeg、SVT-AV1、librga、mpp、libsodium）随包分发至 `licenses/`，满足 AGPL §4 及 Apache/BSD/ISC 的再分发义务。
+
 ## [0.2.7] - 2026-07-15
 
 ### 发布重点

@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Copyright (c) 2026 梦归云帆 */
+
 /** adaptive_bitrate_file.c — 文件转码 + 实时码率自适应示例
  *
  *  与 adaptive_bitrate.c 逻辑相同，但以文件为输入，无需摄像头权限。
