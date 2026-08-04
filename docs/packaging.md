@@ -101,10 +101,12 @@ rkvc-*-linux-aarch64-portable/
 ├── licenses/                # AGPLv3 与各第三方组件许可证（再分发义务）
 │   ├── AGPL-3.0.txt         # 本项目（AGPLv3，见源码树 LICENSE）
 │   ├── COPYING.LGPLv3       # ffmpeg-rockchip（LGPLv3 构建）
-│   ├── LICENSE.md           # SVT-AV1（BSD-2 + AOM 专利许可）
+│   ├── LICENSE.md           # SVT-AV1（BSD-3-Clause Clear）
+│   ├── PATENTS.md           # SVT-AV1（AOM 专利许可 1.0，随 BSD-3 一并适用）
 │   ├── COPYING              # librga（Apache-2.0）
 │   ├── LICENSE              # libsodium（ISC）
-│   └── mpp-LICENSES/        # rockchip-mpp（Apache-2.0 / MIT）
+│   ├── mpp-LICENSES/        # rockchip-mpp（Apache-2.0 / MIT）
+│   └── ffmpeg-modifications/ # 对 ffmpeg-rockchip 的补丁 + 对应源码说明（LGPLv3 §4）
 ├── examples/                # 示例源码与二进制
 ├── test.sh                  # 一键自测
 ├── network-e2e-test.sh      # v2 冒烟测试
@@ -149,6 +151,11 @@ LD_LIBRARY_PATH=lib ./myapp
 包内自测确认关键库解析到包内 `lib/`，避免串入系统旧版本。
 
 **系统依赖（不进包）**：NPU 驱动/固件不随包分发；`librga`、`librknnrt` 与约定模型 `models/rkvc_sr_x3.crypt.rknn` 在启用对应功能时随包携带。目标机仍需 `/dev/rga` 等设备节点。
+
+### 模型与 NPU 运行时来源声明
+
+- **`models/rkvc_sr_x3.crypt.rknn`**：项目自训练的 3× RGB 域超分模型（训练说明见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)），非第三方开源模型衍生，版权归本项目作者。文件以 `.crypt` 加密存储；明文模型与训练细节仅在商业授权范围内提供（见下「双许可」）。
+- **`librknnrt.so`**：Rockchip RKNN NPU 运行时，为 Rockchip 官方 SDK 提供的**专有二进制**，仅授权在 Rockchip 硬件（RK3588 等）上使用；再分发须遵守 Rockchip SDK 许可条款。项目不修改该库，仅动态链接。商业分发前请向 Rockchip 确认条款。
 
 ## DEB 包
 

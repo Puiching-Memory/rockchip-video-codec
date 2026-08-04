@@ -345,8 +345,11 @@ rkvc_info -j
 
 ## 许可与第三方
 
-| 组件            | 许可            | 位置                           |
-| --------------- | --------------- | ------------------------------ |
-| ffmpeg-rockchip | LGPL/GPL        | `third_party/ffmpeg-rockchip/` |
-| Rockchip MPP    | Apache 2.0      | `third_party/mpp/`             |
-| SVT-AV1         | BSD-3 / PATENTS | `third_party/SVT-AV1/`         |
+| 组件            | 许可                                  | 位置                           |
+| --------------- | ------------------------------------- | ------------------------------ |
+| rkvc（本项目）  | AGPL-3.0-or-later（双许可见 LICENSE） | 源码树 `LICENSE`               |
+| ffmpeg-rockchip | LGPLv3（`--enable-version3` 构建）    | `third_party/ffmpeg-rockchip/` |
+| Rockchip MPP    | Apache 2.0 / MIT                      | `third_party/mpp/`             |
+| SVT-AV1         | BSD-3-Clause Clear + AOM PATENTS      | `third_party/SVT-AV1/`         |
+| librga          | Apache 2.0                            | `third_party/librga/`          |
+| libsodium       | ISC                                   | `third_party/libsodium/`       |

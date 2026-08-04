@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """绘制端到端编解码性能图（编码/解码速度 fps）。"""
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 梦归云帆
+
 from __future__ import annotations
 
 import argparse

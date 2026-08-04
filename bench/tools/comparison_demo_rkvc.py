@@ -5,6 +5,9 @@
 右：1/3 分辨率 AV1 低码率编码 → RKVC SR 3× 上采样还原 1080p
 """
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 梦归云帆
+
 from __future__ import annotations
 
 import argparse

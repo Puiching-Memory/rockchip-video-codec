@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """加载 bench/config.json，解析路径与 RD 校准表。"""
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 梦归云帆
+
 from __future__ import annotations
 
 import json

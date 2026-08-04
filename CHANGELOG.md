@@ -9,6 +9,11 @@
 - **开源协议切换为 AGPLv3**（[LICENSE](LICENSE)）：由 MIT 改为 GNU Affero General Public License v3。衍生/合并作品须以 AGPLv3 开源，网络服务须向用户提供源码；闭源商业使用需商业授权（与 `RKVC_ENABLE_LICENSE` 授权机制配套）。
 - **FFmpeg 构建改为 LGPLv3**（`scripts/rebuild-ffmpeg-rkmpp.sh` / `scripts/rebuild-ffmpeg-av1.sh`）：移除 `--enable-gpl --enable-nonfree`，保留 `--enable-version3`，消除与 AGPLv3 的许可冲突（AGPLv3 与 LGPLv3 兼容）。
 - **发行包补发许可证文本**（`scripts/package-portable.sh`）：AGPLv3 与各第三方组件许可证（ffmpeg、SVT-AV1、librga、mpp、libsodium）随包分发至 `licenses/`，满足 AGPL §4 及 Apache/BSD/ISC 的再分发义务。
+- **许可证合规整改**（独立审查后补强）：
+  - **双许可声明**（[LICENSE](LICENSE) / [README.md](README.md)）：正式声明「AGPLv3 开源 + 商业授权」双许可，明确 AGPL 版（`RKVC_ENABLE_LICENSE=OFF`，默认）无附加限制，强制授权仅存在于商业授权构建。
+  - **发行包补全第三方许可**（`scripts/package-portable.sh`）：`licenses/` 加入 SVT-AV1 `PATENTS.md`（AOM 专利许可 1.0）；新增 `licenses/ffmpeg-modifications/`，随包附 FFmpeg 修改补丁与对应源码说明（子模块 commit / URL / configure 参数），满足 LGPLv3 §4 修改版本源码义务。
+  - **文档修正与来源声明**（[docs/packaging.md](docs/packaging.md) / [docs/delivery.md](docs/delivery.md)）：纠正 SVT-AV1 许可为 BSD-3-Clause Clear + AOM 专利许可（原误标 BSD-2）；补全第三方许可表（librga / libsodium / 本项目）；新增模型（自训练、加密交付范围）与 `librknnrt`（Rockchip 专有、再分发须遵守 SDK 条款）来源声明。
+  - **bench 许可证标注**：9 个 Python 脚本补 `SPDX-License-Identifier: AGPL-3.0-or-later`；`bench/pyproject.toml` 补 `license` 字段。
 
 ## [0.2.7] - 2026-07-15
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """绘制端到端编解码 RD 曲线（按 actual_kbps 自适应横轴）。"""
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 梦归云帆
+
 from __future__ import annotations
 
 import argparse

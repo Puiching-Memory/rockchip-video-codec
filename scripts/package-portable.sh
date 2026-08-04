@@ -477,6 +477,7 @@ EOF
     for src_lic in \
         "$PROJECT_DIR/third_party/ffmpeg-rockchip/COPYING.LGPLv3" \
         "$PROJECT_DIR/third_party/SVT-AV1/LICENSE.md" \
+        "$PROJECT_DIR/third_party/SVT-AV1/PATENTS.md" \
         "$PROJECT_DIR/third_party/librga/COPYING" \
         "$PROJECT_DIR/third_party/libsodium/LICENSE"; do
         if [[ -f "$src_lic" ]]; then
@@ -487,6 +488,30 @@ EOF
     if [[ -d "$PROJECT_DIR/third_party/mpp/LICENSES" ]]; then
         cp -r "$PROJECT_DIR/third_party/mpp/LICENSES" "$OUT_DIR/$PKG_NAME/licenses/mpp-LICENSES"
         echo "  mpp-LICENSES/"
+    fi
+
+    # LGPLv3 §4: 随包提供对 ffmpeg-rockchip 的修改（补丁）与对应源码获取说明
+    if ls "$PROJECT_DIR"/patches/ffmpeg-rockchip/*.patch &>/dev/null; then
+        local ffmpeg_dir="$OUT_DIR/$PKG_NAME/licenses/ffmpeg-modifications"
+        mkdir -p "$ffmpeg_dir"
+        cp "$PROJECT_DIR"/patches/ffmpeg-rockchip/*.patch "$ffmpeg_dir/"
+        local ffmpeg_commit
+        ffmpeg_commit="$(git -C "$FFMPEG_SRC" rev-parse HEAD 2>/dev/null || echo "unknown")"
+        {
+            echo "ffmpeg-rockchip 修改说明（LGPLv3 第 4 节：修改版本的对应源码）"
+            echo "============================================================"
+            echo "上游源码: https://github.com/nyanmisaka/ffmpeg-rockchip (branch 8.1)"
+            echo "子模块 commit: $ffmpeg_commit"
+            echo ""
+            echo "修改的对应源码 = 上游源码 + 本目录补丁（按文件名顺序 git apply 应用）："
+            for p in "$ffmpeg_dir"/*.patch; do
+                echo "  - $(basename "$p")"
+            done
+            echo ""
+            echo "构建 configure 参数: --enable-version3 --enable-rkmpp --enable-rkrga"
+            echo "                     --enable-libdrm --enable-libsvtav1 --enable-shared"
+        } > "$ffmpeg_dir/MODIFICATIONS.txt"
+        echo "  ffmpeg-modifications/ (补丁 + 对应源码说明)"
     fi
 
     echo "--- 复制发布文档 ---"

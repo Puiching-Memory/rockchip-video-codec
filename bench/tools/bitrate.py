@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """根据文件大小与时长计算实际码率（kbps）。"""
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 梦归云帆
+
 from __future__ import annotations
 
 import os

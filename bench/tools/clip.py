@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """片段截取与源视频探测辅助。"""
 
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 梦归云帆
+
 from __future__ import annotations
 
 import hashlib

@@ -40,11 +40,13 @@ cmake --build --preset default
 
 ## 许可证
 
-本项目以 **GNU Affero General Public License v3 (AGPLv3)** 开源（见 [LICENSE](LICENSE)）。
+本项目采用**双许可**模式（见 [LICENSE](LICENSE) 顶部声明）：
 
-- 允许商用、修改、再分发，但**衍生/合并作品须以 AGPLv3 开源**；通过网络提供本程序服务的（含 SaaS）须向用户提供对应源码
-- 闭源商业使用需另行取得商业授权（配合 `RKVC_ENABLE_LICENSE` 授权机制）
-- `third_party/` 内各组件（ffmpeg-rockchip、SVT-AV1、mpp、librga、libsodium）版权归其各自所有者，适用各自许可证
+- **开源（默认，AGPLv3）**：源码树按 GNU Affero General Public License v3 提供。
+  - 允许商用、修改、再分发，但**衍生/合并作品须以 AGPLv3 开源**；通过网络提供本程序服务的（含 SaaS）须向用户提供对应源码
+  - AGPL 版（`RKVC_ENABLE_LICENSE=OFF`，默认）无任何附加授权限制
+- **商业授权**：闭源商业使用需另行取得商业授权，授权范围含强制授权机制（`RKVC_ENABLE_LICENSE`）与加密模型（`models/rkvc_sr_x3.crypt.rknn`，明文模型与训练细节仅在商业授权内提供）
+- `third_party/` 内各组件（ffmpeg-rockchip、SVT-AV1、mpp、librga、libsodium）版权归其各自所有者，适用各自许可证；分发包随附全部许可证文本、SVT-AV1 专利许可及对 ffmpeg-rockchip 的修改补丁（见 [docs/packaging.md](docs/packaging.md)）
 
 ## RD 基准测试（bench/）
 
