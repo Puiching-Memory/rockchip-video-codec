@@ -8,6 +8,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m'
 
+# 输出到非 TTY（日志重定向）或设置 NO_COLOR 时禁用颜色，便于机器解析
+if [ ! -t 1 ] || [ -n "${NO_COLOR:-}" ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
+fi
+
 PASS=0
 FAIL=0
 

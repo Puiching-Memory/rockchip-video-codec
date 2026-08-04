@@ -119,6 +119,14 @@ CODEC_MARKERS = {
     "rkvc": "v",
 }
 
+SIMPLE_BASELINE_CODECS = ("h264", "h265", "svt-av1")
+SIMPLE_MAX_KBPS = 1000.0
+SIMPLE_LABELS = {
+    "h264": "H.264",
+    "h265": "H.265",
+    "svt-av1": "RKVC-Quality",
+}
+
 CODEC_ORDER = [
     "h264",
     "h265",
@@ -491,6 +499,9 @@ def plot_rd(
     title: str,
     *,
     xscale: str = "log",
+    label_overrides: dict[str, str] | None = None,
+    figsize: tuple[float, float] = (12, 5),
+    legend_ncol: int | None = None,
 ) -> None:
     data = group_upscale_rd(data)
 
@@ -502,7 +513,7 @@ def plot_rd(
         }
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
     ax_psnr, ax_ssim = axes
 
     all_br: list[float] = []
@@ -526,7 +537,7 @@ def plot_rd(
             all_ssim.extend(p["ssim_hi"] for p in pts)
 
         color = upscale_group_color(codec) if is_upscale_group(codec) else codec_color(codec)
-        label = codec_label(codec)
+        label = (label_overrides or {}).get(codec, codec_label(codec))
         z = codec_zorder(codec)
         if is_upscale_group(codec):
             psnr_lo = [p["psnr_y_lo"] for p in pts]
@@ -591,7 +602,7 @@ def plot_rd(
 
     handles, labels = ax_psnr.get_legend_handles_labels()
     n = max(len(labels), 1)
-    ncol = 3 if n > 6 else 2
+    ncol = legend_ncol if legend_ncol is not None else (3 if n > 6 else 2)
     fig.legend(
         handles,
         labels,
@@ -648,6 +659,11 @@ def main() -> None:
         default=None,
         help="（已弃用）仅绘制 workdir/results_*.csv 中的 codec；请用 session 模式 CSV",
     )
+    parser.add_argument(
+        "--simple",
+        action="store_true",
+        help="简化版：仅 H.264 / H.265 / AV1 三条基线",
+    )
     args = parser.parse_args()
 
     if not args.csv.exists():
@@ -662,7 +678,14 @@ def main() -> None:
     include = codecs_from_session_file(session_path) if session_path else set()
     if not include and args.filter_workdir and args.filter_workdir.is_dir():
         include = codecs_from_workdir(args.filter_workdir)
-    if include:
+    if args.simple:
+        data = filter_data_codecs(data, set(SIMPLE_BASELINE_CODECS))
+        data = {
+            codec: [p for p in pts if p["actual_kbps"] <= SIMPLE_MAX_KBPS]
+            for codec, pts in data.items()
+        }
+        data = {codec: pts for codec, pts in data.items() if pts}
+    elif include:
         data = filter_data_codecs(data, include)
     if not data:
         raise SystemExit("CSV 无有效数据")
@@ -672,12 +695,29 @@ def main() -> None:
     xscale = args.xscale
     if xscale == "log" and max_pts <= 6 and br_all and max(br_all) / max(min(br_all), 1) < 20:
         xscale = "linear"
-    plot_rd(
-        data,
-        args.out,
-        args.title,
-        xscale=xscale,
-    )
+    if args.simple:
+        out = args.out if args.out.name != "rd_curve_e2e" else args.out.parent / "rd_curve_e2e_simple"
+        title = (
+            args.title
+            if args.title != parser.get_default("title")
+            else "E2E RD (H.264 / H.265 / RKVC-Quality)"
+        )
+        plot_rd(
+            data,
+            out,
+            title,
+            xscale=xscale,
+            label_overrides=SIMPLE_LABELS,
+            figsize=(10, 4.5),
+            legend_ncol=3,
+        )
+    else:
+        plot_rd(
+            data,
+            args.out,
+            args.title,
+            xscale=xscale,
+        )
 
 
 if __name__ == "__main__":

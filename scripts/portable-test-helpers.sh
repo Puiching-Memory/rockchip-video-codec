@@ -51,6 +51,24 @@ portable_skip_npu_tests() {
     return 0
 }
 
+# 授权版（*-licensed）包在无有效 license 时返回 0：
+# 功能类测试会全部报 "license check failed"，应整体跳过以免淹没真实问题。
+# 行为探测而非文件存在性判断：license 可能过期或绑定他机，存在≠有效。
+portable_license_blocked() {
+    local pkg_dir="$1"
+    case "$pkg_dir" in
+        *-licensed) ;;
+        *) return 1 ;;
+    esac
+    [ -x "$pkg_dir/bin/rkvc_info" ] || return 1
+    # licensed 版 --version 触发 license 校验；--json 不触发，不能用于探测
+    local out
+    if out=$("$pkg_dir/bin/rkvc_info" --version 2>&1); then
+        return 1
+    fi
+    printf '%s' "$out" | grep -qi 'license'
+}
+
 generate_raw_nv12() {
     local path="$1" w="$2" h="$3" n="${4:-10}"
     local y_plane=$((w * h))

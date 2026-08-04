@@ -17,6 +17,8 @@
 #   9. 跨目录可移植性（复制到临时路径后无 LD_LIBRARY_PATH 运行）
 
 set -euo pipefail
+# 统一 umask：非标准加固值（如 0077）会让裸 chmod 符号模式（chmod -x）失败
+umask 022
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -24,6 +26,14 @@ YELLOW='\033[0;33m'
 NC='\033[0m'
 PASS=0
 FAIL=0
+
+# 输出到非 TTY（日志重定向）或设置 NO_COLOR 时禁用颜色，便于机器解析
+if [ ! -t 1 ] || [ -n "${NO_COLOR:-}" ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    NC=''
+fi
 
 pass() { PASS=$((PASS+1)); echo -e "${GREEN}✓${NC} $1"; }
 fail() { FAIL=$((FAIL+1)); echo -e "${RED}✗${NC} $1"; }
@@ -170,6 +180,13 @@ fi
 
 PKG_DIR="$(cd "$PKG_DIR" && pwd)"
 
+# licensed 包默认 license 探测失败但同级自测 license 有效时，功能测试统一改用之
+if [[ "$PKG_DIR" == *-licensed && -z "${RKVC_LICENSE_FILE:-}" && -f "${PKG_DIR}.lic" ]] \
+   && ! "$PKG_DIR/bin/rkvc_info" --version >/dev/null 2>&1 \
+   && env RKVC_LICENSE_FILE="${PKG_DIR}.lic" "$PKG_DIR/bin/rkvc_info" --version >/dev/null 2>&1; then
+    export RKVC_LICENSE_FILE="${PKG_DIR}.lic"
+fi
+
 echo "=== 测试可移植包: $PKG_DIR ==="
 echo ""
 
@@ -278,6 +295,9 @@ echo ""
 
 # 3. RPATH / RUNPATH
 echo "--- RPATH / RUNPATH ---"
+if ! command -v readelf >/dev/null 2>&1; then
+    warn "跳过 RPATH 组 (缺少 readelf，无法解析 ELF 动态段)"
+else
 for bin in "$PKG_DIR/bin/"*; do
     [ -f "$bin" ] || continue
     check_runpath_contains "$bin" "bin/$(basename "$bin")" '$ORIGIN/../lib'
@@ -303,24 +323,30 @@ for lib in "$PKG_DIR/lib/"*.so.*; do
     esac
     check_runpath_contains "$lib" "lib/$base" '$ORIGIN'
 done
+fi
 echo ""
 
 # 4. 功能测试
 echo "--- 功能测试 ---"
-capture_run norpath_status norpath_output env -u LD_LIBRARY_PATH "$PKG_DIR/bin/rkvc_info" --version
-if [ "$norpath_status" -eq 0 ] && echo "$norpath_output" | grep -q "^rkvc "; then
-    pass "无 LD_LIBRARY_PATH: rkvc_info --version"
+# 自包含性验证用 --json：licensed 版 --version 会触发 license 校验，干扰 RPATH 结论
+capture_run norpath_status norpath_output env -u LD_LIBRARY_PATH "$PKG_DIR/bin/rkvc_info" --json
+if [ "$norpath_status" -eq 0 ] && echo "$norpath_output" | grep -q '"version"'; then
+    pass "无 LD_LIBRARY_PATH: rkvc_info --json"
 else
     fail "无 LD_LIBRARY_PATH 运行失败 (exit=$norpath_status)"
-    show_output "env -u LD_LIBRARY_PATH rkvc_info --version" "$norpath_output"
+    show_output "env -u LD_LIBRARY_PATH rkvc_info --json" "$norpath_output"
 fi
 
+if portable_license_blocked "$PKG_DIR"; then
+    warn "跳过 rkvc_info --version (授权版包无有效 license，--version 触发 license 校验)"
+else
 capture_run ver_status ver_output env LD_LIBRARY_PATH="$PKG_DIR/lib" "$PKG_DIR/bin/rkvc_info" --version
 if [ "$ver_status" -eq 0 ] && echo "$ver_output" | grep -q "^rkvc "; then
     pass "rkvc_info --version: $ver_output"
 else
     fail "rkvc_info --version 输出异常 (exit=$ver_status)"
     show_output "rkvc_info --version" "$ver_output"
+fi
 fi
 
 capture_run json_status json_output env LD_LIBRARY_PATH="$PKG_DIR/lib" "$PKG_DIR/bin/rkvc_info" --json
@@ -344,7 +370,12 @@ echo "--- 编解码测试 ---"
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-if portable_skip_hardware_tests; then
+if portable_license_blocked "$PKG_DIR"; then
+    warn "授权版包且无有效 license：跳过编解码/转码/bench/上采样/网络冒烟功能组"
+    warn "  需向厂商申请 license (机器码: $PKG_DIR/bin/rkvc_lic machine-id)，"
+    warn "  置于 ${PKG_DIR}.lic 或 ~/.config/rkvc/license.lic，或设 RKVC_LICENSE_FILE"
+    generate_raw_nv12 "$TMPDIR/raw.nv12" 640 480 10
+elif portable_skip_hardware_tests; then
     warn "跳过编解码/转码/bench/上采样/网络冒烟 (无 RKMPP 设备；实机设 RKVC_RUN_HARDWARE_TESTS=1 强制)"
     generate_raw_nv12 "$TMPDIR/raw.nv12" 640 480 10
 else
@@ -353,6 +384,7 @@ if ! portable_mpp_device_accessible; then
 fi
 
 capture_run enc_status enc_out encode_test_clip "$PKG_DIR" "$TMPDIR/test.mp4" 640x480 10 1000000
+enc_fail_reason=""
 if [ "$enc_status" -eq 0 ] && [ -f "$TMPDIR/test.mp4" ]; then
     enc_size=$(file_size "$TMPDIR/test.mp4")
     if [ "$enc_size" -gt 0 ]; then
@@ -361,7 +393,11 @@ if [ "$enc_status" -eq 0 ] && [ -f "$TMPDIR/test.mp4" ]; then
         fail "编码产物为空: $TMPDIR/test.mp4"
     fi
 else
-    fail "编码测试失败 (exit=$enc_status)"
+    enc_fail_reason="编码测试失败 (exit=$enc_status)"
+    if printf '%s' "$enc_out" | grep -qi 'license'; then
+        enc_fail_reason="$enc_fail_reason: license 未授权"
+    fi
+    fail "$enc_fail_reason"
     show_output "encode_test_clip" "$enc_out"
 fi
 
@@ -382,7 +418,7 @@ if [ -f "$TMPDIR/test.mp4" ]; then
         show_output "rkvc_decode" "$dec_out"
     fi
 else
-    fail "跳过解码测试 (编码产物不存在)"
+    fail "跳过解码测试 (编码产物不存在${enc_fail_reason:+：$enc_fail_reason})"
 fi
 
 generate_raw_nv12 "$TMPDIR/raw.nv12" 640 480 10
@@ -537,7 +573,7 @@ expect_command_fail "rkvc_decode 输入文件不存在" "not found|No such file|
 
 NEG_PKG="$TMPDIR/package-negative"
 copy_package_tree "$NEG_PKG"
-chmod -x "$NEG_PKG/bin/rkvc_encode"
+chmod a-x "$NEG_PKG/bin/rkvc_encode"
 expect_command_fail "负向包: rkvc_encode 不可执行" "Permission denied|权限不够|denied" \
     env LD_LIBRARY_PATH="$NEG_PKG/lib" "$NEG_PKG/bin/rkvc_encode" -h
 
@@ -555,13 +591,13 @@ else
     pass "负向包: 可检测 librockchip_mpp 缺失或串入系统库"
 fi
 
-if command -v patchelf >/dev/null 2>&1; then
+if command -v patchelf >/dev/null 2>&1 && command -v readelf >/dev/null 2>&1; then
     copy_package_tree "$NEG_PKG"
     patchelf --set-rpath "$NEG_PKG/lib" "$NEG_PKG/bin/rkvc_info"
     expect_runpath_check_fail "负向包: 可检测绝对 RPATH 注入" \
         "$NEG_PKG/bin/rkvc_info" "negative/bin/rkvc_info" '$ORIGIN/../lib'
 else
-    warn "跳过绝对 RPATH 注入负向测试 (缺少 patchelf)"
+    warn "跳过绝对 RPATH 注入负向测试 (缺少 patchelf 或 readelf)"
 fi
 
 # 跨目录可移植性：将包复制到另一路径后仍能无 LD_LIBRARY_PATH 运行
@@ -573,12 +609,12 @@ rm -rf "$MOVED_PKG"
 mkdir -p "$MOVED_PKG"
 (cd "$PKG_DIR" && tar cf - .) | (cd "$MOVED_PKG" && tar xf -)
 if [ -x "$MOVED_PKG/bin/rkvc_info" ]; then
-    capture_run moved_status moved_output env -u LD_LIBRARY_PATH "$MOVED_PKG/bin/rkvc_info" --version
-    if [ "$moved_status" -eq 0 ] && echo "$moved_output" | grep -q "^rkvc "; then
-        pass "跨目录运行: 移动后 rkvc_info --version 成功"
+    capture_run moved_status moved_output env -u LD_LIBRARY_PATH "$MOVED_PKG/bin/rkvc_info" --json
+    if [ "$moved_status" -eq 0 ] && echo "$moved_output" | grep -q '"version"'; then
+        pass "跨目录运行: 移动后 rkvc_info --json 成功"
     else
-        fail "跨目录运行: 移动后 rkvc_info --version 失败 (exit=$moved_status)"
-        show_output "moved rkvc_info --version" "$moved_output"
+        fail "跨目录运行: 移动后 rkvc_info --json 失败 (exit=$moved_status)"
+        show_output "moved rkvc_info --json" "$moved_output"
     fi
 
     capture_run moved_json_status moved_json_output env -u LD_LIBRARY_PATH "$MOVED_PKG/bin/rkvc_info" --json
