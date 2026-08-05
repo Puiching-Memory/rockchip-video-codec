@@ -42,7 +42,6 @@ typedef struct rkvc_pipeline_desc {
     int64_t        bitrate;         /**< 目标码率（bps） */
     rkvc_pix_fmt   pixel_format;    /**< 原始视频像素格式 */
     int            gop_size;        /**< GOP 长度（帧） */
-    int            b_frames;        /**< B 帧数（RKMPP 通常为 0） */
     int            low_latency;     /**< 非 0：低延迟标志（`LIVE_CAPTURE` 模板默认 1） */
     int            queue_depth;     /**< 端口队列深度，默认 3 */
     rkvc_rc_mode   rc_mode;         /**< MPP 码率控制，默认 CBR */

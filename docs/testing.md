@@ -24,7 +24,7 @@
 | V4L2 mock            | `tests/test_v4l2.c`            | `capture_device=mock` 合成 NV12；Session 短录需 `RKVC_RUN_HARDWARE_TESTS=1`      |
 | RGA 推广门禁         | `scripts/test-rga.sh`          | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga`                        |
 | NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh`       | AI 3× 硬件用例 + 可选 session smoke；需 NPU + `models/rkvc_sr_x3.crypt.rknn`     |
-| CLI 脚本             | `tests/test_cli_args.sh`       | CLI 参数错误（`full-tests` preset）                                              |
+| CLI 脚本             | `tests/test_cli_args.sh`       | CLI 参数错误（`tests` preset）                                                     |
 | 可移植包             | `scripts/test-portable.sh`     | 包完整性、RPATH、三策略 bench、后处理上采样、`rkvc_sr` NPU 冒烟、pkg-config      |
 | 动态分析             | `asan` preset                  | ASan + UBSan                                                                     |
 | 覆盖率               | `coverage` preset              | gcov instrumentation                                                             |
@@ -34,10 +34,9 @@
 
 ### CTest 目标统计
 
-| preset       | CTest 目标数 | 说明                                                     |
-| ------------ | ------------ | -------------------------------------------------------- |
-| `tests`      | 17           | 9 个单元测试 + 8 个硬件子用例                            |
-| `full-tests` | 19           | 上述 + `test_cli_args` + `test_bench_permission_failure` |
+| preset       | CTest 目标数 | 说明                                                                 |
+| ------------ | ------------ | -------------------------------------------------------------------- |
+| `tests`      | 19           | 9 个单元测试 + 8 个硬件子用例 + `test_cli_args` + `test_bench_permission_failure` |
 
 硬件测试拆为 8 个独立 CTest 用例（含三策略转码、RGA 3× 上采样与 `rkvc_sr` AI 3×），未设置 `RKVC_RUN_HARDWARE_TESTS=1` 时 **exit 77（Skipped）**；设置后夹具自生成，无需 `tests/fixtures/` 内嵌文件。AI 用例另需 `caps.has_rknn` 与约定模型 `models/rkvc_sr_x3.crypt.rknn`（可用 `RKVC_SR_MODEL` 覆盖）。
 
@@ -46,15 +45,10 @@
 构建脚本与 CMake Presets 默认将编译并行度限制为 **4**。各 preset 对应目录见 [build-layout.md](build-layout.md)（`tests`→`.build/tests/`，`asan`→`.build/asan/`，等）。
 
 ```bash
-# 基线单元测试 → .build/tests/
+# 基线单元测试 + CLI 工具脚本 → .build/tests/
 cmake --preset tests
 cmake --build --preset tests
 ctest --preset tests -j1 --output-on-failure
-
-# 单元测试 + CLI 工具脚本
-cmake --preset full-tests
-cmake --build --preset full-tests
-ctest --preset full-tests --output-on-failure
 
 # RK3588 硬件集成
 export RKVC_RUN_HARDWARE_TESTS=1

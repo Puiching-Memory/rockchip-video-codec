@@ -64,9 +64,7 @@
 - `encode_file` — 测试图案编码
 - `decode_file` — 文件解码
 - `transcode` — 转码
-- `stream_encode` / `stream_decode` / `stream_transcode` — 流式处理
 - `latency_test` — 端到端延迟
-- `psnr_test` — 编解码质量
 - `decode_formats` — 多像素格式解码验证（NV12/YUV420P/NV16/P010）
 
 详见 `EXAMPLES.md`。

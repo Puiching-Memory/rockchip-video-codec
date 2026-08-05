@@ -33,7 +33,6 @@
 
 #include "license_layout.h"
 #include "license_machine.h"
-#include "license_b64.h"
 
 /* 短名指向共享布局常量（license_layout.h），与 lib/license.c 单一来源 */
 #define MAGIC      RKVC_LICENSE_MAGIC
@@ -56,21 +55,8 @@ static uint32_t get_u32(const uint8_t *p) {
     return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);
 }
 
-/* ── base64 ────────────────────────────────────────────────────── */
-static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-static void b64_encode(const uint8_t *src, size_t len, char *dst) {
-    size_t o=0;
-    for (size_t i=0;i<len;i+=3){
-        uint32_t v=(uint32_t)src[i]<<16;
-        if(i+1<len) v|=(uint32_t)src[i+1]<<8;
-        if(i+2<len) v|=(uint32_t)src[i+2];
-        dst[o++]=B64[(v>>18)&63];
-        dst[o++]=B64[(v>>12)&63];
-        dst[o++]= (i+1<len)?B64[(v>>6)&63]:'=';
-        dst[o++]= (i+2<len)?B64[v&63]:'=';
-    }
-    dst[o]='\0';
-}
+/* base64 编解码统一走 libsodium（sodium_bin2base64 / sodium_base642bin），
+   与 lib/license.c 的校验端共享同一实现，保证签发/校验字节级一致。 */
 
 /* ── 机器码（委托共享实现 license_machine.c，与 lib/license.c 单一来源） ── */
 static void print_fp_report(const lic_fp_info *info, int ok)
@@ -87,6 +73,10 @@ static void print_fp_report(const lic_fp_info *info, int ok)
         fprintf(stderr, "path       : %s\n", info->path);
         fprintf(stderr, "raw        : %s\n", info->raw);
         fprintf(stderr, "machine_id : %s\n", info->machine_id);
+        char grouped[LIC_MACHINE_ID_GROUPED_LEN];
+        if (lic_machine_id_grouped(info->machine_id, grouped,
+                                   sizeof(grouped)) == 0)
+            fprintf(stderr, "grouped    : %s\n", grouped);
     } else {
         fprintf(stderr, "error: cannot collect hardware fingerprint\n");
     }
@@ -241,7 +231,8 @@ static int cmd_issue(const char*mid_hex,const char*secret_key,
     uint8_t blob[BLOB_SIZE];
     memcpy(blob,signed_region,SIGNED_LEN);
     memcpy(blob+SIGNED_LEN,sig,SIG_LEN);
-    char b64[256];b64_encode(blob,BLOB_SIZE,b64);
+    char b64[256];
+    sodium_bin2base64(b64,sizeof(b64),blob,BLOB_SIZE,sodium_base64_VARIANT_ORIGINAL);
     FILE*f=outfile? fopen(outfile,"wb"):stdout;
     if(!f){perror(outfile);return 1;}
     fprintf(f,"%s\n",b64);
@@ -254,7 +245,7 @@ static int cmd_inspect(const char*file){
     FILE*f=fopen(file,"rb");if(!f){perror(file);return 1;}
     char text[512];size_t n=fread(text,1,sizeof(text)-1,f);fclose(f);text[n]='\0';
     uint8_t blob[BLOB_SIZE];size_t bl=0;
-    if(lic_b64_decode(text,n,blob,sizeof(blob),&bl)||bl!=BLOB_SIZE){
+    if(sodium_base642bin(blob,sizeof(blob),text,n," \t\r\n",&bl,NULL,sodium_base64_VARIANT_ORIGINAL)||bl!=BLOB_SIZE){
         fprintf(stderr,"error: cannot decode license\n");return 1;}
     print_blob(blob);return 0;
 }
@@ -264,7 +255,7 @@ static int cmd_verify(const char*file,const char*keyfile){
     FILE*f=fopen(file,"rb");if(!f){perror(file);return 1;}
     char text[512];size_t n=fread(text,1,sizeof(text)-1,f);fclose(f);text[n]='\0';
     uint8_t blob[BLOB_SIZE];size_t bl=0;
-    if(lic_b64_decode(text,n,blob,sizeof(blob),&bl)||bl!=BLOB_SIZE){
+    if(sodium_base642bin(blob,sizeof(blob),text,n," \t\r\n",&bl,NULL,sodium_base64_VARIANT_ORIGINAL)||bl!=BLOB_SIZE){
         fprintf(stderr,"error: cannot decode license\n");return 1;}
     /* 签名（libsodium 原生 Ed25519 detached 验签） */
     uint8_t pub[crypto_sign_PUBLICKEYBYTES];

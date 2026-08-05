@@ -17,6 +17,8 @@
 
 /** 机器码 hex 长度（64 字符 + NUL）；与公共 RKVC_MACHINE_ID_HEX_LEN 一致。 */
 #define LIC_MACHINE_ID_HEX_LEN 65
+/** 分组显示长度（16 组 × 4 字符 + 15 个 '-' + NUL）。 */
+#define LIC_MACHINE_ID_GROUPED_LEN 80
 #define LIC_FP_RAW_MAX         256
 #define LIC_FP_PATH_MAX        320
 #define LIC_FP_NOTE_MAX        160
@@ -55,5 +57,17 @@ int lic_machine_id_collect(lic_fp_info *info);
  * @return 0 成功；-1 失败（参数无效、缓冲过小或无法采集指纹）。
  */
 int lic_machine_id_hex(char *out_hex, size_t out_size);
+
+/**
+ * @brief 把 64 字符机器码格式化为 4 字符分组显示形式（xxxx-xxxx-…）。
+ *
+ * 仅展示层格式化，不改变机器码本身；便于人工报码/抄码。
+ *
+ * @param hex64    64 字符机器码（lic_machine_id_hex 输出）。
+ * @param out      输出缓冲，容量须 >= LIC_MACHINE_ID_GROUPED_LEN。
+ * @param out_size out 容量。
+ * @return 0 成功；-1 失败（参数无效或缓冲过小）。
+ */
+int lic_machine_id_grouped(const char *hex64, char *out, size_t out_size);
 
 #endif /* RKVC_LICENSE_MACHINE_H */

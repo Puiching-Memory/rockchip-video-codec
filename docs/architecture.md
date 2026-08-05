@@ -161,7 +161,7 @@ graph TD
 | `RKVC_NET_UDP` | 16B 分片头 + 载荷（最多 16 片）            | 任意裸码流 / Annex-B          |
 | `RKVC_NET_RTP` | 12B RTP（PT=96）+ ≤1400B 分片，Marker 帧尾 | 简化 RTP；非完整 RFC / 无 SIP |
 
-典型用法：Session `output` 拉码流 → `rkvc_net_send_buffer`；对端 `rkvc_net_recv` → 解码 Session。GB28181 / WebRTC 信令属应用层。
+典型用法：Session `output` 拉码流 → `rkvc_net_send`；对端 `rkvc_net_recv` → 解码 Session。GB28181 / WebRTC 信令属应用层。
 
 ## 下采样 + 后处理上采样
 
@@ -183,7 +183,7 @@ graph TD
 | ----------- | --------------- | ----------------------------------------------- |
 | 初始化      | `init.c`        | `rkvc_init` / `rkvc_deinit` / `rkvc_version`    |
 | 能力        | `init.c`        | `rkvc_query_caps` / `rkvc_check_hw_permissions` |
-| FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_hash_file`         |
+| FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_get_log_level`     |
 | 输入探测    | `utils.c`       | `rkvc_probe_input_format`                       |
 | 名称转换    | `router.c`      | `rkvc_codec_name` / `rkvc_policy_name`          |
 

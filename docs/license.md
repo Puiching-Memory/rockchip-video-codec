@@ -18,6 +18,7 @@ rkvc 可选启用基于 **Ed25519 非对称签名** 的离线授权，实现「1
 
 - **机器码**：本机硬件指纹经 SHA-256 派生的 64 位十六进制串。
   来源优先级：设备树序列号（`/proc/device-tree/serial-number`）→ Rockchip OTP → 网卡 MAC。仅取硬件级指纹，不含 `/etc/machine-id` 等可复制文件，避免克隆 SD 卡导致两机同码。
+  容器环境（检测到 `/.dockerenv`、PID 1 cgroup 含 docker/kubepods 等特征）中**拒绝 MAC 兜底**：容器 MAC 随实例重建而变且多容器可同 MAC，无法稳定绑定单机；设备树/OTP 指纹在容器内可用时不受影响。确需在容器中使用 MAC 授权时，设 `RKVC_LICENSE_ALLOW_CONTAINER_MAC=1` 显式放行。
 - **注册码**：`{magic, product, 机器码}` 的 Ed25519 签名，base64 编码，约 140 字符。授权一经签发永久有效，不含有效期字段。
 - **防伪造**：库内只嵌入公钥；私钥离线保管。攻击者反编译拿到公钥也无法伪造注册码。
 

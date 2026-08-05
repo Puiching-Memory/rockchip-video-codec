@@ -13,7 +13,6 @@
 #   .build/debug/       debug / tidy
 #   .build/tests/       tests
 #   .build/asan/        asan
-#   .build/full-tests/  full-tests
 #   .build/coverage/    coverage
 #   .build/portable/    portable 编译树
 #   .build/dist/        可移植包成品

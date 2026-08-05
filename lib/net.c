@@ -318,17 +318,6 @@ rkvc_err rkvc_net_send(rkvc_net *net, const uint8_t *data, size_t size,
     return rtp_send_frame(net, data, size, pts);
 }
 
-rkvc_err rkvc_net_send_buffer(rkvc_net *net, const rkvc_buffer *pkt)
-{
-    if (!pkt || pkt->kind != RKVC_BUF_BITSTREAM)
-        return RKVC_ERR_INVALID;
-    rkvc_buffer_bitstream_view v;
-    rkvc_err err = rkvc_buffer_get_bitstream(pkt, &v);
-    if (err != RKVC_OK)
-        return err;
-    return rkvc_net_send(net, v.data, v.size, v.pts, v.key_frame);
-}
-
 rkvc_err rkvc_net_finish(rkvc_net *net)
 {
     if (!net)

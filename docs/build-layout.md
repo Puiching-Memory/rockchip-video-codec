@@ -10,9 +10,8 @@
 | -------------------- | ------------------------- | --------------------------------------- |
 | `.build/release/`    | `default`                 | 日常 Release：库、CLI、示例             |
 | `.build/debug/`      | `debug` / `tidy`          | Debug / clang-tidy                      |
-| `.build/tests/`      | `tests`                   | 单元测试 + fault injection              |
+| `.build/tests/`      | `tests`                   | 单元测试 + CLI 脚本用例 + fault injection |
 | `.build/asan/`       | `asan`                    | ASan + UBSan                            |
-| `.build/full-tests/` | `full-tests`              | 测试 + CLI 脚本用例                     |
 | `.build/coverage/`   | `coverage`                | gcov 覆盖率                             |
 | `.build/portable/`   | `portable`                | 可移植包**编译树**                      |
 | `.build/dist/`       | （`package-portable.sh`） | 可移植包**成品**                        |
@@ -23,7 +22,7 @@
 | 产物                   | 路径                                               |
 | ---------------------- | -------------------------------------------------- |
 | 日常二进制 / `librkvc` | `.build/release/`                                  |
-| CTest / `test_*`       | `.build/tests/`（或 asan / coverage / full-tests） |
+| CTest / `test_*`       | `.build/tests/`（或 asan / coverage）              |
 | 可移植包成品           | `.build/dist/rkvc-<ver>-linux-<arch>-portable/`    |
 | 依赖安装前缀           | `.build/deps/{mpp,svt-av1,ffmpeg,librga}-install/` |
 
@@ -48,7 +47,7 @@ ninja -C .build/release -j4
 ```bash
 # 只清 rkvc 本体（保留依赖）
 rm -rf .build/release .build/debug .build/tests .build/asan \
-       .build/full-tests .build/coverage .build/portable .build/dist
+       .build/coverage .build/portable .build/dist
 
 # 连依赖一起清（重建耗时长）
 rm -rf .build

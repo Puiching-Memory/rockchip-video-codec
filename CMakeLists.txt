@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.7
+    VERSION 0.2.8
     DESCRIPTION "RK3588 multi-codec pipeline library"
     LANGUAGES C
 )
@@ -19,12 +19,6 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# 默认限制 cmake --build / ninja 并行度（脚本侧另见 scripts/build-common.sh）
-set(RKVC_BUILD_JOBS_MAX 4 CACHE STRING "Maximum parallel compile jobs")
-if(NOT DEFINED CMAKE_BUILD_PARALLEL_LEVEL)
-    set(CMAKE_BUILD_PARALLEL_LEVEL ${RKVC_BUILD_JOBS_MAX})
-endif()
-
 # ── 选项 ──────────────────────────────────────────────────────────────
 option(RKVC_BUILD_SHARED   "Build shared library"      ON)
 option(RKVC_BUILD_STATIC   "Build static library"      ON)
@@ -36,7 +30,6 @@ option(RKVC_ENABLE_ASAN    "Enable AddressSanitizer"   OFF)
 option(RKVC_ENABLE_UBSAN   "Enable UndefinedBehaviorSanitizer" OFF)
 option(RKVC_ENABLE_COVERAGE "Enable gcov/llvm-cov instrumentation" OFF)
 option(RKVC_ENABLE_FAULT_INJECTION "Enable deterministic test fault injection hooks" OFF)
-option(RKVC_ENABLE_TIDY    "Enable clang-tidy checks"  OFF)
 option(RKVC_BUILD_DOCS     "Build Doxygen API docs"    OFF)
 option(RKVC_ENABLE_RKNN    "Enable RKNN NPU super-resolution" ON)
 option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
@@ -165,7 +158,7 @@ if(RKVC_ENABLE_LICENSE)
             "  Run: git submodule update --init third_party/libsodium\n"
             "       ./scripts/install-libsodium.sh")
     endif()
-    list(APPEND RKVC_SOURCES lib/license.c lib/license_machine.c lib/license_b64.c)
+    list(APPEND RKVC_SOURCES lib/license.c lib/license_machine.c)
     # libsodium 静态库依赖线程原语；旧 glibc(<2.34)/musl 上需显式链接 pthread，
     # 用 Threads::Threads 让 librkvc 与 rkvc_lic 都自包含地拿到线程库。
     find_package(Threads REQUIRED)
@@ -388,7 +381,7 @@ endif()
 if(RKVC_BUILD_EXAMPLES)
     set(EXAMPLE_TARGETS "")
 
-    foreach(EXAMPLE encode_file decode_file decode_formats stream_encode stream_decode stream_transcode stream_device_pair transcode latency_test psnr_test live_capture net_loopback adaptive_bitrate adaptive_bitrate_file)
+    foreach(EXAMPLE encode_file decode_file decode_formats stream_device_pair transcode latency_test live_capture net_loopback adaptive_bitrate adaptive_bitrate_file)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/${EXAMPLE}.c")
             add_executable(example_${EXAMPLE} examples/${EXAMPLE}.c)
             target_link_libraries(example_${EXAMPLE} PRIVATE rkvc)
@@ -404,11 +397,6 @@ if(RKVC_BUILD_EXAMPLES)
             list(APPEND EXAMPLE_TARGETS example_${EXAMPLE})
         endif()
     endforeach()
-
-    # psnr_test 使用 math 库 (log10)
-    if(TARGET example_psnr_test)
-        target_link_libraries(example_psnr_test PRIVATE m)
-    endif()
 
     if(TARGET example_stream_device_pair)
         target_link_libraries(example_stream_device_pair PRIVATE pthread)
@@ -488,7 +476,7 @@ if(RKVC_BUILD_CLI)
     endforeach()
 
     add_custom_target(bench-rd
-        COMMAND ${CMAKE_SOURCE_DIR}/scripts/run-bench.sh
+        COMMAND ${CMAKE_SOURCE_DIR}/bench/run_rd_benchmark.sh
         DEPENDS ${RKVC_CLI_TARGETS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Run RD benchmark (requires SRC_VIDEO or pass video path to script)"
@@ -500,12 +488,12 @@ endif()
 # rkvc_lic_client 为分发到客户机的裁剪版：仅 machine-id/verify，
 # 不含 genkey/issue/inspect，避免把私钥签发能力随包分发给终端客户。
 if(RKVC_ENABLE_LICENSE)
-    add_executable(rkvc_lic tools/rkvc_lic.c lib/license_machine.c lib/license_b64.c)
+    add_executable(rkvc_lic tools/rkvc_lic.c lib/license_machine.c)
     target_include_directories(rkvc_lic PRIVATE
             ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
     target_link_libraries(rkvc_lic PRIVATE ${RKVC_LICENSE_LIBS})
 
-    add_executable(rkvc_lic_client tools/rkvc_lic.c lib/license_machine.c lib/license_b64.c)
+    add_executable(rkvc_lic_client tools/rkvc_lic.c lib/license_machine.c)
     target_compile_definitions(rkvc_lic_client PRIVATE RKVC_LIC_MACHINE_ONLY=1)
     target_include_directories(rkvc_lic_client PRIVATE
             ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
@@ -513,92 +501,64 @@ if(RKVC_ENABLE_LICENSE)
 endif()
 
 # ── 安装 ──────────────────────────────────────────────────────────────
-if(RKVC_INSTALL)
-    include(GNUInstallDirs)
+include(GNUInstallDirs)
 
-    install(DIRECTORY include/rkvc
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
+install(DIRECTORY include/rkvc
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
 
-    if(RKVC_BUILD_SHARED)
-        install(TARGETS rkvc_shared
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        )
-    endif()
-
-    if(RKVC_BUILD_STATIC)
-        install(TARGETS rkvc_static
-            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        )
-    endif()
-
-    # 安装 CLI 到 bin/
-    if(RKVC_CLI_TARGETS)
-        install(TARGETS ${RKVC_CLI_TARGETS}
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        )
-    endif()
-
-    # pkg-config 文件
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib/rkvc.pc.in
-        ${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc
-        @ONLY
-    )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
-    )
-
-    # 许可证文本
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE
-        DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rkvc
-    )
-
-    # CMake config
-    include(CMakePackageConfigHelpers)
-    configure_package_config_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/lib/rkvc-config.cmake.in
-        ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config.cmake
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rkvc
-    )
-    write_basic_package_version_file(
-        ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config-version.cmake
-        VERSION ${PROJECT_VERSION}
-        COMPATIBILITY SameMajorVersion
-    )
-    install(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config.cmake
-        ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config-version.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rkvc
+if(RKVC_BUILD_SHARED)
+    install(TARGETS rkvc_shared
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endif()
 
-# ── clang-tidy ────────────────────────────────────────────────────────
-if(RKVC_ENABLE_TIDY)
-    find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
-    if(CLANG_TIDY_EXE)
-        set(CMAKE_C_CLANG_TIDY "${CLANG_TIDY_EXE};--header-filter=${CMAKE_CURRENT_SOURCE_DIR}/include/.*")
-        message(STATUS "clang-tidy enabled: ${CLANG_TIDY_EXE}")
-    else()
-        message(WARNING "clang-tidy not found, skipping")
-    endif()
-endif()
-
-# 自定义 tidy 目标 (不影响正常编译)
-find_program(CLANG_TIDY_CMD NAMES "clang-tidy")
-if(CLANG_TIDY_CMD AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.build/release/compile_commands.json")
-    file(GLOB TIDY_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.c)
-    add_custom_target(tidy
-        COMMAND ${CLANG_TIDY_CMD}
-            -p ${CMAKE_CURRENT_BINARY_DIR}
-            --header-filter=${CMAKE_CURRENT_SOURCE_DIR}/include/.*
-            ${TIDY_SOURCES}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Running clang-tidy on lib/*.c"
-        VERBATIM
+if(RKVC_BUILD_STATIC)
+    install(TARGETS rkvc_static
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endif()
+
+# 安装 CLI 到 bin/
+if(RKVC_CLI_TARGETS)
+    install(TARGETS ${RKVC_CLI_TARGETS}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+
+# pkg-config 文件
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/rkvc.pc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc
+    @ONLY
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+)
+
+# 许可证文本
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rkvc
+)
+
+# CMake config
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lib/rkvc-config.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rkvc
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config-version.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/rkvc-config-version.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/rkvc
+)
 
 # ── 单元测试 (CMocka) ────────────────────────────────────────────────
 if(RKVC_BUILD_TESTS)

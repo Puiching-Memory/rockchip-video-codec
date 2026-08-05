@@ -16,7 +16,7 @@ rkvc Session 三档分别路由到 H.264 / HEVC / AV1，RD 曲线可与底层 co
 ## 复现
 
 ```bash
-./scripts/run-bench.sh /path/to/video.mp4
+./bench/run_rd_benchmark.sh /path/to/video.mp4
 ```
 
 输出：`bench/results/rd_data.csv`、`rd_curve_e2e.png`、`perf_e2e.png`。
@@ -32,6 +32,6 @@ bench/
 └── work/                 # 中间产物（gitignore）
 ```
 
-入口脚本：`scripts/run-bench.sh`
+入口脚本：`bench/run_rd_benchmark.sh`
 
 详见 [README.md](README.md)。

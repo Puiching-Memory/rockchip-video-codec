@@ -29,7 +29,7 @@ SVT-AV1 开启 `--superres-mode` 等参数，在编码器内部做低分辨率�
 
 ```bash
 # 显式启用（不在默认 RUN_CODECS 中）
-RUN_CODECS=svt-av1,svt-av1+superres ./scripts/run-bench.sh /path/to/1080p.mp4
+RUN_CODECS=svt-av1,svt-av1+superres ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # superres 参数（可选）
 SVT_SUPERRES_MODE=4          # 默认 auto；1=fixed 3=qthresh
@@ -56,15 +56,15 @@ SVT_SUPERRES_FFMPEG=/path/to/ffmpeg-with-libaom   # 须在 config.json paths.sup
 
 ```bash
 # 仅跑 post-upscale 路线（对比 SVT-AV1 全分辨率基线）
-RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh /path/to/1080p.mp4
+RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 3× 下采样 + RGA 三档插值
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=nearest,bilinear,bicubic \
-  RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh /path/to/1080p.mp4
+  RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 含 AI 超分（默认 config 的 upscale_algos 不含 rkvc_sr，需显式打开）
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
-  RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh /path/to/1080p.mp4
+  RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 ```
 
 管线：`REF → 1/N 下采样 → 编码 → 硬解 → 上采样 → 与全分辨率 REF 比 PSNR/SSIM`。
@@ -84,10 +84,10 @@ cmake --build .build/release -j4
 cd bench && uv sync    # 或 pip install matplotlib numpy
 
 # 3. 跑基准（默认从源视频中间截取 4s，17 个码率点 25–1000 kbps）
-./scripts/run-bench.sh /path/to/1080p.mp4
+./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 仅重绘图表
-PLOT_ONLY=1 ./scripts/run-bench.sh
+PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
 ```
 
 ## 输出
@@ -114,10 +114,10 @@ python3 bench/tools/config.py defaults bench/config.json /path/to/rk3588-ai-vide
 
 # 单次覆盖（环境变量优先于 config）
 RUN_CODECS=svt-av1,post-upscale ENC_SCALE_DENOM=3 \
-  ./scripts/run-bench.sh /path/to/1080p.mp4
+  ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 使用自定义配置
-BENCH_CONFIG=bench/my_config.json ./scripts/run-bench.sh clip.mp4
+BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
 ```
 
 主要配置项：
@@ -159,7 +159,7 @@ BENCH_CONFIG=bench/my_config.json ./scripts/run-bench.sh clip.mp4
 若需多次跑分累积到同一张表（旧行为），显式设置：
 
 ```bash
-BENCH_CSV_MODE=accumulate ./scripts/run-bench.sh clip.mp4
+BENCH_CSV_MODE=accumulate ./bench/run_rd_benchmark.sh clip.mp4
 ```
 
 ## 单独绘图

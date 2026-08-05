@@ -73,9 +73,6 @@ void rkvc_net_close(rkvc_net *net);
 rkvc_err rkvc_net_send(rkvc_net *net, const uint8_t *data, size_t size,
                        int64_t pts, int key_frame);
 
-/** @brief 发送 `RKVC_BUF_BITSTREAM` 缓冲。 */
-rkvc_err rkvc_net_send_buffer(rkvc_net *net, const rkvc_buffer *pkt);
-
 /**
  * @brief 接收并重组一帧，输出为码流缓冲（调用方 `rkvc_buffer_unref`）。
  *

@@ -18,7 +18,7 @@
 | 文件转码                  | `FILE_TRANSCODE` / `rkvc_transcode` | 码流换格式/换策略 | 容器 → 容器                  |
 | 文件解码                  | `FILE_DECODE` / `rkvc_decode`       | 回放、后处理      | 容器 → NV12                  |
 | 低分辨率编码 + 上采样还原 | `rkvc_session_upscale`              | AI/RGA 画质评估   | 容器 → NV12（全分辨率）      |
-| RD 基准                   | `scripts/run-bench.sh`              | 码率-画质曲线     | 1080p 片段 → CSV/图表        |
+| RD 基准                   | `bench/run_rd_benchmark.sh`         | 码率-画质曲线     | 1080p 片段 → CSV/图表        |
 
 **特点**：吞吐优先，可跑满存储 I/O；`QUALITY` 策略下 SVT-AV1 **软编码**会占满多核 CPU，但编解码均可离线批处理。
 
@@ -29,7 +29,7 @@
 | 能力                       | 状态           | 说明                                                                                   |
 | -------------------------- | -------------- | -------------------------------------------------------------------------------------- |
 | 低延迟编解码链路           | ✅ 可测         | `example_latency_test`：1080p 低延迟模式编码 ~7 ms/帧，端到端 ~69 ms（P50 ~76 ms）     |
-| 流式 Session API           | ✅ 可用         | `example_stream_encode` / `stream_decode` / `stream_transcode`                         |
+| 流式 Session API           | ✅ 可用         | `example_live_capture` / `example_adaptive_bitrate`（命名端口 push/pull）              |
 | 三策略实时转码             | ✅ 可用         | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
 | 非实时高质量               | ✅ 可用         | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps）                              |
 | V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用         | `capture_device` + `example_live_capture`；`"mock"` 合成源可测                         |
@@ -133,8 +133,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 ./scripts/test-npu-sr.sh
 ```
 
-- [ ] `tests` preset：**17** 个 CTest 目标（9 单元 + 8 硬件子用例）
-- [ ] `full-tests` preset：**19** 个 CTest 目标（+ `test_cli_args`、`test_bench_permission_failure`）
+- [ ] `tests` preset：**19** 个 CTest 目标（9 单元 + 8 硬件子用例 + `test_cli_args`、`test_bench_permission_failure`）
 - [ ] RK3588 实机硬件用例通过（夹具自生成，无需 `tests/fixtures/`）
 - [ ] NPU 门禁：`./scripts/test-npu-sr.sh`（需 `models/rkvc_sr_x3.crypt.rknn`）
 
@@ -156,7 +155,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 | RGA 后处理上采样  | `rkvc_session_upscale --enc-scale-denom 2 --post-upscale bilinear`                          |
 | RKNN 超分（可选） | `rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH`（需 `RKVC_ENABLE_RKNN`） |
 | 多像素格式解码    | `./example_decode_formats [input.mp4]`                                                      |
-| RD 基准           | `./scripts/run-bench.sh /path/to/1080p.mp4`                                                 |
+| RD 基准           | `./bench/run_rd_benchmark.sh /path/to/1080p.mp4`                                            |
 
 ---
 
@@ -255,7 +254,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ```bash
 ENC_SCALE_DENOM=3 RUN_CODECS=svt-av1,post-upscale \
-  UPSCALE_ALGOS=bilinear,rkvc_sr ./scripts/run-bench.sh /path/to/1080p.mp4
+  UPSCALE_ALGOS=bilinear,rkvc_sr ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 ```
 
 ---

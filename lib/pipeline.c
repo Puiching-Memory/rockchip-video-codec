@@ -22,7 +22,6 @@ rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void)
     d.bitrate       = 4000000;
     d.pixel_format  = RKVC_PIX_FMT_NV12;
     d.gop_size      = 60;
-    d.b_frames      = 0;
     d.low_latency   = 0;
     d.queue_depth   = RKVC_PORT_QUEUE_DEFAULT;
     d.rc_mode       = RKVC_RC_CBR;

@@ -57,9 +57,9 @@ cmake --build --preset default
 ![E2E 性能对比](docs/images/bench/perf_e2e.png)
 
 ```bash
-./scripts/run-bench.sh /path/to/1080p.mp4
-PLOT_ONLY=1 ./scripts/run-bench.sh          # 仅重绘图表
-RUN_CODECS=h264,rkvc ./scripts/run-bench.sh clip.mp4
+./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+PLOT_ONLY=1 ./bench/run_rd_benchmark.sh          # 仅重绘图表
+RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
 ```
 
 详见 [bench/README.md](bench/README.md)。

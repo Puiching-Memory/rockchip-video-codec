@@ -35,7 +35,7 @@
         },
         {
             "name": "tests",
-            "displayName": "Unit Tests → .build/tests/",
+            "displayName": "Unit Tests + CLI → .build/tests/",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/.build/tests",
             "cacheVariables": {
@@ -43,10 +43,9 @@
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "RKVC_BUILD_SHARED": "OFF",
                 "RKVC_BUILD_EXAMPLES": "OFF",
-                "RKVC_BUILD_CLI": "OFF",
+                "RKVC_BUILD_CLI": "ON",
                 "RKVC_BUILD_TESTS": "ON",
                 "RKVC_ENABLE_FAULT_INJECTION": "ON",
-                "RKVC_INSTALL": "OFF",
                 "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
             }
         },
@@ -58,15 +57,6 @@
             "cacheVariables": {
                 "RKVC_ENABLE_ASAN": "ON",
                 "RKVC_ENABLE_UBSAN": "ON"
-            }
-        },
-        {
-            "name": "full-tests",
-            "displayName": "Unit Tests + CLI → .build/full-tests/",
-            "inherits": "tests",
-            "binaryDir": "${sourceDir}/.build/full-tests",
-            "cacheVariables": {
-                "RKVC_BUILD_CLI": "ON"
             }
         },
         {
@@ -116,12 +106,6 @@
             "targets": ["check"]
         },
         {
-            "name": "full-tests",
-            "configurePreset": "full-tests",
-            "jobs": 4,
-            "targets": ["check"]
-        },
-        {
             "name": "coverage",
             "configurePreset": "coverage",
             "jobs": 4,
@@ -157,13 +141,6 @@
         {
             "name": "asan",
             "configurePreset": "asan",
-            "output": {
-                "outputOnFailure": true
-            }
-        },
-        {
-            "name": "full-tests",
-            "configurePreset": "full-tests",
             "output": {
                 "outputOnFailure": true
             }

@@ -1,5 +1,5 @@
 # Build trees (see docs/build-layout.md / CMakePresets.json)
-# Canonical: .build/{release,debug,tests,asan,full-tests,coverage,portable,dist,deps}/
+# Canonical: .build/{release,debug,tests,asan,coverage,portable,dist,deps}/
 # Legacy root-level build/ / build-*/ kept ignored so leftovers never enter git.
 .build/
 build/

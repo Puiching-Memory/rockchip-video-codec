@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -127,6 +128,28 @@ static int try_mac(char *raw, size_t raw_sz, char *path_out, size_t path_sz,
     return 0;
 }
 
+/* 容器识别：标记文件或 PID 1 cgroup 特征。容器内 MAC 随实例重建而变，
+ * 且同宿主机多容器可能同 MAC，不能作为 1机1码 的稳定指纹。 */
+static int in_container(void)
+{
+    if (access("/.dockerenv", F_OK) == 0 ||
+        access("/run/.containerenv", F_OK) == 0)
+        return 1;
+    char buf[2048];
+    if (read_file_text("/proc/1/cgroup", buf, sizeof(buf)) > 0 &&
+        (strstr(buf, "docker") || strstr(buf, "kubepods") ||
+         strstr(buf, "containerd") || strstr(buf, "libpod") ||
+         strstr(buf, "lxc")))
+        return 1;
+    return 0;
+}
+
+static int container_mac_allowed(void)
+{
+    const char *v = getenv("RKVC_LICENSE_ALLOW_CONTAINER_MAC");
+    return v && v[0] == '1';
+}
+
 static void sha256_hex(const char *input, size_t input_len, char *out_hex)
 {
     uint8_t digest[crypto_hash_sha256_BYTES];
@@ -177,6 +200,14 @@ int lic_machine_id_collect(lic_fp_info *info)
         return -1;
     }
 
+    /* 容器内拒绝 MAC 兜底，除非显式放行 */
+    if (strcmp(tag, "mac") == 0 && in_container() && !container_mac_allowed()) {
+        snprintf(info->note_mac, sizeof(info->note_mac),
+                 "rejected: MAC fallback inside container (set "
+                 "RKVC_LICENSE_ALLOW_CONTAINER_MAC=1 to override)");
+        return -1;
+    }
+
     /* 组合：tag + ':' + 原始值 → SHA-256 */
     char concat[512];
     int n = snprintf(concat, sizeof(concat), "%s:%s", tag, raw);
@@ -199,5 +230,21 @@ int lic_machine_id_hex(char *out_hex, size_t out_size)
     if (lic_machine_id_collect(&info) != 0)
         return -1;
     memcpy(out_hex, info.machine_id, LIC_MACHINE_ID_HEX_LEN);
+    return 0;
+}
+
+int lic_machine_id_grouped(const char *hex64, char *out, size_t out_size)
+{
+    if (!hex64 || strlen(hex64) != 64 ||
+        !out || out_size < LIC_MACHINE_ID_GROUPED_LEN)
+        return -1;
+
+    size_t o = 0;
+    for (size_t i = 0; i < 64; i++) {
+        if (i > 0 && (i % 4) == 0)
+            out[o++] = '-';
+        out[o++] = hex64[i];
+    }
+    out[o] = '\0';
     return 0;
 }

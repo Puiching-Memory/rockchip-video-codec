@@ -48,18 +48,6 @@ int  rkvc_get_log_level(void);
 
 ---
 
-## 文件哈希
-
-```c
-rkvc_err rkvc_hash_file(const char *path, const char *algo,
-                        char *out_hex, size_t out_size);
-```
-
-- `algo`：`md5`、`sha256` 等（见 FFmpeg `av_hash_names`）。
-- `out_size` 须 ≥ `2 * digest_size + 1`。
-
----
-
 ## 能力与权限
 
 ```c
@@ -206,7 +194,7 @@ typedef struct rkvc_pipeline_desc {
     int            fps_num, fps_den;
     int64_t        bitrate;
     rkvc_pix_fmt   pixel_format;
-    int            gop_size, b_frames;
+    int            gop_size;
     int            low_latency;
     int            queue_depth;       // 端口队列深度，默认 3
     rkvc_rc_mode   rc_mode;

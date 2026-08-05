@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-08-05
+
+### 新增
+
+- **授权指纹容器环境加固**（`lib/license_machine.c`）：检测到容器环境（`/.dockerenv`、`/run/.containerenv` 或 PID 1 cgroup 含 docker/kubepods/containerd/libpod/lxc 特征）时拒绝 MAC 兜底指纹——容器 MAC 随实例重建而变且多容器可同 MAC，无法稳定绑定单机；设备树/OTP 指纹不受影响。确需在容器内使用 MAC 授权时可设 `RKVC_LICENSE_ALLOW_CONTAINER_MAC=1` 显式放行。
+- **机器码分组显示**（`lic_machine_id_grouped()` / `rkvc_lic machine-id`）：诊断输出新增 4 字符分组形式（`xxxx-xxxx-…`），便于人工报码/抄码；stdout 原始 hex 不变，脚本用法兼容。
+
 ### 变更
 
 - **开源协议切换为 AGPLv3**（[LICENSE](LICENSE)）：由 MIT 改为 GNU Affero General Public License v3。衍生/合并作品须以 AGPLv3 开源，网络服务须向用户提供源码；闭源商业使用需商业授权（与 `RKVC_ENABLE_LICENSE` 授权机制配套）。
@@ -14,6 +21,23 @@
   - **发行包补全第三方许可**（`scripts/package-portable.sh`）：`licenses/` 加入 SVT-AV1 `PATENTS.md`（AOM 专利许可 1.0）；新增 `licenses/ffmpeg-modifications/`，随包附 FFmpeg 修改补丁与对应源码说明（子模块 commit / URL / configure 参数），满足 LGPLv3 §4 修改版本源码义务。
   - **文档修正与来源声明**（[docs/packaging.md](docs/packaging.md) / [docs/delivery.md](docs/delivery.md)）：纠正 SVT-AV1 许可为 BSD-3-Clause Clear + AOM 专利许可（原误标 BSD-2）；补全第三方许可表（librga / libsodium / 本项目）；新增模型（自训练、加密交付范围）与 `librknnrt`（Rockchip 专有、再分发须遵守 SDK 条款）来源声明。
   - **bench 许可证标注**：9 个 Python 脚本补 `SPDX-License-Identifier: AGPL-3.0-or-later`；`bench/pyproject.toml` 补 `license` 字段。
+- **clang-tidy 机制收敛**（`CMakeLists.txt` / `CMakePresets.json`）：删除 `RKVC_ENABLE_TIDY` option 与自定义 `tidy` target 两条冗余路径，仅保留 `tidy` preset（`CMAKE_C_CLANG_TIDY`）一种用法。
+- **`full-tests` preset 并入 `tests`**（`CMakePresets.json`）：`tests` 显式开启 `RKVC_BUILD_CLI`，CLI 脚本用例（`test_cli_args` / `test_bench_permission_failure`）与单元测试同树运行（19 个 CTest 目标）；原 `.build/full-tests/` 目录废弃。
+- **install 规则常规定义**（`CMakeLists.txt`）：移除从未声明的幻影变量 `RKVC_INSTALL` 守卫，install 规则始终定义（仅 `cmake --install` 时生效），与 `docs/getting-started.md` 记载行为一致。
+
+### 移除
+
+- **死代码与重复路径清理**（依 AGENTS.md 原则审计）：
+  - 零调用公共 API：`rkvc_hash_file()`（`include/rkvc/rkvc.h` / `lib/ffmpeg_util.c`）、`rkvc_net_send_buffer()`（`include/rkvc/net.h` / `lib/net.c`）。
+  - 从未被读取的 `rkvc_pipeline_desc.b_frames` 字段（`include/rkvc/pipeline.h`）：RKMPP 编码器固定 `max_b_frames = 0`，SVT 路径亦不消费。
+  - 三组重复示例 `stream_decode` / `stream_transcode` / `stream_encode`（与 `decode_file` / `transcode` / `encode_file` 功能重复）及占位示例 `psnr_test`（不做 PSNR，仅打印 caps）。
+  - `scripts/run-bench.sh` 转发脚本：RD 基准入口统一为 `bench/run_rd_benchmark.sh`（`RKVC_BUILD` 默认值本就由 `bench/config.json` 提供），CMake `bench-rd` 目标与全部文档同步指向真实脚本。
+  - 自研 base64（`lib/license_b64.c/h`）：注册码编解码统一改用 libsodium `sodium_base642bin()` / `sodium_bin2base64()`（`lib/license.c` / `tools/rkvc_lic.c` / `scripts/package-portable.sh` 同步），签发端与校验端共享同一成熟实现；同时收紧校验，不再容忍 URL-safe 字母表（签发端从未产生）。
+  - CMake 侧 `RKVC_BUILD_JOBS_MAX` 推测性旋钮（各 build preset 已硬编码 `jobs: 4`；`scripts/build-common.sh` 的同名环境变量保留）。
+
+### 修复
+
+- **`test_bench_permission_failure.sh` 自 0.2.0 起失效**：原场景 `rkvc_transcode -i /dev/null` 在 demux 阶段即失败，永远到不了 dma_heap 权限拒绝路径（且 `rkvc_transcode` 不打印错误串）；CI 因 fault injection 关闭走 exit 77 跳过而未暴露。改用 `rkvc_encode`（`FILE_ENCODE` 在 `rkvc_session_create` 即打开编码器并分配 dma_heap，CLI 打印 `rkvc_err_str`），权限拒绝传播链路恢复真实覆盖。
 
 ## [0.2.7] - 2026-07-15
 

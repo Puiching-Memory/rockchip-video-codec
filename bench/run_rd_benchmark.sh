@@ -5,9 +5,9 @@
 # 实验路线（搁置）: svt-av1+superres — AV1 内建 superres，见 bench/README.md
 #
 # 用法:
-#   ./scripts/run-bench.sh [源视频.mp4]
-#   RUN_CODECS=h264,rkvc ./scripts/run-bench.sh clip.mp4
-#   PLOT_ONLY=1 ./scripts/run-bench.sh
+#   ./bench/run_rd_benchmark.sh [源视频.mp4]
+#   RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
+#   PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
 
 set -euo pipefail
 

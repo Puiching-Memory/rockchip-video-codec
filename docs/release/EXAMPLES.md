@@ -43,23 +43,7 @@
 ./examples/bin/example_transcode input.mp4 output.mp4
 ```
 
-### example_stream_transcode
-
-流式转码示例（端口 push/pull）。
-
 ## 流式处理
-
-### example_stream_encode
-
-原始 NV12 文件 → 编码输出。
-
-```bash
-./examples/bin/example_stream_encode raw.nv12 out.mp4 1920x1080
-```
-
-### example_stream_decode
-
-压缩文件 → 流式解码帧。
 
 ### example_stream_device_pair
 
@@ -82,15 +66,6 @@
 
 选项：`-l` 低延迟、`-s` 分辨率、`-r` 帧率、`-n` 帧数、`-b` 码率。
 
-### example_psnr_test
-
-编解码质量 PSNR 测试。
-
-```bash
-./examples/bin/example_psnr_test -i input.mp4
-./examples/bin/example_psnr_test -i input.mp4 -v -n 100
-```
-
 ### example_visual_compare
 
 SDL2 原始/重建画面对比（可选构建，需 SDL2）。
@@ -107,7 +82,6 @@ SDL2 原始/重建画面对比（可选构建，需 SDL2）。
 | 文件解码     | `example_decode_file`  | `rkvc_decode`               |
 | 文件转码     | `example_transcode`    | `rkvc_transcode`            |
 | 延迟测试     | `example_latency_test` | —                           |
-| PSNR 测试    | `example_psnr_test`    | —                           |
 | E2E fps 对比 | —                      | `rkvc_bench`                |
 
 ## 二次开发参考
@@ -116,8 +90,7 @@ SDL2 原始/重建画面对比（可选构建，需 SDL2）。
 
 1. `encode_file.c` — Session + 端口 + Buffer 基础
 2. `transcode.c` — 文件转码最简路径
-3. `stream_encode.c` — 流式编码
-4. `latency_test.c` — 性能测量
-5. `decode_formats.c` — 多像素格式 + `rkvc_buffer_get_video_info`
+3. `latency_test.c` — 性能测量
+4. `decode_formats.c` — 多像素格式 + `rkvc_buffer_get_video_info`
 
 完整 API 文档见项目 `docs/api.md` 或包内 `DEVELOPMENT.md`。

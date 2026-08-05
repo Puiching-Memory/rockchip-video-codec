@@ -81,8 +81,6 @@ rkvc_err rkvc_format_open_input(AVFormatContext **fmt, const char *path,
                                 AVDictionary **opts);
 rkvc_err rkvc_hash_buffer(const char *algo, const uint8_t *data, size_t len,
                           char *out_hex, size_t out_size);
-rkvc_err rkvc_hash_file(const char *path, const char *algo,
-                        char *out_hex, size_t out_size);
 
 /* ── Buffer ───────────────────────────────────────────────────────── */
 

@@ -129,7 +129,7 @@ gcc -o myapp myapp.c $(pkg-config --cflags --libs rkvc)
 ## RD 基准测试
 
 ```bash
-./scripts/run-bench.sh /path/to/1080p.mp4
+./bench/run_rd_benchmark.sh /path/to/1080p.mp4
 ```
 
 详见 [基准测试](benchmark.md) 与 [bench/README.md](../bench/README.md)。

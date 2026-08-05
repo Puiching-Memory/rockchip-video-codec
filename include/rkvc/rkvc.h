@@ -78,18 +78,6 @@ void rkvc_set_log_level(int level);
  */
 int rkvc_get_log_level(void);
 
-/**
- * @brief 计算文件摘要。
- *
- * @param path     文件路径。
- * @param algo     算法名（`md5`、`sha256` 等，见 FFmpeg `av_hash_names`）。
- * @param out_hex  十六进制输出缓冲。
- * @param out_size `out_hex` 容量，须 ≥ `2 * digest_size + 1`。
- * @return `RKVC_OK`、`RKVC_ERR_IO`、`RKVC_ERR_INVALID` 等。
- */
-rkvc_err rkvc_hash_file(const char *path, const char *algo,
-                        char *out_hex, size_t out_size);
-
 /** @brief 输入数据格式探测结果。 */
 typedef enum {
     RKVC_INPUT_UNKNOWN = 0,         /**< 无法判定或非压缩头 */

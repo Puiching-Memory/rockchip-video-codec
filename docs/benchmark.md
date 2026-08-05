@@ -5,9 +5,9 @@
 RK3588 上 H.264 / HEVC / SVT-AV1 / rkvc Session 的端到端 RD 与性能对比，见 **[bench/README.md](../bench/README.md)**。
 
 ```bash
-./scripts/run-bench.sh /path/to/1080p.mp4
-PLOT_ONLY=1 ./scripts/run-bench.sh
-RUN_CODECS=h264,rkvc ./scripts/run-bench.sh clip.mp4
+./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
+RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
 ```
 
 默认对比路线：`h264`、`h265`、`svt-av1`、`svt-av1-hq`、`rkvc`（展开为 realtime / balanced / quality / offline 四档）。
@@ -73,25 +73,16 @@ cd .build/release
 - **端到端延迟**: 采集帧生成到解码帧输出，含编解码器硬件流水线
 - 帧 0 延迟偏高 (~110ms) 为解码器初始化开销
 
-## PSNR 质量测试
-
-```bash
-./.build/release/example_psnr_test -i input.mp4
-./.build/release/example_psnr_test -i input.mp4 -v -n 100
-```
-
-输出 Y/U/V 平均 PSNR、加权平均 PSNR 及最低帧 PSNR。
-
 ## 下采样 + 后处理上采样基准
 
 评估低分辨率编码 + 上采样还原的画质损失：
 
 ```bash
-RUN_CODECS=svt-av1,post-upscale ./scripts/run-bench.sh clip.mp4
+RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh clip.mp4
 ENC_SCALE_DENOM=2 UPSCALE_ALGOS=nearest,bilinear,bicubic \
-  RUN_CODECS=post-upscale ./scripts/run-bench.sh clip.mp4
+  RUN_CODECS=post-upscale ./bench/run_rd_benchmark.sh clip.mp4
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
-  RUN_CODECS=post-upscale ./scripts/run-bench.sh clip.mp4
+  RUN_CODECS=post-upscale ./bench/run_rd_benchmark.sh clip.mp4
 ```
 
 Session 字段：`enc_scale_denom`、`post_upscale_algo`。CLI 请用 `rkvc_session_upscale --enc-scale-denom N --post-upscale …`（编码工具 `rkvc_encode` 只做下采样，不接受 `--post-upscale`）。

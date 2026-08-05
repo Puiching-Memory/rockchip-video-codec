@@ -27,7 +27,6 @@
 #include <sodium.h>
 #include "license_layout.h"
 #include "license_machine.h"
-#include "license_b64.h"
 
 /* 内嵌公钥（lib/license_pubkey.c，已 XOR 混淆，运行时再解密） */
 extern const uint8_t rkvc_license_pubkey_enc[32];
@@ -240,7 +239,8 @@ rkvc_err rkvc_license_verify_file(const char *path, rkvc_license_info *info)
 
     uint8_t blob[RKVC_LICENSE_BLOB_SIZE];
     size_t blob_len = 0;
-    if (lic_b64_decode(text, n, blob, sizeof(blob), &blob_len) != 0 ||
+    if (sodium_base642bin(blob, sizeof(blob), text, n, " \t\r\n", &blob_len,
+                          NULL, sodium_base64_VARIANT_ORIGINAL) != 0 ||
         blob_len != RKVC_LICENSE_BLOB_SIZE)
         return RKVC_ERR_LICENSE;
 

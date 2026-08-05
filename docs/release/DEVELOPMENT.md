@@ -166,13 +166,6 @@ rkvc_set_log_level(AV_LOG_DEBUG);   // 与 FFmpeg AV_LOG_* 一致
 // 或环境变量：export RKVC_LOG_LEVEL=debug
 ```
 
-## 文件哈希（测试/校验）
-
-```c
-char hex[65];
-rkvc_hash_file("clip.mp4", "sha256", hex, sizeof(hex));
-```
-
 ## RGA 独立上采样 API
 
 不经过 Session 时，可直接调用 RGA 缩放（对应 CLI `rkvc_yuv_upscale`）：

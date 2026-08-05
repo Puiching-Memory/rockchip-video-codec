@@ -2,12 +2,12 @@
 set -euo pipefail
 
 BUILD_DIR="${1:?usage: $0 <build-dir>}"
-TRANS="$BUILD_DIR/rkvc_transcode"
+ENC="$BUILD_DIR/rkvc_encode"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-if [ ! -x "$TRANS" ]; then
-    echo "FAIL: missing $TRANS"
+if [ ! -x "$ENC" ]; then
+    echo "FAIL: missing $ENC"
     exit 1
 fi
 
@@ -22,7 +22,7 @@ touch "$TMPDIR/dev/dma_heap/system-uncached"
 
 set +e
 output=$(RKVC_TEST_DEV_ROOT="$TMPDIR" RKVC_TEST_DENY_DEV_PATH="/dev/dma_heap/system-uncached" \
-    "$TRANS" -i /dev/null -o "$TMPDIR/out.mp4" -s 64x64 -p realtime 2>&1)
+    "$ENC" -i /dev/null -o "$TMPDIR/out.mp4" -s 64x64 -p realtime 2>&1)
 status=$?
 set -e
 

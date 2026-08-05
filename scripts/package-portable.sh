@@ -188,14 +188,13 @@ prepare_license_keys() {
     local rkvc_lic="$PROJECT_DIR/.build/deps/rkvc_lic"
 
     # 编译临时 rkvc_lic（仅依赖 libsodium，不走完整 CMake）。
-    # 须与 CMakeLists.txt 中 rkvc_lic 目标同源：tools + license_machine + license_b64。
+    # 须与 CMakeLists.txt 中 rkvc_lic 目标同源：tools + license_machine。
     # 总是重新编译：rkvc_lic 源码/头文件可能已更新，避免复用旧格式二进制。
     echo "--- 编译 rkvc_lic (host) ---"
     mkdir -p "$(dirname "$rkvc_lic")"
     cc -O2 -o "$rkvc_lic" \
         "$PROJECT_DIR/tools/rkvc_lic.c" \
         "$PROJECT_DIR/lib/license_machine.c" \
-        "$PROJECT_DIR/lib/license_b64.c" \
         -I"$PROJECT_DIR/lib" \
         -I"$LIBSODIUM_PREFIX/include" \
         "$LIBSODIUM_PREFIX/lib/libsodium.a" \
