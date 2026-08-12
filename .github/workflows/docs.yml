@@ -54,7 +54,11 @@ jobs:
 
       - name: Build Doxygen
         run: |
-          cmake -B .build/release -DRKVC_BUILD_DOCS=ON
+          # 文档构建不需要 NPU 模块；runner 上无 librknnrt，需显式关闭
+          cmake -B .build/release \
+            -DRKVC_BUILD_DOCS=ON \
+            -DRKVC_ENABLE_RKNN=OFF \
+            -DRKVC_ENABLE_MLVC=OFF
           cmake --build .build/release --target docs
 
       - name: Upload API docs

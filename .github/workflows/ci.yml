@@ -42,9 +42,12 @@ jobs:
       - name: Create compile_commands.json
         run: |
           # CI 不启用授权模块（与打包一致，无需 libsodium）
+          # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
           cmake -B .build/release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DRKVC_ENABLE_LICENSE=OFF
+            -DRKVC_ENABLE_LICENSE=OFF \
+            -DRKVC_ENABLE_RKNN=OFF \
+            -DRKVC_ENABLE_MLVC=OFF
 
       - name: Run clang-tidy
         run: |
@@ -96,10 +99,13 @@ jobs:
 
       - name: Configure
         run: |
+          # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
           cmake -B .build/release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DRKVC_BUILD_TESTS=ON \
-            -DMPP_BUILD_DIR=/tmp/mpp-build
+            -DMPP_BUILD_DIR=/tmp/mpp-build \
+            -DRKVC_ENABLE_RKNN=OFF \
+            -DRKVC_ENABLE_MLVC=OFF
 
       - name: Build
         run: ninja -C .build/release
@@ -157,10 +163,13 @@ jobs:
 
       - name: Build and package
         run: |
+          # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
           cmake -B .build/release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DMPP_BUILD_DIR=/tmp/mpp-build \
-            -DRKVC_ENABLE_LICENSE=OFF
+            -DRKVC_ENABLE_LICENSE=OFF \
+            -DRKVC_ENABLE_RKNN=OFF \
+            -DRKVC_ENABLE_MLVC=OFF
           ninja -C .build/release package
 
       - name: Build portable package

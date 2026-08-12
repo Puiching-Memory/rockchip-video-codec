@@ -250,6 +250,13 @@ build_rkvc() {
         cmake_license_args+=(-DRKVC_LICENSE_PUBKEY_FILE="$PROJECT_DIR/tools/keys/public.key")
     fi
 
+    # 无 librknnrt 时关闭 NPU 模块，避免 CMake 配置失败（与 CMakeLists.txt 检测一致）
+    local cmake_npu_args=()
+    if ! ldconfig -p 2>/dev/null | grep -q "librknnrt.so"; then
+        cmake_npu_args+=(-DRKVC_ENABLE_RKNN=OFF)
+        cmake_npu_args+=(-DRKVC_ENABLE_MLVC=OFF)
+    fi
+
     cmake -B "$RKVC_BUILD" -G "$gen" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_BUILD_PARALLEL_LEVEL="$BUILD_JOBS" \
@@ -257,6 +264,7 @@ build_rkvc() {
         -DMPP_BUILD_DIR="$MPP_BUILD" \
         -DRGA_PREFIX="$RGA_PREFIX" \
         "${cmake_license_args[@]+"${cmake_license_args[@]}"}" \
+        "${cmake_npu_args[@]+"${cmake_npu_args[@]}"}" \
         "$PROJECT_DIR"
 
     local build_cmd
