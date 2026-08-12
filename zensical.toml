@@ -1,8 +1,8 @@
 [project]
 site_name = "rkvc — RK3588 Video Codec"
 site_description = "RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)"
-site_url = "https://puiching-memory.github.io/rk3588-ai-video-codec/"
-repo_url = "https://github.com/Puiching-Memory/rk3588-ai-video-codec"
+site_url = "https://puiching-memory.github.io/rockchip-video-codec/"
+repo_url = "https://github.com/Puiching-Memory/rockchip-video-codec"
 repo_name = "rkvc"
 
 nav = [

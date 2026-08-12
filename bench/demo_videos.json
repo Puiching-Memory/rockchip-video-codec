@@ -15,13 +15,13 @@
   "videos": [
     {
       "input": "/root/container_logistics_port.mp4",
-      "output": "/root/rk3588-ai-video-codec/bench/results/demos/container_logistics_port_comparison.mp4",
+      "output": "/root/rockchip-video-codec/bench/results/demos/container_logistics_port_comparison.mp4",
       "reference_kbps": 1600,
       "target_kbps": 350
     },
     {
       "input": "/root/sailboat_ocean.mp4",
-      "output": "/root/rk3588-ai-video-codec/bench/results/demos/sailboat_ocean_comparison.mp4",
+      "output": "/root/rockchip-video-codec/bench/results/demos/sailboat_ocean_comparison.mp4",
       "reference_kbps": 4000,
       "target_kbps": 900,
       "clip_sec": 12

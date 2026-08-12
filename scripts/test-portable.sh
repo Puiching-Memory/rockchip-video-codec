@@ -113,7 +113,7 @@ check_runpath_contains() {
         if echo "$output" | grep -q "$PKG_DIR"; then
             fail "$label: RPATH 含包目录绝对路径"
             show_output "readelf -d $label" "$output"
-        elif echo "$output" | grep -q "/root/rk3588-ai-video-codec"; then
+        elif echo "$output" | grep -q "/root/rockchip-video-codec"; then
             fail "$label: RPATH 含构建机绝对路径"
             show_output "readelf -d $label" "$output"
         fi

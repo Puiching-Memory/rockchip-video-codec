@@ -1,4 +1,4 @@
-# rk3588-ai-video-codec
+# rockchip-video-codec
 
 面向 Rockchip SoC 的多码率视频管线 C 库（**rkvc**）：Session + Codec Router，支持 H.264 / HEVC / AV1 与 **MLVC 神经视频编解码**，基于 DMA-BUF 热路径与 ffmpeg-rockchip 容器层，纯 C17 实现（无 C++ 依赖）。当前支持板卡：**RK3588**（权威）、**RV1126B**（骨架），通过板卡 profile 抽象层扩展。
 

@@ -111,7 +111,7 @@ PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
 python3 bench/tools/config.py validate bench/config.json
 
 # 查看将生效的默认值
-python3 bench/tools/config.py defaults bench/config.json /path/to/rk3588-ai-video-codec
+python3 bench/tools/config.py defaults bench/config.json /path/to/rockchip-video-codec
 
 # 单次覆盖（环境变量优先于 config）
 RUN_CODECS=svt-av1,post-upscale ENC_SCALE_DENOM=3 \

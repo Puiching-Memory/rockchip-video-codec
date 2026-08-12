@@ -26,8 +26,8 @@ sudo chmod 666 /dev/dri/*
 ## 获取源码与初始化子模块
 
 ```bash
-git clone --recursive --shallow-submodules <repo-url> rk3588-ai-video-codec
-cd rk3588-ai-video-codec
+git clone --recursive --shallow-submodules <repo-url> rockchip-video-codec
+cd rockchip-video-codec
 
 # 若未 --recursive（.gitmodules 已设 shallow = true）
 git submodule update --init --depth 1
