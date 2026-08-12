@@ -177,7 +177,7 @@ rkvc_err rkvc_mpp_enc_send_frame_roi_ex(rkvc_mpp_enc *enc, rkvc_buffer *frame,
         return err;
 
     /* 解复用 PTS 与编码器 time_base 不同；统一用单调帧序号，避免 MP4 帧率错乱。 */
-    avf->pts = enc->next_pts++;
+    avf->pts = enc->next_pts;
 
     if (force_idr)
         avf->pict_type = AV_PICTURE_TYPE_I;
@@ -227,6 +227,8 @@ rkvc_err rkvc_mpp_enc_send_frame_roi_ex(rkvc_mpp_enc *enc, rkvc_buffer *frame,
     av_frame_free(&avf);
     if (ret == AVERROR(EAGAIN))
         return RKVC_ERR_AGAIN;
+    if (ret >= 0)
+        enc->next_pts++;
     return rkvc_from_averror(ret);
 }
 
@@ -260,9 +262,10 @@ rkvc_err rkvc_mpp_enc_drain(rkvc_mpp_enc *enc)
         return RKVC_ERR_INVALID;
     if (enc->flushed)
         return RKVC_OK;
-    enc->flushed = 1;
     int ret = avcodec_send_frame(enc->ctx, NULL);
-    if (ret < 0 && ret != AVERROR_EOF)
-        return rkvc_from_averror(ret);
-    return RKVC_OK;
+    if (ret == 0 || ret == AVERROR_EOF) {
+        enc->flushed = 1;
+        return RKVC_OK;
+    }
+    return rkvc_from_averror(ret);
 }

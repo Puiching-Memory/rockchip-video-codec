@@ -3,7 +3,7 @@
 
 /**
  * @file rkvc_bench.c
- * @brief v2 Session E2E 基准：对比 REALTIME / BALANCED / QUALITY / OFFLINE 路线。
+ * @brief Session E2E 基准：对比 REALTIME / BALANCED / QUALITY / OFFLINE 路线。
  */
 
 #include "rkvc/rkvc.h"
@@ -105,10 +105,11 @@ int main(int argc, char **argv)
         { RKVC_POLICY_BALANCED, "BALANCED (HEVC)" },
         { RKVC_POLICY_QUALITY,  "QUALITY (AV1)" },
         { RKVC_POLICY_OFFLINE,  "OFFLINE (AV1 HQ)" },
+        { RKVC_POLICY_NEURAL,   "NEURAL (MLVC)" },
     };
 
     int failed = 0;
-    printf("rkvc v2 session E2E bench (input=%s)\n", o.input);
+    printf("rkvc session E2E bench (input=%s)\n", o.input);
     for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) {
         double fps = bench_policy(routes[i].policy, &o);
         printf("  %-18s %.1f fps\n", routes[i].label, fps);

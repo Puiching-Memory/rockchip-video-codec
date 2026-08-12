@@ -115,6 +115,7 @@ def defaults_env(cfg: Dict[str, Any]) -> Dict[str, str]:
         "UPSCALE_ALGOS": ",".join(run.get("upscale_algos", [])),
         "RUN_CODECS": ",".join(run.get("codecs", [])),
         "RKVC_POLICIES": ",".join(run.get("rkvc_policies", [])),
+        "MLVC_QP": str(cfg.get("mlvc", {}).get("qp", 21)),
         "BENCH_CSV_MODE": str(run.get("csv_mode", "session")),
         "BENCH_PARALLEL": "1" if run.get("parallel") else "0",
         "RAMDISK_DIR": str(cfg.get("ramdisk_dir", "/dev/shm/rkvc-bench")),

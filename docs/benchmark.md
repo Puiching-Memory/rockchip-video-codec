@@ -26,7 +26,7 @@ RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
 ### 输出示例
 
 ```
-rkvc v2 session E2E bench (input=clip.mp4)
+rkvc session E2E bench (input=clip.mp4)
   REALTIME (H.264): 36.2 fps
   BALANCED (HEVC):  27.1 fps
   QUALITY (AV1):    24.3 fps

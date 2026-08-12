@@ -32,7 +32,7 @@ rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 \
 - `-i` 必须为原始 NV12 文件，不接受 .mp4 / .h265 等压缩文件
 - `--enc-scale-denom N`：编码前 RGA 下采样（宽高各 /N）；**解码后上采样不在本工具内**
 - 后处理上采样（RGA / `rkvc_sr`）请用 `rkvc_session_upscale` 或 `FILE_DECODE` + `post_upscale_algo`
-- v2 已移除 `--testsrc`、`--stdin`、`--stdout`；测试图案请用 `example_encode_file`
+- 已移除 `--testsrc`、`--stdin`、`--stdout`；测试图案请用 `example_encode_file`
 
 ### rkvc_decode
 
@@ -90,7 +90,7 @@ rkvc_bench -i sample.mp4 -o /tmp/bench -s 1920x1080
 输出示例：
 
 ```
-rkvc v2 session E2E bench (input=sample.mp4)
+rkvc session E2E bench (input=sample.mp4)
   REALTIME (H.264): 36.2 fps
   BALANCED (HEVC):  27.1 fps
   QUALITY (AV1):    24.3 fps

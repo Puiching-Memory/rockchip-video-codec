@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Copyright (c) 2026 梦归云帆 */
 
-/** transcode.c — v2 session 转码示例 */
+/** transcode.c — session 转码示例 */
 #include "rkvc/rkvc.h"
 #include <stdio.h>
 #include <string.h>

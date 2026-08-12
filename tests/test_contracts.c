@@ -3,7 +3,7 @@
 
 /**
  * @file test_contracts.c
- * @brief v2 Session / Port 契约测试。
+ * @brief Session / Port 契约测试。
  */
 
 #include <stdarg.h>

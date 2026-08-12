@@ -3,7 +3,7 @@
 
 /**
  * @file rkvc_encode.c
- * @brief v2 Session CLI：原始 NV12 → 编码文件。
+ * @brief Session CLI：原始 NV12 → 编码文件。
  */
 
 #include "rkvc/rkvc.h"
@@ -27,6 +27,7 @@ static rkvc_policy parse_policy(const char *s)
     if (strcmp(s, "balanced") == 0) return RKVC_POLICY_BALANCED;
     if (strcmp(s, "quality") == 0) return RKVC_POLICY_QUALITY;
     if (strcmp(s, "offline") == 0) return RKVC_POLICY_OFFLINE;
+    if (strcmp(s, "neural") == 0)  return RKVC_POLICY_NEURAL;
     return RKVC_POLICY_REALTIME;
 }
 

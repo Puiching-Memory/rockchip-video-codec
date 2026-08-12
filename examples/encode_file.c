@@ -3,7 +3,7 @@
 
 /**
  * @file encode_file.c
- * @brief v2 示例：端口 push 编码 NV12 测试图案。
+ * @brief 示例：端口 push 编码 NV12 测试图案。
  */
 
 #include "rkvc/rkvc.h"

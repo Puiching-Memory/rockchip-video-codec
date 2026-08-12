@@ -3,7 +3,7 @@
 
 /**
  * @file test_types.c
- * @brief v2 公共 API 单元测试。
+ * @brief 公共 API 单元测试。
  */
 
 #include <stdarg.h>
@@ -12,7 +12,7 @@
 #include <cmocka.h>
 #include "rkvc/rkvc.h"
 
-static void test_version_v2(void **state)
+static void test_version_number(void **state)
 {
     (void)state;
     assert_non_null(rkvc_version());
@@ -47,7 +47,7 @@ static void test_init_idempotent(void **state)
 int main(void)
 {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_version_v2),
+        cmocka_unit_test(test_version_number),
         cmocka_unit_test(test_pipeline_defaults),
         cmocka_unit_test(test_session_create_null),
         cmocka_unit_test(test_init_idempotent),

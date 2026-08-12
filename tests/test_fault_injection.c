@@ -3,7 +3,7 @@
 
 /**
  * @file test_fault_injection.c
- * @brief v2 确定性 OOM 测试。
+ * @brief 确定性 OOM 测试。
  */
 
 #include <stdarg.h>

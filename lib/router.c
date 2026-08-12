@@ -14,6 +14,7 @@ const char *rkvc_codec_name(rkvc_codec codec)
     case RKVC_CODEC_H264: return "h264";
     case RKVC_CODEC_HEVC: return "hevc";
     case RKVC_CODEC_AV1:  return "av1";
+    case RKVC_CODEC_MLVC: return "mlvc";
     default:              return "auto";
     }
 }
@@ -25,6 +26,7 @@ const char *rkvc_policy_name(rkvc_policy policy)
     case RKVC_POLICY_BALANCED: return "balanced";
     case RKVC_POLICY_QUALITY:  return "quality";
     case RKVC_POLICY_OFFLINE:  return "offline";
+    case RKVC_POLICY_NEURAL:   return "neural";
     default:                   return "unknown";
     }
 }
@@ -62,6 +64,17 @@ static void fill_av1_svt(rkvc_route_plan *plan, int preset, const char *reason)
     plan->reason       = reason;
 }
 
+static void fill_mlvc(rkvc_route_plan *plan, const char *reason)
+{
+    plan->codec        = RKVC_CODEC_MLVC;
+    plan->enc_backend  = RKVC_ENC_BACKEND_MLVC;
+    plan->dec_backend  = RKVC_DEC_BACKEND_MLVC;
+    plan->enc_name     = "mlvc";
+    plan->dec_name     = "mlvc";
+    plan->svt_preset   = 0;
+    plan->reason       = reason;
+}
+
 rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc,
                             rkvc_route_plan *plan)
 {
@@ -80,6 +93,9 @@ rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc,
             return RKVC_OK;
         case RKVC_CODEC_AV1:
             fill_av1_svt(plan, RKVC_SVT_PRESET_PERF, "forced av1");
+            return RKVC_OK;
+        case RKVC_CODEC_MLVC:
+            fill_mlvc(plan, "forced mlvc neural codec");
             return RKVC_OK;
         default:
             return RKVC_ERR_INVALID;
@@ -109,6 +125,10 @@ rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc,
     case RKVC_POLICY_OFFLINE:
         fill_av1_svt(plan, RKVC_SVT_PRESET_HQ,
                       "offline: SVT preset 4 + av1_rkmpp (≥1fps@1080p)");
+        break;
+
+    case RKVC_POLICY_NEURAL:
+        fill_mlvc(plan, "neural: MLVC neural video codec (NPU + rANS)");
         break;
 
     default:

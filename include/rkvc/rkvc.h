@@ -3,7 +3,7 @@
 
 /**
  * @file rkvc.h
- * @brief RK3588 Video Codec Library v2 — 主入口（包含全部公共头文件）。
+ * @brief Rockchip 多 SoC 视频编解码库 — 主入口（包含全部公共头文件）。
  */
 
 #ifndef RKVC_H
@@ -23,6 +23,7 @@
 #include "rkvc/net.h"
 #include "rkvc/reconfig.h"
 #include "rkvc/license.h"
+#include "rkvc/board.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,17 +105,18 @@ rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data,
  * 编解码 `has_*` 字段在设备权限不足时为 0；`rkvc_info -j` JSON 字段与此对应。
  */
 typedef struct {
+    rkvc_board_id board;/**< 当前激活板卡（见 `rkvc/board.h`） */
     int has_h264_enc;   /**< `h264_rkmpp` 编码可用 */
     int has_hevc_enc;   /**< `hevc_rkmpp` 编码可用 */
-    int has_av1_enc;    /**< SVT-AV1 编码可用 */
+    int has_av1_enc;    /**< SVT-AV1 编码可用（软件，与板卡无关） */
     int has_h264_dec;   /**< `h264_rkmpp` 解码可用 */
     int has_hevc_dec;   /**< `hevc_rkmpp` 解码可用 */
     int has_av1_dec;    /**< `av1_rkmpp` 解码可用 */
     int has_dma_heap;   /**< `/dev/dma_heap/*` 可访问 */
     int has_rga;        /**< `/dev/rga` 可访问 */
     int has_rknn;       /**< RKNN 已编译且 NPU 可访问（`rkvc_sr`） */
-    int max_width;      /**< 支持最大宽度（RK3588：7680） */
-    int max_height;     /**< 支持最大高度（RK3588：4320） */
+    int max_width;      /**< VPU 硬件解码最大宽度（取自板卡 profile） */
+    int max_height;     /**< VPU 硬件解码最大高度（取自板卡 profile） */
 } rkvc_caps;
 
 /**

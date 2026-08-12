@@ -74,6 +74,15 @@ RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/models/rkvc_sr_x3.crypt.rknn}"
 export RKVC_SR_MODEL
 RKVC_ENC="$RKVC_BUILD/rkvc_encode"
 
+# MLVC 神经编解码（-p neural）：模型与 PMF 表路径
+MLVC_ENC_MODEL="${MLVC_ENC_MODEL:-$PROJECT_ROOT/models/MLVCEncoder_rk3588.rknn}"
+MLVC_DEC_MODEL="${MLVC_DEC_MODEL:-$PROJECT_ROOT/models/MLVCDecoder_rk3588.rknn}"
+MLVC_GAUSSIAN_PMF="${MLVC_GAUSSIAN_PMF:-$PROJECT_ROOT/models/gaussian.bin}"
+MLVC_BITEST_PMF="${MLVC_BITEST_PMF:-$PROJECT_ROOT/models/bitest.bin}"
+# MLVC 固定分辨率（模型训练尺寸）
+MLVC_W="${MLVC_W:-640}"
+MLVC_H="${MLVC_H:-368}"
+
 FFMPEG_LIB_DIRS=""
 for _d in "$FFMPEG_SRC"/libav* "$FFMPEG_SRC"/libsw* "$FFMPEG_SRC"/libpostproc; do
     [[ -d "$_d" ]] && FFMPEG_LIB_DIRS="${_d}:${FFMPEG_LIB_DIRS}"
@@ -247,8 +256,8 @@ sync_ref_to_ram() {
 clip_meta_key() {
     local mtime
     mtime=$(stat -c %Y "$SRC_VIDEO" 2>/dev/null || echo 0)
-    # v2: 容器输入改为 YUV 重封装（禁止 -c copy 负 PTS）
-    echo "v2|${CLIP_SEC}|${CLIP_OFFSET}|${CLIP_START}|${SRC_VIDEO}|${mtime}"
+    # 容器输入改为 YUV 重封装（禁止 -c copy 负 PTS）
+    echo "${CLIP_SEC}|${CLIP_OFFSET}|${CLIP_START}|${SRC_VIDEO}|${mtime}"
 }
 
 compute_clip_start() {
@@ -1091,6 +1100,60 @@ run_rkvc_offline() {
     write_csv_row "$CSV" "$csv_codec" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
 }
 
+# MLVC 神经编解码（-p neural）：与 H.264/HEVC/AV1 平行的一等编解码器。
+# 编码 video → .mlvc（rkvc_transcode -p neural），解码 .mlvc → .yuv（rkvc_transcode）。
+# 与其他 rkvc policy 不同：MLVC 用 qp 而非码率，固定分辨率，不能被 ffmpeg 解码。
+run_rkvc_neural() {
+    local kbps="$1"
+    local csv_codec="rkvc-neural"
+    local ramdir logdir
+    ramdir=$(bench_ramdir "$csv_codec" "$kbps")
+    logdir=$(bench_logdir "$csv_codec" "$kbps")
+    mkdir -p "$ramdir" "$logdir"
+    local bitstream="$ramdir/stream.mlvc" decoded_yuv="$ramdir/decoded.yuv" stats="$logdir/stats"
+    local enc_clip="$ramdir/clip_${MLVC_W}x${MLVC_H}.mp4"
+    local ref_yuv="$ramdir/ref_${MLVC_W}x${MLVC_H}.yuv"
+    if [[ ! -x "$RKVC_TRANS" ]]; then
+        echo "[skip] rkvc_transcode 未构建: $RKVC_TRANS"
+        return 0
+    fi
+    if [[ ! -f "$MLVC_ENC_MODEL" || ! -f "$MLVC_DEC_MODEL" ]]; then
+        echo "[skip] MLVC 模型缺失: $MLVC_ENC_MODEL / $MLVC_DEC_MODEL"
+        return 0
+    fi
+    if [[ ! -f "$MLVC_GAUSSIAN_PMF" || ! -f "$MLVC_BITEST_PMF" ]]; then
+        echo "[skip] MLVC PMF 表缺失: $MLVC_GAUSSIAN_PMF / $MLVC_BITEST_PMF"
+        return 0
+    fi
+
+    # 缩放到 MLVC 模型固定分辨率（640x368），并导出参考 NV12（匹配 MLVC 解码输出）
+    "$PREP_FFMPEG" -y -i "$SRC_CLIP" -vf "scale=${MLVC_W}:${MLVC_H}"         -c:v "$PREP_ELEM_ENCODER" -an "$enc_clip" 2>"$logdir/scale.log"
+    "$PREP_FFMPEG" -y -i "$enc_clip" -pix_fmt nv12 -f rawvideo "$ref_yuv" 2>"$logdir/ref.log"
+    local mlvc_frames
+    mlvc_frames=$("$FFPROBE" -v error -count_frames -select_streams v:0         -show_entries stream=nb_read_frames -of csv=p=0 "$enc_clip" 2>/dev/null || echo 0)
+    if [[ "$mlvc_frames" -lt $((FRAMES - 2)) ]]; then
+        echo "[error] ${csv_codec} 缩放后帧数不足: ${mlvc_frames}/${FRAMES}" >&2
+        return 1
+    fi
+
+    local qp="${MLVC_QP:-21}"
+    echo "[run] rkvc neural (MLVC, qp=${qp}) @ ${kbps}kbps target (${MLVC_W}x${MLVC_H})"
+
+    local t0 t1 t2 br q
+    t0=$(date +%s.%N)
+    "$RKVC_TRANS" -i "$enc_clip" -o "$bitstream" -p neural         --mlvc-enc "$MLVC_ENC_MODEL"         --mlvc-gaussian-pmf "$MLVC_GAUSSIAN_PMF"         --mlvc-bitest-pmf "$MLVC_BITEST_PMF"         --mlvc-qp "$qp" 2>"$logdir/enc.log"
+    t1=$(date +%s.%N)
+
+    # MLVC 码流只能由 rkvc_transcode 解码
+    "$RKVC_TRANS" -i "$bitstream" -o "$decoded_yuv"         --mlvc-dec "$MLVC_DEC_MODEL"         --mlvc-gaussian-pmf "$MLVC_GAUSSIAN_PMF"         --mlvc-bitest-pmf "$MLVC_BITEST_PMF" 2>"$logdir/dec.log"
+    t2=$(date +%s.%N)
+
+    br=$(actual_kbps "$bitstream" "$mlvc_frames")
+    q=$(measure_quality_nv12 "$decoded_yuv" "$ref_yuv" "$mlvc_frames" "$stats" "$FPS_NUM" "$FPS_DEN")
+    bench_cleanup_ramdir "$ramdir"
+    write_csv_row "$CSV" "$csv_codec" "$kbps" "$br" "$q" "$t0" "$t1" "$t2"
+}
+
 run_rkvc_realtime() { run_rkvc_transcode_policy realtime "$1"; }
 run_rkvc_balanced()  { run_rkvc_transcode_policy balanced "$1"; }
 
@@ -1134,7 +1197,7 @@ codec_will_rerun() {
         return 0
     fi
     case "$codec" in
-        rkvc|rkvc-realtime|rkvc-balanced|rkvc-quality|rkvc-offline)
+        rkvc|rkvc-realtime|rkvc-balanced|rkvc-quality|rkvc-offline|rkvc-neural)
             codec_enabled rkvc && return 0
             ;;
     esac
@@ -1165,9 +1228,12 @@ echo "[info] csv mode: $BENCH_CSV_MODE (session=仅本次, accumulate=保留未�
 echo "[info] enc scale denom: $ENC_SCALE_DENOM  upscale algos: $UPSCALE_ALGOS"
 echo "[info] rkvc policies: $RKVC_POLICIES"
 echo "[info] rkvc: $RKVC_TRANS"
+if codec_enabled rkvc-neural || { codec_enabled rkvc && rkvc_policy_enabled neural; }; then
+    echo "[info] mlvc: ${MLVC_W}x${MLVC_H} qp=${MLVC_QP:-21} enc=${MLVC_ENC_MODEL} dec=${MLVC_DEC_MODEL}"
+fi
 echo "[info] ramdisk: $RAMDISK_DIR (码流/YUV 中间文件 tmpfs)"
 
-for codec in h264 h265 svt-av1 svt-av1-hq svt-av1+superres rkvc rkvc-realtime rkvc-balanced rkvc-quality rkvc-offline; do
+for codec in h264 h265 svt-av1 svt-av1-hq svt-av1+superres rkvc rkvc-realtime rkvc-balanced rkvc-quality rkvc-offline rkvc-neural; do
     codec_will_rerun "$codec" && rm -rf "$RAM_WORK_DIR/$codec"
 done
 if post_upscale_will_rerun; then
@@ -1187,7 +1253,7 @@ rm -f "$WORKDIR"/results_*.csv
 
 bench_rkvc_policies() {
     local policy fn
-    for policy in realtime balanced quality offline; do
+    for policy in realtime balanced quality offline neural; do
         if ! rkvc_policy_selected "$policy"; then
             continue
         fi

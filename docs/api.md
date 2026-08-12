@@ -1,6 +1,6 @@
-# rkvc v2 API 参考
+# rkvc API 参考
 
-v2 以 **Session + Pipeline + Codec Router** 替代 v1 的 `encoder` / `decoder` / `stream` / `frame` 四套 API。
+以 **Session + Pipeline + Codec Router** 为核心 API，替代旧版 `encoder` / `decoder` / `stream` / `frame` 四套 API。
 
 ## 头文件
 

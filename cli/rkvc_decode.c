@@ -3,7 +3,7 @@
 
 /**
  * @file rkvc_decode.c
- * @brief v2 Session CLI：压缩文件 → 原始 NV12。
+ * @brief Session CLI：压缩文件 → 原始 NV12。
  */
 
 #include "rkvc/rkvc.h"

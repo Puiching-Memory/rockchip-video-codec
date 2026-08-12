@@ -3,7 +3,7 @@
 
 /**
  * @file decode_formats.c
- * @brief v2 示例：同一码流分别以 NV12 / YUV420P / NV16 / P010 解码，校验输出帧格式。
+ * @brief 示例：同一码流分别以 NV12 / YUV420P / NV16 / P010 解码，校验输出帧格式。
  */
 
 #include "rkvc/rkvc.h"
@@ -124,7 +124,7 @@ int main(int argc, char **argv)
             return 1;
         }
         if (encode_fixture(generated) != 0) {
-            fprintf(stderr, "failed to generate test clip (need RK3588 HW)\n");
+            fprintf(stderr, "failed to generate test clip (need RKMPP hardware)\n");
             unlink(generated);
             return 1;
         }

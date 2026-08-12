@@ -3,7 +3,7 @@
 
 /**
  * @file session.h
- * @brief rkvc v2 会话：图式编解码管线生命周期与统计。
+ * @brief rkvc 会话：图式编解码管线生命周期与统计。
  */
 
 #ifndef RKVC_SESSION_H

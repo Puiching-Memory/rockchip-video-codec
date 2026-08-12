@@ -3,11 +3,15 @@
 
 /**
  * @file internal.h
- * @brief rkvc v2 内部共享头文件。
+ * @brief rkvc 内部共享头文件。
  */
 
 #ifndef RKVC_INTERNAL_H
 #define RKVC_INTERNAL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "rkvc/rkvc.h"
 
@@ -153,6 +157,10 @@ typedef struct rkvc_mpp_dec rkvc_mpp_dec;
 typedef struct rkvc_mpp_enc rkvc_mpp_enc;
 typedef struct rkvc_svt_enc rkvc_svt_enc;
 typedef struct rkvc_v4l2_cap rkvc_v4l2_cap;
+typedef struct rkvc_mlvc_enc rkvc_mlvc_enc;
+typedef struct rkvc_mlvc_dec rkvc_mlvc_dec;
+typedef struct rkvc_mlvc_mux rkvc_mlvc_mux;
+typedef struct rkvc_mlvc_demux rkvc_mlvc_demux;
 
 typedef struct {
     const char *input_path;
@@ -233,6 +241,31 @@ rkvc_err rkvc_mpp_dec_send_packet(rkvc_mpp_dec *dec, const rkvc_buffer *pkt);
 rkvc_err rkvc_mpp_dec_receive_frame(rkvc_mpp_dec *dec, rkvc_buffer **frame);
 rkvc_err rkvc_mpp_dec_drain(rkvc_mpp_dec *dec);
 
+/* ── Decoder send/receive pump ───────────────────────────────────── */
+
+typedef struct {
+    rkvc_buffer *pending_pkt; /**< send 返回 AGAIN 时保留，成功后释放 */
+    int          input_eof;   /**< demux 已到 EOF */
+    int          drain_sent;  /**< NULL packet 已成功提交 */
+} rkvc_decode_pump;
+
+typedef struct {
+    rkvc_err (*read_packet)(void *opaque, rkvc_buffer **pkt);
+    rkvc_err (*send_packet)(void *opaque, const rkvc_buffer *pkt);
+    rkvc_err (*receive_frame)(void *opaque, rkvc_buffer **frame);
+    rkvc_err (*drain)(void *opaque);
+} rkvc_decode_pump_ops;
+
+/**
+ * 推进一次解码状态机：至多读取/提交一个新包，并尝试取得一帧。
+ * pending packet 由 pump 持有；调用方结束时必须 cleanup。
+ */
+rkvc_err rkvc_decode_pump_next(rkvc_decode_pump *pump,
+                               const rkvc_decode_pump_ops *ops,
+                               void *opaque,
+                               rkvc_buffer **frame);
+void rkvc_decode_pump_cleanup(rkvc_decode_pump *pump);
+
 rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg);
 void rkvc_mpp_enc_close(rkvc_mpp_enc *enc);
 rkvc_err rkvc_mpp_enc_send_frame(rkvc_mpp_enc *enc, rkvc_buffer *frame);
@@ -257,6 +290,62 @@ rkvc_err rkvc_svt_enc_send_frame(rkvc_svt_enc *enc, rkvc_buffer *frame);
 rkvc_err rkvc_svt_enc_receive_packet(rkvc_svt_enc *enc, rkvc_buffer **pkt);
 rkvc_err rkvc_svt_enc_drain(rkvc_svt_enc *enc);
 rkvc_err rkvc_svt_enc_write_header(rkvc_svt_enc *enc, AVCodecParameters *par);
+
+/* ── MLVC 神经编解码节点（RKNN NPU + 纯 C rANS，node_mlvc.c）────────── */
+
+#ifdef RKVC_ENABLE_MLVC
+typedef struct {
+    const char *enc_model_path;     /**< 编码器 RKNN 模型 */
+    const char *gaussian_pmf_path;  /**< 高斯熵编码 PMF 表（gaussian.bin） */
+    const char *bitest_pmf_path;    /**< 比特估计器 PMF 表（bitest.bin） */
+    int         qp;                 /**< 质量参数，默认 21 */
+} rkvc_mlvc_enc_config;
+
+typedef struct {
+    const char *dec_model_path;     /**< 解码器 RKNN 模型 */
+    const char *gaussian_pmf_path;  /**< 高斯熵编码 PMF 表 */
+    const char *bitest_pmf_path;    /**< 比特估计器 PMF 表 */
+    int         qp;                 /**< 质量参数（从容器头读取，≤0 时默认 21） */
+} rkvc_mlvc_dec_config;
+
+typedef struct {
+    const char *output_path;
+    int         width;
+    int         height;
+    int         fps_num;
+    int         fps_den;
+    int         qp;
+} rkvc_mlvc_mux_config;
+
+typedef struct {
+    const char *input_path;
+} rkvc_mlvc_demux_config;
+
+rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg);
+void     rkvc_mlvc_enc_close(rkvc_mlvc_enc *enc);
+rkvc_err rkvc_mlvc_enc_send_frame(rkvc_mlvc_enc *enc, rkvc_buffer *frame);
+rkvc_err rkvc_mlvc_enc_receive_packet(rkvc_mlvc_enc *enc, rkvc_buffer **pkt);
+rkvc_err rkvc_mlvc_enc_drain(rkvc_mlvc_enc *enc);
+int      rkvc_mlvc_enc_width(const rkvc_mlvc_enc *enc);
+int      rkvc_mlvc_enc_height(const rkvc_mlvc_enc *enc);
+
+rkvc_err rkvc_mlvc_dec_open(rkvc_mlvc_dec **out, const rkvc_mlvc_dec_config *cfg);
+void     rkvc_mlvc_dec_close(rkvc_mlvc_dec *dec);
+rkvc_err rkvc_mlvc_dec_send_packet(rkvc_mlvc_dec *dec, const rkvc_buffer *pkt);
+rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *dec, rkvc_buffer **frame);
+int      rkvc_mlvc_dec_width(const rkvc_mlvc_dec *dec);
+int      rkvc_mlvc_dec_height(const rkvc_mlvc_dec *dec);
+
+rkvc_err rkvc_mlvc_mux_open(rkvc_mlvc_mux **out, const rkvc_mlvc_mux_config *cfg);
+void     rkvc_mlvc_mux_close(rkvc_mlvc_mux *m);
+rkvc_err rkvc_mlvc_mux_write_packet(rkvc_mlvc_mux *m, const rkvc_buffer *pkt);
+
+rkvc_err rkvc_mlvc_demux_open(rkvc_mlvc_demux **out,
+                              const rkvc_mlvc_demux_config *cfg);
+void     rkvc_mlvc_demux_close(rkvc_mlvc_demux *d);
+rkvc_err rkvc_mlvc_demux_read_packet(rkvc_mlvc_demux *d, rkvc_buffer **pkt);
+int      rkvc_mlvc_demux_qp(const rkvc_mlvc_demux *d);
+#endif /* RKVC_ENABLE_MLVC */
 
 rkvc_err rkvc_v4l2_open(rkvc_v4l2_cap **out, const rkvc_v4l2_config *cfg);
 void rkvc_v4l2_close(rkvc_v4l2_cap *c);
@@ -287,6 +376,30 @@ rkvc_err rkvc_rga_csc_rgb888_to_nv12(const uint8_t *rgb, int w, int h,
                                      int rgb_stride_pixels, rkvc_buffer *dst);
 
 typedef struct rkvc_rknn_sr_ctx rkvc_rknn_sr_ctx;
+
+#ifdef RKVC_ENABLE_RKNN
+/**
+ * 强制 librknnrt 运行时静默，避免分发后泄露已解密模型的网络结构。
+ *
+ * RKNN 运行时日志仅由环境变量 RKNN_LOG_LEVEL 控制：librknnrt 内部用
+ * getenv("RKNN_LOG_LEVEL") 读取，rknn_api.h 没有任何 set 日志级别的接口。
+ * 设为高值（如 5）会让 librknnrt 在 rknn_init 期间打印完整算子拓扑，从而
+ * 在磁盘模型已加密、但内存中解密喂给 rknn_init 之后，仍泄露模型架构。
+ *
+ * 分发构建一律将 RKNN_LOG_LEVEL 强制降为 0（setenv overwrite=1，覆盖用户
+ * 设置）；仅当以 -DRKVC_RKNN_ALLOW_DEBUG_LOG=ON 编译、且显式设置
+ * RKVC_DEBUG_RKNN_LOG 时才尊重用户级别，供内部排障。务必在任何
+ * rknn_init/rknn_query 调用前执行。
+ */
+static inline void rkvc_rknn_quiet_runtime(void)
+{
+#ifdef RKVC_RKNN_ALLOW_DEBUG_LOG
+    if (getenv("RKVC_DEBUG_RKNN_LOG") != NULL)
+        return;
+#endif
+    setenv("RKNN_LOG_LEVEL", "0", 1);
+}
+#endif /* RKVC_ENABLE_RKNN */
 
 int rkvc_rknn_sr_available(void);
 rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
@@ -348,6 +461,12 @@ struct rkvc_session {
     rkvc_v4l2_cap        *v4l2;
     rkvc_rga_scale_ctx   *rga_scale;
     rkvc_rknn_sr_ctx     *rknn_sr;
+#ifdef RKVC_ENABLE_MLVC
+    rkvc_mlvc_enc        *mlvc_enc;
+    rkvc_mlvc_dec        *mlvc_dec;
+    rkvc_mlvc_mux        *mlvc_mux;
+    rkvc_mlvc_demux      *mlvc_demux;
+#endif
 
     rkvc_roi_rect         rois[RKVC_ROI_MAX];
     int                   roi_count;
@@ -370,5 +489,9 @@ void rkvc_session_stats_reset_timing(rkvc_session *s);
 
 /** 编码前应用挂起的热切换；`force_idr` 输出是否强制本帧 IDR。 */
 rkvc_err rkvc_session_apply_reconfig(rkvc_session *s, int *force_idr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RKVC_INTERNAL_H */

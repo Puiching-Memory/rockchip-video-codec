@@ -83,6 +83,18 @@ static void test_balanced_high_fps_1080p_downgrades_h264(void **state)
     assert_string_equal(plan.enc_name, "h264_rkmpp");
 }
 
+static void test_neural_routes_mlvc(void **state)
+{
+    (void)state;
+    rkvc_pipeline_desc d = rkvc_pipeline_desc_defaults();
+    d.policy = RKVC_POLICY_NEURAL;
+    rkvc_route_plan plan;
+    assert_int_equal(rkvc_route_resolve(&d, &plan), RKVC_OK);
+    assert_int_equal(plan.codec, RKVC_CODEC_MLVC);
+    assert_int_equal(plan.enc_backend, RKVC_ENC_BACKEND_MLVC);
+    assert_string_equal(rkvc_policy_name(RKVC_POLICY_NEURAL), "neural");
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -90,6 +102,7 @@ int main(void)
         cmocka_unit_test(test_balanced_routes_hevc),
         cmocka_unit_test(test_quality_routes_av1),
         cmocka_unit_test(test_offline_routes_av1_hq),
+        cmocka_unit_test(test_neural_routes_mlvc),
         cmocka_unit_test(test_forced_codec),
         cmocka_unit_test(test_balanced_high_fps_1080p_downgrades_h264),
     };

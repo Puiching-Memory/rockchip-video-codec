@@ -96,7 +96,7 @@ rkvc-*-linux-aarch64-portable/
 │   └── ...
 ├── models/
 │   └── rkvc_sr_x3.crypt.rknn  # 约定 3× AI 超分模型（随 librknnrt 一并打包）
-├── include/rkvc/            # v2 头文件
+├── include/rkvc/            # 头文件
 ├── share/pkgconfig/rkvc.pc
 ├── licenses/                # AGPLv3 与各第三方组件许可证（再分发义务）
 │   ├── AGPL-3.0.txt         # 本项目（AGPLv3，见源码树 LICENSE）
@@ -109,7 +109,7 @@ rkvc-*-linux-aarch64-portable/
 │   └── ffmpeg-modifications/ # 对 ffmpeg-rockchip 的补丁 + 对应源码说明（LGPLv3 §4）
 ├── examples/                # 示例源码与二进制
 ├── test.sh                  # 一键自测
-├── network-e2e-test.sh      # v2 冒烟测试
+├── network-e2e-test.sh      # 冒烟测试
 ├── portable-test-helpers.sh
 ├── README.md / USAGE.md / DEVELOPMENT.md / EXAMPLES.md
 ```
@@ -187,7 +187,7 @@ ninja -C .build/release -j4 package
 | `scripts/build-svt.sh`                  | 构建 SVT-AV1                                |
 | `scripts/rebuild-ffmpeg-rkmpp.sh`       | 重建 ffmpeg-rockchip                        |
 | `<package>/test.sh`                     | 包内一键自测                                |
-| `<package>/network-e2e-test.sh`         | v2 冒烟（码流生成 + stream_device_pair）    |
+| `<package>/network-e2e-test.sh`         | 冒烟（码流生成 + stream_device_pair）    |
 
 ## 发布文档模板
 

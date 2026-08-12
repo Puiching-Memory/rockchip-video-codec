@@ -3,7 +3,7 @@
 
 /**
  * @file buffer.h
- * @brief rkvc v2 统一缓冲区：视频帧（主机 / DMA-BUF）与码流包。
+ * @brief rkvc 统一缓冲区：视频帧（主机 / DMA-BUF）与码流包。
  */
 
 #ifndef RKVC_BUFFER_H

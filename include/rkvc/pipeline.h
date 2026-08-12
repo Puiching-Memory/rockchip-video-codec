@@ -23,6 +23,7 @@ typedef enum {
     RKVC_TEMPLATE_FILE_TRANSCODE,    /**< 容器 → 容器（Router 选 codec） */
     RKVC_TEMPLATE_LIVE_CAPTURE,      /**< 低延迟 V4L2 采集 → 编码（需 `capture_device`） */
     RKVC_TEMPLATE_AV1_STORAGE,       /**< 强制 AV1 SVT 存储档 */
+    RKVC_TEMPLATE_MLVC_STORAGE,      /**< 神经视频编解码存储（RKNN NPU，固定分辨率） */
 } rkvc_pipeline_template;
 
 /**
@@ -75,6 +76,17 @@ typedef struct rkvc_pipeline_desc {
     int            svt_lp;
     /** SVT-AV1 实时调优（0=关，1=开；适合低延迟，preset 最低 7） */
     int            svt_rtc;
+
+    /** MLVC 编码器 RKNN 模型路径（`RKVC_CODEC_MLVC` 时必填） */
+    const char    *mlvc_enc_model_path;
+    /** MLVC 解码器 RKNN 模型路径（`RKVC_CODEC_MLVC` 时必填） */
+    const char    *mlvc_dec_model_path;
+    /** MLVC 高斯熵编码 PMF 表路径（`gaussian.bin`） */
+    const char    *mlvc_gaussian_pmf_path;
+    /** MLVC 比特估计器 PMF 表路径（`bitest.bin`） */
+    const char    *mlvc_bitest_pmf_path;
+    /** MLVC 质量参数（QP，默认 21；影响比特估计器量化索引） */
+    int            mlvc_qp;
 
     /**
      * FFmpeg 选项串（`key=val:key2=val2`），作用于 demuxer / decoder / encoder。

@@ -40,6 +40,7 @@ CODEC_LABELS = {
     "rkvc-balanced": "rkvc balanced (HEVC)",
     "rkvc-quality": "rkvc quality (AV1)",
     "rkvc-offline": "rkvc offline (AV1 HQ)",
+    "rkvc-neural": "rkvc neural (MLVC)",
     "rkvc": "rkvc (Session)",
 }
 
@@ -77,6 +78,7 @@ CODEC_COLORS = {
     "rkvc-balanced": FAMILY_PALETTES["h265"]["rga"],
     "rkvc-quality": FAMILY_PALETTES["svt-av1"]["rga"],
     "rkvc-offline": FAMILY_PALETTES["svt-av1"]["ai"],
+    "rkvc-neural": "#e377c2",
     "rkvc": "#9467bd",
 }
 
@@ -119,6 +121,7 @@ CODEC_MARKERS = {
     "rkvc-balanced": "v",
     "rkvc-quality": "P",
     "rkvc-offline": "X",
+    "rkvc-neural": "h",
     "rkvc": "v",
 }
 
@@ -140,6 +143,7 @@ CODEC_ORDER = [
     "rkvc-balanced",
     "rkvc-quality",
     "rkvc-offline",
+    "rkvc-neural",
     "rkvc",
 ]
 
@@ -238,6 +242,7 @@ def codec_short_label(codec: str) -> str:
         "rkvc-balanced": "rkvc Bal",
         "rkvc-quality": "rkvc Q",
         "rkvc-offline": "rkvc Off",
+        "rkvc-neural": "rkvc Neu",
         "rkvc": "rkvc",
     }
     return short.get(codec, codec)
@@ -547,13 +552,6 @@ def plot_rd(
             psnr_hi = [p["psnr_y_hi"] for p in pts]
             ssim_lo = [p["ssim_lo"] for p in pts]
             ssim_hi = [p["ssim_hi"] for p in pts]
-            # 色带略低于对应折线，避免盖住基线
-            ax_psnr.fill_between(
-                br, psnr_lo, psnr_hi, color=color, alpha=0.22, linewidth=0, zorder=z - 1
-            )
-            ax_ssim.fill_between(
-                br, ssim_lo, ssim_hi, color=color, alpha=0.22, linewidth=0, zorder=z - 1
-            )
             kw = plot_style_kwargs(codec, color, label)
             ax_psnr.plot(br, psnr, **kw)
             ax_ssim.plot(br, ssim, **kw)
@@ -636,7 +634,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=bench_root / "results" / "rd_curve_e2e")
     parser.add_argument(
         "--title",
-        default="E2E RD Curve (RK3588, baselines + rkvc realtime/balanced/quality/offline)",
+        default="E2E RD Curve (RK3588, baselines + rkvc realtime/balanced/quality/offline/neural)",
     )
     parser.add_argument(
         "--xscale",

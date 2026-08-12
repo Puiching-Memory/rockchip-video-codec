@@ -259,8 +259,9 @@ rkvc_err rkvc_mpp_dec_drain(rkvc_mpp_dec *dec)
     if (dec->flushed)
         return RKVC_OK;
     int ret = avcodec_send_packet(dec->ctx, NULL);
-    dec->flushed = 1;
-    if (ret < 0 && ret != AVERROR_EOF)
-        return rkvc_from_averror(ret);
-    return RKVC_OK;
+    if (ret == 0 || ret == AVERROR_EOF) {
+        dec->flushed = 1;
+        return RKVC_OK;
+    }
+    return rkvc_from_averror(ret);
 }

@@ -107,6 +107,9 @@ static rkvc_err rknn_load_model(const char *model_path, rknn_context *out)
         }
     }
 
+    /* 分发构建：在 rknn_init 前强制 librknnrt 静默，避免 RKNN_LOG_LEVEL
+     * 泄露已解密模型的网络结构（见 rkvc_rknn_quiet_runtime 说明）。 */
+    rkvc_rknn_quiet_runtime();
     const int ret = rknn_init(out, model, (uint32_t)fsize, 0, NULL);
     rkvc_free(model);
     if (ret != RKNN_SUCC) {

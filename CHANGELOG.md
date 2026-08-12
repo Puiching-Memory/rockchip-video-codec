@@ -4,6 +4,116 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **多板卡架构重构（首板 RV1126B）**：项目此前完全基于 RK3588 假设（`rkvc_query_caps` 硬编码 `7680×4320`、CMake/文档/CLI 文案均写死 "RK3588"）。现引入板卡 profile 抽象层，将所有板级常量收拢到单一数据源，支持多板卡。
+  - **新增板卡抽象层**：`include/rkvc/board.h`（公共：`rkvc_board_id` 枚举、`rkvc_board_id_name()` / `rkvc_board_id_from_name()` / `rkvc_detect_board()`）；`lib/board.h`（内部 `rkvc_board_profile`：最大编/解分辨率、VPU 各编解码硬件支持、NPU TOPS、RGA）；`lib/board.c`（profile 表 + 运行时探测）。
+  - **板卡探测优先级**：`RKVC_BOARD` 环境变量 > `/proc/device-tree/compatible` 自动探测 > 编译期默认 `RKVC_DEFAULT_BOARD`（CMake `RKVC_BOARD`，默认 `rk3588`）。
+  - **profile 表**：`RKVC_BOARD_RK3588`（权威值：7680×4320，AV1 硬解 6 TOPS NPU）；`RKVC_BOARD_RV1126B`（Rockchip 官网 RV11 系列页权威值：4K@45 编码 / 4K@30 解码，H.264/H.265，无 AV1 硬件编解码，3 TOPS NPU，Quad Cortex-A53）。
+  - **`rkvc_caps` 新增 `board` 字段**（`rkvc_board_id`）；`rkvc_query_caps`（`lib/init.c`）改用 profile：`max_width/height`、`board` 取自 profile，硬件编解码能力 = 运行时探测 ∩ 板卡 VPU 硬件支持（软件 SVT-AV1 编码器不做板卡门控）。`rkvc_info` 文本/JSON 输出新增 `board` 字段。
+  - **CMake**：新增 `RKVC_BOARD` 缓存选项（`rk3588|rv1126b`）映射 `RKVC_DEFAULT_BOARD`；`DESCRIPTION` / `CPACK_PACKAGE_DESCRIPTION_SUMMARY` 去 "RK3588" 化为 "Rockchip multi-SoC"。
+  - **验证**：三层探测全部验证——`RKVC_BOARD=rv1126b` 环境覆盖 → 报告 rv1126b / max 1920×1088；RK3588 真机 device-tree → rk3588 / 7680×4320；device-tree 屏蔽后回退编译期默认；AV1 硬解门控生效（rk3588 enc/dec=1/1，rv1126b enc/dec=1/0）。全树编译通过（shared + static + CLI + examples）。
+
+- **修复解码器输出布局 bug：NC1HWC2→NV12 stride 错误**（`lib/node_mlvc.c`）：解码器 `x_hat` 输出为 RKNN native NC1HWC2 fp16 格式（dims `[1, C1=1, H, W, C2=8]`），每像素占 8 个 fp16（3 有效通道 + 5 填充）。此前 `nhwc_fp16_to_nv12` 按 NHWC stride=3 读取（`nhwc[o*3+c]`），导致像素数据错位——每隔 3 个值才读到 1 个有效通道，其余为填充零，输出 Y 平面约 62.5% 像素为 0（PSNR ~8dB，完全不可用）。原为 C++ 版本的遗留 bug。
+  - **修复**：新增 `nc1hwc2_fp16_to_nv12(src, W, H, c2, out)`，按实际 C2 stride 读取（`src[o*c2+c]`）；`dec_resolve_geom` 从 `native_out_attr[0].dims[4]` 读取 C2 存入 `d->OUT_C2`。
+  - **修复后质量**（640×368×72f @ ~66.7 kbps / ~0.06 bpp）：PSNR Y **26.79 dB**（avg 28.39），SSIM Y **0.798**（All 0.840）——符合 MLVC 超低码率神经编解码预期。
+  - 码流不变（编码侧无改动，MD5 一致），仅解码重建帧正确化。
+
+
+- **bench/ 同步 MLVC `neural` 档位**（`bench/run_rd_benchmark.sh` / `bench/config.json` / `bench/tools/config.py` / `bench/plot_rd_curve.py` / `bench/README.md`）：RD 基准新增 `rkvc-neural` codec 路线，与既有 `rkvc-realtime/balanced/quality/offline` 平行纳入自动扫描。
+  - **`run_rkvc_neural()`**（`bench/run_rd_benchmark.sh`）：缩放到 MLVC 固定 640×368 → `rkvc_transcode -p neural` 编码 `.mlvc` → `rkvc_transcode` 解码 `.yuv`（NV12）→ `measure_quality_nv12` 测质（PSNR/SSIM）。MLVC 不参与码率扫描（用 qp 参数化），与其他 codec 共享 CSV 行格式。
+  - **模型/PMF 路径**：`MLVC_ENC_MODEL` / `MLVC_DEC_MODEL` / `MLVC_GAUSSIAN_PMF` / `MLVC_BITEST_PMF` 环境变量，默认 `models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn` / `gaussian.bin` / `bitest.bin`；`MLVC_QP`（默认 21）、`MLVC_W`/`MLVC_H`（默认 640/368）。
+  - **config.json** 新增 `"mlvc"` 节；`run.rkvc_policies` 新增 `"neural"`。**config.py** 新增 `MLVC_QP` 导出。**plot_rd_curve.py** 新增 `rkvc-neural` 显示名/颜色/标记/z-order。**README.md** 新增 codec 行 + 环境变量说明。
+  - **验证**：脚本语法（`bash -n`）通过；config.py 正确导出 `RKVC_POLICIES` 含 `neural` + `MLVC_QP=21`；`run_rkvc_neural` 逻辑端到端验证（编码 19 562 B → 解码 72 帧 NV12 → PSNR/SSIM 测质输出）。
+
+
+- **新增 `neural` 语义档位**（`RKVC_POLICY_NEURAL`）：MLVC 现在与其他编解码器一样有一等语义档位，`-p neural` 在 `-c auto` 时自动选择 MLVC 神经编解码器，与现有档位平行：
+  - `realtime` → H.264 RKMPP
+  - `balanced` → HEVC RKMPP
+  - `quality` → AV1 SVT preset 11
+  - `offline` → AV1 SVT preset 4
+  - **`neural` → MLVC（NPU + rANS）**（新增）
+  - `include/rkvc/policy.h` 枚举新增 `RKVC_POLICY_NEURAL`；`lib/router.c` `rkvc_route_resolve` 自动选择新增 `neural → fill_mlvc` 分支，`rkvc_policy_name` 新增 `"neural"` 映射。
+  - `cli/rkvc_transcode.c` / `cli/rkvc_encode.c` `parse_policy` 新增 `"neural"` 解析；`cli/rkvc_bench.c` bench 表新增 `NEURAL (MLVC)` 档位。
+  - `tests/test_router.c` 新增 `test_neural_routes_mlvc`（验证 `-p neural` 路由到 `RKVC_CODEC_MLVC` + `RKVC_ENC_BACKEND_MLVC`）。
+  - CLI 防护：`-p neural` 但输出非 `.mlvc` 时报错（MLVC 只能产出 `.mlvc` 码流）。
+  - **用法**：`rkvc_transcode -i in.mp4 -o out.mlvc -p neural --mlvc-enc ... --mlvc-gaussian-pmf ... --mlvc-bitest-pmf ...`
+  - **硬件验证**：`-p neural` 编码+解码往返 72 帧，码流字节一致（MD5 与 `-c mlvc -p balanced` 相同）；标准转码回归通过；`test_router` 7 项 + `test_internal` 10 项全过。
+
+
+- **修复 MLVC 解码器 qp 硬编码 bug**（`lib/node_mlvc.c` / `lib/internal.h` / `lib/session.c`）：解码器此前 qp 硬编码为 21，从不读取 `.mlvc` 容器头中的实际 qp——导致 qp≠21 编码的码流无法解码（rANS 流去同步，约第 10 帧崩溃）。新增 `rkvc_mlvc_demux_qp()` 从容器头读取 qp，经 `rkvc_mlvc_dec_config.qp` 传入解码器。此前 qp=5/50 等仅能解码 10 帧即失败，现已全部修复（72 帧完整往返）。MLVC 的 qp 是与 bitrate/qp_init 平行的显式参数（`--mlvc-qp`，默认 21），与 policy 档位无关——policy 是编解码器选择器（realtime→264 / balanced→265 / quality→av1 / offline→av1-HQ），不是单个编解码器的质量旋钮；显式 `-c mlvc` 时 policy 被完全忽略，与 `-c h264` 等行为一致。
+
+- **MLVC 语义质量档位**（`-p realtime|balanced|quality|offline` → qp）：MLVC 现在与其他编解码器一样参与 policy 档位系统，`-p` 自动映射到质量参数 qp，无需手动 `--mlvc-qp`。
+  - **映射**（`router.c` `rkvc_mlvc_policy_qp()`）：`realtime`→qp=10 / `balanced`→qp=21（模型最优压缩点）/ `quality`→qp=30 / `offline`→qp=40。`--mlvc-qp N` 可覆盖。
+  - **修复解码器 qp 硬编码 bug**（`node_mlvc.c`）：解码器此前 qp 硬编码为 21，从不读取容器头中的 qp——导致 qp≠21 编码的码流无法解码（流去同步）。现在 `rkvc_mlvc_demux_qp()` 从容器头读取 qp，经 `rkvc_mlvc_dec_config.qp` 传入解码器。此前 qp=5/50 等仅能解码 10 帧即失败，现已全部修复（72 帧完整往返）。
+  - **硬件验证（RK3588）**：四档（realtime/balanced/quality/offline）编码+解码往返均 72 帧成功；qp=5/50 等自定义值也完整往返。标准转码（h264→hevc）回归通过；`test_internal` 10 项全过。
+
+
+- **修正 MLVC 集成架构：从「转码中间件」改为与 264/265 平行的端到端编解码器**（`lib/session.c` / `cli/rkvc_transcode.c`）。此前 `.mlvc → 标准格式`时 session 强制改写路由为「MLVC 解码 + HEVC 再编码」（`session.c` 原 `enc_backend==MLVC && !output_is_mlvc` 分支），导致 MLVC 解码永远被有损重压成 HEVC、无法产出原始帧——MLVC 被当成转码中间件而非编解码器。本次按「编解码器独立选择」重构：解码后端←输入（`.mlvc`→MLVC 解码），编码后端←输出（`.mlvc`→MLVC 编码；`.yuv`→无编码器；标准容器→标准编码器）。
+  - **三种一等操作**（与 264/265 对齐）：
+    - **编码** `video → .mlvc`（`mpp → mlvc`，输出 MLVC 码流）。
+    - **纯解码** `.mlvc → .yuv`（`mlvc → raw`，输出原始 NV12，**无再编码**）——此前无法实现，现在复用既有 `decode_loop`（FILE_DECODE 模板）直接写出。
+    - **转码** `.mlvc → .mp4 -c hevc`（`mlvc → hevc_rkmpp`，MLVC 解码 + 标准编码，**需显式 `-c` 指定输出编解码器**）。
+  - **`lib/session.c`**：`session_create` 中路由解析后按输入/输出方向修正 `dec/enc` 后端与显示名（移除原 `session_open_nodes` 中错误的强制 HEVC 改写）；新增 `session_is_raw_out()` 检测 `.yuv/.raw` 原始输出。
+  - **`cli/rkvc_transcode.c`**：模板/编解码器选择改为方向驱动——`.mlvc` 输出→MLVC_STORAGE（编码）；`.mlvc` 输入+`.yuv` 输出→FILE_DECODE（纯解码）；`.mlvc` 输入+容器输出→FILE_TRANSCODE（转码）；新增防护：`-c mlvc` 但输出非 `.mlvc` 报错、`.mlvc` 解码缺 `--mlvc-dec` 报错。更新 `usage()` 文本说明三种操作。
+  - **硬件验证（RK3588 NPU）**：编码 `mp4→.mlvc`（20 001 B，MD5 与此前一致）；纯解码 `.mlvc→.yuv`（72 帧 × 640×368 NV12 = 25 436 160 B，ffmpeg 可渲染，无 HEVC 参与）；转码 `.mlvc→.mp4 -c hevc`（72 帧 HEVC）；标准转码 `mp4→.mp4 -c hevc`（72 帧）回归通过；`test_internal` 10 项全过。
+
+
+- **MLVC 熵编解码器改写为纯 C，彻底移除 C++17 与 `msrtc_rans`/`mlvc` 子模块依赖**（`lib/rans.h` + `lib/rans.c` 新增，`lib/node_mlvc.cpp` 删除）。此前 MLVC 后端依赖 `third_party/mlvc` 子模块中的 `msrtc_rans`（C++17 模板熵编码库，`EntropyCoder.cpp` 直接编译进 `librkvc`），迫使整个项目启用 C++ 语言与 `CMAKE_CXX_STANDARD 17`。本次将其完整移植为纯 C，项目回归单一 C 语言编译。
+  - **新增 `lib/rans.h`（240 行）+ `lib/rans.c`（852 行）**：完整覆盖 msrtc_rans 全部能力——两种 rANS 变体（RansByte：uint32 state/uint8 unit；Rans64：uint64/uint32）、PMF→预计算编码符号表（定点倒数消除 Put 除法）、PMF→解码 CDF 累积频率表（二分查找）、流式编码/解码（多 coder 写入同一流）、一次性 Encode/Decode、Bypass 编解码（离群值）、可增长堆缓冲。算法来源 ryg_rans / msrtc_rans（MIT License，头文件保留 Microsoft 版权归属）。
+  - **新增 `lib/node_mlvc.c`（~1090 行）**：将原 `node_mlvc.cpp`（C++17，使用 `std::vector`/`std::unique_ptr`/`msrtc_rans::`）重写为纯 C——容器改用 `rkvc_malloc`/`rkvc_free` + 手工数组，熵编解码改用 `rkvc_rans_*` C API。编码器逻辑保持不变（自身 `feature` 输出作下一帧参考，不运行 decoder NPU）。
+  - **`CMakeLists.txt`**：`project(... LANGUAGES C)`（移除 CXX）、移除 `CMAKE_CXX_STANDARD`/`CMAKE_CXX_STANDARD_REQUIRED`、移除 `MLVC_RANS_DIR`/msrtc_rans 检测与 `RKVC_MLVC_INCLUDES`；`RKVC_MLVC_SRC` 改为 `lib/node_mlvc.c lib/rans.c`。`RKVC_ENABLE_MLVC` 选项保留，仍依赖 `RKVC_ENABLE_RKNN`。
+  - **`third_party/mlvc` 不再是构建依赖**：源码与 CMake 均不再引用该子模块（仅 `rans.h/c` 头注保留算法来源归属）。新克隆无需 `git submodule update --init third_party/mlvc` 即可构建 MLVC。
+  - **修复移植引入的关键 bug**：`enc_bypass()` 中逆序写入循环消耗了部分计数变量 `n`，导致 bypass 前缀/余数计算错误（仅当出现离群值触发 bypass 编码时影响码流）。改为在逆序写入前保留 `total_parts`。
+  - **编译验证**：`gcc -std=c17 -Wall -Wextra` 零警告；`cmake --build` 全量编译通过（单一 C 语言，无 C++），`librkvc.so`/`librkvc.a` + `rkvc_transcode` 链接成功。
+  - **硬件验证（RK3588 NPU）+ 码流兼容**：纯 C 版本编码输出与原 C++ 版本**逐字节一致**（640×368×72f mp4 → 20001 B `.mlvc`，MD5 `cf9c6c9a0347bdac1504c9666e989ace` 与旧版完全相同）；解码往返（`.mlvc` → 72 帧 HEVC mp4）有效。
+
+
+- **C 语言标准升级 C11 → C17**（`CMakeLists.txt`：`CMAKE_C_STANDARD 11→17`）。C17（ISO/IEC 9899:2018）相对 C11 仅含勘误与缺陷报告修订、无新语言特性与库头，等同代码零改动；`__STDC_VERSION__` 由 `201112L` 升至 `201710L`。工具链 GCC 9.4.0（Ubuntu 20.04 aarch64）已实测 `-std=c17` 编译链接通过。无 ABI 影响。
+- **集成 MLVC 神经视频编解码后端**（Microsoft [mlvc](https://github.com/microsoft/mlvc)）：将 MLVC 作为完整编解码器后端接入 router / pipeline / mux，通过 `RKVC_CODEC_MLVC` 选择。
+  - **新增子模块** `third_party/mlvc`（`microsoft/mlvc` @ `e9f0114`，shallow）：主要取 `packages/msrtc_rans` 模块（rANS 熵编码 C++17 静态库，`EntropyCoder.cpp` 直接编译进 `librkvc`）。
+  - **新增 CMake 选项** `RKVC_ENABLE_MLVC`（默认 ON）：启用 C++17，依赖 `RKVC_ENABLE_RKNN`；编译 `lib/node_mlvc.cpp` + msrtc_rans 源码进库。C↔C++ 边界经 `internal.h` 的 `extern "C"` 守卫。
+  - **新增公共 API**（`policy.h` / `pipeline.h`）：`RKVC_CODEC_MLVC` codec 枚举、`RKVC_ENC/DEC_BACKEND_MLVC` 后端枚举、`RKVC_TEMPLATE_MLVC_STORAGE` 模板；`rkvc_pipeline_desc` 新增 `mlvc_enc/dec_model_path` / `mlvc_gaussian/bitest_pmf_path` / `mlvc_qp` 字段。
+  - **新增 `lib/node_mlvc.cpp`（C++17, ~700 行）**：MLVC 编码器（YUV→encoder NPU→rANS 熵编码→码流；内部同步运行 decoder NPU 维护 ref 特征同步）、MLVC 解码器（码流→rANS→decoder NPU→YUV NV12）、自定义 `.mlvc` 容器 mux/demux（FFmpeg 无法封装原始 rANS 码流）；零拷贝 RKNN I/O（native NC1HWC2 fp16），PMF 表加载。
+  - **路由/管线/会话集成**（`router.c` / `pipeline.c` / `session.c`）：全路径 MLVC 后端分发；自动检测 `.mlvc` 后缀切换 demux 路径；`session_downscale_for_encode` 已修正在 `enc_scale_denom≤1` 时仍按模型原生分辨率做 RGA 缩放。
+  - **模型与 PMF 表**：`MLVCEncoder/Decoder_rk3588.rknn` + `gaussian/bitest.bin`（PMF1 格式）由用户提供，已加入 `.gitignore`。
+  - **编译验证**：`librkvc.so` / `librkvc.a` 全量编译通过（C17 + C++17 混编），19 个 `rkvc_mlvc_*` 符号正确导出，msrtc_rans C++ 符号全部 local。
+  - **CLI 支持**（`cli/rkvc_transcode.c`）：新增 `--codec mlvc` 及 `--mlvc-enc/--mlvc-dec/--mlvc-gaussian-pmf/--mlvc-bitest-pmf/--mlvc-qp` 选项；`.mlvc -> 标准格式` 自动路由为 MLVC 解码 + HEVC MPP 再编码（仅解码侧需 `--mlvc-dec` + PMF）。
+  - **硬件验证（RK3588 NPU）**：编码（640x368x72f mp4 -> .mlvc）72 帧成功，20KB 输出（~2.2 kbps / 0.0094 bpp）；解码往返（.mlvc -> mp4）72 帧 HEVC 输出有效。修复 3 个 bug：初始化顺序 segfault、.mlvc magic 长度（5 非 6）、demux use-after-free（copy=1）。
+  - **修复编码器参考帧同步逻辑**（源自 mlvc 官方源码确认）：编码器不再内部运行 decoder NPU。mlvc 的 `compress_core(get_recon=False)` 让编码器自身输出 `feature`（用量化后的 `y_hat` 计算，与解码器一致），作为下一帧参考——无需额外解码。编码器现在每帧仅 1 次 NPU 推理（原先为 2 次），`rkvc_mlvc_enc_config` 移除 `dec_model_path` 字段，CLI 编码侧不再需要 `--mlvc-dec`。
+- **SVT-AV1 子模块升级 4.1.0 → 4.2.0**（`.gitmodules` / `third_party/SVT-AV1` @ `v4.2.0`）：跟踪上游点播/RTC 调优与 ARM 核优化；SOVERSION 仍为 `4`（`libSvtAv1Enc.so.4`），ffmpeg `libsvtav1` 与 `librkvc` 链接无需 ABI 改动。
+  - **RD 与性能 A/B**（1080p 片段，`bench/ab_compare_svt.sh` → `bench/results/svt_ab_compare.csv`；解码/测质走项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`，与 `run_rd_benchmark.sh` 同一 RD 测质管线）：
+    - **preset 11（rkvc `quality` 档）**：BD-rate(PSNR) **−2.21%**、BD-rate(SSIM) −0.50%；平均编码速度 **34.0→38.4 fps（+13.1%）**。
+    - **preset 4（rkvc `offline` 档）**：RD 基本持平（BD-rate(PSNR) +0.67%，落在短片段测量噪声内）；平均编码速度 **3.1→3.3 fps（+4.7%）**。
+  - **档位码率无需重新校准**：同 CRF 下两版实际码率漂移 <0.6%（preset 11 +0.53%、preset 4 −0.07%），`bench/config.json` 的 `calibration.svt_av1` 表（CRF→目标 kbps）原样沿用即可；对应上游「M3-M5 RA 预设调优」带来的码率优化在固定 CRF 下表现为质量增益而非档位偏移。
+- **ffmpeg-rockchip 子模块升级至上游 `8.1` HEAD（`f66f2f8046` → `388741a354`，8.1.2，2026-07-18）**：上游 8.1 分支已 rebase，落后约 200 个提交（~3 个月）。涉及 `rkmppenc`/`rkmppdec` 大重构（编解码器框架 + 扩展 codec）、RKRGA 滤镜重构、新增 `MPP hwcontext` 与 `NV15`/`NV20` 比特流格式。
+  - **项目 ROI 补丁兼容性**（`patches/ffmpeg-rockchip/0001-rkmppenc-roi-runtime-rc.patch`）：经核验在重构后的 `rkmppenc.c/h` 上**干净 apply + 编译通过**（225 行新增；patch 依赖的 `MPPEncFrame`/`mpp_sei_set` 上下文结构重构后仍保留）；无需改动。
+  - **构建/链接**：`scripts/rebuild-ffmpeg-rkmpp.sh --clean` 全量重编通过；`libavcodec.so.62` 含 patch 烘焙的 ROI 符号（`rkvc_roi_force_intra` / `KEY_ROI_DATA` / `MppEncROICfg`）；libavcodec 主版本仍 `62`，`librkvc` 与全部 87 个目标链接无需改动。
+  - **功能回归**（均通过）：四档 `rkvc_transcode` 编码（`realtime`→h264_rkmpp / `balanced`→hevc_rkmpp / `quality`+`offline`→SVT-AV1 v4.2.0）输出有效码流；SVT-AV1 码流经 `av1_rkmpp` 硬解验证（`ffmpeg_to_yuv420p_raw` IVF 分支 + `hwdownload`，与上一版解码帧逐位一致）；`rkvc_session_upscale`（av1_rkmpp 解码 + RGA 上采样）正常；RD bench 端到端（SVT 编码→av1_rkmpp 硬解→PSNR/SSIM 测质）通；16 个单元/CLI 测试全过（含 ROI 运行时；10 个 hardware/integration 会话测试需硬件采集/特定素材，CI 跳过）。
+- **rockchip-mpp 子模块固定至上游 `1.1.0` tag（`c2c1ee50` → `c08762ebf`，2026-03-10 → 2026-08-11，约 5 个月 / 4557 个提交；较 `8f922ed3` 追加 1.1.0 发布的 11 个提交）**：区间内主要方向为 `mpp_dec`/`mpp_enc`/`mpp_buffer`/`buf_slot` 重构与 RC 调优、H.264/HEVC/JPEG 各 HAL 修复，以及上游新内核态 `kmpp` 框架推进（`kmpp_venc` ctrl/ref_cfg、`mpp_cfg_io` trie 序列化、`MppEncUserDataShm` 内联契约等，均不暴露于公共 API）。
+  - **1.1.0 发布（2026-08-11，11 个提交）**：H.264 编码 vepu540c 空帧修复（issue #965）、H.264 解码大 NALU 按倍扩容、H.265/H.264 解码稳定性修复、kmpp legacy/obj 模式自动切换与 hal_info/kmpp_obj/mpp_trie 8 字节对齐修复。
+  - **ABI 兼容，无需重编**：SOVERSION 保持 `1`（`librockchip_mpp.so.1`）；公共头文件（`inc/`）仅 8 文件小改（+83/−32），全部为新增能力——FBC layout 查询（`MPP_FRAME_FMT_IS_AFBC_V1/V2`、`mpp_frame_get/set_fmt_layout`）、编码统计字段（`KEY_ENC_MADI_B16` / `KEY_ENC_MADP_CTU`）、`rk_venc_kcfg` ref/ctrl cfg 扩展——无破坏性删除；项目不直接 include mpp 头（`lib/` 仅经 ffmpeg `rkmppenc`/`rkmppdec` 间接使用），`librkvc` 与全部目标链接无需改动。
+  - **构建/运行验证**：`cmake --build .build/deps/mpp-build` 重编通过并安装至 `.build/deps/mpp-install`；既有 ffmpeg-rockchip（8.1，`388741a354`）与 `librkvc` 动态链接解析到新库（`ldd` 确认 `librockchip_mpp.so.1` → `.build/deps/mpp-install`）；冒烟：`rkvc_encode`（H.264 `realtime` 硬编 30 帧）→ `rkvc_decode` 全帧回读（320×240 NV12 3,456,000 B），日志确认 `mpp version: c08762ebf`（1.1.0）。
+
+### 变更
+
+- **DRM_PRIME 像素格式显式映射**（`lib/utils.c`）：会话解码（`av1_rkmpp` 等硬解输出 `AV_PIX_FMT_DRM_PRIME`=178 dmabuf 容器格式）经 `rkvc_from_av_pix_fmt()` 时此前落入 `default` 兜底分支，每帧输出误导性告警 `unknown AVPixelFormat 178, falling back to NV12`。经核 `AV_PIX_FMT_DRM_PRIME` 是 dmabuf 容器（实际像素格式在 `AVDRMFrameDescriptor` 中，本项目仅消费 `DRM_FORMAT_NV12`，由 `rkvc_buffer_from_drm_frame()` 校验并设 `format=NV12`），故显式 `case AV_PIX_FMT_DRM_PRIME → RKVC_PIX_FMT_NV12`，与既有 dmabuf 路径行为一致、消除告警。此为既有缺漏（与本次升级无关，DRM_PRIME=178 枚举稳定），借升级核验一并收敛兜底。
+
+- **SVT-AV1 编码器 flush 丢尾包修复**（`lib/session.c` `session_flush_encoder`）：`806de47`（2026-07-14「修复 DMABUF 内存泄漏」）将 flush 循环中 `RKVC_ERR_AGAIN` 的处理由 `continue` 改为 `break`（意图避免空转），但破坏了 FFmpeg `libsvtav1` 的 flush 协议——收尾阶段 `eb_receive_packet` 对空 SVT 输出队列返回 EAGAIN（`EB_NoErrorEmptyQueue`），此时 EOS 包尚未产出，遇 EAGAIN 即 break 会丢尾包。SVT preset 11（带前瞻/重排）实测出帧不稳（90 帧入，39~54 抖动）。改为 EAGAIN 时退让 `100µs` 后 `continue`，收到有效包则继续，直至真正 EOF。隔离验证（`rkvc_encode` 直喂 raw YUV，不经解码）连续 3 次出帧稳定 90/90。
+
+- **rkmpp 解码 EAGAIN 丢包修复**（`lib/session.c` / `lib/node_mpp_dec.c`）：`transcode_loop`、普通文件解码与 AI-SR 解码原先均在 `avcodec_send_packet()` 返回 EAGAIN 后立即释放压缩包，下一轮继续读取新包，违反“未接收即重试同一输入”的 send/receive 所有权协议，造成 HEVC/AV1 等硬解随机缺帧及 `missing ref poc`。新增统一 decoder pump：pending packet 在 send 成功前保持引用；rkmpp 异步双 EAGAIN 时退让 `100µs` 后重试；demux EOF 仅在 pending packet 清空后提交 drain；NULL packet 仅在解码器确认接收后标记完成。回归结果：H.264 372 帧连续 3 次均 `372/372`，HEVC `1009/1009`，AV1 `240/240`。
+
+- **编码 send/flush 协议加固**（`lib/session.c` / `lib/node_mpp_enc.c` / `lib/node_svt_enc.c`）：MPP 与 SVT 编码器遇 send EAGAIN 时均排空输出并重试同一帧；帧 PTS 仅在 send 真正成功后递增；drain 的 NULL frame 仅在编码器确认接收后设置 flushed，避免同类丢帧、时间戳空洞或未实际发送 EOS。硬件集成测试同步从“仅检查返回码”收紧为输入 packet、解码帧与编码输出帧精确相等。
+
+
+- **SVT-AV1 子模块升级 4.1.0 → 4.2.0**（`.gitmodules` / `third_party/SVT-AV1` @ `v4.2.0`）：跟踪上游点播/RTC 调优与 ARM 核优化；SOVERSION 仍为 `4`（`libSvtAv1Enc.so.4`），ffmpeg `libsvtav1` 与 `librkvc` 链接无需 ABI 改动。
+  - **RD 与性能 A/B**（1080p 片段，`bench/ab_compare_svt.sh` → `bench/results/svt_ab_compare.csv`；解码/测质走项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`，与 `run_rd_benchmark.sh` 同一 RD 测质管线）：
+    - **preset 11（rkvc `quality` 档）**：BD-rate(PSNR) **−2.21%**、BD-rate(SSIM) −0.50%；平均编码速度 **34.0→38.4 fps（+13.1%）**。
+    - **preset 4（rkvc `offline` 档）**：RD 基本持平（BD-rate(PSNR) +0.67%，落在短片段测量噪声内）；平均编码速度 **3.1→3.3 fps（+4.7%）**。
+  - **档位码率无需重新校准**：同 CRF 下两版实际码率漂移 <0.6%（preset 11 +0.53%、preset 4 −0.07%），`bench/config.json` 的 `calibration.svt_av1` 表（CRF→目标 kbps）原样沿用即可；对应上游「M3-M5 RA 预设调优」带来的码率优化在固定 CRF 下表现为质量增益而非档位偏移。
+  - **新增 bench 脚本** `bench/ab_compare_svt.sh`：SVT 版本 A/B 对比（同片段、同 CRF 阶梯，preset 11/4），输出码率/PSNR/SSIM/编码耗时 CSV；测质解码用项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`（与 `run_rd_benchmark.sh` 的 `ffmpeg_to_yuv420p_raw()` IVF 分支同一管线），经核对与系统 `libaom-av1` 软解的 PSNR/SSIM 逐位一致（AV1 解码确定性，硬解软解同帧）。
+  - **VPU 硬解核查**：`av1_rkmpp` AV1 硬解在本机工作正常（`/proc/mpp/` 注册 `av1d` 客户端，IVF→`-c:v av1_rkmpp -vf hwdownload,format=nv12`→rawvideo 解出完整帧，实测 v4.1.0/v4.2.0 两版解码 PSNR 与 `libaom` 完全一致）；RD 测质脚本中曾出现的 `ENOSYS`（Function not implemented）为早期调用形态缺 `-vf hwdownload`（DRM_PRIME 帧无法落系统内存）所致，非 VPU 硬件故障，已对齐 bench 测质管线修复。
+
 ## [0.2.8] - 2026-08-05
 
 ### 新增

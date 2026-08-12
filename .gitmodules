@@ -10,7 +10,7 @@
 [submodule "third_party/SVT-AV1"]
 	path = third_party/SVT-AV1
 	url = https://gitlab.com/AOMediaCodec/SVT-AV1.git
-	branch = v4.1.0
+	branch = v4.2.0
 	shallow = true
 [submodule "third_party/librga"]
 	path = third_party/librga

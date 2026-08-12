@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Copyright (c) 2026 梦归云帆 */
 
-/** decode_file.c — v2 session 解码示例 */
+/** decode_file.c — session 解码示例 */
 #include "rkvc/rkvc.h"
 #include <stdio.h>
 int main(int argc, char **argv) {

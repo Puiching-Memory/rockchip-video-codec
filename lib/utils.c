@@ -290,6 +290,10 @@ rkvc_pix_fmt rkvc_from_av_pix_fmt(enum AVPixelFormat fmt)
     case AV_PIX_FMT_NV16:    return RKVC_PIX_FMT_NV16;
     case AV_PIX_FMT_P010LE:
     case AV_PIX_FMT_P010BE:  return RKVC_PIX_FMT_P010;
+    /* DRM_PRIME 是 dmabuf 容器格式（实际像素格式在 AVDRMFrameDescriptor 中）；
+       本项目仅消费 DRM_FORMAT_NV12 的 dmabuf（rkvc_buffer_from_drm_frame 校验），
+       故显式映射为 NV12，避免落入兜底分支输出误导性告警。 */
+    case AV_PIX_FMT_DRM_PRIME: return RKVC_PIX_FMT_NV12;
     default:
         rkvc_log_print(AV_LOG_WARNING,
                        "unknown AVPixelFormat %d, falling back to NV12\n",

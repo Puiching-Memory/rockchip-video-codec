@@ -45,8 +45,9 @@ bench_results/
 *.bak
 *.pre_*
 
-# RKNN 超分模型（本地放置，不入库）
+# RKNN 超分模型 / MLVC PMF 表（本地放置，不入库）
 *.rknn
+/models/*.bin
 
 # Docs
 site/
@@ -77,6 +78,7 @@ nohup.out
 *.h265
 *.ivf
 *.yuv
+*.mlvc
 *.y4m
 *.nv12
 

@@ -27,9 +27,18 @@
     "codecs": ["h264", "h265", "svt-av1", "post-upscale"],
     "enc_scale_denom": 3,
     "upscale_algos": ["bicubic", "rkvc_sr"],
-    "rkvc_policies": ["realtime", "balanced", "quality", "offline"],
+    "rkvc_policies": ["realtime", "balanced", "quality", "offline", "neural"],
     "csv_mode": "session",
     "parallel": false
+  },
+  "mlvc": {
+    "enc_model": "models/MLVCEncoder_rk3588.rknn",
+    "dec_model": "models/MLVCDecoder_rk3588.rknn",
+    "gaussian_pmf": "models/gaussian.bin",
+    "bitest_pmf": "models/bitest.bin",
+    "width": 640,
+    "height": 368,
+    "qp": 21
   },
   "ramdisk_dir": "/dev/shm/rkvc-bench",
   "rkmpp": {

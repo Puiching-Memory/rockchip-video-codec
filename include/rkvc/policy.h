@@ -22,6 +22,7 @@ typedef enum {
     RKVC_CODEC_H264 = 0,        /**< H.264 / AVC */
     RKVC_CODEC_HEVC,            /**< H.265 / HEVC */
     RKVC_CODEC_AV1,             /**< AV1 */
+    RKVC_CODEC_MLVC,            /**< 神经视频编解码（RKNN NPU + rANS 熵编码） */
     RKVC_CODEC_AUTO,            /**< 由 `rkvc_policy` 自动选择（默认） */
 } rkvc_codec;
 
@@ -35,6 +36,7 @@ typedef enum {
     RKVC_POLICY_BALANCED,       /**< HEVC RKMPP；高帧率 1080p+ 回退 H.264 */
     RKVC_POLICY_QUALITY,        /**< SVT-AV1 preset 11 + av1_rkmpp（近实时） */
     RKVC_POLICY_OFFLINE,        /**< 非实时：SVT-AV1 preset 4 + av1_rkmpp，目标 ≥1fps@1080p */
+    RKVC_POLICY_NEURAL,         /**< MLVC 神经视频编解码（RKNN NPU + rANS 熵编码） */
 } rkvc_policy;
 
 /** @brief 编码器后端。 */
@@ -42,12 +44,14 @@ typedef enum {
     RKVC_ENC_BACKEND_NONE = 0,
     RKVC_ENC_BACKEND_MPP,       /**< FFmpeg `h264_rkmpp` / `hevc_rkmpp` */
     RKVC_ENC_BACKEND_SVT,       /**< SVT-AV1（`svt-av1`） */
+    RKVC_ENC_BACKEND_MLVC,      /**< MLVC 神经编解码（RKNN NPU + 纯 C rANS） */
 } rkvc_enc_backend;
 
 /** @brief 解码器后端。 */
 typedef enum {
     RKVC_DEC_BACKEND_NONE = 0,
     RKVC_DEC_BACKEND_MPP,       /**< FFmpeg `*_rkmpp` 硬解 */
+    RKVC_DEC_BACKEND_MLVC,      /**< MLVC 神经解码（RKNN NPU + 纯 C rANS） */
 } rkvc_dec_backend;
 
 /**

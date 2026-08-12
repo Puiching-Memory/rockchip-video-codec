@@ -3,7 +3,7 @@
 
 /**
  * @file test_scale.c
- * @brief RGA 缩放节点测试 (v2 buffer API)。
+ * @brief RGA 缩放节点测试 (buffer API)。
  *
  * 布局测试始终运行；硬件用例需 RKVC_RUN_HARDWARE_TESTS=1。
  * 推广门禁：./scripts/test-rga.sh

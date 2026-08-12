@@ -1,6 +1,6 @@
 # rkvc 项目交付文档
 
-> **版本**: 见 `CMakeLists.txt` `project(VERSION)` · **硬件**: RK3588 / RK3588S · **架构**: Session + Pipeline + Codec Router (v2)
+> **版本**: 见 `CMakeLists.txt` `project(VERSION)` · **硬件**: RK3588 / RK3588S · **架构**: Session + Pipeline + Codec Router
 
 面向客户与集成方的**交付清单**。技术细节以子文档为准，避免与本页重复维护。
 

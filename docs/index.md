@@ -1,4 +1,4 @@
-# rkvc — RK3588 多码率视频编解码库 (v2)
+# rkvc — RK3588 多码率视频编解码库
 
 面向 RK3588 的 C 库，基于 [ffmpeg-rockchip](https://github.com/nyanmisaka/ffmpeg-rockchip) RKMPP 硬件加速与 SVT-AV1，提供 **Session + Pipeline + Codec Router** 统一 API。
 
@@ -21,7 +21,7 @@
 - [快速开始](getting-started.md) — 依赖构建、编译、首次运行
 - [构建目录约定](build-layout.md) — 全部收在 `.build/`（release / tests / deps / dist …）
 - [架构](architecture.md) — Session 图、Codec Router、节点管线
-- [API 参考](api.md) — v2 公共 API（完整函数/结构体说明）
+- [API 参考](api.md) — 公共 API（完整函数/结构体说明）
 - [YUV 超分模型规格](sr-model-yuv-spec.md) — YUV-native SR 训练/推理/RKVC 模型导出规范（设计稿）
 
 ### 运维与交付

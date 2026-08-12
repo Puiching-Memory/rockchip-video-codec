@@ -3,7 +3,7 @@
 
 /**
  * @file rkvc_info.c
- * @brief v2 硬件能力查询工具。
+ * @brief 硬件能力查询工具。
  */
 
 #include "rkvc/rkvc.h"
@@ -12,7 +12,7 @@
 
 static void usage(void)
 {
-    printf("rkvc_info — RK3588 multi-codec 能力查询\n"
+    printf("rkvc_info — Rockchip 多 SoC 多编码能力查询\n"
            "  -v, --version   版本\n"
            "  -j, --json      JSON 输出\n");
 }
@@ -46,11 +46,12 @@ int main(int argc, char **argv)
         return 1;
 
     if (json) {
-        printf("{\"version\":\"%s\",\"h264_enc\":%s,\"hevc_enc\":%s,"
+        printf("{\"version\":\"%s\",\"board\":\"%s\",\"h264_enc\":%s,\"hevc_enc\":%s,"
                "\"av1_enc\":%s,\"h264_dec\":%s,\"hevc_dec\":%s,"
                "\"av1_dec\":%s,\"dma_heap\":%s,\"rga\":%s,\"rknn\":%s,"
                "\"max_width\":%d,\"max_height\":%d}\n",
                rkvc_version(),
+               rkvc_board_id_name(caps.board),
                caps.has_h264_enc ? "true" : "false",
                caps.has_hevc_enc ? "true" : "false",
                caps.has_av1_enc ? "true" : "false",
@@ -63,6 +64,7 @@ int main(int argc, char **argv)
                caps.max_width, caps.max_height);
     } else {
         printf("rkvc %s\n", rkvc_version());
+        printf("board: %s\n", rkvc_board_id_name(caps.board));
         printf("H.264 enc/dec: %d/%d\n", caps.has_h264_enc, caps.has_h264_dec);
         printf("HEVC  enc/dec: %d/%d\n", caps.has_hevc_enc, caps.has_hevc_dec);
         printf("AV1   enc/dec: %d/%d\n", caps.has_av1_enc, caps.has_av1_dec);

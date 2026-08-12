@@ -31,6 +31,11 @@ rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void)
     d.post_upscale_rkvc_model_path = NULL;
     d.svt_lp              = RKVC_SVT_LP_AUTO;
     d.svt_rtc             = 0;
+    d.mlvc_enc_model_path     = NULL;
+    d.mlvc_dec_model_path     = NULL;
+    d.mlvc_gaussian_pmf_path  = NULL;
+    d.mlvc_bitest_pmf_path    = NULL;
+    d.mlvc_qp                  = 21;
     d.capture_device      = NULL;
     d.capture_max_frames  = 0;
     d.capture_timeout_ms  = 1000;
@@ -63,6 +68,10 @@ rkvc_err rkvc_pipeline_from_template(rkvc_pipeline_template tmpl,
     case RKVC_TEMPLATE_AV1_STORAGE:
         desc->policy = RKVC_POLICY_QUALITY;
         desc->codec  = RKVC_CODEC_AV1;
+        break;
+    case RKVC_TEMPLATE_MLVC_STORAGE:
+        desc->policy = RKVC_POLICY_QUALITY;
+        desc->codec  = RKVC_CODEC_MLVC;
         break;
     default:
         return RKVC_ERR_INVALID;

@@ -15,6 +15,7 @@ RK3588 端到端 **码率-画质（RD）** 与 **性能** 对比框架，已集�
 | `rkvc-balanced` | Session `balanced` → HEVC RKMPP |
 | `rkvc-quality` | Session `quality` → SVT-AV1 p11 + av1_rkmpp（与 `svt-av1` 基线同 preset） |
 | `rkvc-offline` | Session `offline` → SVT-AV1 p4 + av1_rkmpp（非实时高质量，与 `svt-av1-hq` 对齐） |
+| `rkvc-neural` | Session `neural` → MLVC 神经编解码（NPU + rANS，固定 640×368，qp 参数化） |
 | `post-upscale` | **下采样编码 + 上采样后处理**（RGA 插值或 `rkvc_sr`；与 Session 解码路径一致） |
 | `svt-av1+up3x-bilinear` | 单算法路线（`ENC_SCALE_DENOM=3` 时 CSV 名为 `svt-av1+up{N}x-{algo}`） |
 | `svt-av1+up3x-rkvc_sr` | 同上，AI 超分（需 `RKVC_SR_MODEL` / `paths.rkvc_sr_model`） |
@@ -142,7 +143,10 @@ BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
 - `ENC_SCALE_DENOM` — post-upscale 编码下采样分母（默认 `2`）
 - `UPSCALE_ALGOS` — 上采样算法，逗号分隔（默认 `nearest,bilinear,bicubic`；可加 `rkvc_sr`）
 - `RKVC_SR_MODEL` — `rkvc_sr` 模型路径（默认见 `config.json` → `paths.rkvc_sr_model`）
-- `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality,offline`
+- `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality,offline,neural`
+- `MLVC_ENC_MODEL` / `MLVC_DEC_MODEL` — MLVC 编/解码 RKNN 模型路径（默认 `models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）
+- `MLVC_GAUSSIAN_PMF` / `MLVC_BITEST_PMF` — MLVC PMF 表路径（默认 `models/gaussian.bin` / `models/bitest.bin`）
+- `MLVC_QP` — MLVC 质量参数（默认 21；`rkvc-neural` 不参与码率扫描，仅用此 qp）
 - `CLIP_SEC` — 截取秒数（默认 `4`）
 - `CLIP_OFFSET` — 截取位置：`middle`（默认，居中）| `start`
 - `CLIP_START_SEC` — 显式起点秒数（设置后覆盖 `CLIP_OFFSET`）

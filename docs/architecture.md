@@ -1,6 +1,18 @@
 # 架构
 
-rkvc v2 以 **Session** 为核心，将编解码流程建模为可配置的 **节点图**，由 **Codec Router** 按策略选择 H.264 / HEVC / AV1 路线。
+rkvc 以 **Session** 为核心，将编解码流程建模为可配置的 **节点图**，由 **Codec Router** 按策略选择 H.264 / HEVC / AV1 路线。
+
+## 板卡抽象（多 SoC）
+
+rkvc 原生仅针对 RK3588，现重构为多板卡架构。所有板级常量（最大编/解分辨率、VPU 编解码硬件支持、NPU、RGA）统一收拢到 **板卡 profile**（`lib/board.c`），源码其余部分不再硬编码板级假设。
+
+- **公共 API**（`include/rkvc/board.h`）：`rkvc_board_id` 枚举（`RKVC_BOARD_RK3588` / `RKVC_BOARD_RV1126B` / `RKVC_BOARD_UNKNOWN`）、`rkvc_board_id_name()` / `rkvc_board_id_from_name()` / `rkvc_detect_board()`。
+- **内部 profile**（`lib/board.h`）：`rkvc_board_profile`、`rkvc_board_profile_get()` / `rkvc_board_profile_active()`。
+- **板卡选取优先级**：`RKVC_BOARD` 环境变量 → `/proc/device-tree/compatible` 自动探测 → 编译期默认（CMake `RKVC_BOARD`，默认 `rk3588`）。
+- **`rkvc_caps` 新增 `board` 字段**；`rkvc_query_caps` 的硬件编解码能力 = 运行时探测（ffmpeg 注册 + 设备权限）∩ 板卡 VPU 硬件支持（软件 SVT-AV1 编码器与板卡无关，不做门控）。
+- **新增板卡**：在 `lib/board.c` 的 profile 表追加一项，并在 `rkvc_board_id_name()` / `name_to_id()` / `detect_from_dt()` 中登记名称与 device-tree 字段；CMake `RKVC_BOARD` 的 `STRINGS` 与 `RKVC_DEFAULT_BOARD_ID` 映射同步更新。
+
+> **当前板卡**：`RKVC_BOARD_RK3588`（权威值）、`RKVC_BOARD_RV1126B`（Rockchip 官网 RV11 系列页权威值：4K 编解码 / 3 TOPS NPU / Quad Cortex-A53，无 AV1 硬件编解码）。
 
 ## 模块关系
 
@@ -181,6 +193,7 @@ graph TD
 
 | 模块        | 文件            | 公共 API                                        |
 | ----------- | --------------- | ----------------------------------------------- |
+| 板卡抽象    | `board.c`       | `rkvc_detect_board` / `rkvc_board_id_name`      |
 | 初始化      | `init.c`        | `rkvc_init` / `rkvc_deinit` / `rkvc_version`    |
 | 能力        | `init.c`        | `rkvc_query_caps` / `rkvc_check_hw_permissions` |
 | FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_get_log_level`     |

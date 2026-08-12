@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Copyright (c) 2026 梦归云帆 */
 
-/** latency_test.c — v2 session 启动延迟 */
+/** latency_test.c — session 启动延迟 */
 #include "rkvc/rkvc.h"
 #include <stdio.h>
 #include <sys/time.h>

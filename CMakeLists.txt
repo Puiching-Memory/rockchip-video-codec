@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.2.8
-    DESCRIPTION "RK3588 multi-codec pipeline library"
+    VERSION 0.3.0
+    DESCRIPTION "Rockchip multi-SoC multi-codec pipeline library"
     LANGUAGES C
 )
 
@@ -15,7 +15,7 @@ set(RKVC_VERSION_COMPILE_DEFS
     RKVC_VERSION_NUM=${RKVC_VERSION_NUM}
 )
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -32,7 +32,22 @@ option(RKVC_ENABLE_COVERAGE "Enable gcov/llvm-cov instrumentation" OFF)
 option(RKVC_ENABLE_FAULT_INJECTION "Enable deterministic test fault injection hooks" OFF)
 option(RKVC_BUILD_DOCS     "Build Doxygen API docs"    OFF)
 option(RKVC_ENABLE_RKNN    "Enable RKNN NPU super-resolution" ON)
+option(RKVC_ENABLE_MLVC    "Enable MLVC neural video codec (RKNN NPU + pure-C rANS)" ON)
+option(RKVC_RKNN_ALLOW_DEBUG_LOG "Respect RKNN_LOG_LEVEL / RKVC_DEBUG_RKNN_LOG at runtime for internal diagnostics (leaks model topology to end users; keep OFF for distribution)" OFF)
 option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
+
+# ── 目标板卡 ──────────────────────────────────────────────────────────
+# 多板卡架构：指定编译期默认板卡（运行时仍按 device-tree / RKVC_BOARD 探测覆盖）。
+set(RKVC_BOARD "rk3588" CACHE STRING
+    "Compile-time default board (rk3588|rv1126b); runtime detection still applies")
+set_property(CACHE RKVC_BOARD PROPERTY STRINGS rk3588 rv1126b)
+if(RKVC_BOARD STREQUAL "rv1126b")
+    set(RKVC_DEFAULT_BOARD_ID 2)   # RKVC_BOARD_RV1126B
+elseif(RKVC_BOARD STREQUAL "rk3588")
+    set(RKVC_DEFAULT_BOARD_ID 1)   # RKVC_BOARD_RK3588
+else()
+    message(FATAL_ERROR "RKVC_BOARD='${RKVC_BOARD}' unknown; expected rk3588 or rv1126b")
+endif()
 
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库
@@ -98,6 +113,7 @@ set(EXTRA_LIBS
 )
 set(RKVC_SOURCES
     lib/init.c
+    lib/board.c
     lib/ffmpeg_util.c
     lib/utils.c
     lib/buffer_pool.c
@@ -139,6 +155,22 @@ if(RKVC_ENABLE_RKNN)
 endif()
 
 add_library(rkvc_instrumentation INTERFACE)
+
+# ── MLVC 神经视频编解码（RKNN NPU + 纯 C rANS）────────────────────
+# 依赖 RKVC_ENABLE_RKNN（NPU 模型推理）。
+# 熵编解码器为纯 C 实现（lib/rans.c），完整移植自 msrtc_rans，
+# 不再依赖 third_party/mlvc 子模块或 C++17。
+if(RKVC_ENABLE_MLVC)
+    if(NOT RKVC_RKNN_ENABLED)
+        message(FATAL_ERROR "RKVC_ENABLE_MLVC=ON requires librknnrt (RKVC_ENABLE_RKNN).")
+    endif()
+    set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c)
+    set(RKVC_MLVC_ENABLED 1)
+    message(STATUS "MLVC neural codec: enabled (pure C rANS)")
+endif()
+if(RKVC_MLVC_ENABLED)
+    list(APPEND RKVC_SOURCES ${RKVC_MLVC_SRC})
+endif()
 
 # ── 授权（1机1码，Ed25519） ────────────────────────────────────────
 # 通过 third_party/libsodium 子模块提供 SHA-256 + Ed25519，无需系统 OpenSSL/mbedTLS。
@@ -330,6 +362,12 @@ if(RKVC_BUILD_SHARED)
     target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
     if(RKVC_RKNN_ENABLED)
         target_compile_definitions(rkvc_shared PRIVATE RKVC_ENABLE_RKNN=1)
+        if(RKVC_RKNN_ALLOW_DEBUG_LOG)
+            target_compile_definitions(rkvc_shared PRIVATE RKVC_RKNN_ALLOW_DEBUG_LOG=1)
+        endif()
+    endif()
+    if(RKVC_MLVC_ENABLED)
+        target_compile_definitions(rkvc_shared PRIVATE RKVC_ENABLE_MLVC=1)
     endif()
     set_target_properties(rkvc_shared PROPERTIES
         OUTPUT_NAME rkvc
@@ -338,7 +376,7 @@ if(RKVC_BUILD_SHARED)
         POSITION_INDEPENDENT_CODE ON
     )
     # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(rkvc_shared PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS})
+    target_compile_definitions(rkvc_shared PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS} RKVC_DEFAULT_BOARD=${RKVC_DEFAULT_BOARD_ID})
     target_include_directories(rkvc_shared PRIVATE ${RKVC_LICENSE_INCLUDES})
     # soname alias
     add_library(rkvc::shared ALIAS rkvc_shared)
@@ -362,10 +400,16 @@ if(RKVC_BUILD_STATIC)
     target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
     if(RKVC_RKNN_ENABLED)
         target_compile_definitions(rkvc_static PRIVATE RKVC_ENABLE_RKNN=1)
+        if(RKVC_RKNN_ALLOW_DEBUG_LOG)
+            target_compile_definitions(rkvc_static PRIVATE RKVC_RKNN_ALLOW_DEBUG_LOG=1)
+        endif()
+    endif()
+    if(RKVC_MLVC_ENABLED)
+        target_compile_definitions(rkvc_static PRIVATE RKVC_ENABLE_MLVC=1)
     endif()
     set_target_properties(rkvc_static PROPERTIES OUTPUT_NAME rkvc)
     # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(rkvc_static PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS})
+    target_compile_definitions(rkvc_static PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS} RKVC_DEFAULT_BOARD=${RKVC_DEFAULT_BOARD_ID})
     target_include_directories(rkvc_static PRIVATE ${RKVC_LICENSE_INCLUDES})
     add_library(rkvc::static ALIAS rkvc_static)
 endif()
@@ -715,7 +759,7 @@ endif()
 # ── CPack 打包 ───────────────────────────────────────────────────────
 set(CPACK_PACKAGE_NAME "rkvc")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "RK3588 multi-codec pipeline library (rkvc v2)")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Rockchip multi-SoC multi-codec pipeline library (rkvc)")
 set(CPACK_PACKAGE_CONTACT "rkvc@example.com")
 set(CPACK_PACKAGE_VENDOR "rkvc")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
