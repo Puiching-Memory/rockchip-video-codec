@@ -7,6 +7,9 @@
  */
 
 #include "internal.h"
+#ifdef RKVC_ENABLE_MLVC
+#include "qppatch.h"
+#endif
 
 static double session_now_sec(void)
 {
@@ -325,12 +328,20 @@ static rkvc_err session_open_nodes(rkvc_session *s)
         if (err != RKVC_OK)
             return err;
         int dw = 0, dh = 0;
-        /* 从解码器获取实际分辨率 */
+        char dec_patch_buf[768];
+        const char *dec_patch = NULL;
+        rkvc_err perr = rkvc_qppatch_resolve(d->mlvc_qp_patch_dir, "dec",
+                                             rkvc_mlvc_demux_qp(s->mlvc_demux),
+                                             dec_patch_buf, sizeof dec_patch_buf,
+                                             &dec_patch);
+        if (perr != RKVC_OK)
+            return perr;
         rkvc_mlvc_dec_config dcfg = {
             .dec_model_path    = d->mlvc_dec_model_path,
             .gaussian_pmf_path = d->mlvc_gaussian_pmf_path,
             .bitest_pmf_path   = d->mlvc_bitest_pmf_path,
             .qp                = rkvc_mlvc_demux_qp(s->mlvc_demux),
+            .qp_patch_path     = dec_patch,
         };
         err = rkvc_mlvc_dec_open(&s->mlvc_dec, &dcfg);
         if (err != RKVC_OK)
@@ -402,11 +413,19 @@ mlvc_input_done:
             if (!d->mlvc_enc_model_path ||
                 !d->mlvc_gaussian_pmf_path || !d->mlvc_bitest_pmf_path)
                 return RKVC_ERR_INVALID;
+            char enc_patch_buf[768];
+            const char *enc_patch = NULL;
+            rkvc_err perr = rkvc_qppatch_resolve(d->mlvc_qp_patch_dir, "enc",
+                                                 d->mlvc_qp, enc_patch_buf,
+                                                 sizeof enc_patch_buf, &enc_patch);
+            if (perr != RKVC_OK)
+                return perr;
             rkvc_mlvc_enc_config ec = {
                 .enc_model_path    = d->mlvc_enc_model_path,
                 .gaussian_pmf_path = d->mlvc_gaussian_pmf_path,
                 .bitest_pmf_path   = d->mlvc_bitest_pmf_path,
                 .qp                = d->mlvc_qp,
+                .qp_patch_path     = enc_patch,
             };
             rkvc_err err = rkvc_mlvc_enc_open(&s->mlvc_enc, &ec);
             if (err != RKVC_OK)

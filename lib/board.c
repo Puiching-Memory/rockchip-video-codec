@@ -38,6 +38,7 @@ static const rkvc_board_profile rk3588_profile = {
     .vpu_av1_dec_hw  = 1,
     .has_npu       = 1,
     .npu_tops_x100 = 600,   /* 6 TOPS @ INT8 */
+    .npu_cores     = 3,     /* 三核 NPU（每核 2 TOPS，共 6 TOPS） */
     .has_rga       = 1,
 };
 
@@ -64,6 +65,7 @@ static const rkvc_board_profile rv1126b_profile = {
     .vpu_av1_dec_hw  = 0,
     .has_npu       = 1,
     .npu_tops_x100 = 300,   /* 3.0 TOPS @ INT8 */
+    .npu_cores     = 1,     /* 单核 NPU */
     .has_rga       = 1,
 };
 

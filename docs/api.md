@@ -183,6 +183,7 @@ typedef enum {
     RKVC_TEMPLATE_FILE_TRANSCODE,
     RKVC_TEMPLATE_LIVE_CAPTURE,
     RKVC_TEMPLATE_AV1_STORAGE,
+    RKVC_TEMPLATE_MLVC_STORAGE,
 } rkvc_pipeline_template;
 
 typedef struct rkvc_pipeline_desc {
@@ -210,6 +211,13 @@ typedef struct rkvc_pipeline_desc {
     int            svt_lp;                    // 0=自动，1–6 手动
     int            svt_rtc;                   // 0/1
 
+    const char    *mlvc_enc_model_path;       // MLVC 编码器 .rknn（基座）
+    const char    *mlvc_dec_model_path;       // MLVC 解码器 .rknn（基座）
+    const char    *mlvc_gaussian_pmf_path;    // gaussian.bin
+    const char    *mlvc_bitest_pmf_path;      // bitest.bin
+    int            mlvc_qp;                   // 默认 21；有补丁目录时也选补丁
+    const char    *mlvc_qp_patch_dir;         // 可选：QPP1 目录 enc_qpN.qppatch
+
     const char    *codec_opts;                // FFmpeg key=val:key2=val2
 } rkvc_pipeline_desc;
 ```
@@ -222,6 +230,7 @@ typedef struct rkvc_pipeline_desc {
 | `RKVC_TEMPLATE_FILE_DECODE`    | `BALANCED`  | 容器 → 原始 NV12                     |
 | `RKVC_TEMPLATE_FILE_TRANSCODE` | `BALANCED`  | 转码（Router 选 codec）              |
 | `RKVC_TEMPLATE_AV1_STORAGE`    | `QUALITY`   | 强制 AV1 SVT 存储档                  |
+| `RKVC_TEMPLATE_MLVC_STORAGE`   | `QUALITY`   | `.mlvc` 神经编码（`codec=MLVC`）     |
 | `RKVC_TEMPLATE_LIVE_CAPTURE`   | `REALTIME`  | 低延迟 H.264 + V4L2，`low_latency=1` |
 
 ### 默认值（`rkvc_pipeline_desc_defaults`）
@@ -240,6 +249,8 @@ typedef struct rkvc_pipeline_desc {
 | qp_init           | -1               |
 | enc_scale_denom   | 1                |
 | post_upscale_algo | NONE             |
+| mlvc_qp           | 21               |
+| mlvc_qp_patch_dir | `NULL`（不打补丁） |
 
 ```c
 rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void);

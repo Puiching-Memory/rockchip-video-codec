@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **MLVC ONNX → RKNN 导出工具**（`tools/mlvc/`）：`python export_rknn.py --from-mlvc` 浅克隆 microsoft/mlvc 并跑 `convert.py export --target-device generic`，再折叠 `q_index_shifted`、把 SpaceToDepth/Max/Div 换成 NPU 友好算子，经 rknn-toolkit2 转 FP16 `.rknn`，PMF JSON 写成 PMF1。环境：`cd tools/mlvc && uv sync`。无 toolkit 时可用 `--skip-rknn` / `--pmf-only`。文档见 `docs/mlvc-rknn-export.md`。
+- **MLVC 多 QP 单模型（QPP1）**：同尺寸多 qp `.rknn` 打成区间补丁（`tools/mlvc/qppatch.py` / `make_qp_patches.py`）。`rkvc_transcode --mlvc-qp-patch-dir` 在 `rknn_init` 前对基座打一次补丁（编码用 `--mlvc-qp`，解码用容器头 qp）；缺补丁或 CRC 失败则打开失败。C 应用器 `lib/qppatch.c`，测试 `tests/test_qppatch.c`。
+
+### 变更
+
+- **bench：MLVC 对照图改为「论文 Semantic 粗比 + 本机实测」**：只叠 Semantic（MS-SSIM），不叠 H.264+LDPC。横轴 CBR=bpp/8，纵轴线性相似度；实测为 FourPeople 640×368 重跑。主 RD 默认仍不叠文献（`LITERATURE=1` 才启用）。
+
+### 性能
+
+- **MLVC 推理性能优化（RK3588，编码 +24%）**（`lib/node_mlvc.c`）：经分阶段插桩定位，单帧编码 116 ms 中 NPU `rknn_run` 占 79%（92 ms）、fp16 标量位运算转换占 16%（18.7 ms）；解码 192 ms 中 NPU `rknn_run` 占 86%（153 ms，模型固有计算，软件层无法突破）。两处可落地优化：
+  - **fp16 转换硬件化**：`f32_to_f16` / `f16_to_f32` 此前为纯软件逐位运算（每元素 ~15 条指令 + 分支）。AArch64 上改用原生 `__fp16` 类型，各编译为单条 `fcvt` 指令（IEEE round-to-nearest-even，与软件实现**逐位等价**），并使编译器能对调用处循环自动向量化。其它架构保留原可移植软件实现（`#if defined(__ARM_NEON)` 守卫）。
+  - **NPU 多核调度（板卡 profile 驱动）**：`rknn_init` 后按板卡 profile 的 `npu_cores` 显式设置 `rknn_set_core_mask`，启用全部 NPU 核心让运行时在核间分配算子，显著降低编码推理延迟。分层设计避免硬编码：
+    - **板卡抽象层**（`lib/board.h` / `lib/board.c`）新增 `rkvc_board_profile::npu_cores` 字段，描述硬件事实（NPU 计算核心数）：RK3588=3（每核 2 TOPS，共 6 TOPS）、RV1126B=1。该层不依赖 `rknn_api.h`。
+    - **MLVC/RKNN 层**（`lib/node_mlvc.c`）新增 `mlvc_npu_core_mask(int cores)`，负责 `npu_cores → RKNN core_mask` 映射（3→`CORE_0_1_2`、2→`CORE_0_1`、1→不调用保持默认）；多核（`npu_cores>1`）时启用，单核平台保持默认单核行为。
+  - **实测**（640×368，受控 A/B 交替 3 轮排除 NPU 争用/热噪声）：编码 8.09 → 10.04 fps（+24%），解码 5.13 → 5.25 fps（NPU 模型固有计算为瓶颈，软件层无收益）。
+  - **正确性**：端到端 `.mlvc` 码流逐字节一致（sha256 相同，含 `__fp16` 位等价 + `core_mask` 不改变计算结果双重验证）；解码往返 `.mlvc → .yuv` 输出尺寸精确、Y 平面内容有效。
+
+
 ## [0.3.0] - 2026-08-12
 
 ### 变更

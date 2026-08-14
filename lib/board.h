@@ -41,6 +41,7 @@ typedef struct {
 
     int has_npu;            /**< 是否具备 NPU */
     int npu_tops_x100;      /**< NPU 算力（INT8 TOPS × 100，整数存储） */
+    int npu_cores;          /**< NPU 计算核心数（如 RK3588=3、RV1126B=1） */
     int has_rga;            /**< 是否具备 RGA 2D 加速 */
 } rkvc_board_profile;
 

@@ -26,6 +26,8 @@ static void test_pipeline_defaults(void **state)
     assert_int_equal(d.width, 1920);
     assert_int_equal(d.policy, RKVC_POLICY_BALANCED);
     assert_int_equal(d.codec, RKVC_CODEC_AUTO);
+    assert_int_equal(d.mlvc_qp, 21);
+    assert_null(d.mlvc_qp_patch_dir);
 }
 
 static void test_session_create_null(void **state)

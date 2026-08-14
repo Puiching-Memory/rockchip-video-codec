@@ -15,7 +15,7 @@
 | `.build/coverage/`   | `coverage`                | gcov 覆盖率                             |
 | `.build/portable/`   | `portable`                | 可移植包**编译树**                      |
 | `.build/dist/`       | （`package-portable.sh`） | 可移植包**成品**                        |
-| `.build/deps/`       | （脚本）                  | MPP / SVT-AV1 / FFmpeg / librga install |
+| `.build/deps/`       | （脚本）                  | MPP / SVT / FFmpeg / librga；MLVC 源码与权重（`mlvc/`、`mlvc-data/`） |
 
 ## 产物落点（勿混用）
 

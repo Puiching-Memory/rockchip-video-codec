@@ -85,8 +85,13 @@ typedef struct rkvc_pipeline_desc {
     const char    *mlvc_gaussian_pmf_path;
     /** MLVC 比特估计器 PMF 表路径（`bitest.bin`） */
     const char    *mlvc_bitest_pmf_path;
-    /** MLVC 质量参数（QP，默认 21；影响比特估计器量化索引） */
+    /** MLVC 质量参数（QP，默认 21；影响比特估计器量化索引；有补丁目录时也选补丁） */
     int            mlvc_qp;
+    /**
+     * 可选：QPP1 补丁目录。非 NULL 时 `--mlvc-enc/--mlvc-dec` 视为基座模型，
+     * 打开时加载 `{enc|dec}_qp{mlvc_qp}.qppatch`（解码用容器头里的 qp）。
+     */
+    const char    *mlvc_qp_patch_dir;
 
     /**
      * FFmpeg 选项串（`key=val:key2=val2`），作用于 demuxer / decoder / encoder。

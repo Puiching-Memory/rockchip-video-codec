@@ -72,6 +72,11 @@ MLVC 用法示例：
 # 纯解码：.mlvc → .yuv（NV12，无再编码）
 ./.build/release/rkvc_transcode -i out.mlvc -o out.yuv --mlvc-dec models/MLVCDecoder_rk3588.rknn \
   --mlvc-gaussian-pmf gaussian.bin --mlvc-bitest-pmf bitest.bin
+
+# 多 QP：基座模型 + 打开时打补丁（编码用 --mlvc-qp，解码用容器头 qp）
+./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
+  --mlvc-enc models/MLVCEncoder_rk3588.rknn --mlvc-gaussian-pmf gaussian.bin --mlvc-bitest-pmf bitest.bin \
+  --mlvc-qp-patch-dir models/qp_patches --mlvc-qp 30
 ```
 
 ## API 示例
@@ -120,7 +125,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 
 - Rockchip BSP、`third_party/` 子模块：MPP、ffmpeg-rockchip、SVT-AV1、[librga](https://github.com/airockchip/librga)
 - libdrm；可选 `librknnrt`（`rkvc_sr` 超分与 MLVC；可移植包可自带）
-- MLVC 模型（`models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）与 PMF 表（`gaussian.bin` / `bitest.bin`）由用户提供；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
+- MLVC 模型（`models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）与 PMF 表（`gaussian.bin` / `bitest.bin`）由用户提供，可用 `python3 tools/mlvc/export_rknn.py --from-mlvc` 从 [microsoft/mlvc](https://github.com/microsoft/mlvc) 一条龙导出（见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)）；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
 
 ## 许可证
 
@@ -145,6 +150,8 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 | [docs/testing.md](docs/testing.md)                     | 测试矩阵                         |
 | [docs/packaging.md](docs/packaging.md)                 | 可便携包与分发                   |
 | [docs/delivery.md](docs/delivery.md)                   | 客户交付清单                     |
+| [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md) | MLVC ONNX/PMF → RKNN 导出     |
+| [docs/mlvc-npu-profile.md](docs/mlvc-npu-profile.md) | MLVC NPU 算子级 profile         |
 | [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | YUV-native SR 设计稿             |
 | [docs/release/](docs/release/)                         | 发布包用户文档                   |
 | [CHANGELOG.md](CHANGELOG.md)                           | 版本变更记录                     |

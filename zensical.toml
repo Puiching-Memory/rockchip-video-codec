@@ -12,6 +12,7 @@ nav = [
   { "API 参考" = "api.md" },
   { "测试" = "testing.md" },
   { "基准测试" = "benchmark.md" },
+  { "MLVC RKNN 导出" = "mlvc-rknn-export.md" },
   { "打包与分发" = "packaging.md" },
   { "交付文档" = "delivery.md" },
 ]

@@ -36,6 +36,7 @@ rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void)
     d.mlvc_gaussian_pmf_path  = NULL;
     d.mlvc_bitest_pmf_path    = NULL;
     d.mlvc_qp                  = 21;
+    d.mlvc_qp_patch_dir        = NULL;
     d.capture_device      = NULL;
     d.capture_max_frames  = 0;
     d.capture_timeout_ms  = 1000;

@@ -5,7 +5,8 @@
  * @file rkvc_transcode.c
  * @brief Session 转码 CLI（供 bench/ RD 基准与脚本调用）。
  *
- * 支持 MLVC 神经编解码：`--codec mlvc` + `--mlvc-enc/--mlvc-dec/--mlvc-pmf-*`。
+ * 支持 MLVC 神经编解码：`--codec mlvc` + `--mlvc-enc/--mlvc-dec/--mlvc-pmf-*`
+ * + 可选 `--mlvc-qp-patch-dir`（打开时打 QPP1 补丁）。
  */
 
 #include "rkvc/rkvc.h"
@@ -68,10 +69,12 @@ static void usage(void)
        "      -c mlvc -o out.mlvc --mlvc-enc models/MLVCEncoder_rk3588.rknn\n"
        "        --mlvc-gaussian-pmf models/gaussian.bin\n"
        "        --mlvc-bitest-pmf models/bitest.bin [--mlvc-qp 21]\n"
+       "        [--mlvc-qp-patch-dir models/qp_patches]\n"
        "    解码  .mlvc → .yuv （原始 NV12，无再编码）:\n"
        "      -i in.mlvc -o out.yuv --mlvc-dec models/MLVCDecoder_rk3588.rknn\n"
        "        --mlvc-gaussian-pmf models/gaussian.bin\n"
        "        --mlvc-bitest-pmf models/bitest.bin\n"
+       "        [--mlvc-qp-patch-dir models/qp_patches]\n"
        "    转码  .mlvc → .mp4 （MLVC 解码 + 标准编码，需 -c 指定输出编解码器）:\n"
        "      -i in.mlvc -o out.mp4 -c hevc --mlvc-dec ... --mlvc-gaussian-pmf ...\n");
 }
@@ -89,6 +92,7 @@ int main(int argc, char **argv)
     /* MLVC 专用 */
     const char *mlvc_enc = NULL, *mlvc_dec = NULL;
     const char *mlvc_gaussian = NULL, *mlvc_bitest = NULL;
+    const char *mlvc_qp_patch_dir = NULL;
     int mlvc_qp = 21;
 
     static struct option opts[] = {
@@ -107,6 +111,7 @@ int main(int argc, char **argv)
         {"mlvc-gaussian-pmf", required_argument, 0, 0x1003},
         {"mlvc-bitest-pmf", required_argument, 0, 0x1004},
         {"mlvc-qp", required_argument, 0, 0x1005},
+        {"mlvc-qp-patch-dir", required_argument, 0, 0x1006},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
     };
@@ -129,6 +134,7 @@ int main(int argc, char **argv)
         case 0x1003: mlvc_gaussian = optarg; break;
         case 0x1004: mlvc_bitest = optarg; break;
         case 0x1005: mlvc_qp = atoi(optarg); break;
+        case 0x1006: mlvc_qp_patch_dir = optarg; break;
         case 'h': usage(); return 0;
         default: usage(); return 1;
         }
@@ -238,6 +244,7 @@ int main(int argc, char **argv)
         d.mlvc_gaussian_pmf_path = mlvc_gaussian;
         d.mlvc_bitest_pmf_path   = mlvc_bitest;
         d.mlvc_qp                = mlvc_qp;
+        d.mlvc_qp_patch_dir      = mlvc_qp_patch_dir;
     }
 
     rkvc_session *s = NULL;

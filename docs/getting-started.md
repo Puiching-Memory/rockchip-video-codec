@@ -134,6 +134,10 @@ gcc -o myapp myapp.c $(pkg-config --cflags --libs rkvc)
 
 详见 [基准测试](benchmark.md) 与 [bench/README.md](../bench/README.md)。
 
+## MLVC 模型导出
+
+现网推理使用 `models/MLVCEncoder_*.rknn` / `MLVCDecoder_*.rknn` 与 `gaussian.bin` / `bitest.bin`。多 qp 可用基座模型 + `models/qp_patches/*.qppatch`（`--mlvc-qp-patch-dir`）。从 Microsoft MLVC 官方 ONNX 生成这些文件见 [MLVC RKNN 导出](mlvc-rknn-export.md)。
+
 ## 二次开发
 
 - 完整 API：[api.md](api.md)（与 `include/rkvc/*.h` Doxygen 注释一致）

@@ -137,6 +137,7 @@ set(RKVC_SOURCES
     lib/node_dma_to_host.c
     lib/rkvc_sr_neon.c
     lib/node_rkvc_sr.c
+    lib/qppatch.c
 )
 
 if(RKVC_ENABLE_RKNN)
@@ -623,6 +624,7 @@ if(RKVC_BUILD_TESTS)
         tests/test_reconfig.c
         tests/test_v4l2.c
         tests/test_net.c
+        tests/test_qppatch.c
     )
 
     if(RKVC_ENABLE_FAULT_INJECTION)
@@ -737,6 +739,15 @@ if(RKVC_BUILD_TESTS)
             ENVIRONMENT "${RKVC_TEST_ENVIRONMENT}"
         )
     endif()
+
+    add_test(NAME test_mlvc_export
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_mlvc_export.sh
+    )
+    set_tests_properties(test_mlvc_export PROPERTIES
+        LABELS unit
+        ENVIRONMENT "${RKVC_TEST_ENVIRONMENT}"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
 endif()
 
 # ── Doxygen API 文档 ─────────────────────────────────────────────────

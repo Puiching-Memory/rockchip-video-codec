@@ -25,6 +25,8 @@
 | RGA 推广门禁         | `scripts/test-rga.sh`          | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga`                        |
 | NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh`       | AI 3× 硬件用例 + 可选 session smoke；需 NPU + `models/rkvc_sr_x3.crypt.rknn`     |
 | CLI 脚本             | `tests/test_cli_args.sh`       | CLI 参数错误（`tests` preset）                                                     |
+| MLVC 导出            | `tests/test_mlvc_export.py`    | PMF JSON→PMF1；QPP1；ONNX 图重写（需 `onnx`）；`export_onnx` 补丁/占位 YUV（不跑 convert.py） |
+| MLVC QPP1            | `tests/test_qppatch.c`         | 打开时二进制补丁：区间应用、空补丁、CRC/尺寸/越界、路径解析                       |
 | 可移植包             | `scripts/test-portable.sh`     | 包完整性、RPATH、三策略 bench、后处理上采样、`rkvc_sr` NPU 冒烟、pkg-config      |
 | 动态分析             | `asan` preset                  | ASan + UBSan                                                                     |
 | 覆盖率               | `coverage` preset              | gcov instrumentation                                                             |
@@ -36,7 +38,7 @@
 
 | preset       | CTest 目标数 | 说明                                                                 |
 | ------------ | ------------ | -------------------------------------------------------------------- |
-| `tests`      | 19           | 9 个单元测试 + 8 个硬件子用例 + `test_cli_args` + `test_bench_permission_failure` |
+| `tests`      | 20+          | 原矩阵 + `test_qppatch` + `test_mlvc_export`（Python；无 rknn-toolkit2 也可跑） |
 
 硬件测试拆为 8 个独立 CTest 用例（含三策略转码、RGA 3× 上采样与 `rkvc_sr` AI 3×），未设置 `RKVC_RUN_HARDWARE_TESTS=1` 时 **exit 77（Skipped）**；设置后夹具自生成，无需 `tests/fixtures/` 内嵌文件。AI 用例另需 `caps.has_rknn` 与约定模型 `models/rkvc_sr_x3.crypt.rknn`（可用 `RKVC_SR_MODEL` 覆盖）。
 
@@ -49,6 +51,9 @@
 cmake --preset tests
 cmake --build --preset tests
 ctest --preset tests -j1 --output-on-failure
+
+# 仅 MLVC 导出（PMF / 图处理，不需要 NPU 或 rknn-toolkit2）
+ctest --preset tests -R test_mlvc_export --output-on-failure
 
 # RK3588 硬件集成
 export RKVC_RUN_HARDWARE_TESTS=1

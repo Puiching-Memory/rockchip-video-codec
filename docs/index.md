@@ -27,6 +27,8 @@
 ### 运维与交付
 
 - [基准测试](benchmark.md) — `rkvc_bench` 与 RD 套件
+- [MLVC NPU Profile](mlvc-npu-profile.md) — MLVC 神经编解码 NPU 算子级执行分析与优化空间
+- [MLVC RKNN 导出](mlvc-rknn-export.md) — Microsoft MLVC ONNX/PMF → 本仓 `.rknn` + `PMF1`；多 QP 的 QPP1 补丁
 - [测试](testing.md) — 测试矩阵与质量门禁
 - [打包与分发](packaging.md) — 可移植包、DEB、CPack
 - [交付文档](delivery.md) — 客户交付清单与故障排查

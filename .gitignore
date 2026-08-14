@@ -47,7 +47,11 @@ bench_results/
 
 # RKNN 超分模型 / MLVC PMF 表（本地放置，不入库）
 *.rknn
+*.qppatch
 /models/*.bin
+/models/mlvc_rknn_export_manifest.json
+/models/*_qp_models/
+/models/qp_patches/
 
 # Docs
 site/

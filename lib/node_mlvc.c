@@ -15,7 +15,9 @@
 #ifdef RKVC_ENABLE_MLVC
 
 #include "internal.h"
+#include "board.h"
 #include "rans.h"
+#include "qppatch.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +26,28 @@
 
 #include <rknn_api.h>
 
-/* ── fp16 辅助（软件实现，可移植）────────────────────────────────── */
+/* ── fp16 辅助 ──────────────────────────────────────────────────────
+ * AArch64 上 __fp16 为原生 16-bit 浮点：f32↔f16 各编译为单条 fcvt 指令，
+ * 舍入为 IEEE round-to-nearest-even，与下方可移植软件实现逐位等价，
+ * 且使编译器能对调用处的循环自动向量化。其它架构回退到软件位运算实现。 */
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+
+static inline uint16_t f32_to_f16(float f)
+{
+    __fp16 h = (__fp16)f;
+    uint16_t r;
+    memcpy(&r, &h, 2);
+    return r;
+}
+
+static inline float f16_to_f32(uint16_t h)
+{
+    __fp16 p;
+    memcpy(&p, &h, 2);
+    return (float)p;
+}
+
+#else  /* 可移植软件实现 */
 
 static uint16_t f32_to_f16(float f)
 {
@@ -74,6 +97,8 @@ static float f16_to_f32(uint16_t h)
     memcpy(&f, &x, 4);
     return f;
 }
+
+#endif  /* __ARM_NEON */
 
 /* ── PMF 二进制表加载 ────────────────────────────────────────────── */
 
@@ -164,6 +189,20 @@ static void free_pmf(mlvc_pmf *p)
 
 /* ── RKNN 零拷贝模型封装 ─────────────────────────────────────────── */
 
+/*
+ * NPU 核心数 → RKNN core_mask 映射。
+ * 板卡 profile 只描述硬件事实（npu_cores），RKNN 常量在此处（RKNN 专用层）映射，
+ * 避免在板卡抽象层（board.h，不依赖 rknn_api.h）耦合 RKNN 枚举。
+ */
+static rknn_core_mask mlvc_npu_core_mask(int npu_cores)
+{
+    switch (npu_cores) {
+    case 3:  return RKNN_NPU_CORE_0_1_2;
+    case 2:  return RKNN_NPU_CORE_0_1;
+    default: return RKNN_NPU_CORE_0;   /* 1 核及未知 */
+    }
+}
+
 #define MLVC_RKNN_CHECK(call)                                                   \
     do {                                                                        \
         int rc_ = (call);                                                       \
@@ -187,7 +226,8 @@ typedef struct {
     size_t model_size;
 } mlvc_rknn_model;
 
-static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path)
+static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path,
+                                const char *patch_path, int expected_qp)
 {
     memset(m, 0, sizeof(*m));
 
@@ -204,15 +244,41 @@ static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path)
     }
     if (fread(m->model_buf, 1, sz, fp) != (size_t)sz) {
         fclose(fp);
+        rkvc_free(m->model_buf);
+        m->model_buf = NULL;
         return RKVC_ERR_IO;
     }
     fclose(fp);
     m->model_size = sz;
 
+    if (patch_path && patch_path[0]) {
+        rkvc_err perr = rkvc_qppatch_apply_file((uint8_t *)m->model_buf,
+                                                m->model_size, patch_path,
+                                                expected_qp);
+        if (perr) {
+            RKVC_LOG("MLVC qp patch apply failed: %s", patch_path);
+            rkvc_free(m->model_buf);
+            m->model_buf = NULL;
+            return perr;
+        }
+        RKVC_LOG("MLVC applied qp patch %s", patch_path);
+    }
+
     /* 分发构建：在 rknn_init 前强制 librknnrt 静默，避免 RKNN_LOG_LEVEL
      * 泄露已解密模型的网络结构（见 rkvc_rknn_quiet_runtime 说明）。 */
     rkvc_rknn_quiet_runtime();
     MLVC_RKNN_CHECK(rknn_init(&m->ctx, m->model_buf, sz, 0, NULL));
+    /*
+     * 多核 NPU（如 RK3588 三核）显式启用全部核心：默认 AUTO 仅单核调度，
+     * 显式 core_mask 让运行时在核间分配算子，显著降低编码推理延迟
+     *（RK3588 受控实测编码 +24%）。核心数取自板卡 profile，单核平台
+     *（如 RV1126B）保持默认单核行为，不调用 set_core_mask。
+     */
+    {
+        const rkvc_board_profile *bp = rkvc_board_profile_active();
+        if (bp && bp->has_npu && bp->npu_cores > 1)
+            rknn_set_core_mask(m->ctx, mlvc_npu_core_mask(bp->npu_cores));
+    }
     MLVC_RKNN_CHECK(rknn_query(m->ctx, RKNN_QUERY_IN_OUT_NUM, &m->io_num, sizeof(m->io_num)));
 
     for (uint32_t i = 0; i < m->io_num.n_input; i++) {
@@ -564,7 +630,8 @@ rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg
     free_pmf(&bpmf);
 
     /* 模型 */
-    err = rknn_model_init(&e->enc_model, cfg->enc_model_path);
+    err = rknn_model_init(&e->enc_model, cfg->enc_model_path,
+                          cfg->qp_patch_path, e->qp);
     if (err) { rkvc_rans_coder_free(&e->g_coder); rkvc_rans_coder_free(&e->b_coder); rkvc_free(e); return err; }
 
     err = rknn_alloc_input_mems(&e->enc_model);
@@ -819,7 +886,8 @@ rkvc_err rkvc_mlvc_dec_open(rkvc_mlvc_dec **out, const rkvc_mlvc_dec_config *cfg
     free_pmf(&gpmf);
     free_pmf(&bpmf);
 
-    err = rknn_model_init(&d->dec_model, cfg->dec_model_path);
+    err = rknn_model_init(&d->dec_model, cfg->dec_model_path,
+                          cfg->qp_patch_path, d->qp);
     if (err) { rkvc_rans_coder_free(&d->g_coder); rkvc_rans_coder_free(&d->b_coder); rkvc_free(d); return err; }
 
     err = rknn_alloc_input_mems(&d->dec_model);
