@@ -15,7 +15,7 @@
 #ifdef RKVC_ENABLE_MLVC
 
 #include "internal.h"
-#include "board.h"
+#include "platform.h"
 #include "rans.h"
 #include "qppatch.h"
 
@@ -25,6 +25,8 @@
 #include <math.h>
 
 #include <rknn_api.h>
+
+#include "rknn_util.h"
 
 /* ── fp16 辅助 ──────────────────────────────────────────────────────
  * AArch64 上 __fp16 为原生 16-bit 浮点：f32↔f16 各编译为单条 fcvt 指令，
@@ -196,20 +198,6 @@ fail:
 
 /* ── RKNN 零拷贝模型封装 ─────────────────────────────────────────── */
 
-/*
- * NPU 核心数 → RKNN core_mask 映射。
- * 板卡 profile 只描述硬件事实（npu_cores），RKNN 常量在此处（RKNN 专用层）映射，
- * 避免在板卡抽象层（board.h，不依赖 rknn_api.h）耦合 RKNN 枚举。
- */
-static rknn_core_mask mlvc_npu_core_mask(int npu_cores)
-{
-    switch (npu_cores) {
-    case 3:  return RKNN_NPU_CORE_0_1_2;
-    case 2:  return RKNN_NPU_CORE_0_1;
-    default: return RKNN_NPU_CORE_0;   /* 1 核及未知 */
-    }
-}
-
 #define MLVC_RKNN_CHECK(call)                                                   \
     do {                                                                        \
         int rc_ = (call);                                                       \
@@ -311,13 +299,14 @@ static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path,
     /*
      * 多核 NPU（如 RK3588 三核）显式启用全部核心：默认 AUTO 仅单核调度，
      * 显式 core_mask 让运行时在核间分配算子，显著降低编码推理延迟
-     *（RK3588 受控实测编码 +24%）。核心数取自板卡 profile，单核平台
-     *（如 RV1126B）保持默认单核行为，不调用 set_core_mask。
+     *（RK3588 受控实测编码 +24%）。核心数来自平台探测，并由驱动自适应
+     * 校正（rkvc_rknn_apply_npu_cores 向下尝试）；单核平台（如 RV1126B）
+     * 保持默认单核行为，不调用 set_core_mask。
      */
     {
-        const rkvc_board_profile *bp = rkvc_board_profile_active();
-        if (bp && bp->has_npu && bp->npu_cores > 1)
-            rknn_set_core_mask(m->ctx, mlvc_npu_core_mask(bp->npu_cores));
+        const rkvc_platform_info *pi = rkvc_platform_probe();
+        if (pi->has_npu && pi->npu_cores > 1)
+            rkvc_rknn_apply_npu_cores(m->ctx, pi->npu_cores);
     }
     rc = rknn_query(m->ctx, RKNN_QUERY_IN_OUT_NUM, &m->io_num, sizeof(m->io_num));
     if (rc != RKNN_SUCC) {

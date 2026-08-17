@@ -11,12 +11,14 @@ int main(int argc, char **argv) {
     rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_TRANSCODE, &d);
     d.input_path = argv[1]; d.output_path = argv[2];
     if (argc > 3) {
-        if (strcmp(argv[3], "realtime") == 0) d.policy = RKVC_POLICY_REALTIME;
-        else if (strcmp(argv[3], "balanced") == 0) d.policy = RKVC_POLICY_BALANCED;
-        else if (strcmp(argv[3], "quality") == 0) d.policy = RKVC_POLICY_QUALITY;
-        else if (strcmp(argv[3], "offline") == 0) d.policy = RKVC_POLICY_OFFLINE;
-        else if (strcmp(argv[3], "neural") == 0) d.policy = RKVC_POLICY_NEURAL;
-        else {
+        d.policy = (rkvc_policy)-1;
+        for (int i = 0; i <= RKVC_POLICY_NEURAL; i++) {
+            if (strcmp(argv[3], rkvc_policy_name((rkvc_policy)i)) == 0) {
+                d.policy = (rkvc_policy)i;
+                break;
+            }
+        }
+        if ((int)d.policy < 0) {
             fprintf(stderr, "invalid policy: %s\n", argv[3]);
             return 1;
         }

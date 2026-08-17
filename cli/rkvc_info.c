@@ -46,12 +46,11 @@ int main(int argc, char **argv)
         return 1;
 
     if (json) {
-        printf("{\"version\":\"%s\",\"board\":\"%s\",\"h264_enc\":%s,\"hevc_enc\":%s,"
+        printf("{\"version\":\"%s\",\"soc\":\"%s\",\"h264_enc\":%s,\"hevc_enc\":%s,"
                "\"av1_enc\":%s,\"h264_dec\":%s,\"hevc_dec\":%s,"
-               "\"av1_dec\":%s,\"dma_heap\":%s,\"rga\":%s,\"rknn\":%s,"
-               "\"max_width\":%d,\"max_height\":%d}\n",
+               "\"av1_dec\":%s,\"dma_heap\":%s,\"rga\":%s,\"rknn\":%s}\n",
                rkvc_version(),
-               rkvc_board_id_name(caps.board),
+               caps.soc[0] ? caps.soc : "unknown",
                caps.has_h264_enc ? "true" : "false",
                caps.has_hevc_enc ? "true" : "false",
                caps.has_av1_enc ? "true" : "false",
@@ -60,17 +59,15 @@ int main(int argc, char **argv)
                caps.has_av1_dec ? "true" : "false",
                caps.has_dma_heap ? "true" : "false",
                caps.has_rga ? "true" : "false",
-               caps.has_rknn ? "true" : "false",
-               caps.max_width, caps.max_height);
+               caps.has_rknn ? "true" : "false");
     } else {
         printf("rkvc %s\n", rkvc_version());
-        printf("board: %s\n", rkvc_board_id_name(caps.board));
+        printf("soc: %s\n", caps.soc[0] ? caps.soc : "unknown");
         printf("H.264 enc/dec: %d/%d\n", caps.has_h264_enc, caps.has_h264_dec);
         printf("HEVC  enc/dec: %d/%d\n", caps.has_hevc_enc, caps.has_hevc_dec);
         printf("AV1   enc/dec: %d/%d\n", caps.has_av1_enc, caps.has_av1_dec);
-        printf("DMA heap: %d  RGA: %d  RKNN: %d  max %dx%d\n",
-               caps.has_dma_heap, caps.has_rga, caps.has_rknn,
-               caps.max_width, caps.max_height);
+        printf("DMA heap: %d  RGA: %d  RKNN: %d\n",
+               caps.has_dma_heap, caps.has_rga, caps.has_rknn);
     }
     return 0;
 }

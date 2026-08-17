@@ -12,7 +12,7 @@ rkvc_info -j           # JSON
 rkvc_info -v           # 版本号
 ```
 
-JSON 输出字段：`h264_enc`、`hevc_enc`、`av1_enc`、`h264_dec`、`hevc_dec`、`av1_dec`、`dma_heap`、`rga`、`max_width`、`max_height`。
+JSON 输出字段：`soc`、`h264_enc`、`hevc_enc`、`av1_enc`、`h264_dec`、`hevc_dec`、`av1_dec`、`dma_heap`、`rga`、`rknn`。
 
 ### rkvc_encode
 
@@ -32,6 +32,7 @@ rkvc_encode -i raw.nv12 -o out.mp4 -s 1920x1080 \
 - `-i` 必须为原始 NV12 文件，不接受 .mp4 / .h265 等压缩文件
 - `--enc-scale-denom N`：编码前 RGA 下采样（宽高各 /N）；**解码后上采样不在本工具内**
 - 后处理上采样（RGA / `rkvc_sr`）请用 `rkvc_session_upscale` 或 `FILE_DECODE` + `post_upscale_algo`
+- `-p neural`（MLVC）需 `--mlvc-*` 模型参数，请改用 `rkvc_transcode`
 - 已移除 `--testsrc`、`--stdin`、`--stdout`；测试图案请用 `example_encode_file`
 
 ### rkvc_decode

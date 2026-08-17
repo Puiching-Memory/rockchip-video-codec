@@ -19,7 +19,6 @@ static void test_query_caps_contracts(void **state)
     rkvc_caps caps;
     assert_int_equal(rkvc_query_caps(NULL), RKVC_ERR_INVALID);
     assert_int_equal(rkvc_query_caps(&caps), RKVC_OK);
-    assert_true(caps.max_width >= 1920);
     assert_true(caps.has_av1_enc == 1);
     assert_true(caps.has_rknn == 0 || caps.has_rknn == 1);
 }

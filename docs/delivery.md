@@ -26,18 +26,18 @@
 
 适用于摄像头采集、低延迟预览、流式推拉等**实时**场景，通过 Session **命名端口**（`capture` / `output`；`preview` 为占位）逐帧 push/pull。
 
-| 能力                       | 状态           | 说明                                                                                   |
-| -------------------------- | -------------- | -------------------------------------------------------------------------------------- |
+| 能力                       | 状态           | 说明                                                                                                      |
+| -------------------------- | -------------- | --------------------------------------------------------------------------------------------------------- |
 | 低延迟编解码链路           | ✅ 可测         | LIVE_CAPTURE + `low_latency`（`example_live_capture`）；`example_latency_test` 仅测 `session_create` 耗时 |
-| 流式 Session API           | ✅ 可用         | `example_live_capture` / `example_adaptive_bitrate`（命名端口 push/pull）              |
-| 三策略实时转码             | ✅ 可用         | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
-| 非实时高质量               | ✅ 可用         | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps）                              |
-| V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用         | `capture_device` + `example_live_capture`；`"mock"` 合成源可测                         |
-| UDP/RTP 网络回环           | ✅ 原语         | `rkvc_net_*` + `example_net_loopback` / `network-e2e-test.sh`                          |
-| ROI                        | ✅ 硬路径       | H.264/HEVC：`rkmppenc`→MPP `KEY_ROI_DATA`（相对 QP / force_intra）；SVT 忽略           |
-| 多 Session 配额            | ✅ 可用         | `rkvc_runtime_set_quota`                                                               |
-| 热切换（码率/GOP/IDR）     | ✅ 可用         | `rkvc_session_set_bitrate` / `set_gop` / `request_idr`（MPP）                          |
-| `preview` 端口             | ✅ LIVE_CAPTURE | 与 `capture` 同帧侧抽；满则丢最旧                                                      |
+| 流式 Session API           | ✅ 可用         | `example_live_capture` / `example_adaptive_bitrate`（命名端口 push/pull）                                 |
+| 三策略实时转码             | ✅ 可用         | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps                    |
+| 非实时高质量               | ✅ 可用         | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps）                                                 |
+| V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用         | `capture_device` + `example_live_capture`；`"mock"` 合成源可测                                            |
+| UDP/RTP 网络回环           | ✅ 原语         | `rkvc_net_*` + `example_net_loopback` / `network-e2e-test.sh`                                             |
+| ROI                        | ✅ 硬路径       | H.264/HEVC：`rkmppenc`→MPP `KEY_ROI_DATA`（相对 QP / force_intra）；SVT 忽略                              |
+| 多 Session 配额            | ✅ 可用         | `rkvc_runtime_set_quota`                                                                                  |
+| 热切换（码率/GOP/IDR）     | ✅ 可用         | `rkvc_session_set_bitrate` / `set_gop` / `request_idr`（MPP）                                             |
+| `preview` 端口             | ✅ LIVE_CAPTURE | 与 `capture` 同帧侧抽；满则丢最旧                                                                         |
 
 **在线 vs 离线差异小结**：
 

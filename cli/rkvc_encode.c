@@ -19,7 +19,8 @@ static void usage(void)
            "[--rc-mode vbr|cbr|cqp] [--qp N] [--enc-scale-denom N] "
            "[--svt-lp N] [--svt-rtc]\n"
            "  Note: --enc-scale-denom downscales before encode only.\n"
-           "  Post-upscale (RGA / rkvc_sr) uses rkvc_session_upscale, not this tool.\n");
+           "  Post-upscale (RGA / rkvc_sr) uses rkvc_session_upscale, not this tool.\n"
+           "  Policy 'neural' (MLVC) needs --mlvc-* model args; use rkvc_transcode instead.\n");
 }
 
 int main(int argc, char **argv)

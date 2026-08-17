@@ -43,6 +43,10 @@ CLIP_START_SEC="${CLIP_START_SEC:-}"
 # shellcheck source=../scripts/build-common.sh
 source "$PROJECT_ROOT/scripts/build-common.sh" 2>/dev/null || true
 
+# SoC 名（供 config.py {soc} 模板与下方 MLVC 模型默认值共用）
+RKVC_SOC="${RKVC_SOC:-$(rkvc_soc_name 2>/dev/null || true)}"
+export RKVC_SOC
+
 load_bench_config
 
 case "$RKVC_BUILD" in /*) ;; *) RKVC_BUILD="$PROJECT_ROOT/$RKVC_BUILD" ;; esac
@@ -74,14 +78,16 @@ RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/models/rkvc_sr_x3.crypt.rknn}"
 export RKVC_SR_MODEL
 RKVC_ENC="$RKVC_BUILD/rkvc_encode"
 
-# MLVC 神经编解码（-p neural）：模型与 PMF 表路径
-MLVC_ENC_MODEL="${MLVC_ENC_MODEL:-$PROJECT_ROOT/models/MLVCEncoder_rk3588.rknn}"
-MLVC_DEC_MODEL="${MLVC_DEC_MODEL:-$PROJECT_ROOT/models/MLVCDecoder_rk3588.rknn}"
-MLVC_GAUSSIAN_PMF="${MLVC_GAUSSIAN_PMF:-$PROJECT_ROOT/models/gaussian.bin}"
-MLVC_BITEST_PMF="${MLVC_BITEST_PMF:-$PROJECT_ROOT/models/bitest.bin}"
-# MLVC 固定分辨率（模型训练尺寸）
-MLVC_W="${MLVC_W:-640}"
-MLVC_H="${MLVC_H:-368}"
+# MLVC 神经编解码（-p neural）：模型/PMF 路径与分辨率默认由 config.json
+# （mlvc.*，{soc} 占位符按探测 SoC 展开）经 config.py 导出；env 可覆盖。
+MLVC_ENC_MODEL="${MLVC_ENC_MODEL:-$PROJECT_ROOT/models/MLVCEncoder_${RKVC_SOC}.rknn}"
+MLVC_DEC_MODEL="${MLVC_DEC_MODEL:-$PROJECT_ROOT/models/MLVCDecoder_${RKVC_SOC}.rknn}"
+
+# codec/policy 清单单一来源：新增时改这里 + config.json + plot_rd_curve.py
+POST_UPSCALE_BASE_LIST=(h264 h265 svt-av1 svt-av1-hq)
+POST_UPSCALE_BASE_RE="($(IFS='|'; echo "${POST_UPSCALE_BASE_LIST[*]}"))"
+RKVC_ALL_POLICIES=(realtime balanced quality offline neural)
+ALL_KNOWN_CODECS=(h264 h265 svt-av1 svt-av1-hq svt-av1+superres rkvc rkvc-realtime rkvc-balanced rkvc-quality rkvc-offline rkvc-neural)
 
 FFMPEG_LIB_DIRS=""
 for _d in "$FFMPEG_SRC"/libav* "$FFMPEG_SRC"/libsw* "$FFMPEG_SRC"/libpostproc; do
@@ -735,7 +741,7 @@ post_upscale_algo_enabled() {
 
 post_upscale_will_rerun() {
     local base algo
-    for base in h264 h265 svt-av1 svt-av1-hq; do
+    for base in "${POST_UPSCALE_BASE_LIST[@]}"; do
         if post_upscale_base_enabled "$base"; then
             return 0
         fi
@@ -1204,10 +1210,10 @@ codec_will_rerun() {
     if [[ "$codec" == post-upscale ]]; then
         post_upscale_will_rerun && return 0
     fi
-    if [[ "$codec" =~ ^(h264|h265|svt-av1-hq|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
+    if [[ "$codec" =~ ^${POST_UPSCALE_BASE_RE}\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
         post_upscale_algo_enabled "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" && return 0
     fi
-    if [[ "$codec" =~ ^(h264|h265|svt-av1-hq|svt-av1)\+up[0-9]+x$ ]]; then
+    if [[ "$codec" =~ ^${POST_UPSCALE_BASE_RE}\+up[0-9]+x$ ]]; then
         post_upscale_base_enabled "${BASH_REMATCH[1]}" && return 0
     fi
     return 1
@@ -1233,12 +1239,12 @@ if codec_enabled rkvc-neural || { codec_enabled rkvc && rkvc_policy_enabled neur
 fi
 echo "[info] ramdisk: $RAMDISK_DIR (码流/YUV 中间文件 tmpfs)"
 
-for codec in h264 h265 svt-av1 svt-av1-hq svt-av1+superres rkvc rkvc-realtime rkvc-balanced rkvc-quality rkvc-offline rkvc-neural; do
+for codec in "${ALL_KNOWN_CODECS[@]}"; do
     codec_will_rerun "$codec" && rm -rf "$RAM_WORK_DIR/$codec"
 done
 if post_upscale_will_rerun; then
     IFS=',' read -ra _up_algos <<< "$UPSCALE_ALGOS"
-    for base in h264 h265 svt-av1 svt-av1-hq; do
+    for base in "${POST_UPSCALE_BASE_LIST[@]}"; do
         post_upscale_base_enabled "$base" || continue
         for algo in "${_up_algos[@]}"; do
             _c=$(post_upscale_codec_name "$base" "$algo")
@@ -1253,7 +1259,7 @@ rm -f "$WORKDIR"/results_*.csv
 
 bench_rkvc_policies() {
     local policy fn
-    for policy in realtime balanced quality offline neural; do
+    for policy in "${RKVC_ALL_POLICIES[@]}"; do
         if ! rkvc_policy_selected "$policy"; then
             continue
         fi
@@ -1286,7 +1292,7 @@ bench_post_upscale() {
     local base algo c
     declare -A _ran=()
     IFS=',' read -ra _bench_algos <<< "$UPSCALE_ALGOS"
-    for base in h264 h265 svt-av1 svt-av1-hq; do
+    for base in "${POST_UPSCALE_BASE_LIST[@]}"; do
         post_upscale_base_enabled "$base" || continue
         for algo in "${_bench_algos[@]}"; do
             if ! post_upscale_algo_enabled "$base" "$algo"; then
@@ -1303,7 +1309,7 @@ bench_post_upscale() {
     done
     IFS=',' read -ra _run_codecs <<< "$RUN_CODECS"
     for c in "${_run_codecs[@]}"; do
-        if [[ "$c" =~ ^(h264|h265|svt-av1-hq|svt-av1)\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
+        if [[ "$c" =~ ^${POST_UPSCALE_BASE_RE}\+up[0-9]+x-(nearest|bilinear|bicubic|rkvc_sr)$ ]]; then
             base="${BASH_REMATCH[1]}"
             algo="${BASH_REMATCH[2]}"
             [[ -n "${_ran[${base}|${algo}]:-}" ]] && continue

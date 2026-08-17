@@ -29,7 +29,7 @@ typedef enum {
 /**
  * @brief 端到端质量/延迟策略（Codec Router 输入）。
  *
- * 与 CLI `-p realtime|balanced|quality|offline` 对应。
+ * 与 CLI `-p realtime|balanced|quality|offline|neural` 对应。
  */
 typedef enum {
     RKVC_POLICY_REALTIME = 0,   /**< H.264 RKMPP，目标 ≥30fps@1080p */

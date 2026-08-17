@@ -10,10 +10,10 @@
 
 C 侧不向 NPU 喂 qp（qp 只用于 rANS：`z_idx = qp * ZC + c`）。因此导出时必须把 `q_index_shifted` **折成常量**。
 
-| 部件 | 输入 | 输出 |
-| ---- | ---- | ---- |
-| 编码器 | 按名字：图像（`x` / `New_input_x`）、`ref_feature` | 按名字：`feature` / `z_raw` / `y_raw_0` / `y_raw_1` |
-| 解码器 | 按名字：`z_raw`、`y_raw_0`、`y_raw_1`、`ref_feature` | 按名字：`x_hat`、`feature` |
+| 部件   | 输入                                                 | 输出                                                |
+| ------ | ---------------------------------------------------- | --------------------------------------------------- |
+| 编码器 | 按名字：图像（`x` / `New_input_x`）、`ref_feature`   | 按名字：`feature` / `z_raw` / `y_raw_0` / `y_raw_1` |
+| 解码器 | 按名字：`z_raw`、`y_raw_0`、`y_raw_1`、`ref_feature` | 按名字：`x_hat`、`feature`                          |
 
 默认把解码器尾部 `DepthToSpace(mode=DCR)+Clip(0,1)` 拆出图外（`--no-extract-tail` 关闭）。此时 RKNN 的 `x_hat` 是 shuffle 前的 head conv（640×368 时为 `[1,192,46,80]`），`node_mlvc.c` 按 native 通道数自动做 CPU DCR + clip；旧的整图 `x_hat=[1,3,H,W]` 模型不用改。
 
@@ -82,22 +82,22 @@ python3 tools/mlvc/export_rknn.py \
 
 常用选项：
 
-| 选项 | 说明 |
-| ---- | ---- |
-| `--qp 21` | 折进图的 `q_index`（默认 21，与 `node_mlvc` 一致） |
-| `--qp-list 10,21,30,40` | 每个 qp 一份模型，写入 `models/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 `models/` 根目录作默认 |
-| `--skip-rknn` | 只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用） |
-| `--pmf-only` | 只把 JSON 写成 `gaussian.bin` / `bitest.bin` |
-| `--inspect` | 只打印 ONNX I/O |
-| `--no-rewrite` | 不做 SpaceToDepth / Max / Div 替换 |
-| `--no-extract-tail` | 保留解码器尾部 DepthToSpace+Clip 在图内（默认拆到 CPU） |
-| `--no-fold-qp` | 保留 `q_index` 输入（C 运行时目前不能喂） |
-| `--keep-onnx` | 在输出目录保留处理后的 ONNX |
-| `--platform rk3588` | RKNN `target_platform` |
-| `--from-mlvc` | 浅克隆 microsoft/mlvc 并先导出 ONNX（权重与占位 YUV 在 `.build/deps/mlvc-data`） |
-| `--mlvc-dir` / `--weights-path` | 覆盖上游源码或 checkpoint 路径 |
-| `--onnx-frame-count` | `convert.py` tracing 帧数（默认 2；官方默认 48） |
-| `--patch-dir DIR` | QPP1 输出目录（默认 `{out-dir}/qp_patches`） |
+| 选项                            | 说明                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--qp 21`                       | 折进图的 `q_index`（默认 21，与 `node_mlvc` 一致）                                                           |
+| `--qp-list 10,21,30,40`         | 每个 qp 一份模型，写入 `models/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 `models/` 根目录作默认 |
+| `--skip-rknn`                   | 只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用）                                                     |
+| `--pmf-only`                    | 只把 JSON 写成 `gaussian.bin` / `bitest.bin`                                                                 |
+| `--inspect`                     | 只打印 ONNX I/O                                                                                              |
+| `--no-rewrite`                  | 不做 SpaceToDepth / Max / Div 替换                                                                           |
+| `--no-extract-tail`             | 保留解码器尾部 DepthToSpace+Clip 在图内（默认拆到 CPU）                                                      |
+| `--no-fold-qp`                  | 保留 `q_index` 输入（C 运行时目前不能喂）                                                                    |
+| `--keep-onnx`                   | 在输出目录保留处理后的 ONNX                                                                                  |
+| `--platform rk3588`             | RKNN `target_platform`                                                                                       |
+| `--from-mlvc`                   | 浅克隆 microsoft/mlvc 并先导出 ONNX（权重与占位 YUV 在 `.build/deps/mlvc-data`）                             |
+| `--mlvc-dir` / `--weights-path` | 覆盖上游源码或 checkpoint 路径                                                                               |
+| `--onnx-frame-count`            | `convert.py` tracing 帧数（默认 2；官方默认 48）                                                             |
+| `--patch-dir DIR`               | QPP1 输出目录（默认 `{out-dir}/qp_patches`）                                                                 |
 
 `--onnx-dir` 也可指向更上层目录，工具会递归查找 `MLVCEncoder.onnx` 等文件名。
 
@@ -105,11 +105,11 @@ python3 tools/mlvc/export_rknn.py \
 
 对齐 NPU profile 的 CPU fallback：
 
-| 原算子 | 替换 | 说明 |
-| ------ | ---- | ---- |
-| `SpaceToDepth` | `Reshape` + `Transpose(perm=[0,3,5,1,2,4])` + `Reshape` | 与 ONNX 规范等价 |
-| `Max(x, const)` / `Min(x, const)` | `Clip` | RKNN 上 Max 走 CPU，Clip 可上 NPU |
-| `Div(x, const)` | `Mul(x, 1/const)` | |
+| 原算子                            | 替换                                                    | 说明                              |
+| --------------------------------- | ------------------------------------------------------- | --------------------------------- |
+| `SpaceToDepth`                    | `Reshape` + `Transpose(perm=[0,3,5,1,2,4])` + `Reshape` | 与 ONNX 规范等价                  |
+| `Max(x, const)` / `Min(x, const)` | `Clip`                                                  | RKNN 上 Max 走 CPU，Clip 可上 NPU |
+| `Div(x, const)`                   | `Mul(x, 1/const)`                                       |                                   |
 
 需要固定 NCHW 形状才能展开 SpaceToDepth；动态维会跳过并打日志。
 

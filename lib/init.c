@@ -7,7 +7,7 @@
  */
 
 #include "internal.h"
-#include "board.h"
+#include "platform.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -306,36 +306,32 @@ rkvc_err rkvc_query_caps(rkvc_caps *caps)
     memset(caps, 0, sizeof(*caps));
 
     /*
-     * 板卡 profile 是所有板级常量的唯一来源（lib/board.c）。
-     * 硬件编解码能力 = 运行时探测（ffmpeg 注册 + 设备权限）∩ 板卡 VPU 硬件支持；
-     * 软件编码器（SVT-AV1）与板卡无关，不做板卡门控。
+     * 平台信息全部来自运行时探测（lib/platform.c），无任何预设板卡表。
+     * 硬件编解码能力 = 运行时探测（ffmpeg 注册 + 设备权限）∩ MPP 内核
+     * 能力位上报的 VPU 硬件支持；软件编码器（SVT-AV1）与平台无关，不做门控。
      */
-    const rkvc_board_profile *bp = rkvc_board_profile_active();
-    caps->board = bp->id;
+    const rkvc_platform_info *pi = rkvc_platform_probe();
+    memcpy(caps->soc, pi->soc, sizeof(caps->soc));
 
     rkvc_err hw_perm = rkvc_check_hw_permissions();
     int hw_usable = (hw_perm == RKVC_OK);
 
     caps->has_h264_enc = (avcodec_find_encoder_by_name("h264_rkmpp") != NULL
-                          && hw_usable && bp->vpu_h264_enc_hw);
+                          && hw_usable && pi->vpu_h264_enc_hw);
     caps->has_hevc_enc = (avcodec_find_encoder_by_name("hevc_rkmpp") != NULL
-                          && hw_usable && bp->vpu_hevc_enc_hw);
+                          && hw_usable && pi->vpu_hevc_enc_hw);
     caps->has_av1_enc  = (avcodec_find_encoder_by_name("libsvtav1") != NULL);
 
     caps->has_h264_dec = (avcodec_find_decoder_by_name("h264_rkmpp") != NULL
-                          && hw_usable && bp->vpu_h264_dec_hw);
+                          && hw_usable && pi->vpu_h264_dec_hw);
     caps->has_hevc_dec = (avcodec_find_decoder_by_name("hevc_rkmpp") != NULL
-                          && hw_usable && bp->vpu_hevc_dec_hw);
+                          && hw_usable && pi->vpu_hevc_dec_hw);
     caps->has_av1_dec  = (avcodec_find_decoder_by_name("av1_rkmpp") != NULL
-                          && hw_usable && bp->vpu_av1_dec_hw);
+                          && hw_usable && pi->vpu_av1_dec_hw);
 
     caps->has_dma_heap = mpp_default_dma_heap_accessible();
-    caps->has_rga = bp->has_rga && (rkvc_dev_access("/dev/rga", R_OK | W_OK) == 0);
+    caps->has_rga = pi->has_rga && (rkvc_dev_access("/dev/rga", R_OK | W_OK) == 0);
     caps->has_rknn = rkvc_rknn_sr_available() ? 1 : 0;
-
-    /* max_width/height 取 VPU 硬件解码上限（与原 RK3588 7680×4320 语义一致） */
-    caps->max_width  = bp->max_dec_w;
-    caps->max_height = bp->max_dec_h;
 
     return RKVC_OK;
 }

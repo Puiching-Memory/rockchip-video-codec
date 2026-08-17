@@ -32,8 +32,8 @@
     "parallel": false
   },
   "mlvc": {
-    "enc_model": "models/MLVCEncoder_rk3588.rknn",
-    "dec_model": "models/MLVCDecoder_rk3588.rknn",
+    "enc_model": "models/MLVCEncoder_{soc}.rknn",
+    "dec_model": "models/MLVCDecoder_{soc}.rknn",
     "gaussian_pmf": "models/gaussian.bin",
     "bitest_pmf": "models/bitest.bin",
     "width": 640,

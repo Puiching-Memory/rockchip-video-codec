@@ -36,19 +36,6 @@ option(RKVC_ENABLE_MLVC    "Enable MLVC neural video codec (RKNN NPU + pure-C rA
 option(RKVC_RKNN_ALLOW_DEBUG_LOG "Respect RKNN_LOG_LEVEL / RKVC_DEBUG_RKNN_LOG at runtime for internal diagnostics (leaks model topology to end users; keep OFF for distribution)" OFF)
 option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
 
-# ── 目标板卡 ──────────────────────────────────────────────────────────
-# 多板卡架构：指定编译期默认板卡（运行时仍按 device-tree / RKVC_BOARD 探测覆盖）。
-set(RKVC_BOARD "rk3588" CACHE STRING
-    "Compile-time default board (rk3588|rv1126b); runtime detection still applies")
-set_property(CACHE RKVC_BOARD PROPERTY STRINGS rk3588 rv1126b)
-if(RKVC_BOARD STREQUAL "rv1126b")
-    set(RKVC_DEFAULT_BOARD_ID 2)   # RKVC_BOARD_RV1126B
-elseif(RKVC_BOARD STREQUAL "rk3588")
-    set(RKVC_DEFAULT_BOARD_ID 1)   # RKVC_BOARD_RK3588
-else()
-    message(FATAL_ERROR "RKVC_BOARD='${RKVC_BOARD}' unknown; expected rk3588 or rv1126b")
-endif()
-
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库
 set(AVCODEC_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip")
@@ -69,6 +56,7 @@ else()
     set(MPP_LIB_DIR "${MPP_BUILD_DIR}/mpp")
 endif()
 set(MPP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/mpp/inc")
+set(MPP_OSAL_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/mpp/osal/inc")
 
 set(SVT_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/svt-av1-install" CACHE PATH "SVT-AV1 install prefix")
 
@@ -113,7 +101,7 @@ set(EXTRA_LIBS
 )
 set(RKVC_SOURCES
     lib/init.c
-    lib/board.c
+    lib/platform.c
     lib/ffmpeg_util.c
     lib/utils.c
     lib/buffer_pool.c
@@ -342,19 +330,37 @@ else()
 endif()
 
 # ── 库目标 ─────────────────────────────────────────────────────────────
-if(RKVC_BUILD_SHARED)
-    add_library(rkvc_shared SHARED ${RKVC_SOURCES})
-    target_include_directories(rkvc_shared
+# shared/static 公共配置（include、特性宏、版本/授权宏）；链接可见性各自处理
+function(rkvc_configure_target tgt)
+    target_include_directories(${tgt}
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
             $<INSTALL_INTERFACE:include>
         PRIVATE
             ${AVCODEC_INCLUDE_DIRS}
             ${MPP_INCLUDE_DIR}
+            ${MPP_OSAL_INCLUDE_DIR}
             ${RGA_INCLUDE_DIR}
             ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            ${RKVC_LICENSE_INCLUDES}
     )
+    if(RKVC_RKNN_ENABLED)
+        target_compile_definitions(${tgt} PRIVATE RKVC_ENABLE_RKNN=1)
+        if(RKVC_RKNN_ALLOW_DEBUG_LOG)
+            target_compile_definitions(${tgt} PRIVATE RKVC_RKNN_ALLOW_DEBUG_LOG=1)
+        endif()
+    endif()
+    if(RKVC_MLVC_ENABLED)
+        target_compile_definitions(${tgt} PRIVATE RKVC_ENABLE_MLVC=1)
+    endif()
+    # 版本号由 project(VERSION) 注入，init.c 不再硬编码
+    target_compile_definitions(${tgt} PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS})
+endfunction()
+
+if(RKVC_BUILD_SHARED)
+    add_library(rkvc_shared SHARED ${RKVC_SOURCES})
+    rkvc_configure_target(rkvc_shared)
     target_link_directories(rkvc_shared PRIVATE ${RKVC_DEP_LIB_DIRS})
     target_link_options(rkvc_shared PRIVATE
         ${RKVC_RPATH_LINK_OPTIONS}
@@ -363,57 +369,23 @@ if(RKVC_BUILD_SHARED)
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/librkvc.map"
         "-Wl,-Bsymbolic-functions")
     target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
-    if(RKVC_RKNN_ENABLED)
-        target_compile_definitions(rkvc_shared PRIVATE RKVC_ENABLE_RKNN=1)
-        if(RKVC_RKNN_ALLOW_DEBUG_LOG)
-            target_compile_definitions(rkvc_shared PRIVATE RKVC_RKNN_ALLOW_DEBUG_LOG=1)
-        endif()
-    endif()
-    if(RKVC_MLVC_ENABLED)
-        target_compile_definitions(rkvc_shared PRIVATE RKVC_ENABLE_MLVC=1)
-    endif()
     set_target_properties(rkvc_shared PROPERTIES
         OUTPUT_NAME rkvc
         VERSION     ${PROJECT_VERSION}
         SOVERSION   0
         POSITION_INDEPENDENT_CODE ON
     )
-    # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(rkvc_shared PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS} RKVC_DEFAULT_BOARD=${RKVC_DEFAULT_BOARD_ID})
-    target_include_directories(rkvc_shared PRIVATE ${RKVC_LICENSE_INCLUDES})
     # soname alias
     add_library(rkvc::shared ALIAS rkvc_shared)
 endif()
 
 if(RKVC_BUILD_STATIC)
     add_library(rkvc_static STATIC ${RKVC_SOURCES})
-    target_include_directories(rkvc_static
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>
-        PRIVATE
-            ${AVCODEC_INCLUDE_DIRS}
-            ${MPP_INCLUDE_DIR}
-            ${RGA_INCLUDE_DIR}
-            ${RKVC_RKNN_INCLUDES}
-            ${CMAKE_CURRENT_SOURCE_DIR}/lib
-    )
+    rkvc_configure_target(rkvc_static)
     target_link_directories(rkvc_static PUBLIC ${RKVC_DEP_LIB_DIRS})
     target_link_options(rkvc_static INTERFACE ${RKVC_RPATH_LINK_OPTIONS})
     target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
-    if(RKVC_RKNN_ENABLED)
-        target_compile_definitions(rkvc_static PRIVATE RKVC_ENABLE_RKNN=1)
-        if(RKVC_RKNN_ALLOW_DEBUG_LOG)
-            target_compile_definitions(rkvc_static PRIVATE RKVC_RKNN_ALLOW_DEBUG_LOG=1)
-        endif()
-    endif()
-    if(RKVC_MLVC_ENABLED)
-        target_compile_definitions(rkvc_static PRIVATE RKVC_ENABLE_MLVC=1)
-    endif()
     set_target_properties(rkvc_static PROPERTIES OUTPUT_NAME rkvc)
-    # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(rkvc_static PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS} RKVC_DEFAULT_BOARD=${RKVC_DEFAULT_BOARD_ID})
-    target_include_directories(rkvc_static PRIVATE ${RKVC_LICENSE_INCLUDES})
     add_library(rkvc::static ALIAS rkvc_static)
 endif()
 

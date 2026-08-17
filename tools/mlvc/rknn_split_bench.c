@@ -11,6 +11,8 @@
 #include <rknn_api.h>
 #include <rknn_custom_op.h>
 
+#include "rknn_util.h"
+
 #include <errno.h>
 #include <math.h>
 #include <stdint.h>
@@ -332,7 +334,7 @@ static int model_load(model_t *m, const char *path, int custom)
     fclose(fp);
     m->model_size = (uint32_t)sz;
     CHECK(rknn_init(&m->ctx, m->model_buf, m->model_size, 0, NULL));
-    rknn_set_core_mask(m->ctx, RKNN_NPU_CORE_0_1_2);
+    rkvc_rknn_apply_npu_cores(m->ctx, 3);
     if (custom) {
         int rc = register_std(m->ctx);
         printf("  custom SpaceToDepth register rc=%d\n", rc);

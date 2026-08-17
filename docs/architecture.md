@@ -2,17 +2,17 @@
 
 rkvc 以 **Session** 为核心，将编解码流程建模为可配置的 **节点图**，由 **Codec Router** 按策略选择 H.264 / HEVC / AV1 路线。
 
-## 板卡抽象（多 SoC）
+## 平台探测（无预设板卡）
 
-rkvc 原生仅针对 RK3588，现重构为多板卡架构。所有板级常量（最大编/解分辨率、VPU 编解码硬件支持、NPU、RGA）统一收拢到 **板卡 profile**（`lib/board.c`），源码其余部分不再硬编码板级假设。
+rkvc 不维护任何预设板卡/SoC 知识：所有平台事实都在运行时从系统信息探测（`lib/platform.c`），新增板卡无需改动任何代码。
 
-- **公共 API**（`include/rkvc/board.h`）：`rkvc_board_id` 枚举（`RKVC_BOARD_RK3588` / `RKVC_BOARD_RV1126B` / `RKVC_BOARD_UNKNOWN`）、`rkvc_board_id_name()` / `rkvc_board_id_from_name()` / `rkvc_detect_board()`。
-- **内部 profile**（`lib/board.h`）：`rkvc_board_profile`、`rkvc_board_profile_get()` / `rkvc_board_profile_active()`。
-- **板卡选取优先级**：`RKVC_BOARD` 环境变量 → `/proc/device-tree/compatible` 自动探测 → 编译期默认（CMake `RKVC_BOARD`，默认 `rk3588`）。
-- **`rkvc_caps` 新增 `board` 字段**；`rkvc_query_caps` 的硬件编解码能力 = 运行时探测（ffmpeg 注册 + 设备权限）∩ 板卡 VPU 硬件支持（软件 SVT-AV1 编码器与板卡无关，不做门控）。
-- **新增板卡**：在 `lib/board.c` 的 profile 表追加一项，并在 `rkvc_board_id_name()` / `name_to_id()` / `detect_from_dt()` 中登记名称与 device-tree 字段；CMake `RKVC_BOARD` 的 `STRINGS` 与 `RKVC_DEFAULT_BOARD_ID` 映射同步更新。
-
-> **当前板卡**：`RKVC_BOARD_RK3588`（权威值）、`RKVC_BOARD_RV1126B`（Rockchip 官网 RV11 系列页权威值：4K 编解码 / 3 TOPS NPU / Quad Cortex-A53，无 AV1 硬件编解码）。
+- **SoC 名**：`/proc/device-tree/compatible` 的 `rockchip,<soc>` 条目（如 `rk3588`、`rk3576`）。
+- **NPU**：存在性看 `/sys/kernel/debug/rknpu/version` 或 `/dev/dri/by-path/*npu*`；核心数数 rknpu debugfs `load` 的 `CoreN:` 条目。
+- **RGA**：`/dev/rga` 存在性。
+- **VPU 编解码能力**：MPP `mpp_get_vcodec_type()`——内核驱动经 `mpp_service` ioctl 上报的硬件能力位（内核不可用时 MPP 按其 SoC 库兜底）；按 MPP 引擎语义映射（VDPU/RKVDEC → 解码、VEPU/RKVENC → 编码、AV1DEC → AV1 硬解；Rockchip 无 AV1 硬编引擎，AV1 编码走软件 SVT-AV1）。
+- **NPU 多核自适应**（`lib/rknn_util.h`）：`rkvc_rknn_apply_npu_cores()` 从探测核心数向下尝试 `rknn_set_core_mask`，以 RKNN 驱动为最终权威（如 RK3576 双核自动 0x7→0x3）。
+- **能力汇总**：`rkvc_query_caps`（`lib/init.c`）= FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 上报的 VPU 支持；`rkvc_caps.soc` 为探测到的 SoC 名。
+- **分辨率上限**：内核无探测渠道（`MPP_DEV_GET_MAX_*` ioctl 未实现），rkvc 不再虚报——超尺寸输入由 MPP 在建链时拒绝。
 
 ## 模块关系
 
@@ -193,7 +193,7 @@ graph TD
 
 | 模块        | 文件            | 公共 API                                        |
 | ----------- | --------------- | ----------------------------------------------- |
-| 板卡抽象    | `board.c`       | `rkvc_detect_board` / `rkvc_board_id_name`      |
+| 平台探测    | `platform.c`    | （内部）`rkvc_platform_probe`                   |
 | 初始化      | `init.c`        | `rkvc_init` / `rkvc_deinit` / `rkvc_version`    |
 | 能力        | `init.c`        | `rkvc_query_caps` / `rkvc_check_hw_permissions` |
 | FFmpeg 工具 | `ffmpeg_util.c` | `rkvc_set_log_level` / `rkvc_get_log_level`     |

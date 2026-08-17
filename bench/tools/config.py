@@ -39,6 +39,12 @@ def load_config(config_path: Path, project_root: Path) -> Dict[str, Any]:
     ):
         if key in paths and paths[key]:
             paths[key] = _resolve_path(project_root, paths[key])
+
+    # mlvc 模型路径支持 {soc} 占位符，按探测到的 SoC 展开
+    mlvc = cfg.setdefault("mlvc", {})
+    for key in ("enc_model", "dec_model", "gaussian_pmf", "bitest_pmf"):
+        if mlvc.get(key):
+            mlvc[key] = _resolve_path(project_root, mlvc[key].replace("{soc}", _detect_soc()))
     return cfg
 
 
@@ -87,6 +93,22 @@ def os_access_executable(path: str) -> bool:
     return os.path.isfile(path) and os.access(path, os.X_OK)
 
 
+def _detect_soc() -> str:
+    """DT compatible 最后一个 rockchip,<soc> 条目（与 lib/platform.c 同规则）。
+    RKVC_SOC 环境变量优先（bench shell 已探测过，避免重复读 DT）。"""
+    import os
+
+    soc = os.environ.get("RKVC_SOC", "")
+    if not soc:
+        try:
+            for entry in Path("/proc/device-tree/compatible").read_bytes().split(b"\0"):
+                if entry.startswith(b"rockchip,"):
+                    soc = entry.split(b",", 1)[1].decode()
+        except OSError:
+            pass
+    return soc.split("-", 1)[0]
+
+
 def defaults_env(cfg: Dict[str, Any]) -> Dict[str, str]:
     clip = cfg["clip"]
     run = cfg["run"]
@@ -94,6 +116,7 @@ def defaults_env(cfg: Dict[str, Any]) -> Dict[str, str]:
     superres = svt.get("superres", {})
     paths = cfg["paths"]
     elementary = clip.get("elementary_mp4", {})
+    mlvc = cfg.get("mlvc", {})
 
     return {
         "CLIP_SEC": str(clip.get("sec", 4)),
@@ -115,7 +138,13 @@ def defaults_env(cfg: Dict[str, Any]) -> Dict[str, str]:
         "UPSCALE_ALGOS": ",".join(run.get("upscale_algos", [])),
         "RUN_CODECS": ",".join(run.get("codecs", [])),
         "RKVC_POLICIES": ",".join(run.get("rkvc_policies", [])),
-        "MLVC_QP": str(cfg.get("mlvc", {}).get("qp", 21)),
+        "MLVC_QP": str(mlvc.get("qp", 21)),
+        "MLVC_W": str(mlvc.get("width", 640)),
+        "MLVC_H": str(mlvc.get("height", 368)),
+        "MLVC_ENC_MODEL": str(mlvc.get("enc_model", "")),
+        "MLVC_DEC_MODEL": str(mlvc.get("dec_model", "")),
+        "MLVC_GAUSSIAN_PMF": str(mlvc.get("gaussian_pmf", "")),
+        "MLVC_BITEST_PMF": str(mlvc.get("bitest_pmf", "")),
         "BENCH_CSV_MODE": str(run.get("csv_mode", "session")),
         "BENCH_PARALLEL": "1" if run.get("parallel") else "0",
         "RAMDISK_DIR": str(cfg.get("ramdisk_dir", "/dev/shm/rkvc-bench")),

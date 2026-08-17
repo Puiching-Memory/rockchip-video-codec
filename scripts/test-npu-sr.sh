@@ -99,7 +99,7 @@ if [[ -n "$DIST_BIN" ]]; then
 elif [[ -x "$RELEASE_DIR/rkvc_session_upscale" && -x "$RELEASE_DIR/rkvc_encode" ]]; then
     UPSCALE_BIN="$RELEASE_DIR/rkvc_session_upscale"
     ENC_BIN="$RELEASE_DIR/rkvc_encode"
-    CLI_LIB_PATH="$RELEASE_DIR:$ROOT_DIR/.build/deps/svt-av1-install/lib:$ROOT_DIR/.build/deps/mpp-install/lib:$ROOT_DIR/.build/deps/ffmpeg-install/lib"
+    CLI_LIB_PATH="$RELEASE_DIR:$(rkvc_dep_library_path)"
 fi
 
 if [[ -n "$UPSCALE_BIN" && -n "$ENC_BIN" ]]; then

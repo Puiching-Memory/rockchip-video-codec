@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### 变更（破坏性）
+
+- **彻底移除预设板卡知识，全部改为运行时系统探测**：删除板卡 profile 表、`include/rkvc/board.h` 公共 API（`rkvc_board_id` / `rkvc_detect_board` 等）、CMake `RKVC_BOARD` 选项与 `RKVC_BOARD` 环境变量。`lib/board.c` 重写为 `lib/platform.c`：SoC 名取 `/proc/device-tree/compatible` 的 `rockchip,<soc>` 条目；NPU 存在性看 rknpu debugfs/DRI 节点、核心数数 `rknpu/load` 的 `CoreN:` 条目；RGA 看 `/dev/rga`；VPU 编解码能力用 MPP `mpp_get_vcodec_type()`（内核 `mpp_service` ioctl 上报的硬件能力位，按 MPP 引擎语义映射）。任何 Rockchip SoC（含未登记的 RK3576）无需改代码即正确工作。
+- **`rkvc_caps` 结构调整**：`board`（枚举）替换为 `soc[32]`（探测到的 SoC 名）；移除 `max_width`/`max_height`（内核无探测渠道，`MPP_DEV_GET_MAX_*` ioctl 未实现，不再虚报，超尺寸输入由 MPP 建链时拒绝）。`rkvc_info` 文本/JSON 输出同步（`board`→`soc`，删除 `max_width`/`max_height`）。
+- **NPU core_mask 自适应降级**（新增 `lib/rknn_util.h`，`node_mlvc.c` / `node_rkvc_sr.c` 共用）：`rkvc_rknn_apply_npu_cores()` 从探测核心数向下尝试 `rknn_set_core_mask`，以 RKNN 驱动为最终权威——RK3576 双核自动 0x7→0x3 吃满双核，消除 `unavailable core mask` 失败；单核平台保持默认行为不变。
+
+### 修复（文档与重复维护收敛）
+
+- **docs/api.md 漂移修正**：`rkvc_policy` 补 `RKVC_POLICY_NEURAL`、`rkvc_codec` 补 `RKVC_CODEC_MLVC`、enc/dec backend 补 `*_MLVC`；错误码表补 `RKVC_ERR_LICENSE(-12)` / `RKVC_ERR_UNLICENSED(-13)`；`rkvc_pipeline_desc` 补 `capture_device` / `capture_max_frames` / `capture_timeout_ms`。
+- **CLI policy/codec 解析改为枚举遍历**：`rkvc_cli_parse_policy` / `rkvc_cli_parse_codec` 与 `examples/transcode.c` 通过 `rkvc_policy_name` / `rkvc_codec_name` 反向匹配，枚举增减不再需要同步手写 strcmp 清单；`rkvc_encode` usage 注明 MLVC 需走 `rkvc_transcode`。
+- **CMake `rkvc_shared`/`rkvc_static` 公共配置收敛**为 `rkvc_configure_target()`，include 目录与特性宏不再双份维护。
+- **scripts 依赖清单单一来源**：可移植包 ffmpeg/全量库清单收敛到 `build-common.sh` 的 `RKVC_BUNDLED_FFMPEG_LIBS` / `RKVC_BUNDLED_ALL_LIBS`（package-portable 与 test-portable 共用）；`test-npu-sr.sh` 的 CLI 库路径改用 `rkvc_dep_library_path()`（原手写清单引用不存在的 `ffmpeg-install`）。
+- **bench 清单收敛**：`run_rd_benchmark.sh` 的 post-upscale 基线/rkvc policy/全 codec 清单收敛为顶部数组（正则由数组生成）；`plot_rd_curve.py` 的 `UPSCALE_BASE_LABELS`/`CODEC_ORDER` 改为从 `CODEC_LABELS` 派生，upscale 正则由 `UPSCALE_BASES` 生成。
+- **MLVC 模型名按探测 SoC 拼接**：`config.json` 的 `mlvc.*_model` 支持 `{soc}` 占位符（config.py 按 `RKVC_SOC`/DT compatible 展开），`run_rd_benchmark.sh` 兜底默认同样按探测拼接，换平台导出模型后无需改脚本；`tools/mlvc/rknn_split_bench.c` 的 core_mask 改用 `rkvc_rknn_apply_npu_cores()`；`tools/mlvc/run_split_exp.py` 的 `--platform` 默认改为 DT 探测。
+
 ## [0.3.1] - 2026-08-17
 
 ### 发布重点

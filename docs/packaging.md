@@ -48,12 +48,12 @@ RKVC_LICENSE_FILE=".build/dist/rkvc-<version>-linux-<arch>-portable-licensed.lic
 
 **密钥管理**（完整版 `rkvc_lic` 仅用于打包机内部；分发包内为裁剪版，无签发能力）：
 
-| 文件 | 路径 | gitignore | 用途 |
-| ---- | ---- | --------- | ---- |
-| 私钥 | `tools/keys/secret.key` | ✅ 已忽略 | 签发 license，保管在打包机 |
-| 公钥 | `tools/keys/public.key` | ❌ 可提交 | 嵌入 librkvc 编译 |
-| 打包方完整工具 | `.build/portable/rkvc_lic` | — | 打包脚本内部生成密钥、签发本机测试 license |
-| 客户机裁剪工具 | `bin/rkvc_lic` | — | 分发版，仅 `machine-id` / `verify` |
+| 文件           | 路径                       | gitignore | 用途                                       |
+| -------------- | -------------------------- | --------- | ------------------------------------------ |
+| 私钥           | `tools/keys/secret.key`    | ✅ 已忽略  | 签发 license，保管在打包机                 |
+| 公钥           | `tools/keys/public.key`    | ❌ 可提交  | 嵌入 librkvc 编译                          |
+| 打包方完整工具 | `.build/portable/rkvc_lic` | —         | 打包脚本内部生成密钥、签发本机测试 license |
+| 客户机裁剪工具 | `bin/rkvc_lic`             | —         | 分发版，仅 `machine-id` / `verify`         |
 
 **客户签发流程**（客户机运行的是裁剪版，打包方使用完整版 `rkvc_lic`）：
 
@@ -187,7 +187,7 @@ ninja -C .build/release -j4 package
 | `scripts/build-svt.sh`                  | 构建 SVT-AV1                                |
 | `scripts/rebuild-ffmpeg-rkmpp.sh`       | 重建 ffmpeg-rockchip                        |
 | `<package>/test.sh`                     | 包内一键自测                                |
-| `<package>/network-e2e-test.sh`         | 冒烟（码流生成 + stream_device_pair）    |
+| `<package>/network-e2e-test.sh`         | 冒烟（码流生成 + stream_device_pair）       |
 
 ## 发布文档模板
 

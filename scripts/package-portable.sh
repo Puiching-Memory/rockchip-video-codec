@@ -317,9 +317,8 @@ package() {
     # 符号链接由下方统一循环创建
 
     echo "--- 复制 ffmpeg 动态库 (仅限 rkvc 依赖) ---"
-    # rkvc 依赖 libavcodec / libavformat / libavutil / libswscale
-    # (libswscale 用于解码器在硬件无法直接输出请求格式时的软件像素格式转换)
-    for name in libavcodec libavformat libavutil libswscale; do
+    # 清单见 build-common.sh RKVC_BUNDLED_FFMPEG_LIBS
+    for name in "${RKVC_BUNDLED_FFMPEG_LIBS[@]}"; do
         # 取最大版本号的真实文件
         local lib
         lib="$(ls -1 "$FFMPEG_PREFIX/lib/${name}.so."* 2>/dev/null | grep -v '\.so$' | sort -V | tail -1)"
@@ -561,7 +560,7 @@ EOF
         fi
     done <<< "$ldd_output"
 
-    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librga librknnrt; do
+    for lib in "${RKVC_BUNDLED_ALL_LIBS[@]}"; do
         if echo "$ldd_output" | grep -q "$lib"; then
             if echo "$ldd_output" | grep "$lib" | grep -vq "$OUT_DIR/$PKG_NAME/lib/"; then
                 echo "  错误: $lib 未解析到包内 lib/"

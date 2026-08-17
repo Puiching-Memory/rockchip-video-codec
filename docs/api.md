@@ -52,17 +52,17 @@ int  rkvc_get_log_level(void);
 
 ```c
 typedef struct {
+    char soc[32];       // 探测到的 SoC 名（如 "rk3588"），未知为空串
     int has_h264_enc, has_hevc_enc, has_av1_enc;   // has_av1_enc = SVT-AV1
     int has_h264_dec, has_hevc_dec, has_av1_dec;
     int has_dma_heap, has_rga, has_rknn;  // has_rknn：RKNN 已编译且 NPU 可访问
-    int max_width, max_height;   // RK3588：7680×4320
 } rkvc_caps;
 
 rkvc_err rkvc_query_caps(rkvc_caps *caps);
 rkvc_err rkvc_check_hw_permissions(void);  // → RKVC_ERR_PERMISSION
 ```
 
-`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`has_rknn` 需 `RKVC_ENABLE_RKNN` 构建且 NPU 可访问（`/sys/kernel/debug/rknpu/version` 或 `/dev/dri/by-path/*npu-render*`）。`rkvc_info --json` 字段与此结构对应（含 `rknn`）。
+所有能力均为运行时探测：硬件编解码 = FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 内核能力位上报的 VPU 支持，平台无预设表。`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`has_rknn` 需 `RKVC_ENABLE_RKNN` 构建且 NPU 可访问（`/sys/kernel/debug/rknpu/version` 或 `/dev/dri/by-path/*npu-render*`）。`rkvc_info --json` 字段与此结构对应（含 `soc`、`rknn`）。
 
 `rkvc_check_hw_permissions` 检查 `/dev/mpp_service`、DMA heap（`/dev/dma_heap/system-uncached`）或 DRM/Ion 分配器。
 
@@ -102,6 +102,8 @@ rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size
 | `RKVC_ERR_INTERNAL`   | -9  | 内部 FFmpeg 错误            |
 | `RKVC_ERR_PERMISSION` | -10 | 设备节点权限不足            |
 | `RKVC_ERR_FORMAT`     | -11 | 输入数据格式不匹配          |
+| `RKVC_ERR_LICENSE`    | -12 | 授权校验失败（1机1码）      |
+| `RKVC_ERR_UNLICENSED` | -13 | 未找到授权                  |
 
 ---
 
@@ -138,18 +140,19 @@ typedef enum {
     RKVC_POLICY_BALANCED,      // HEVC RKMPP（高帧率 1080p+ 回退 H.264）
     RKVC_POLICY_QUALITY,       // SVT-AV1 preset 11 + av1_rkmpp（近实时）
     RKVC_POLICY_OFFLINE,       // SVT-AV1 preset 4 + av1_rkmpp（非实时，≥1fps@1080p）
+    RKVC_POLICY_NEURAL,        // MLVC 神经视频编解码（RKNN NPU + rANS 熵编码）
 } rkvc_policy;
 
 typedef enum {
-    RKVC_CODEC_H264, RKVC_CODEC_HEVC, RKVC_CODEC_AV1, RKVC_CODEC_AUTO,
+    RKVC_CODEC_H264, RKVC_CODEC_HEVC, RKVC_CODEC_AV1, RKVC_CODEC_MLVC, RKVC_CODEC_AUTO,
 } rkvc_codec;
 
 typedef enum {
-    RKVC_ENC_BACKEND_NONE, RKVC_ENC_BACKEND_MPP, RKVC_ENC_BACKEND_SVT,
+    RKVC_ENC_BACKEND_NONE, RKVC_ENC_BACKEND_MPP, RKVC_ENC_BACKEND_SVT, RKVC_ENC_BACKEND_MLVC,
 } rkvc_enc_backend;
 
 typedef enum {
-    RKVC_DEC_BACKEND_NONE, RKVC_DEC_BACKEND_MPP,
+    RKVC_DEC_BACKEND_NONE, RKVC_DEC_BACKEND_MPP, RKVC_DEC_BACKEND_MLVC,
 } rkvc_dec_backend;
 ```
 
@@ -166,8 +169,8 @@ typedef struct {
 
 rkvc_err rkvc_route_resolve(const rkvc_pipeline_desc *desc, rkvc_route_plan *plan);
 
-const char *rkvc_codec_name(rkvc_codec codec);    // "h264" / "hevc" / "av1" / "auto"
-const char *rkvc_policy_name(rkvc_policy policy); // "realtime" / "balanced" / "quality" / "offline"
+const char *rkvc_codec_name(rkvc_codec codec);    // "h264" / "hevc" / "av1" / "mlvc" / "auto"
+const char *rkvc_policy_name(rkvc_policy policy); // "realtime" / "balanced" / "quality" / "offline" / "neural"
 ```
 
 `desc->codec != RKVC_CODEC_AUTO` 时强制对应路线，忽略 policy 自动规则。
@@ -204,6 +207,10 @@ typedef struct rkvc_pipeline_desc {
     const char    *input_path;
     const char    *output_path;
 
+    const char    *capture_device;            // LIVE_CAPTURE 必填，"mock" 合成输入
+    int            capture_max_frames;        // 0=直到 stop/错误
+    int            capture_timeout_ms;        // 单帧等待超时，默认 1000
+
     int            enc_scale_denom;           // 1=全分辨率编码
     rkvc_upscale_algo post_upscale_algo;
     const char    *post_upscale_rkvc_model_path;  // AI_SR 必填
@@ -235,21 +242,21 @@ typedef struct rkvc_pipeline_desc {
 
 ### 默认值（`rkvc_pipeline_desc_defaults`）
 
-| 字段              | 默认             |
-| ----------------- | ---------------- |
-| template          | `FILE_TRANSCODE` |
-| policy            | `BALANCED`       |
-| codec             | `AUTO`           |
-| 分辨率            | 1920×1080@30     |
-| bitrate           | 4_000_000        |
-| pixel_format      | NV12             |
-| gop_size          | 60               |
-| queue_depth       | 3                |
-| rc_mode           | CBR              |
-| qp_init           | -1               |
-| enc_scale_denom   | 1                |
-| post_upscale_algo | NONE             |
-| mlvc_qp           | 21               |
+| 字段              | 默认               |
+| ----------------- | ------------------ |
+| template          | `FILE_TRANSCODE`   |
+| policy            | `BALANCED`         |
+| codec             | `AUTO`             |
+| 分辨率            | 1920×1080@30       |
+| bitrate           | 4_000_000          |
+| pixel_format      | NV12               |
+| gop_size          | 60                 |
+| queue_depth       | 3                  |
+| rc_mode           | CBR                |
+| qp_init           | -1                 |
+| enc_scale_denom   | 1                  |
+| post_upscale_algo | NONE               |
+| mlvc_qp           | 21                 |
 | mlvc_qp_patch_dir | `NULL`（不打补丁） |
 
 ```c

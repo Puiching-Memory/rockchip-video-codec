@@ -71,13 +71,13 @@
 
 ## 与 CLI 工具对比
 
-| 场景         | 示例程序               | CLI                         |
-| ------------ | ---------------------- | --------------------------- |
-| 测试图案编码 | `example_encode_file`  | 需自备 NV12 + `rkvc_encode` |
-| 文件解码     | `example_decode_file`  | `rkvc_decode`               |
-| 文件转码     | `example_transcode`    | `rkvc_transcode`            |
+| 场景             | 示例程序               | CLI                         |
+| ---------------- | ---------------------- | --------------------------- |
+| 测试图案编码     | `example_encode_file`  | 需自备 NV12 + `rkvc_encode` |
+| 文件解码         | `example_decode_file`  | `rkvc_decode`               |
+| 文件转码         | `example_transcode`    | `rkvc_transcode`            |
 | Session 创建耗时 | `example_latency_test` | —                           |
-| E2E fps 对比 | —                      | `rkvc_bench`                |
+| E2E fps 对比     | —                      | `rkvc_bench`                |
 
 ## 二次开发参考
 

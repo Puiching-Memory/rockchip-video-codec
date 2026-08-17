@@ -34,6 +34,18 @@ DEFAULT_EXP = ROOT / ".build/mlvc_split_exp"
 BENCH_SRC = _DIR / "rknn_split_bench.c"
 
 
+def _detect_soc() -> str:
+    """DT compatible 最后一个 rockchip,<soc> 条目（与 lib/platform.c 同规则）。"""
+    soc = ""
+    try:
+        for entry in Path("/proc/device-tree/compatible").read_bytes().split(b"\0"):
+            if entry.startswith(b"rockchip,"):
+                soc = entry.split(b",", 1)[1].decode()
+    except OSError:
+        pass
+    return soc.split("-", 1)[0] or "rk3588"
+
+
 def _run(cmd: list[str], *, cwd: Path | None = None) -> None:
     print("+", " ".join(cmd), flush=True)
     subprocess.run(cmd, check=True, cwd=cwd)
@@ -109,6 +121,8 @@ def cmd_compile(exp: Path) -> Path:
             "-std=c11",
             "-Wall",
             "-Wextra",
+            "-I",
+            str(_DIR.parent.parent / "lib"),
             str(BENCH_SRC),
             "-lrknnrt",
             "-lpthread",
@@ -120,7 +134,7 @@ def cmd_compile(exp: Path) -> Path:
     return out
 
 
-def cmd_bench(exp: Path, warmup: int, frames: int) -> None:
+def cmd_bench(exp: Path, warmup: int, frames: int, platform: str) -> None:
     bench = exp / "rknn_split_bench"
     if not bench.is_file():
         bench = cmd_compile(exp)
@@ -165,7 +179,7 @@ def cmd_bench(exp: Path, warmup: int, frames: int) -> None:
                 "--exp",
                 "custom_std",
                 "--a",
-                str(ROOT / "models/MLVCEncoder_rk3588.rknn"),
+                str(ROOT / f"models/MLVCEncoder_{platform}.rknn"),
                 "--warmup",
                 str(warmup),
                 "--frames",
@@ -202,7 +216,7 @@ def main() -> int:
     p.add_argument("--onnx-dir", type=Path, default=DEFAULT_ONNX)
     p.add_argument("--exp-dir", type=Path, default=DEFAULT_EXP)
     p.add_argument("--qp", type=int, default=21)
-    p.add_argument("--platform", default="rk3588")
+    p.add_argument("--platform", default=None, help="RKNN target_platform（默认按 DT compatible 探测）")
     p.add_argument("--warmup", type=int, default=10)
     p.add_argument("--frames", type=int, default=40)
     p.add_argument("--verbose", action="store_true")
@@ -213,6 +227,8 @@ def main() -> int:
         help="prepare | convert | compile | bench | all",
     )
     args = p.parse_args()
+    if not args.platform:
+        args.platform = _detect_soc()
     stages = args.stage
     if "all" in stages:
         stages = ["prepare", "convert", "compile", "bench"]
@@ -224,7 +240,7 @@ def main() -> int:
         elif st == "compile":
             cmd_compile(args.exp_dir)
         elif st == "bench":
-            cmd_bench(args.exp_dir, args.warmup, args.frames)
+            cmd_bench(args.exp_dir, args.warmup, args.frames, args.platform)
         else:
             raise SystemExit(f"未知 stage: {st}")
     return 0

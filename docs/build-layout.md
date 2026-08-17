@@ -6,16 +6,16 @@
 
 ## 目录一览
 
-| 目录                 | Preset                    | 用途                                    |
-| -------------------- | ------------------------- | --------------------------------------- |
-| `.build/release/`    | `default`                 | 日常 Release：库、CLI、示例             |
-| `.build/debug/`      | `debug` / `tidy`          | Debug / clang-tidy                      |
-| `.build/tests/`      | `tests`                   | 单元测试 + CLI 脚本用例 + fault injection |
-| `.build/asan/`       | `asan`                    | ASan + UBSan                            |
-| `.build/coverage/`   | `coverage`                | gcov 覆盖率                             |
-| `.build/portable/`   | `portable`                | 可移植包**编译树**                      |
-| `.build/dist/`       | （`package-portable.sh`） | 可移植包**成品**                        |
-| `.build/deps/`       | （脚本）                  | MPP / SVT / FFmpeg / librga；MLVC 源码与权重（`mlvc/`、`mlvc-data/`） |
+| 目录               | Preset                    | 用途                                                                  |
+| ------------------ | ------------------------- | --------------------------------------------------------------------- |
+| `.build/release/`  | `default`                 | 日常 Release：库、CLI、示例                                           |
+| `.build/debug/`    | `debug` / `tidy`          | Debug / clang-tidy                                                    |
+| `.build/tests/`    | `tests`                   | 单元测试 + CLI 脚本用例 + fault injection                             |
+| `.build/asan/`     | `asan`                    | ASan + UBSan                                                          |
+| `.build/coverage/` | `coverage`                | gcov 覆盖率                                                           |
+| `.build/portable/` | `portable`                | 可移植包**编译树**                                                    |
+| `.build/dist/`     | （`package-portable.sh`） | 可移植包**成品**                                                      |
+| `.build/deps/`     | （脚本）                  | MPP / SVT / FFmpeg / librga；MLVC 源码与权重（`mlvc/`、`mlvc-data/`） |
 
 ## 产物落点（勿混用）
 

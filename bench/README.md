@@ -4,23 +4,23 @@ RK3588 端到端 **码率-画质（RD）** 与 **性能** 对比框架，已集�
 
 ## 对比路线（默认）
 
-| codec 名 | 方案 |
-|----------|------|
-| `h264` | FFmpeg `h264_rkmpp` 硬编硬解 |
-| `h265` | FFmpeg `hevc_rkmpp` 硬编硬解 |
-| `svt-av1` | SVT-AV1 编 + `av1_rkmpp` 硬解（默认 preset 11，偏实时） |
-| `svt-av1-hq` | **非实时高质量**：SVT-AV1 更慢 preset（默认 `hq_preset=4`）+ `av1_rkmpp`；目标编码 ≥1 fps@1080p |
-| `rkvc` | **rkvc Session** 四档语义（`RKVC_POLICIES` 展开） |
-| `rkvc-realtime` | Session `realtime` → H.264 RKMPP |
-| `rkvc-balanced` | Session `balanced` → HEVC RKMPP |
-| `rkvc-quality` | Session `quality` → SVT-AV1 p11 + av1_rkmpp（与 `svt-av1` 基线同 preset） |
-| `rkvc-offline` | Session `offline` → SVT-AV1 p4 + av1_rkmpp（非实时高质量，与 `svt-av1-hq` 对齐） |
-| `rkvc-neural` | Session `neural` → MLVC 神经编解码（NPU + rANS，固定 640×368，qp 参数化） |
-| `post-upscale` | **下采样编码 + 上采样后处理**（RGA 插值或 `rkvc_sr`；与 Session 解码路径一致） |
-| `svt-av1+up3x-bilinear` | 单算法路线（`ENC_SCALE_DENOM=3` 时 CSV 名为 `svt-av1+up{N}x-{algo}`） |
-| `svt-av1+up3x-rkvc_sr` | 同上，AI 超分（需 `RKVC_SR_MODEL` / `paths.rkvc_sr_model`） |
-| `svt-av1-hq+up3x-rkvc_sr` | HQ preset 下采样编码 + AI 超分还原 |
-| `svt-av1+superres` | **实验 / 搁置**：SVT-AV1 + AV1 内建 superres（见下节） |
+| codec 名                  | 方案                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `h264`                    | FFmpeg `h264_rkmpp` 硬编硬解                                                                    |
+| `h265`                    | FFmpeg `hevc_rkmpp` 硬编硬解                                                                    |
+| `svt-av1`                 | SVT-AV1 编 + `av1_rkmpp` 硬解（默认 preset 11，偏实时）                                         |
+| `svt-av1-hq`              | **非实时高质量**：SVT-AV1 更慢 preset（默认 `hq_preset=4`）+ `av1_rkmpp`；目标编码 ≥1 fps@1080p |
+| `rkvc`                    | **rkvc Session** 四档语义（`RKVC_POLICIES` 展开）                                               |
+| `rkvc-realtime`           | Session `realtime` → H.264 RKMPP                                                                |
+| `rkvc-balanced`           | Session `balanced` → HEVC RKMPP                                                                 |
+| `rkvc-quality`            | Session `quality` → SVT-AV1 p11 + av1_rkmpp（与 `svt-av1` 基线同 preset）                       |
+| `rkvc-offline`            | Session `offline` → SVT-AV1 p4 + av1_rkmpp（非实时高质量，与 `svt-av1-hq` 对齐）                |
+| `rkvc-neural`             | Session `neural` → MLVC 神经编解码（NPU + rANS，固定 640×368，qp 参数化）                       |
+| `post-upscale`            | **下采样编码 + 上采样后处理**（RGA 插值或 `rkvc_sr`；与 Session 解码路径一致）                  |
+| `svt-av1+up3x-bilinear`   | 单算法路线（`ENC_SCALE_DENOM=3` 时 CSV 名为 `svt-av1+up{N}x-{algo}`）                           |
+| `svt-av1+up3x-rkvc_sr`    | 同上，AI 超分（需 `RKVC_SR_MODEL` / `paths.rkvc_sr_model`）                                     |
+| `svt-av1-hq+up3x-rkvc_sr` | HQ preset 下采样编码 + AI 超分还原                                                              |
+| `svt-av1+superres`        | **实验 / 搁置**：SVT-AV1 + AV1 内建 superres（见下节）                                          |
 
 ## AV1 内建 superres（实验，搁置）
 
@@ -93,14 +93,14 @@ PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
 
 ## 输出
 
-| 路径 | 说明 |
-|------|------|
-| `bench/results/rd_data.csv` | 原始数据（**默认仅含本次 RUN_CODECS**） |
-| `bench/results/session.meta` | 本次跑分元数据（码率点、clip、模式等） |
-| `bench/results/session.codecs` | 本次 CSV 中的 codec 列表 |
-| `bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log） |
-| `bench/results/perf_e2e.png` | E2E 性能对比 |
-| `bench/work/` | 中间文件（可删） |
+| 路径                             | 说明                                    |
+| -------------------------------- | --------------------------------------- |
+| `bench/results/rd_data.csv`      | 原始数据（**默认仅含本次 RUN_CODECS**） |
+| `bench/results/session.meta`     | 本次跑分元数据（码率点、clip、模式等）  |
+| `bench/results/session.codecs`   | 本次 CSV 中的 codec 列表                |
+| `bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log）                     |
+| `bench/results/perf_e2e.png`     | E2E 性能对比                            |
+| `bench/work/`                    | 中间文件（可删）                        |
 
 ## 配置（bench/config.json）
 
@@ -123,14 +123,14 @@ BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
 
 主要配置项：
 
-| 节点 | 说明 |
-|------|------|
-| `paths.ffmpeg` / `ffprobe` | 项目 `ffmpeg-rockchip` 构建产物 |
-| `target_kbps` | RD 扫点码率列表 |
-| `calibration.*` | h264/h265/SVT CQP/CRF 校准表 |
-| `run.codecs` / `enc_scale_denom` / `upscale_algos` | 对比路线（含 `svt-av1-hq`） |
-| `svt.preset` / `svt.hq_preset` | 实时档 / 非实时高质量档 SVT preset（默认 11 / 4） |
-| `svt.superres.enabled` | 默认 `false`（需另配 `paths.superres_decode_ffmpeg` 才启用） |
+| 节点                                               | 说明                                                         |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| `paths.ffmpeg` / `ffprobe`                         | 项目 `ffmpeg-rockchip` 构建产物                              |
+| `target_kbps`                                      | RD 扫点码率列表                                              |
+| `calibration.*`                                    | h264/h265/SVT CQP/CRF 校准表                                 |
+| `run.codecs` / `enc_scale_denom` / `upscale_algos` | 对比路线（含 `svt-av1-hq`）                                  |
+| `svt.preset` / `svt.hq_preset`                     | 实时档 / 非实时高质量档 SVT preset（默认 11 / 4）            |
+| `svt.superres.enabled`                             | 默认 `false`（需另配 `paths.superres_decode_ffmpeg` 才启用） |
 
 环境变量仍可覆盖 config 中的任意默认值（在调用脚本前 `export`）。
 
@@ -144,7 +144,7 @@ BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
 - `UPSCALE_ALGOS` — 上采样算法，逗号分隔（默认 `nearest,bilinear,bicubic`；可加 `rkvc_sr`）
 - `RKVC_SR_MODEL` — `rkvc_sr` 模型路径（默认见 `config.json` → `paths.rkvc_sr_model`）
 - `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality,offline,neural`
-- `MLVC_ENC_MODEL` / `MLVC_DEC_MODEL` — MLVC 编/解码 RKNN 模型路径（默认 `models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）
+- `MLVC_ENC_MODEL` / `MLVC_DEC_MODEL` — MLVC 编/解码 RKNN 模型路径（默认 `config.json` → `mlvc.*_model`，`{soc}` 占位符按探测到的 SoC 展开，如 rk3588）
 - `MLVC_GAUSSIAN_PMF` / `MLVC_BITEST_PMF` — MLVC PMF 表路径（默认 `models/gaussian.bin` / `models/bitest.bin`）
 - `MLVC_QP` — MLVC 质量参数（默认 21；`rkvc-neural` 不参与码率扫描，仅用此 qp）
 - `CLIP_SEC` — 截取秒数（默认 `4`）

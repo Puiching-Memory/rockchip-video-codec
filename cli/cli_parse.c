@@ -10,25 +10,11 @@ int rkvc_cli_parse_policy(const char *s, rkvc_policy *out)
 {
     if (!s || !out)
         return -1;
-    if (strcmp(s, "realtime") == 0) {
-        *out = RKVC_POLICY_REALTIME;
-        return 0;
-    }
-    if (strcmp(s, "balanced") == 0) {
-        *out = RKVC_POLICY_BALANCED;
-        return 0;
-    }
-    if (strcmp(s, "quality") == 0) {
-        *out = RKVC_POLICY_QUALITY;
-        return 0;
-    }
-    if (strcmp(s, "offline") == 0) {
-        *out = RKVC_POLICY_OFFLINE;
-        return 0;
-    }
-    if (strcmp(s, "neural") == 0) {
-        *out = RKVC_POLICY_NEURAL;
-        return 0;
+    for (int i = 0; i <= RKVC_POLICY_NEURAL; i++) {
+        if (strcmp(s, rkvc_policy_name((rkvc_policy)i)) == 0) {
+            *out = (rkvc_policy)i;
+            return 0;
+        }
     }
     return -1;
 }
@@ -70,25 +56,11 @@ int rkvc_cli_parse_codec(const char *s, rkvc_codec *out)
 {
     if (!s || !out)
         return -1;
-    if (strcmp(s, "auto") == 0) {
-        *out = RKVC_CODEC_AUTO;
-        return 0;
-    }
-    if (strcmp(s, "h264") == 0) {
-        *out = RKVC_CODEC_H264;
-        return 0;
-    }
-    if (strcmp(s, "hevc") == 0) {
-        *out = RKVC_CODEC_HEVC;
-        return 0;
-    }
-    if (strcmp(s, "av1") == 0) {
-        *out = RKVC_CODEC_AV1;
-        return 0;
-    }
-    if (strcmp(s, "mlvc") == 0) {
-        *out = RKVC_CODEC_MLVC;
-        return 0;
+    for (int i = 0; i <= RKVC_CODEC_AUTO; i++) {
+        if (strcmp(s, rkvc_codec_name((rkvc_codec)i)) == 0) {
+            *out = (rkvc_codec)i;
+            return 0;
+        }
     }
     return -1;
 }

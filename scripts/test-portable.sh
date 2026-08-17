@@ -210,7 +210,7 @@ for f in lib/librkvc.so include/rkvc/rkvc.h; do
     fi
 done
 # ffmpeg 库使用通配符匹配 (版本号随 ffmpeg 版本变化)
-for name in libavcodec libavformat libavutil libswscale libSvtAv1Enc; do
+for name in "${RKVC_BUNDLED_FFMPEG_LIBS[@]}" libSvtAv1Enc; do
     if ls "$PKG_DIR/lib/${name}.so."* >/dev/null 2>&1; then
         pass "存在: lib/${name}.so.*"
     else
@@ -258,7 +258,7 @@ check_bundled_libs() {
     local name="$2"
     local ldd_output="$3"
 
-    for lib in librkvc libavcodec libavformat libavutil libswscale libSvtAv1Enc librockchip_mpp librga librknnrt; do
+    for lib in "${RKVC_BUNDLED_ALL_LIBS[@]}"; do
         if echo "$ldd_output" | grep -q "$lib"; then
             if echo "$ldd_output" | grep "$lib" | grep -vq "$PKG_DIR/lib/"; then
                 fail "$name: $lib 未解析到包内 lib/"
@@ -356,7 +356,7 @@ else
     fail "rkvc_info --json 输出异常 (exit=$json_status)"
     show_output "rkvc_info --json" "$json_output"
 fi
-for field in version h264_enc hevc_enc av1_enc h264_dec hevc_dec av1_dec dma_heap rga rknn max_width max_height; do
+for field in version soc h264_enc hevc_enc av1_enc h264_dec hevc_dec av1_dec dma_heap rga rknn; do
     if echo "$json_output" | grep -q "\"$field\""; then
         pass "rkvc_info --json 字段: $field"
     else

@@ -61,6 +61,22 @@ rkvc_limit_build_jobs() {
     export BUILD_JOBS
 }
 
+# 可移植包内 ffmpeg 动态库清单（rkvc 实际依赖；libswscale 用于软像素格式转换）。
+# 打包复制与包测试共用，新增依赖只改这里。
+RKVC_BUNDLED_FFMPEG_LIBS=(libavcodec libavformat libavutil libswscale)
+# 可移植包必须自包含解析的全部库（ldd 来源校验用）。
+RKVC_BUNDLED_ALL_LIBS=(librkvc "${RKVC_BUNDLED_FFMPEG_LIBS[@]}" libSvtAv1Enc librockchip_mpp librga librknnrt)
+
+# 探测 SoC 名：DT compatible 最后一个 rockchip,<soc> 条目，截断 '-'。
+# 与 lib/platform.c probe_soc_name 同规则；探测失败输出空。
+rkvc_soc_name() {
+    local entry soc=""
+    while IFS= read -r entry; do
+        [[ "$entry" == rockchip,* ]] && soc="${entry#rockchip,}"
+    done < <(tr '\0' '\n' < /proc/device-tree/compatible 2>/dev/null)
+    printf '%s\n' "${soc%%-*}"
+}
+
 # 测试二进制依赖的动态库搜索路径（与 CMake RKVC_DEP_LIB_DIRS 一致）。
 #
 # test_* 二进制把依赖库写进 DT_RUNPATH，但 DT_RUNPATH 不用于解析传递依赖

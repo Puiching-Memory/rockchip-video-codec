@@ -1,6 +1,10 @@
 #!/bin/bash
 # scripts/portable-test-helpers.sh — 可移植包测试共用辅助函数
 
+# 依赖库清单等共用定义（与本文件同目录）
+# shellcheck source=build-common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/build-common.sh"
+
 # GitHub Actions 等无 RKMPP 设备的环境应跳过编解码冒烟；RK3588 实机默认可跑。
 # RKVC_RUN_HARDWARE_TESTS=1 且无设备时改为失败（与 CTest 硬件用例 opt-in 一致）。
 portable_mpp_device_accessible() {

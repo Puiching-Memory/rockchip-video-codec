@@ -17,8 +17,12 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, FixedLocator, NullFormatter, ScalarFormatter
 
+# post-upscale 基线 codec 单一来源（shell 侧为 POST_UPSCALE_BASE_LIST）
+UPSCALE_BASES = ("h264", "h265", "svt-av1", "svt-av1-hq")
+_BASE_RE = "|".join(UPSCALE_BASES)
+
 UPSCALE_CODEC_RE = re.compile(
-    r"^(?P<base>h264|h265|svt-av1-hq|svt-av1)\+up(?P<scale>\d+)x-(?P<algo>[A-Za-z0-9_]+)$"
+    rf"^(?P<base>{_BASE_RE})\+up(?P<scale>\d+)x-(?P<algo>[A-Za-z0-9_]+)$"
 )
 
 # RGA 插值算法（合并为均值带）；AI 超分单独成线
@@ -27,7 +31,7 @@ RGA_ALGOS = frozenset({"nearest", "bilinear", "bicubic"})
 AI_SR_ALGOS = frozenset({"rkvc_sr", "mobileone"})
 
 UPSCALE_GROUP_RE = re.compile(
-    r"^(?P<base>h264|h265|svt-av1-hq|svt-av1)\+up(?P<scale>\d+)x$"
+    rf"^(?P<base>{_BASE_RE})\+up(?P<scale>\d+)x$"
 )
 
 CODEC_LABELS = {
@@ -82,12 +86,7 @@ CODEC_COLORS = {
     "rkvc": "#9467bd",
 }
 
-UPSCALE_BASE_LABELS = {
-    "h264": "H.264",
-    "h265": "H.265",
-    "svt-av1": "SVT-AV1",
-    "svt-av1-hq": "SVT-AV1 HQ",
-}
+UPSCALE_BASE_LABELS = {base: CODEC_LABELS[base].split(" (")[0] for base in UPSCALE_BASES}
 
 UPSCALE_ALGO_COLORS = {
     base: {
@@ -133,19 +132,8 @@ SIMPLE_LABELS = {
     "svt-av1": "RKVC-Quality",
 }
 
-CODEC_ORDER = [
-    "h264",
-    "h265",
-    "svt-av1",
-    "svt-av1-hq",
-    "svt-av1+superres",
-    "rkvc-realtime",
-    "rkvc-balanced",
-    "rkvc-quality",
-    "rkvc-offline",
-    "rkvc-neural",
-    "rkvc",
-]
+# 图例顺序 = CODEC_LABELS 定义顺序（单一来源）
+CODEC_ORDER = list(CODEC_LABELS)
 
 
 def is_superres_variant(codec: str) -> bool:
