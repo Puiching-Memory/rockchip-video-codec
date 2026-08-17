@@ -251,8 +251,12 @@ build_rkvc() {
     fi
 
     # 无 librknnrt 时关闭 NPU 模块，避免 CMake 配置失败（与 CMakeLists.txt 检测一致）
+    # pipefail 下 grep -q 提前关闭管道会使 ldconfig 收到 SIGPIPE(141) 而误判，
+    # 故先缓存完整输出再 grep
     local cmake_npu_args=()
-    if ! ldconfig -p 2>/dev/null | grep -q "librknnrt.so"; then
+    local rknn_cache
+    rknn_cache="$(ldconfig -p 2>/dev/null || true)"
+    if ! grep -q "librknnrt.so" <<< "$rknn_cache"; then
         cmake_npu_args+=(-DRKVC_ENABLE_RKNN=OFF)
         cmake_npu_args+=(-DRKVC_ENABLE_MLVC=OFF)
     fi

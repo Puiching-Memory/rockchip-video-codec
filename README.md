@@ -52,15 +52,15 @@ cmake --build --preset default
 
 ## CLI 工具
 
-| 工具                   | 说明                                                |
-| ---------------------- | --------------------------------------------------- |
-| `rkvc_info`            | 板卡 / 能力查询（文本 / JSON，含 `board` 字段）     |
-| `rkvc_encode`          | 文件编码（`-p` 五档策略 / `-c` 显式 codec）         |
-| `rkvc_decode`          | 文件解码                                            |
-| `rkvc_transcode`       | 转码；`.mlvc` 编码 / 纯解码 / 转码三种操作          |
+| 工具                   | 说明                                                    |
+| ---------------------- | ------------------------------------------------------- |
+| `rkvc_info`            | 板卡 / 能力查询（文本 / JSON，含 `board` 字段）         |
+| `rkvc_encode`          | 文件编码（`-p` 五档策略 / `-c` 显式 codec）             |
+| `rkvc_decode`          | 文件解码                                                |
+| `rkvc_transcode`       | 转码；`.mlvc` 编码 / 纯解码 / 转码三种操作              |
 | `rkvc_bench`           | 内置性能基准（REALTIME / BALANCED / QUALITY / OFFLINE） |
-| `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA 插值 / `rkvc_sr` AI 超分） |
-| `rkvc_yuv_upscale`     | 原始 YUV 上采样（bench 参考帧 prep）                |
+| `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA 插值 / `rkvc_sr` AI 超分）     |
+| `rkvc_yuv_upscale`     | 原始 YUV 上采样（bench 参考帧 prep）                    |
 
 MLVC 用法示例：
 
@@ -144,14 +144,14 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 | [docs/index.md](docs/index.md)                         | 文档首页与导航                   |
 | [docs/getting-started.md](docs/getting-started.md)     | 构建与首次运行                   |
 | [docs/build-layout.md](docs/build-layout.md)           | 构建目录约定（全部在 `.build/`） |
-| [docs/api.md](docs/api.md)                             | API 完整参考                  |
+| [docs/api.md](docs/api.md)                             | API 完整参考                     |
 | [docs/architecture.md](docs/architecture.md)           | Session / Router / 节点架构      |
 | [docs/benchmark.md](docs/benchmark.md)                 | 性能与 RD 基准                   |
 | [docs/testing.md](docs/testing.md)                     | 测试矩阵                         |
 | [docs/packaging.md](docs/packaging.md)                 | 可便携包与分发                   |
 | [docs/delivery.md](docs/delivery.md)                   | 客户交付清单                     |
-| [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md) | MLVC ONNX/PMF → RKNN 导出     |
-| [docs/mlvc-npu-profile.md](docs/mlvc-npu-profile.md) | MLVC NPU 算子级 profile         |
+| [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)   | MLVC ONNX/PMF → RKNN 导出        |
+| [docs/mlvc-npu-profile.md](docs/mlvc-npu-profile.md)   | MLVC NPU 算子级 profile          |
 | [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | YUV-native SR 设计稿             |
 | [docs/release/](docs/release/)                         | 发布包用户文档                   |
 | [CHANGELOG.md](CHANGELOG.md)                           | 版本变更记录                     |
