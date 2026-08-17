@@ -7,6 +7,7 @@
  */
 
 #include "internal.h"
+#include "board.h"
 #include "rkvc_sr_neon.h"
 
 #ifdef RKVC_ENABLE_RKNN
@@ -118,6 +119,15 @@ static rkvc_err rknn_load_model(const char *model_path, rknn_context *out)
         return RKVC_ERR_HW;
     }
     return RKVC_OK;
+}
+
+static rknn_core_mask sr_npu_core_mask(int npu_cores)
+{
+    switch (npu_cores) {
+    case 3:  return RKNN_NPU_CORE_0_1_2;
+    case 2:  return RKNN_NPU_CORE_0_1;
+    default: return RKNN_NPU_CORE_0;
+    }
 }
 
 static int rknn_dims_wh(const rknn_tensor_attr *attr, int *w, int *h)
@@ -352,7 +362,10 @@ static rkvc_err sr_wait_slot(rkvc_rknn_sr_ctx *ctx, int block)
 
 int rkvc_rknn_sr_available(void)
 {
-    return 1;
+    const rkvc_board_profile *bp = rkvc_board_profile_active();
+    if (!bp || !bp->has_npu)
+        return 0;
+    return rkvc_npu_accessible();
 }
 
 rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
@@ -382,7 +395,11 @@ rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
         }
     }
 
-    rknn_set_core_mask(ctx->ctx, RKNN_NPU_CORE_0_1_2);
+    {
+        const rkvc_board_profile *bp = rkvc_board_profile_active();
+        if (bp && bp->has_npu && bp->npu_cores > 1)
+            rknn_set_core_mask(ctx->ctx, sr_npu_core_mask(bp->npu_cores));
+    }
 
     rknn_input_output_num io_num;
     if (rknn_query(ctx->ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num)) !=

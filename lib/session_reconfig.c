@@ -8,9 +8,25 @@
 
 #include "internal.h"
 
+/** SVT / MLVC 无运行时 RC；编码器已打开时拒绝假装成功。打开前只改 desc。 */
+static int session_reconfig_unsupported(const rkvc_session *session)
+{
+    if (!session || session->enc)
+        return 0;
+    if (session->svt)
+        return 1;
+#ifdef RKVC_ENABLE_MLVC
+    if (session->mlvc_enc)
+        return 1;
+#endif
+    return 0;
+}
+
 rkvc_err rkvc_session_set_bitrate(rkvc_session *session, int64_t bitrate)
 {
     if (!session || bitrate <= 0)
+        return RKVC_ERR_INVALID;
+    if (session_reconfig_unsupported(session))
         return RKVC_ERR_INVALID;
 
     pthread_mutex_lock(&session->lock);
@@ -24,6 +40,8 @@ rkvc_err rkvc_session_set_gop(rkvc_session *session, int gop_size)
 {
     if (!session || gop_size < 1)
         return RKVC_ERR_INVALID;
+    if (session_reconfig_unsupported(session))
+        return RKVC_ERR_INVALID;
 
     pthread_mutex_lock(&session->lock);
     session->desc.gop_size = gop_size;
@@ -35,6 +53,8 @@ rkvc_err rkvc_session_set_gop(rkvc_session *session, int gop_size)
 rkvc_err rkvc_session_request_idr(rkvc_session *session)
 {
     if (!session)
+        return RKVC_ERR_INVALID;
+    if (session_reconfig_unsupported(session))
         return RKVC_ERR_INVALID;
 
     pthread_mutex_lock(&session->lock);
@@ -55,6 +75,8 @@ rkvc_err rkvc_session_reconfigure(rkvc_session *session,
         return RKVC_ERR_INVALID;
     if ((desc->flags & RKVC_RECONFIG_GOP) && desc->gop_size < 1)
         return RKVC_ERR_INVALID;
+    if (session_reconfig_unsupported(session))
+        return RKVC_ERR_INVALID;
 
     pthread_mutex_lock(&session->lock);
     if (desc->flags & RKVC_RECONFIG_BITRATE)
@@ -68,7 +90,8 @@ rkvc_err rkvc_session_reconfigure(rkvc_session *session,
 
 /**
  * 在下一帧送入编码器前应用挂起的热切换。
- * MPP：写 AVCodecContext + 可选 force_idr；SVT：仅同步 desc（无运行时 RC）。
+ * MPP：写 AVCodecContext + 可选 force_idr。
+ * SVT/MLVC：无运行时 RC；set_* 在编码器已打开时返回 INVALID。
  * 若 MPP 应用失败，恢复 pending 位以便下次重试。
  */
 rkvc_err rkvc_session_apply_reconfig(rkvc_session *s, int *force_idr)
@@ -103,6 +126,5 @@ rkvc_err rkvc_session_apply_reconfig(rkvc_session *s, int *force_idr)
             return err;
         }
     }
-    /* SVT：desc 已更新；运行中改参需重建编码器，此处不报错。 */
     return RKVC_OK;
 }

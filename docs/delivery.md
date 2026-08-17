@@ -28,7 +28,7 @@
 
 | 能力                       | 状态           | 说明                                                                                   |
 | -------------------------- | -------------- | -------------------------------------------------------------------------------------- |
-| 低延迟编解码链路           | ✅ 可测         | `example_latency_test`：1080p 低延迟模式编码 ~7 ms/帧，端到端 ~69 ms（P50 ~76 ms）     |
+| 低延迟编解码链路           | ✅ 可测         | LIVE_CAPTURE + `low_latency`（`example_live_capture`）；`example_latency_test` 仅测 `session_create` 耗时 |
 | 流式 Session API           | ✅ 可用         | `example_live_capture` / `example_adaptive_bitrate`（命名端口 push/pull）              |
 | 三策略实时转码             | ✅ 可用         | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
 | 非实时高质量               | ✅ 可用         | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps）                              |

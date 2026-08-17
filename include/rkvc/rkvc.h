@@ -114,7 +114,7 @@ typedef struct {
     int has_av1_dec;    /**< `av1_rkmpp` 解码可用 */
     int has_dma_heap;   /**< `/dev/dma_heap/*` 可访问 */
     int has_rga;        /**< `/dev/rga` 可访问 */
-    int has_rknn;       /**< RKNN 已编译且 NPU 可访问（`rkvc_sr`） */
+    int has_rknn;       /**< RKNN 已编译、板卡有 NPU、且驱动节点可访问（`rkvc_sr`） */
     int max_width;      /**< VPU 硬件解码最大宽度（取自板卡 profile） */
     int max_height;     /**< VPU 硬件解码最大高度（取自板卡 profile） */
 } rkvc_caps;

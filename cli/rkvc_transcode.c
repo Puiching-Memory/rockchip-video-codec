@@ -10,52 +10,11 @@
  */
 
 #include "rkvc/rkvc.h"
+#include "cli_parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
-
-static rkvc_policy parse_policy(const char *s)
-{
-    if (!s || strcmp(s, "realtime") == 0) return RKVC_POLICY_REALTIME;
-    if (strcmp(s, "balanced") == 0) return RKVC_POLICY_BALANCED;
-    if (strcmp(s, "quality") == 0) return RKVC_POLICY_QUALITY;
-    if (strcmp(s, "offline") == 0) return RKVC_POLICY_OFFLINE;
-    if (strcmp(s, "neural") == 0)  return RKVC_POLICY_NEURAL;
-    return RKVC_POLICY_BALANCED;
-}
-
-static int parse_rc_mode(const char *s, rkvc_rc_mode *out)
-{
-    if (!s || !out)
-        return -1;
-    if (strcmp(s, "vbr") == 0 || strcmp(s, "VBR") == 0) {
-        *out = RKVC_RC_VBR;
-        return 0;
-    }
-    if (strcmp(s, "cbr") == 0 || strcmp(s, "CBR") == 0) {
-        *out = RKVC_RC_CBR;
-        return 0;
-    }
-    if (strcmp(s, "cqp") == 0 || strcmp(s, "CQP") == 0 ||
-        strcmp(s, "fixqp") == 0) {
-        *out = RKVC_RC_CQP;
-        return 0;
-    }
-    return -1;
-}
-
-static int parse_codec(const char *s, rkvc_codec *out)
-{
-    if (!s || !out)
-        return -1;
-    if (strcmp(s, "auto") == 0)   { *out = RKVC_CODEC_AUTO; return 0; }
-    if (strcmp(s, "h264") == 0)   { *out = RKVC_CODEC_H264; return 0; }
-    if (strcmp(s, "hevc") == 0)   { *out = RKVC_CODEC_HEVC; return 0; }
-    if (strcmp(s, "av1") == 0)    { *out = RKVC_CODEC_AV1;  return 0; }
-    if (strcmp(s, "mlvc") == 0)   { *out = RKVC_CODEC_MLVC; return 0; }
-    return -1;
-}
 
 static void usage(void)
 {
@@ -124,7 +83,12 @@ int main(int argc, char **argv)
         case 'c': codec_s = optarg; break;
         case 'p': policy_s = optarg; break;
         case 'b': bitrate = atoll(optarg); break;
-        case 's': sscanf(optarg, "%dx%d", &w, &h); break;
+        case 's':
+            if (rkvc_cli_parse_wxh(optarg, &w, &h) < 0) {
+                fprintf(stderr, "invalid size: %s (expected WxH)\n", optarg);
+                return 1;
+            }
+            break;
         case 'R': rc_mode_s = optarg; break;
         case 'q': qp = atoi(optarg); break;
         case 'L': svt_lp = atoi(optarg); break;
@@ -147,7 +111,7 @@ int main(int argc, char **argv)
 
     rkvc_codec codec = RKVC_CODEC_AUTO;
     if (codec_s) {
-        if (parse_codec(codec_s, &codec) < 0) {
+        if (rkvc_cli_parse_codec(codec_s, &codec) < 0) {
             fprintf(stderr, "invalid codec: %s\n", codec_s);
             return 1;
         }
@@ -199,7 +163,10 @@ int main(int argc, char **argv)
         rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_TRANSCODE, &d);
     }
 
-    d.policy      = parse_policy(policy_s);
+    if (rkvc_cli_parse_policy(policy_s, &d.policy) < 0) {
+        fprintf(stderr, "invalid policy: %s\n", policy_s);
+        return 1;
+    }
     d.input_path  = input;
     d.output_path = output;
     d.bitrate     = bitrate;
@@ -210,7 +177,7 @@ int main(int argc, char **argv)
         d.height = h;
     }
     if (rc_mode_s) {
-        if (parse_rc_mode(rc_mode_s, &d.rc_mode) < 0) {
+        if (rkvc_cli_parse_rc_mode(rc_mode_s, &d.rc_mode) < 0) {
             fprintf(stderr, "invalid rc-mode: %s\n", rc_mode_s);
             return 1;
         }
@@ -227,10 +194,6 @@ int main(int argc, char **argv)
                     "MLVC encode requires --mlvc-enc, --mlvc-gaussian-pmf, --mlvc-bitest-pmf\n");
                 return 1;
             }
-            if (policy_is_neural)
-                d.codec = RKVC_CODEC_AUTO;  /* 路由器按 policy=neural 自动选 MLVC */
-            else
-                d.codec = RKVC_CODEC_MLVC;
         } else if (in_is_mlvc) {
             /* 解码/转码 from .mlvc：需要 dec + PMF */
             if (!mlvc_dec || !mlvc_gaussian || !mlvc_bitest) {
@@ -246,6 +209,12 @@ int main(int argc, char **argv)
         d.mlvc_qp                = mlvc_qp;
         d.mlvc_qp_patch_dir      = mlvc_qp_patch_dir;
     }
+
+    /* -c 始终写入描述符；neural 编码到 .mlvc 时保持 AUTO，让路由器按 policy 选 MLVC。 */
+    if (out_is_mlvc && policy_is_neural)
+        d.codec = RKVC_CODEC_AUTO;
+    else if (codec_s)
+        d.codec = codec;
 
     rkvc_session *s = NULL;
     rkvc_err err = rkvc_session_create(&d, &s);

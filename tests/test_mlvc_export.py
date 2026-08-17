@@ -233,6 +233,91 @@ class TestOnnxRewrite(unittest.TestCase):
             in_names = [i.name for i in loaded.graph.input]
             self.assertNotIn("q_index_shifted", in_names)
 
+    def test_extract_leading_space_to_depth(self) -> None:
+        from onnx_extract import extract_file
+        from onnx_rewrite import inspect_onnx, prepare_onnx
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "enc.onnx"
+            prepared = Path(tmp) / "prepared.onnx"
+            extracted = Path(tmp) / "extracted.onnx"
+            self._tiny_encoder(src)
+            prepare_onnx(src, prepared, qp=21, rewrite=False, fold=True)
+            report = extract_file(prepared, extracted, "space_to_depth")
+            self.assertEqual(report.blocksize, 2)
+            self.assertEqual(report.in_shape, [1, 3, 8, 8])
+            self.assertEqual(report.out_shape, [1, 12, 4, 4])
+            info = inspect_onnx(extracted)
+            x = next(t for t in info.inputs if t.name == "x")
+            self.assertEqual(x.shape, [1, 12, 4, 4])
+            ops = [n.op_type for n in onnx.load(str(extracted)).graph.node]
+            self.assertNotIn("SpaceToDepth", ops)
+
+    def test_extract_does_not_drop_other_unnamed_nodes(self) -> None:
+        from onnx_extract import extract_file
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "enc.onnx"
+            self._tiny_encoder(src)
+            loaded = onnx.load(str(src))
+            for node in loaded.graph.node:
+                node.name = ""
+            onnx.save(loaded, str(src))
+            dst = Path(tmp) / "ex.onnx"
+            extract_file(src, dst, "space_to_depth")
+            ops = [n.op_type for n in onnx.load(str(dst)).graph.node]
+            self.assertNotIn("SpaceToDepth", ops)
+            self.assertIn("Max", ops)
+            self.assertIn("Div", ops)
+            self.assertIn("Identity", ops)
+
+    def _tiny_decoder(self, path: Path) -> None:
+        import numpy as np
+        from onnx import TensorProto, helper, numpy_helper
+
+        z = helper.make_tensor_value_info("z_raw", TensorProto.FLOAT, [1, 12, 2, 2])
+        y0 = helper.make_tensor_value_info("y_raw_0", TensorProto.FLOAT, [1, 4, 2, 2])
+        y1 = helper.make_tensor_value_info("y_raw_1", TensorProto.FLOAT, [1, 4, 2, 2])
+        ref = helper.make_tensor_value_info("ref_feature", TensorProto.FLOAT, [1, 4, 2, 2])
+        x_hat = helper.make_tensor_value_info("x_hat", TensorProto.FLOAT, [1, 3, 4, 4])
+        feat = helper.make_tensor_value_info("feature", TensorProto.FLOAT, [1, 4, 2, 2])
+        zero = numpy_helper.from_array(np.array(0.0, dtype=np.float32), name="zero")
+        one = numpy_helper.from_array(np.array(1.0, dtype=np.float32), name="one")
+        nodes = [
+            helper.make_node("DepthToSpace", ["z_raw"], ["shuf"], blocksize=2, name="d2s"),
+            helper.make_node("Clip", ["shuf", "zero", "one"], ["x_hat"], name="clip_x"),
+            helper.make_node("Identity", ["ref_feature"], ["feature"], name="feat"),
+            helper.make_node("Identity", ["y_raw_0"], ["y0_keep"], name="keep0"),
+            helper.make_node("Identity", ["y_raw_1"], ["y1_keep"], name="keep1"),
+        ]
+        graph = helper.make_graph(
+            nodes, "tiny_dec", [z, y0, y1, ref], [x_hat, feat], [zero, one]
+        )
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
+        model.ir_version = 8
+        onnx.save(model, str(path))
+
+    def test_extract_trailing_depth_to_space(self) -> None:
+        from onnx_extract import extract_file
+        from onnx_rewrite import inspect_onnx
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "dec.onnx"
+            dst = Path(tmp) / "extracted.onnx"
+            self._tiny_decoder(src)
+            report = extract_file(src, dst, "depth_to_space")
+            self.assertEqual(report.blocksize, 2)
+            self.assertEqual(report.in_shape, [1, 12, 2, 2])
+            self.assertEqual(report.clip_lo, 0.0)
+            self.assertEqual(report.clip_hi, 1.0)
+            self.assertEqual(report.mode, "DCR")
+            info = inspect_onnx(dst)
+            x = next(t for t in info.outputs if t.name == "x_hat")
+            self.assertEqual(x.shape, [1, 12, 2, 2])
+            ops = [n.op_type for n in onnx.load(str(dst)).graph.node]
+            self.assertNotIn("DepthToSpace", ops)
+            self.assertNotIn("Clip", ops)
+
     def test_skip_rknn_cli_writes_onnx(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             src_dir = Path(tmp) / "in"

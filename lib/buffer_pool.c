@@ -9,6 +9,7 @@
 #include "internal.h"
 
 #include <errno.h>
+#include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <drm/drm_fourcc.h>
@@ -308,6 +309,19 @@ rkvc_buffer *rkvc_buffer_from_drm_frame(AVFrame *hw_frame)
     return b;
 }
 
+static uint8_t *bitstream_copy_padded(const uint8_t *data, size_t size)
+{
+    if (size > SIZE_MAX - (size_t)AV_INPUT_BUFFER_PADDING_SIZE)
+        return NULL;
+
+    uint8_t *p = rkvc_malloc(size + (size_t)AV_INPUT_BUFFER_PADDING_SIZE);
+    if (!p)
+        return NULL;
+    memcpy(p, data, size);
+    memset(p + size, 0, (size_t)AV_INPUT_BUFFER_PADDING_SIZE);
+    return p;
+}
+
 rkvc_err rkvc_buffer_alloc_bitstream(rkvc_buffer **out,
                                      const uint8_t *data, size_t size,
                                      int copy)
@@ -323,12 +337,15 @@ rkvc_err rkvc_buffer_alloc_bitstream(rkvc_buffer **out,
     buffer_init_lock(b);
 
     if (copy) {
-        b->data = rkvc_malloc(size);
+        if (size > SIZE_MAX - (size_t)AV_INPUT_BUFFER_PADDING_SIZE) {
+            rkvc_buffer_unref(b);
+            return RKVC_ERR_INVALID;
+        }
+        b->data = bitstream_copy_padded(data, size);
         if (!b->data) {
             rkvc_buffer_unref(b);
             return RKVC_ERR_NOMEM;
         }
-        memcpy(b->data, data, size);
         b->owns_data = 1;
     } else {
         b->data = (uint8_t *)data;
@@ -352,12 +369,11 @@ rkvc_buffer *rkvc_buffer_from_avpacket(const AVPacket *avpkt)
     b->kind = RKVC_BUF_BITSTREAM;
     buffer_init_lock(b);
 
-    b->data = rkvc_malloc((size_t)avpkt->size);
+    b->data = bitstream_copy_padded(avpkt->data, (size_t)avpkt->size);
     if (!b->data) {
         rkvc_buffer_unref(b);
         return NULL;
     }
-    memcpy(b->data, avpkt->data, (size_t)avpkt->size);
     b->size      = (size_t)avpkt->size;
     b->owns_data = 1;
     b->pts       = avpkt->pts;

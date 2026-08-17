@@ -134,6 +134,7 @@ typedef struct {
     uint8_t  *end;          /* 缓冲结束 */
     size_t    cap;          /* 当前容量（字节）*/
     int       flushed;
+    int       oom;          /* enc_grow 失败后禁止再写 */
 } rkvc_rans_enc_stream;
 
 /** @brief 初始化流式编码器。initial_capacity 为初始缓冲字节数（最小 512）。 */

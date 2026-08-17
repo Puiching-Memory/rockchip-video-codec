@@ -12,6 +12,8 @@
 #include <cmocka.h>
 #include "rkvc/rkvc.h"
 
+#include <stdint.h>
+
 static void test_alloc_video_host(void **state)
 {
     (void)state;
@@ -43,6 +45,16 @@ static void test_bitstream_buffer(void **state)
     rkvc_buffer_unref(b);
 }
 
+static void test_bitstream_rejects_overflowing_size(void **state)
+{
+    (void)state;
+    const uint8_t byte = 0;
+    rkvc_buffer *buffer = NULL;
+    assert_int_equal(rkvc_buffer_alloc_bitstream(&buffer, &byte, SIZE_MAX, 1),
+                     RKVC_ERR_INVALID);
+    assert_null(buffer);
+}
+
 static void test_refcount(void **state)
 {
     (void)state;
@@ -58,6 +70,7 @@ int main(void)
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_alloc_video_host),
         cmocka_unit_test(test_bitstream_buffer),
+        cmocka_unit_test(test_bitstream_rejects_overflowing_size),
         cmocka_unit_test(test_refcount),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

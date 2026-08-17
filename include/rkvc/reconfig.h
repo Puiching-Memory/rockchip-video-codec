@@ -8,8 +8,9 @@
  * - **MPP（H.264/HEVC）**：下一帧编码前把 `bit_rate`/`gop_size` 推到
  *   `AVCodecContext`，由 `rkmppenc` 经 `MPP_ENC_SET_CFG` 生效；`request_idr`
  *   通过下一帧 `pict_type=I` 触发 `MPP_ENC_SET_IDR_FRAME`。
- * - **SVT-AV1**：仅更新 `pipeline_desc` 记录；运行中改参需重启编码器
- *   （返回 `RKVC_ERR_INVALID` 若要求立即生效且无 MPP）。
+ * - **SVT-AV1**：运行中改参需重启编码器；编码器已打开时 `set_bitrate` /
+ *   `set_gop` / `request_idr` 返回 `RKVC_ERR_INVALID`。打开前写入 `pipeline_desc`
+ *   仍可在 `session` 启动时生效。
  * - **分辨率 / profile**：不在本 API；需重建 Session（mux/SPS 绑定）。
  *
  * 应用层带宽自适应应调用本 API；策略状态机不进 SDK。

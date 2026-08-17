@@ -175,17 +175,7 @@ def validate_runtime_io(info: OnnxInfo, *, part: str | None = None) -> list[str]
             problems.append(
                 f"{part} 输入数为 {len(in_names)}，运行时期望 {expected_n}（现有: {in_names}）"
             )
-        if part == "encoder":
-            y0 = find_name(out_names, "y_raw_0")
-            y1 = find_name(out_names, "y_raw_1")
-            if y0 and y1:
-                i0, i1 = out_names.index(y0), out_names.index(y1)
-                if i1 != i0 + 1:
-                    problems.append(
-                        f"编码器 y_raw_0/y_raw_1 必须相邻（C 侧用 y0 下标+1）；当前 {[y0, y1]} @ {i0},{i1}"
-                    )
-        if part == "decoder" and out_names and find_name(out_names[:1], "x_hat") is None:
-            problems.append(f"解码器输出 0 应为 x_hat（现有: {out_names}）")
+        # C 侧按名字绑定 y_raw_0 / y_raw_1 / x_hat，不要求相邻下标。
     return problems
 
 
@@ -505,11 +495,11 @@ def _reorder_value_infos(items: Sequence[Any], keys: Sequence[str]) -> list[Any]
 
 
 def reorder_runtime_io(model: Any, *, part: str | None = None) -> None:
-    """把图 I/O 排成 ``node_mlvc.c`` 的下标约定。
+    """把图 I/O 排成稳定顺序，便于检查与文档对照。
 
-    编码器输入 ``[image, ref_feature]``；输出里 ``y_raw_0`` 必须紧挨 ``y_raw_1``
-    （C 侧用 ``enc_y0_out + 1`` 取 y1）。解码器输入 ``[z, y0, y1, ref]``，
-    输出 ``[x_hat, feature]``。
+    编码器输入 ``[x, ref_feature]``，输出 ``[feature, z_raw, y_raw_0, y_raw_1]``。
+    解码器输入 ``[z_raw, y_raw_0, y_raw_1, ref_feature]``，输出 ``[x_hat, feature]``。
+    运行时 ``lib/node_mlvc.c`` 按名字绑定，不再依赖相邻下标。
     """
     inits = {init.name for init in model.graph.initializer}
     graph_inputs = [i for i in model.graph.input if i.name not in inits]
@@ -540,12 +530,12 @@ def reorder_runtime_io(model: Any, *, part: str | None = None) -> None:
 def rewrite_npu_ops(model: Any) -> RewriteReport:
     """就地替换 SpaceToDepth / Max / Min / Div。"""
     onnx = require_onnx()
+    report = RewriteReport()
     try:
         inferred = onnx.shape_inference.infer_shapes(model)
         model.CopyFrom(inferred)
-    except Exception:
-        pass
-    report = RewriteReport()
+    except Exception as exc:
+        report.skipped.append(f"shape_inference failed: {exc}")
     names = _all_names(model)
     scalars = _constant_scalars(model)
     new_nodes: list[Any] = []

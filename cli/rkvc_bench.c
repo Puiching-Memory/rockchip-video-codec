@@ -7,6 +7,7 @@
  */
 
 #include "rkvc/rkvc.h"
+#include "cli_parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,7 +79,12 @@ int main(int argc, char **argv)
     while ((c = getopt_long(argc, argv, "i:o:s:", opts, NULL)) != -1) {
         if (c == 'i') o.input = optarg;
         else if (c == 'o') o.output_dir = optarg;
-        else if (c == 's') sscanf(optarg, "%dx%d", &o.width, &o.height);
+        else if (c == 's') {
+            if (rkvc_cli_parse_wxh(optarg, &o.width, &o.height) < 0) {
+                fprintf(stderr, "invalid size: %s (expected WxH)\n", optarg);
+                return 1;
+            }
+        }
     }
 
     if (!o.input) {
@@ -105,7 +111,7 @@ int main(int argc, char **argv)
         { RKVC_POLICY_BALANCED, "BALANCED (HEVC)" },
         { RKVC_POLICY_QUALITY,  "QUALITY (AV1)" },
         { RKVC_POLICY_OFFLINE,  "OFFLINE (AV1 HQ)" },
-        { RKVC_POLICY_NEURAL,   "NEURAL (MLVC)" },
+        /* NEURAL/MLVC 需要模型与 PMF，由 bench/ RD 套件单独跑，不塞进这条 mp4 转码表。 */
     };
 
     int failed = 0;

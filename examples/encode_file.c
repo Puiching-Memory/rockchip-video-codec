@@ -30,7 +30,16 @@ int main(int argc, char **argv)
     };
     while ((c = getopt_long(argc, argv, "o:s:r:n:b:", opts, NULL)) != -1) {
         if (c == 'o') output = optarg;
-        else if (c == 's') sscanf(optarg, "%dx%d", &w, &h);
+        else if (c == 's') {
+            int tw = 0, th = 0;
+            char extra;
+            if (sscanf(optarg, "%dx%d%c", &tw, &th, &extra) != 2 || tw <= 0 || th <= 0) {
+                fprintf(stderr, "invalid size: %s (expected WxH)\n", optarg);
+                return 1;
+            }
+            w = tw;
+            h = th;
+        }
         else if (c == 'r') fps = atoi(optarg);
         else if (c == 'n') frames = atoi(optarg);
         else if (c == 'b') bitrate = atoll(optarg);
@@ -66,8 +75,13 @@ int main(int argc, char **argv)
     d.policy  = RKVC_POLICY_REALTIME;
 
     rkvc_session *s = NULL;
-    rkvc_session_create(&d, &s);
-    rkvc_err err = rkvc_session_run_file(s);
+    rkvc_err err = rkvc_session_create(&d, &s);
+    if (err != RKVC_OK) {
+        fprintf(stderr, "session create: %s\n", rkvc_err_str(err));
+        unlink(raw_path);
+        return 1;
+    }
+    err = rkvc_session_run_file(s);
     rkvc_session_destroy(s);
     unlink(raw_path);
     return err == RKVC_OK ? 0 : 1;

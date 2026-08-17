@@ -69,6 +69,7 @@ void rkvc_net_close(rkvc_net *net);
  * @param data 载荷；`size==0` 时发送结束信号（同 `rkvc_net_finish`）。
  * @param pts  时间戳（透传；RTP 取低 32 位作 timestamp）。
  * @param key_frame 非 0 表示关键帧（UDP 头未携带该标志，保留给上层统计）。
+ * @return 超过接收端重组上限的帧返回 `RKVC_ERR_INVALID`。
  */
 rkvc_err rkvc_net_send(rkvc_net *net, const uint8_t *data, size_t size,
                        int64_t pts, int key_frame);
@@ -77,7 +78,8 @@ rkvc_err rkvc_net_send(rkvc_net *net, const uint8_t *data, size_t size,
  * @brief 接收并重组一帧，输出为码流缓冲（调用方 `rkvc_buffer_unref`）。
  *
  * @param timeout_ms `<0` 用配置默认；`0` 非阻塞；`>0` 等待毫秒。
- * @return `RKVC_OK`、`RKVC_ERR_AGAIN`（超时/无数据）、`RKVC_ERR_EOF`（对端 finish）。
+ * @return `RKVC_OK`、`RKVC_ERR_AGAIN`（超时/无数据）、`RKVC_ERR_EOF`（对端 finish）、
+ *         `RKVC_ERR_INVALID`（RTP 帧超过接收上限）。
  */
 rkvc_err rkvc_net_recv(rkvc_net *net, rkvc_buffer **out, int timeout_ms);
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.3.0
+    VERSION 0.3.1
     DESCRIPTION "Rockchip multi-SoC multi-codec pipeline library"
     LANGUAGES C
 )
@@ -122,6 +122,8 @@ set(RKVC_SOURCES
     lib/port.c
     lib/scheduler.c
     lib/session.c
+    lib/session_scale.c
+    lib/session_run.c
     lib/session_roi.c
     lib/session_reconfig.c
     lib/runtime.c
@@ -503,10 +505,18 @@ if(RKVC_BUILD_CLI)
     foreach(CLI_SRC ${RKVC_CLI_SOURCES})
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${CLI_SRC}")
             get_filename_component(CLI_NAME ${CLI_SRC} NAME_WE)
-            add_executable(${CLI_NAME} ${CLI_SRC})
+            set(CLI_EXTRA "")
+            if(CLI_NAME STREQUAL "rkvc_encode" OR
+               CLI_NAME STREQUAL "rkvc_transcode" OR
+               CLI_NAME STREQUAL "rkvc_bench")
+                set(CLI_EXTRA cli/cli_parse.c)
+            endif()
+            add_executable(${CLI_NAME} ${CLI_SRC} ${CLI_EXTRA})
             target_link_libraries(${CLI_NAME} PRIVATE rkvc)
             target_include_directories(${CLI_NAME}
-                PRIVATE ${AVCODEC_INCLUDE_DIRS})
+                PRIVATE
+                    ${AVCODEC_INCLUDE_DIRS}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/cli)
             target_link_directories(${CLI_NAME}
                 PRIVATE ${RKVC_DEP_LIB_DIRS})
             target_link_options(${CLI_NAME}
@@ -625,6 +635,7 @@ if(RKVC_BUILD_TESTS)
         tests/test_v4l2.c
         tests/test_net.c
         tests/test_qppatch.c
+        tests/test_cli_parse.c
     )
 
     if(RKVC_ENABLE_FAULT_INJECTION)
@@ -647,12 +658,17 @@ if(RKVC_BUILD_TESTS)
 
     foreach(TEST_SRC ${RKVC_TEST_SOURCES})
         get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
-        add_executable(${TEST_NAME} ${TEST_SRC})
+        if(TEST_NAME STREQUAL "test_cli_parse")
+            add_executable(${TEST_NAME} ${TEST_SRC} cli/cli_parse.c)
+        else()
+            add_executable(${TEST_NAME} ${TEST_SRC})
+        endif()
         target_link_libraries(${TEST_NAME} PRIVATE rkvc_static rkvc_instrumentation ${CMOCKA_LIBRARIES})
         target_include_directories(${TEST_NAME}
             PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/include
                 ${CMAKE_CURRENT_SOURCE_DIR}/lib
+                ${CMAKE_CURRENT_SOURCE_DIR}/cli
                 ${CMOCKA_INCLUDE_DIRS}
                 ${AVCODEC_INCLUDE_DIRS}
         )

@@ -4,25 +4,47 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-17
+
+### 发布重点
+
+rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RKNN 导出工具链**与**多 QP 单模型补丁**，修复 PMF/RKNN 加载、rANS 扩容、Session 生命周期和网络重组中的边界缺陷，并在 RK3588 上完成 **fp16 硬件转换、NPU 多核调度、解码尾部算子外提**三项性能优化。Session 实现同步拆分，CLI 参数解析去重，测试矩阵补齐溢出、越界与异常输入回归。
+
+### 修复
+
+- **MLVC 模型安全加载**：PMF 计数改用 `size_t` 并设置上限；RKNN 模型校验文件长度、模型大小与 I/O 数量；失败路径完整释放缓冲，防止截断文件导致泄漏或堆溢出。
+- **张量绑定与导出校验**：编码器/解码器按 `y_raw_0`、`x_hat` 等名称绑定张量；shape inference 失败计入 `skipped`，运行时 I/O 校验失败中止 RKNN 导出。
+- **rANS 扩容**：OOM 后停止写入并让编码/flush 返回错误，修复越界写。
+- **码流缓冲安全**：copy 路径统一附带 FFmpeg 输入 padding；修复 `size + padding` 回绕，超限尺寸返回 `INVALID`。
+- **Session 生命周期**：端口队列创建失败返回 `NOMEM`；输出端口非 `AGAIN` 错误上抛；编码缩放后的非法宽高在创建期拒绝。
+- **运行时配置**：修复 `MLVC_STORAGE` 与 NPU 会话配额漏计；ROI 拒绝负坐标和越界矩形；已打开的 SVT/MLVC 编码器拒绝不可实际生效的热重配。
+- **RKNN SR**：NPU core mask 由板卡 `npu_cores` 决定；能力探测同时检查板卡支持与设备节点。
+- **网络传输**：UDP 分片长度必须与声明帧长一致，不再交付带空洞的帧；RTP 发送与接收共用最大帧长上限，阻断异常流的重组缓冲无限扩张。
+- **CLI 与示例**：修复分辨率/policy 解析错误、`.mlvc → .mp4 -c <codec>` 路由、无效 session 空指针调用，并让示例行为与文档一致。
+
 ### 新增
 
 - **MLVC ONNX → RKNN 导出工具**（`tools/mlvc/`）：`python export_rknn.py --from-mlvc` 浅克隆 microsoft/mlvc 并跑 `convert.py export --target-device generic`，再折叠 `q_index_shifted`、把 SpaceToDepth/Max/Div 换成 NPU 友好算子，经 rknn-toolkit2 转 FP16 `.rknn`，PMF JSON 写成 PMF1。环境：`cd tools/mlvc && uv sync`。无 toolkit 时可用 `--skip-rknn` / `--pmf-only`。文档见 `docs/mlvc-rknn-export.md`。
 - **MLVC 多 QP 单模型（QPP1）**：同尺寸多 qp `.rknn` 打成区间补丁（`tools/mlvc/qppatch.py` / `make_qp_patches.py`）。`rkvc_transcode --mlvc-qp-patch-dir` 在 `rknn_init` 前对基座打一次补丁（编码用 `--mlvc-qp`，解码用容器头 qp）；缺补丁或 CRC 失败则打开失败。C 应用器 `lib/qppatch.c`，测试 `tests/test_qppatch.c`。
+- **共享 CLI 解析器**：`policy` / `WxH` / `rc-mode` / `codec` / `pix-fmt` 抽到 `cli/cli_parse.c`，encode/transcode/bench 共用，消除重复和隐性默认值差异。
 
 ### 变更
 
 - **bench：MLVC 对照图改为「论文 Semantic 粗比 + 本机实测」**：只叠 Semantic（MS-SSIM），不叠 H.264+LDPC。横轴 CBR=bpp/8，纵轴线性相似度；实测为 FourPeople 640×368 重跑。主 RD 默认仍不叠文献（`LITERATURE=1` 才启用）。
+- **Session 模块拆分**：缩放/上采样 → `session_scale.c`，文件/Live 循环 → `session_run.c`，生命周期与图构建留在 `session.c`。
+- **测试加固**：新增 CLI 解析、码流溢出、RTP 超限与 QP patch 边界回归；修正原 QP 越界测试自身的读溢出，Debug 与 ASan/UBSan 矩阵全部通过。
 
 ### 性能
 
-- **MLVC 推理性能优化（RK3588，编码 +24%）**（`lib/node_mlvc.c`）：经分阶段插桩定位，单帧编码 116 ms 中 NPU `rknn_run` 占 79%（92 ms）、fp16 标量位运算转换占 16%（18.7 ms）；解码 192 ms 中 NPU `rknn_run` 占 86%（153 ms，模型固有计算，软件层无法突破）。两处可落地优化：
+- **MLVC 解码器尾部 DepthToSpace 外提（RK3588，解码约 −31 ms/帧，输出 1:1）**：ONNX 尾部是 `DepthToSpace(mode=DCR, bs=8)+Clip(0,1)`，RKNN 放在图里会变成慢路径。导出默认把这两步从图里拿掉（`--no-extract-tail` 可关），`node_mlvc.c` 按 `x_hat` native 通道数自动识别：`C=3·bs²` 则 CPU 做 DCR shuffle + clip，旧的整图 `x_hat` 模型仍走原路径。同 toolkit、同输入 40 帧 A/B：`x_hat`（DCR）与 `feature` 逐字节一致，173.6 → 142.4 ms/帧。编码头 SpaceToDepth 外提与同一 `.rknn` 上 custom op 替换均未能 1:1，未落地。
+
+- **MLVC 推理性能优化（RK3588，编码 +24%）**：经分阶段插桩定位，单帧编码中 NPU `rknn_run` 占 79%、fp16 标量位运算转换占 16%。两项可落地优化：
   - **fp16 转换硬件化**：`f32_to_f16` / `f16_to_f32` 此前为纯软件逐位运算（每元素 ~15 条指令 + 分支）。AArch64 上改用原生 `__fp16` 类型，各编译为单条 `fcvt` 指令（IEEE round-to-nearest-even，与软件实现**逐位等价**），并使编译器能对调用处循环自动向量化。其它架构保留原可移植软件实现（`#if defined(__ARM_NEON)` 守卫）。
   - **NPU 多核调度（板卡 profile 驱动）**：`rknn_init` 后按板卡 profile 的 `npu_cores` 显式设置 `rknn_set_core_mask`，启用全部 NPU 核心让运行时在核间分配算子，显著降低编码推理延迟。分层设计避免硬编码：
     - **板卡抽象层**（`lib/board.h` / `lib/board.c`）新增 `rkvc_board_profile::npu_cores` 字段，描述硬件事实（NPU 计算核心数）：RK3588=3（每核 2 TOPS，共 6 TOPS）、RV1126B=1。该层不依赖 `rknn_api.h`。
     - **MLVC/RKNN 层**（`lib/node_mlvc.c`）新增 `mlvc_npu_core_mask(int cores)`，负责 `npu_cores → RKNN core_mask` 映射（3→`CORE_0_1_2`、2→`CORE_0_1`、1→不调用保持默认）；多核（`npu_cores>1`）时启用，单核平台保持默认单核行为。
-  - **实测**（640×368，受控 A/B 交替 3 轮排除 NPU 争用/热噪声）：编码 8.09 → 10.04 fps（+24%），解码 5.13 → 5.25 fps（NPU 模型固有计算为瓶颈，软件层无收益）。
+  - **实测**（640×368，受控 A/B 交替 3 轮排除 NPU 争用/热噪声）：编码 8.09 → 10.04 fps（**+24%**），解码 5.13 → 5.25 fps；NPU 模型固有计算为瓶颈，软件层无额外收益。
   - **正确性**：端到端 `.mlvc` 码流逐字节一致（sha256 相同，含 `__fp16` 位等价 + `core_mask` 不改变计算结果双重验证）；解码往返 `.mlvc → .yuv` 输出尺寸精确、Y 平面内容有效。
-
 
 ## [0.3.0] - 2026-08-12
 

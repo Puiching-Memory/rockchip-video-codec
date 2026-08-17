@@ -64,7 +64,7 @@
 - `encode_file` — 测试图案编码
 - `decode_file` — 文件解码
 - `transcode` — 转码
-- `latency_test` — 端到端延迟
+- `latency_test` — `session_create` 耗时
 - `decode_formats` — 多像素格式解码验证（NV12/YUV420P/NV16/P010）
 
 详见 `EXAMPLES.md`。

@@ -174,6 +174,24 @@ static void test_udp_rejects_oversized_frame_len(void **state)
     rkvc_net_close(rx);
 }
 
+static void test_rtp_rejects_oversized_frame(void **state)
+{
+    (void)state;
+    rkvc_net_config cfg = rkvc_net_config_defaults();
+    cfg.mode = RKVC_NET_RTP;
+    cfg.peer_ip = "127.0.0.1";
+    cfg.peer_port = 19005;
+    rkvc_net *tx = NULL;
+    assert_int_equal(rkvc_net_open(&tx, &cfg), RKVC_OK);
+
+    const uint8_t byte = 0;
+    const size_t oversized = 16u * 65491u + 1u;
+    assert_int_equal(rkvc_net_send(tx, &byte, oversized, 0, 0),
+                     RKVC_ERR_INVALID);
+
+    rkvc_net_close(tx);
+}
+
 static void test_udp_finish_signal(void **state)
 {
     (void)state;
@@ -217,6 +235,7 @@ int main(void)
         cmocka_unit_test(test_udp_loopback),
         cmocka_unit_test(test_rtp_loopback),
         cmocka_unit_test(test_udp_rejects_oversized_frame_len),
+        cmocka_unit_test(test_rtp_rejects_oversized_frame),
         cmocka_unit_test(test_udp_finish_signal),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

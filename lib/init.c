@@ -197,7 +197,7 @@ static int dma_heap_runtime_selected(void)
     return rkvc_dev_access("/dev/dma_heap", F_OK | R_OK) == 0;
 }
 
-static int npu_accessible(void)
+int rkvc_npu_accessible(void)
 {
     if (rkvc_dev_access("/sys/kernel/debug/rknpu/version", R_OK) == 0)
         return 1;
@@ -331,8 +331,7 @@ rkvc_err rkvc_query_caps(rkvc_caps *caps)
 
     caps->has_dma_heap = mpp_default_dma_heap_accessible();
     caps->has_rga = bp->has_rga && (rkvc_dev_access("/dev/rga", R_OK | W_OK) == 0);
-    caps->has_rknn = (rkvc_rknn_sr_available() && npu_accessible()
-                      && bp->has_npu) ? 1 : 0;
+    caps->has_rknn = rkvc_rknn_sr_available() ? 1 : 0;
 
     /* max_width/height 取 VPU 硬件解码上限（与原 RK3588 7680×4320 语义一致） */
     caps->max_width  = bp->max_dec_w;

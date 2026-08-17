@@ -258,37 +258,51 @@ void rkvc_rans_coder_free(rkvc_rans_coder *coder)
 
 /* ── 向后写入缓冲：确保有空间写入一个 unit ── */
 
-static void enc_grow(rkvc_rans_enc_stream *s)
+static int enc_grow(rkvc_rans_enc_stream *s)
 {
-    size_t unit_sz = (s->variant == RKVC_RANS_BYTE) ? 1 : 4;
+    if (s->oom || !s->buf)
+        return -1;
     size_t new_cap = s->cap * 2;
     if (new_cap < s->cap + 65536)
         new_cap = s->cap + 65536;
+    if (new_cap <= s->cap) {
+        s->oom = 1;
+        return -1;
+    }
     uint8_t *new_buf = (uint8_t *)malloc(new_cap);
-    if (!new_buf)
-        return;  /* 致命：OOM，后续写入会越界——实际场景几乎不发生 */
+    if (!new_buf) {
+        s->oom = 1;
+        return -1;
+    }
     size_t content = (size_t)(s->end - s->ptr);
-    /* 内容拷贝到新缓冲末尾 */
     memcpy(new_buf + new_cap - content, s->ptr, content);
     free(s->buf);
     s->buf = new_buf;
     s->cap = new_cap;
     s->end = new_buf + new_cap;
     s->ptr = new_buf + new_cap - content;
-    (void)unit_sz;
+    return 0;
 }
 
 static inline void enc_write_unit_byte(rkvc_rans_enc_stream *s, uint8_t val)
 {
+    if (s->oom || !s->buf || !s->ptr)
+        return;
+    if (s->ptr <= s->buf && enc_grow(s) != 0)
+        return;
     if (s->ptr <= s->buf)
-        enc_grow(s);
+        return;
     *(--s->ptr) = val;
 }
 
 static inline void enc_write_unit_64(rkvc_rans_enc_stream *s, uint32_t val)
 {
+    if (s->oom || !s->buf || !s->ptr)
+        return;
+    if ((size_t)(s->ptr - s->buf) < 4 && enc_grow(s) != 0)
+        return;
     if ((size_t)(s->ptr - s->buf) < 4)
-        enc_grow(s);
+        return;
     s->ptr -= 4;
     memcpy(s->ptr, &val, 4);  /* 原生字节序（aarch64 = LE）*/
 }
@@ -599,6 +613,15 @@ void rkvc_rans_enc_stream_init(rkvc_rans_enc_stream *s,
     if (initial_capacity < 512)
         initial_capacity = 512;
     s->buf = (uint8_t *)malloc(initial_capacity);
+    if (!s->buf) {
+        s->oom = 1;
+        s->cap = 0;
+        s->end = NULL;
+        s->ptr = NULL;
+        s->state = (variant == RKVC_RANS_BYTE)
+            ? RANS_BYTE_LOWER_BOUND : RANS_64_LOWER_BOUND;
+        return;
+    }
     s->cap = initial_capacity;
     s->end = s->buf + initial_capacity;
     s->ptr = s->end;  /* 从末尾向前写 */
@@ -615,7 +638,7 @@ int rkvc_rans_enc_stream_encode(rkvc_rans_enc_stream *s,
         return RKVC_RANS_ERR_PARAMS;
     if (!coder->initialized)
         return RKVC_RANS_ERR_STATE;
-    if (s->flushed)
+    if (s->flushed || s->oom || !s->buf)
         return RKVC_RANS_ERR_STATE;
 
     /* 数据逆序编码（与 C++ 一致）*/
@@ -646,6 +669,8 @@ int rkvc_rans_enc_stream_encode(rkvc_rans_enc_stream *s,
             put_sym_byte(s, &coder->enc_syms[sym]);
         else
             put_sym_64(s, &coder->enc_syms[sym]);
+        if (s->oom)
+            return RKVC_RANS_ERR_STATE;
     }
     return RKVC_RANS_OK;
 }
@@ -653,7 +678,7 @@ int rkvc_rans_enc_stream_encode(rkvc_rans_enc_stream *s,
 const uint8_t *rkvc_rans_enc_stream_flush(rkvc_rans_enc_stream *s,
                                           size_t *out_size)
 {
-    if (!s || s->flushed) {
+    if (!s || s->flushed || s->oom || !s->buf) {
         if (out_size) *out_size = 0;
         return NULL;
     }
@@ -661,6 +686,10 @@ const uint8_t *rkvc_rans_enc_stream_flush(rkvc_rans_enc_stream *s,
         flush_byte(s);
     else
         flush_64(s);
+    if (s->oom) {
+        if (out_size) *out_size = 0;
+        return NULL;
+    }
 
     s->flushed = 1;
     if (out_size)

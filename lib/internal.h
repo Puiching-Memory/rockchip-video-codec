@@ -403,6 +403,7 @@ static inline void rkvc_rknn_quiet_runtime(void)
 }
 #endif /* RKVC_ENABLE_RKNN */
 
+int rkvc_npu_accessible(void);
 int rkvc_rknn_sr_available(void);
 rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
                                           int expect_out_w, int expect_out_h,

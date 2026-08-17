@@ -57,22 +57,17 @@
 
 ### example_latency_test
 
-模拟摄像头端到端延迟（编码 → 解码）。
+测量 `rkvc_session_create()` 耗时（无采集、无编解码）。
 
 ```bash
-./examples/bin/example_latency_test -l
-./examples/bin/example_latency_test -s 1280x720 -r 60 -n 600 -b 8000000 -l
+./examples/bin/example_latency_test
 ```
 
-选项：`-l` 低延迟、`-s` 分辨率、`-r` 帧率、`-n` 帧数、`-b` 码率。
+输出 `session_create: N.NN ms`。逐帧端到端延迟需自行在 Session 端口打点。
 
 ### example_visual_compare
 
-SDL2 原始/重建画面对比（可选构建，需 SDL2）。
-
-```bash
-./examples/bin/example_visual_compare -i input.mp4 -l
-```
+占位：SDL2 并排预览尚未接入，运行返回 1。
 
 ## 与 CLI 工具对比
 
@@ -81,7 +76,7 @@ SDL2 原始/重建画面对比（可选构建，需 SDL2）。
 | 测试图案编码 | `example_encode_file`  | 需自备 NV12 + `rkvc_encode` |
 | 文件解码     | `example_decode_file`  | `rkvc_decode`               |
 | 文件转码     | `example_transcode`    | `rkvc_transcode`            |
-| 延迟测试     | `example_latency_test` | —                           |
+| Session 创建耗时 | `example_latency_test` | —                           |
 | E2E fps 对比 | —                      | `rkvc_bench`                |
 
 ## 二次开发参考
@@ -90,7 +85,7 @@ SDL2 原始/重建画面对比（可选构建，需 SDL2）。
 
 1. `encode_file.c` — Session + 端口 + Buffer 基础
 2. `transcode.c` — 文件转码最简路径
-3. `latency_test.c` — 性能测量
+3. `live_capture.c` — LIVE_CAPTURE + ROI / 热切换
 4. `decode_formats.c` — 多像素格式 + `rkvc_buffer_get_video_info`
 
 完整 API 文档见项目 `docs/api.md` 或包内 `DEVELOPMENT.md`。

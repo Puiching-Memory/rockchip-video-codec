@@ -44,34 +44,15 @@ rkvc session E2E bench (input=clip.mp4)
 
 > 吞吐细分测试请使用 RD 套件或示例程序。
 
-## 端到端延迟测试
+## Session 创建耗时
 
-`latency_test` 模拟摄像头实时采集，经编码 → 解码全链路，测量每帧端到端延迟。
+`example_latency_test` 测量 `rkvc_session_create()` 耗时（无采集、无编解码、无 CLI 参数）：
 
 ```bash
-cd .build/release
-
-# 低延迟模式 (推荐)
-./example_latency_test -l
-
-# 自定义参数
-./example_latency_test -s 1280x720 -r 60 -n 600 -b 8000000 -l
+./.build/release/example_latency_test
 ```
 
-输出逐帧延迟明细和统计摘要（平均、P50、P95、P99）。详见示例源码 `examples/latency_test.c`。
-
-### RK3588 延迟实测 (1080p, 低延迟模式)
-
-| 指标 | 编码延迟 | 端到端延迟 |
-| ---- | -------- | ---------- |
-| 平均 | ~7 ms    | ~69 ms     |
-| P50  | ~7 ms    | ~76 ms     |
-| P95  | ~8 ms    | ~84 ms     |
-| 最大 | ~8 ms    | ~111 ms    |
-
-- **编码延迟**: 采集帧生成到编码包输出
-- **端到端延迟**: 采集帧生成到解码帧输出，含编解码器硬件流水线
-- 帧 0 延迟偏高 (~110ms) 为解码器初始化开销
+输出一行 `session_create: N.NN ms`。端到端帧延迟请用 `example_live_capture` / Session 端口自行打点，或看 `rkvc_bench` 的 E2E fps。
 
 ## 下采样 + 后处理上采样基准
 

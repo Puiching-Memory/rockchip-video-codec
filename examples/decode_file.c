@@ -10,7 +10,11 @@ int main(int argc, char **argv) {
     rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_DECODE, &d);
     d.input_path = argv[1]; d.output_path = argv[2];
     rkvc_session *s = NULL;
-    rkvc_session_create(&d, &s);
+    rkvc_err err = rkvc_session_create(&d, &s);
+    if (err != RKVC_OK) {
+        fprintf(stderr, "session create: %s\n", rkvc_err_str(err));
+        return 1;
+    }
     rkvc_err e = rkvc_session_run_file(s);
     rkvc_session_destroy(s);
     return e == RKVC_OK ? 0 : 1;

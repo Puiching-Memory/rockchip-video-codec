@@ -7,6 +7,7 @@
  */
 
 #include "rkvc/rkvc.h"
+#include "cli_parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,51 +20,6 @@ static void usage(void)
            "[--svt-lp N] [--svt-rtc]\n"
            "  Note: --enc-scale-denom downscales before encode only.\n"
            "  Post-upscale (RGA / rkvc_sr) uses rkvc_session_upscale, not this tool.\n");
-}
-
-static rkvc_policy parse_policy(const char *s)
-{
-    if (!s || strcmp(s, "realtime") == 0) return RKVC_POLICY_REALTIME;
-    if (strcmp(s, "balanced") == 0) return RKVC_POLICY_BALANCED;
-    if (strcmp(s, "quality") == 0) return RKVC_POLICY_QUALITY;
-    if (strcmp(s, "offline") == 0) return RKVC_POLICY_OFFLINE;
-    if (strcmp(s, "neural") == 0)  return RKVC_POLICY_NEURAL;
-    return RKVC_POLICY_REALTIME;
-}
-
-static int parse_rc_mode(const char *s, rkvc_rc_mode *out)
-{
-    if (!s || !out)
-        return -1;
-    if (strcmp(s, "vbr") == 0 || strcmp(s, "VBR") == 0) {
-        *out = RKVC_RC_VBR;
-        return 0;
-    }
-    if (strcmp(s, "cbr") == 0 || strcmp(s, "CBR") == 0) {
-        *out = RKVC_RC_CBR;
-        return 0;
-    }
-    if (strcmp(s, "cqp") == 0 || strcmp(s, "CQP") == 0 ||
-        strcmp(s, "fixqp") == 0) {
-        *out = RKVC_RC_CQP;
-        return 0;
-    }
-    return -1;
-}
-
-static int parse_pix_fmt(const char *s, rkvc_pix_fmt *out)
-{
-    if (!s || !out)
-        return -1;
-    if (strcmp(s, "nv12") == 0 || strcmp(s, "NV12") == 0) {
-        *out = RKVC_PIX_FMT_NV12;
-        return 0;
-    }
-    if (strcmp(s, "yuv420p") == 0 || strcmp(s, "YUV420P") == 0) {
-        *out = RKVC_PIX_FMT_YUV420P;
-        return 0;
-    }
-    return -1;
 }
 
 int main(int argc, char **argv)
@@ -99,7 +55,12 @@ int main(int argc, char **argv)
         switch (c) {
         case 'i': input = optarg; break;
         case 'o': output = optarg; break;
-        case 's': sscanf(optarg, "%dx%d", &w, &h); break;
+        case 's':
+            if (rkvc_cli_parse_wxh(optarg, &w, &h) < 0) {
+                fprintf(stderr, "invalid size: %s (expected WxH)\n", optarg);
+                return 1;
+            }
+            break;
         case 'r': fps = atoi(optarg); break;
         case 'b': bitrate = atoll(optarg); break;
         case 'p': policy_s = optarg; break;
@@ -120,7 +81,10 @@ int main(int argc, char **argv)
 
     rkvc_pipeline_desc d;
     rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_ENCODE, &d);
-    d.policy      = parse_policy(policy_s);
+    if (rkvc_cli_parse_policy(policy_s, &d.policy) < 0) {
+        fprintf(stderr, "invalid policy: %s\n", policy_s);
+        return 1;
+    }
     d.input_path  = input;
     d.output_path = output;
     d.width       = w;
@@ -128,13 +92,13 @@ int main(int argc, char **argv)
     d.fps_num     = fps;
     d.bitrate     = bitrate;
     if (pix_fmt_s) {
-        if (parse_pix_fmt(pix_fmt_s, &d.pixel_format) < 0) {
+        if (rkvc_cli_parse_pix_fmt(pix_fmt_s, &d.pixel_format) < 0) {
             fprintf(stderr, "invalid pix-fmt: %s\n", pix_fmt_s);
             return 1;
         }
     }
     if (rc_mode_s) {
-        if (parse_rc_mode(rc_mode_s, &d.rc_mode) < 0) {
+        if (rkvc_cli_parse_rc_mode(rc_mode_s, &d.rc_mode) < 0) {
             fprintf(stderr, "invalid rc-mode: %s\n", rc_mode_s);
             return 1;
         }

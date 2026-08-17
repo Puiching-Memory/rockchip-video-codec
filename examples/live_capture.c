@@ -12,8 +12,16 @@ int main(int argc, char **argv)
     const char *out = argc > 2 ? argv[2] : "/tmp/rkvc_live.mp4";
     int frames = argc > 3 ? atoi(argv[3]) : 30;
     int w = 640, h = 480;
-    if (argc > 4)
-        sscanf(argv[4], "%dx%d", &w, &h);
+    if (argc > 4) {
+        int tw = 0, th = 0;
+        char extra;
+        if (sscanf(argv[4], "%dx%d%c", &tw, &th, &extra) != 2 || tw <= 0 || th <= 0) {
+            fprintf(stderr, "invalid size: %s (expected WxH)\n", argv[4]);
+            return 1;
+        }
+        w = tw;
+        h = th;
+    }
 
     rkvc_pipeline_desc d;
     rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_CAPTURE, &d);

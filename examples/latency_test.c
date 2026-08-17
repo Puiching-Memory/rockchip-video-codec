@@ -10,7 +10,11 @@ int main(void) {
     struct timeval t0, t1;
     gettimeofday(&t0, NULL);
     rkvc_session *s = NULL;
-    rkvc_session_create(&d, &s);
+    rkvc_err err = rkvc_session_create(&d, &s);
+    if (err != RKVC_OK) {
+        fprintf(stderr, "session create: %s\n", rkvc_err_str(err));
+        return 1;
+    }
     gettimeofday(&t1, NULL);
     double ms = (t1.tv_sec - t0.tv_sec) * 1000.0 +
                 (t1.tv_usec - t0.tv_usec) / 1000.0;

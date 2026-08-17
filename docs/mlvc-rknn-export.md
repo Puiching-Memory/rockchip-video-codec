@@ -10,10 +10,12 @@
 
 C 侧不向 NPU 喂 qp（qp 只用于 rANS：`z_idx = qp * ZC + c`）。因此导出时必须把 `q_index_shifted` **折成常量**。
 
-| 部件 | 输入（按下标） | 输出 |
-| ---- | -------------- | ---- |
-| 编码器 | `[0]` 图像 NHWC fp16、`[1]` `ref_feature` | 按名字匹配 `feature` / `z_raw` / `y_raw_0`；`y_raw_1` = `y_raw_0` 的下标 + 1 |
-| 解码器 | `[0]` `z_raw`、`[1]` `y_raw_0`、`[2]` `y_raw_1`、最后一项 `ref_feature` | `[0]` `x_hat`、`[1]` `feature` |
+| 部件 | 输入 | 输出 |
+| ---- | ---- | ---- |
+| 编码器 | 按名字：图像（`x` / `New_input_x`）、`ref_feature` | 按名字：`feature` / `z_raw` / `y_raw_0` / `y_raw_1` |
+| 解码器 | 按名字：`z_raw`、`y_raw_0`、`y_raw_1`、`ref_feature` | 按名字：`x_hat`、`feature` |
+
+默认把解码器尾部 `DepthToSpace(mode=DCR)+Clip(0,1)` 拆出图外（`--no-extract-tail` 关闭）。此时 RKNN 的 `x_hat` 是 shuffle 前的 head conv（640×368 时为 `[1,192,46,80]`），`node_mlvc.c` 按 native 通道数自动做 CPU DCR + clip；旧的整图 `x_hat=[1,3,H,W]` 模型不用改。
 
 官方 split `dmc61sbr_e1d1` / `dmc61sr_e1d1` 的 ONNX 还带 `q_index_shifted`（编码器 3 入、解码器 5 入）。折叠后才是上表的 2 / 4 输入。
 
@@ -88,6 +90,7 @@ python3 tools/mlvc/export_rknn.py \
 | `--pmf-only` | 只把 JSON 写成 `gaussian.bin` / `bitest.bin` |
 | `--inspect` | 只打印 ONNX I/O |
 | `--no-rewrite` | 不做 SpaceToDepth / Max / Div 替换 |
+| `--no-extract-tail` | 保留解码器尾部 DepthToSpace+Clip 在图内（默认拆到 CPU） |
 | `--no-fold-qp` | 保留 `q_index` 输入（C 运行时目前不能喂） |
 | `--keep-onnx` | 在输出目录保留处理后的 ONNX |
 | `--platform rk3588` | RKNN `target_platform` |

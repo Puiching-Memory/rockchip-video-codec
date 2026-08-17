@@ -8,6 +8,9 @@
 
 #include "internal.h"
 
+#include <limits.h>
+#include <string.h>
+
 struct rkvc_mpp_dec {
     AVCodecContext   *ctx;
     const rkvc_route_plan *route;
@@ -125,9 +128,15 @@ rkvc_err rkvc_mpp_dec_send_packet(rkvc_mpp_dec *dec, const rkvc_buffer *pkt)
     AVPacket *avpkt = av_packet_alloc();
     if (!avpkt)
         return RKVC_ERR_NOMEM;
-
-    avpkt->data = pkt->data;
-    avpkt->size = (int)pkt->size;
+    if (pkt->size > (size_t)INT_MAX) {
+        av_packet_free(&avpkt);
+        return RKVC_ERR_INVALID;
+    }
+    if (av_new_packet(avpkt, (int)pkt->size) < 0) {
+        av_packet_free(&avpkt);
+        return RKVC_ERR_NOMEM;
+    }
+    memcpy(avpkt->data, pkt->data, pkt->size);
     avpkt->pts  = pkt->pts;
     avpkt->dts  = pkt->dts;
 

@@ -28,6 +28,7 @@
 
 #define RKVC_RTP_HEADER_SIZE  12
 #define RKVC_RTP_PAYLOAD_MAX  1400
+#define RKVC_RTP_MAX_FRAME    RKVC_UDP_MAX_FRAME
 
 struct rkvc_net {
     rkvc_net_mode mode;
@@ -44,6 +45,7 @@ struct rkvc_net {
     uint8_t      *reasm_data;
     int           reasm_cap;
     int           reasm_size;
+    int           reasm_frame_len;
     int           reasm_frag_total;
     uint8_t       reasm_mask[2];
     int64_t       reasm_pts;
@@ -254,6 +256,9 @@ static rkvc_err udp_send_frame(rkvc_net *n, const uint8_t *data, size_t size,
 static rkvc_err rtp_send_frame(rkvc_net *n, const uint8_t *data, size_t size,
                                int64_t pts)
 {
+    if (size > RKVC_RTP_MAX_FRAME)
+        return RKVC_ERR_INVALID;
+
     if (size == 0) {
         uint8_t fin[RKVC_RTP_HEADER_SIZE];
         memset(fin, 0, sizeof(fin));
@@ -333,10 +338,10 @@ static int wait_readable(int fd, int timeout_ms)
     if (timeout_ms < 0)
         return 1;
     struct pollfd pfd = { .fd = fd, .events = POLLIN };
-    int r = poll(&pfd, 1, timeout_ms);
-    if (r == 0)
+    int ready = poll(&pfd, 1, timeout_ms);
+    if (ready == 0)
         return 0;
-    if (r < 0)
+    if (ready < 0)
         return -1;
     return 1;
 }
@@ -349,9 +354,12 @@ static void reasm_reset(rkvc_net *n, int frag_total, size_t frame_len, int64_t p
         n->reasm_cap = n->reasm_data ? (int)frame_len : 0;
     }
     n->reasm_size = 0;
+    n->reasm_frame_len = n->reasm_data ? (int)frame_len : 0;
     n->reasm_frag_total = frag_total;
     n->reasm_pts = pts;
     memset(n->reasm_mask, 0, sizeof(n->reasm_mask));
+    if (n->reasm_data && n->reasm_frame_len > 0)
+        memset(n->reasm_data, 0, (size_t)n->reasm_frame_len);
 }
 
 static int reasm_complete(const rkvc_net *n)
@@ -421,43 +429,51 @@ static rkvc_err udp_recv_frame(rkvc_net *n, rkvc_buffer **out, int timeout_ms)
 
         if (frag_id == 0) {
             if (!n->reasm_data || n->reasm_frag_total != (int)frag_total ||
-                (size_t)n->reasm_cap < (size_t)frame_len || n->reasm_pts != pts)
+                n->reasm_frame_len != (int)frame_len || n->reasm_pts != pts)
                 reasm_reset(n, (int)frag_total, (size_t)frame_len, pts);
-            if (!n->reasm_data || n->reasm_cap <= 0)
+            if (!n->reasm_data || n->reasm_cap <= 0 || n->reasm_frame_len <= 0)
                 return RKVC_ERR_NOMEM;
         }
 
         /* 等首片建立组装缓冲；乱序先到的非 0 片丢弃 */
-        if (!n->reasm_data || n->reasm_frag_total <= 0)
+        if (!n->reasm_data || n->reasm_frag_total <= 0 || n->reasm_frame_len <= 0)
             continue;
 
         if (n->reasm_frag_total != (int)frag_total || n->reasm_pts != pts)
+            continue;
+        if (n->reasm_frame_len != (int)frame_len)
             continue;
         if (n->reasm_mask[frag_id / 8] & (1u << (frag_id % 8)))
             continue;
 
         int offset = (int)frag_id * RKVC_UDP_FRAG_PAYLOAD;
-        if (offset < 0 || (size_t)offset >= (size_t)n->reasm_cap)
+        if (offset < 0 || offset >= n->reasm_frame_len)
             continue;
-        int copy_n = payload_len;
-        if ((size_t)offset + (size_t)copy_n > (size_t)n->reasm_cap)
-            copy_n = n->reasm_cap - offset;
-        if (copy_n > 0)
-            memcpy(n->reasm_data + offset, buf + RKVC_UDP_FRAG_HEADER,
-                   (size_t)copy_n);
-        n->reasm_size += copy_n;
+        int expected = (frag_id + 1 == n->reasm_frag_total)
+                           ? (n->reasm_frame_len - offset)
+                           : RKVC_UDP_FRAG_PAYLOAD;
+        if (expected <= 0 || payload_len != expected)
+            continue;
+        memcpy(n->reasm_data + offset, buf + RKVC_UDP_FRAG_HEADER,
+               (size_t)expected);
+        n->reasm_size += expected;
         n->reasm_mask[frag_id / 8] |= (uint8_t)(1u << (frag_id % 8));
         n->stats.bytes_recv += (uint64_t)nr;
 
         if (!reasm_complete(n))
             continue;
+        if (n->reasm_size != n->reasm_frame_len)
+            continue;
 
         rkvc_err err = rkvc_buffer_alloc_bitstream(out, n->reasm_data,
-                                                   (size_t)n->reasm_size, 1);
+                                                   (size_t)n->reasm_frame_len, 1);
         if (err != RKVC_OK)
             return err;
         rkvc_buffer_set_pts(*out, n->reasm_pts);
         n->stats.pkts_recv++;
+        n->reasm_frag_total = 0;
+        n->reasm_size = 0;
+        n->reasm_frame_len = 0;
         return RKVC_OK;
     }
 }
@@ -505,7 +521,6 @@ static rkvc_err rtp_recv_frame(rkvc_net *n, rkvc_buffer **out, int timeout_ms)
         int payload_len = (int)nr - RKVC_RTP_HEADER_SIZE;
         pts = ((int64_t)pkt[4] << 24) | ((int64_t)pkt[5] << 16) |
               ((int64_t)pkt[6] << 8) | ((int64_t)pkt[7]);
-
         /* empty marker-only finish packet (exactly 12B header) */
         if (payload_len == 0 && marker) {
             rkvc_free(frame);
@@ -516,6 +531,10 @@ static rkvc_err rtp_recv_frame(rkvc_net *n, rkvc_buffer **out, int timeout_ms)
             continue;
 
         if (frame_size + (size_t)payload_len > frame_cap) {
+            if (frame_size + (size_t)payload_len > RKVC_RTP_MAX_FRAME) {
+                rkvc_free(frame);
+                return RKVC_ERR_INVALID;
+            }
             size_t nc = frame_cap ? frame_cap * 2 : 4096;
             while (nc < frame_size + (size_t)payload_len)
                 nc *= 2;

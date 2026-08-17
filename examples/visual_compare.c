@@ -7,5 +7,5 @@
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     fprintf(stderr, "visual_compare: session 预览端口待接 SDL2\n");
-    return 0;
+    return 1;
 }

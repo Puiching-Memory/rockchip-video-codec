@@ -269,6 +269,29 @@ static void test_decode_pump_retries_drain(void **state)
     rkvc_decode_pump_cleanup(&pump);
 }
 
+static void test_bitstream_has_padding(void **state)
+{
+    (void)state;
+    const uint8_t data[] = {0x00, 0x00, 0x00, 0x01, 0x67};
+    rkvc_buffer *b = NULL;
+    assert_int_equal(rkvc_buffer_alloc_bitstream(&b, data, sizeof(data), 1),
+                     RKVC_OK);
+    assert_non_null(b);
+    assert_non_null(b->data);
+    assert_int_equal(b->size, sizeof(data));
+    for (int i = 0; i < AV_INPUT_BUFFER_PADDING_SIZE; i++)
+        assert_int_equal(b->data[b->size + (size_t)i], 0);
+    rkvc_buffer_unref(b);
+}
+
+static void test_rknn_sr_available_agrees_with_caps(void **state)
+{
+    (void)state;
+    rkvc_caps caps;
+    assert_int_equal(rkvc_query_caps(&caps), RKVC_OK);
+    assert_int_equal(!!caps.has_rknn, !!rkvc_rknn_sr_available());
+}
+
 int main(void)
 {
     rkvc_init();
@@ -284,6 +307,8 @@ int main(void)
         cmocka_unit_test(test_decode_pump_retries_same_packet),
         cmocka_unit_test(test_decode_pump_waits_on_double_again),
         cmocka_unit_test(test_decode_pump_retries_drain),
+        cmocka_unit_test(test_bitstream_has_padding),
+        cmocka_unit_test(test_rknn_sr_available_agrees_with_caps),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

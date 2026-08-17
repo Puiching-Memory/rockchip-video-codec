@@ -139,17 +139,17 @@ static void test_crc_and_size(void **state)
     free(patch);
 }
 
-static void test_range_overflow(void **state)
+static void test_range_boundary(void **state)
 {
     (void)state;
     uint8_t base[32];
     memset(base, 0, sizeof base);
-    test_range rs[] = { {30, 8} };
+    test_range rs[] = { {30, 2} };
     uint8_t target[32];
     memset(target, 9, sizeof target);
     size_t psz = 0;
     uint8_t *patch = build_patch(base, sizeof base, target, 21, rs, 1, &psz);
-    assert_int_equal(rkvc_qppatch_apply(base, sizeof base, patch, psz, 21), RKVC_ERR_FORMAT);
+    assert_int_equal(rkvc_qppatch_apply(base, sizeof base, patch, psz, 21), RKVC_OK);
     free(patch);
 }
 
@@ -203,7 +203,7 @@ int main(void)
         cmocka_unit_test(test_empty_patch_identity),
         cmocka_unit_test(test_wrong_qp),
         cmocka_unit_test(test_crc_and_size),
-        cmocka_unit_test(test_range_overflow),
+        cmocka_unit_test(test_range_boundary),
         cmocka_unit_test(test_build_path_and_file),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

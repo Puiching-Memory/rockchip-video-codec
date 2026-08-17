@@ -58,7 +58,7 @@ cmake --build --preset default
 | `rkvc_encode`          | 文件编码（`-p` 五档策略 / `-c` 显式 codec）         |
 | `rkvc_decode`          | 文件解码                                            |
 | `rkvc_transcode`       | 转码；`.mlvc` 编码 / 纯解码 / 转码三种操作          |
-| `rkvc_bench`           | 内置性能基准（含 `NEURAL (MLVC)` 档位）             |
+| `rkvc_bench`           | 内置性能基准（REALTIME / BALANCED / QUALITY / OFFLINE） |
 | `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA 插值 / `rkvc_sr` AI 超分） |
 | `rkvc_yuv_upscale`     | 原始 YUV 上采样（bench 参考帧 prep）                |
 

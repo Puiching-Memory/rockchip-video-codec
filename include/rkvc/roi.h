@@ -9,6 +9,7 @@
  * 帧 metadata `rkvc_roi_force_intra`，由 `rkmppenc` 桥到 MPP `KEY_ROI_DATA`。
  * **SVT-AV1 忽略 ROI**（无硬 ROI 桥接；不做像素级 fallback）。
  *
+ * 矩形须落在当前编码分辨率内（已知宽高时；`enc_scale_denom>1` 时相对缩放后尺寸）。
  * 矩形建议 16 像素对齐（MPP 会再对齐）。
  */
 

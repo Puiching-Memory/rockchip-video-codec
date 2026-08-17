@@ -16,8 +16,9 @@
 
 1. 将 ``q_index_shifted`` 折成 ``--qp`` 常量（对齐 ``node_mlvc.c`` 不喂 qp）
 2. 可选把 SpaceToDepth / Max / Div 换成 NPU 友好算子
-3. 用 rknn-toolkit2 转 FP16 ``.rknn``
-4. 把 ``gaussian_pmf.json`` / ``bit_estimator_pmf.json`` 写成 ``gaussian.bin`` / ``bitest.bin``
+3. 默认把解码器尾部 DepthToSpace+Clip 拆出图外（CPU DCR，板上 1:1 且更快）
+4. 用 rknn-toolkit2 转 FP16 ``.rknn``
+5. 把 ``gaussian_pmf.json`` / ``bit_estimator_pmf.json`` 写成 ``gaussian.bin`` / ``bitest.bin``
 
 详见 ``docs/mlvc-rknn-export.md``。
 """
@@ -48,6 +49,7 @@ from onnx_rewrite import (  # noqa: E402
     prepare_onnx,
     validate_runtime_io,
 )
+from onnx_extract import extract_trailing_depth_to_space  # noqa: E402
 
 
 class ExportError(RuntimeError):
@@ -156,6 +158,7 @@ def export_models(
     keep_onnx: bool,
     verbose: bool,
     skip_rknn: bool,
+    extract_tail: bool,
     default_qp: int | None = None,
 ) -> dict[str, Any]:
     keep_prepared = keep_onnx or skip_rknn
@@ -177,12 +180,27 @@ def export_models(
                     )
                 except OnnxRewriteError as exc:
                     raise ExportError(str(exc)) from exc
+                extract_note = ""
+                if extract_tail and part == "decoder":
+                    onnx_mod = __import__("onnx")
+                    model = onnx_mod.load(str(prepared))
+                    try:
+                        ex = extract_trailing_depth_to_space(model)
+                    except OnnxRewriteError as exc:
+                        raise ExportError(str(exc)) from exc
+                    onnx_mod.save(model, str(prepared))
+                    info = inspect_onnx(prepared)
+                    extract_note = (
+                        f"  tail-D2S bs={ex.blocksize} mode={ex.mode or 'DCR'} "
+                        f"{ex.in_shape}"
+                    )
                 kind = classify_part(info)
                 problems = validate_runtime_io(info, part=kind if kind != "unknown" else part)
                 print(
                     f"  qp={qp}: fold={report.folded_inputs or '-'}  "
                     f"SpaceToDepth={report.space_to_depth} Max→Clip={report.max_to_clip} "
                     f"Div→Mul={report.div_to_mul}"
+                    f"{extract_note}"
                 )
                 if report.skipped:
                     for item in report.skipped[:8]:
@@ -191,6 +209,10 @@ def export_models(
                         print(f"    skip: …另 {len(report.skipped) - 8} 条")
                 for prob in problems:
                     print(f"    警告: {prob}")
+                if problems:
+                    raise ExportError(
+                        "ONNX I/O 与运行时约定不符: " + "; ".join(problems)
+                    )
 
                 rknn_rel = _rknn_name(part, platform)
                 if len(qp_list) == 1:
@@ -207,6 +229,7 @@ def export_models(
                         "max_to_clip": report.max_to_clip,
                         "min_to_clip": report.min_to_clip,
                         "div_to_mul": report.div_to_mul,
+                        "extract_tail": bool(extract_note),
                         "skipped": report.skipped,
                     },
                     "io_warnings": problems,
@@ -276,6 +299,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="逗号分隔多个 qp，写入 {platform}_qp_models/qpXX/（现网目录名为 rk3588_qp_models）",
     )
     p.add_argument("--no-rewrite", action="store_true", help="不做 SpaceToDepth/Max/Div 图重写")
+    p.add_argument(
+        "--no-extract-tail",
+        action="store_true",
+        help="保留解码器尾部 DepthToSpace+Clip 在图内（默认拆到 CPU，板上 1:1 且更快）",
+    )
     p.add_argument("--no-fold-qp", action="store_true", help="保留 q_index 输入（C 运行时目前不能喂该输入）")
     p.add_argument("--keep-onnx", action="store_true", help="在输出目录保留折叠/重写后的 ONNX")
     p.add_argument("--skip-rknn", action="store_true", help="只做 PMF + ONNX 图处理，不调用 rknn-toolkit2")
@@ -390,6 +418,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         keep_onnx=args.keep_onnx,
         verbose=args.verbose,
         skip_rknn=args.skip_rknn,
+        extract_tail=not args.no_extract_tail,
         default_qp=args.qp,
     )
     patch_meta = None
@@ -419,7 +448,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "pmf": pmf_meta,
         "models": models_meta,
         "qppatch": patch_meta,
-        "runtime": "lib/node_mlvc.c（编码器 2 输入 NHWC fp16，解码器 4 输入，输出 native NC1HWC2）",
+        "extract_tail": not args.no_extract_tail,
+        "runtime": "lib/node_mlvc.c（编码器 2 输入 NHWC fp16，解码器 4 输入，输出 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
     }
     _write_json(out_dir / "mlvc_rknn_export_manifest.json", manifest)
     print(f"清单: {out_dir / 'mlvc_rknn_export_manifest.json'}")
