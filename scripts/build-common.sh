@@ -6,7 +6,7 @@
 #   rkvc_limit_build_jobs
 #   ver="$(rkvc_project_version)"
 #
-# 可通过环境变量 BUILD_JOBS 下调（如 2），但不会超过 RKVC_BUILD_JOBS_MAX（默认 4）。
+# 可通过环境变量 BUILD_JOBS 下调（如 2），但不会超过 RKVC_BUILD_JOBS_MAX（默认 6）。
 #
 # 构建目录约定（唯一权威：CMakePresets.json / docs/build-layout.md）:
 #   .build/release/     default Release
@@ -47,8 +47,8 @@ rkvc_portable_pkg_dir() {
 }
 
 rkvc_limit_build_jobs() {
-    local max_jobs="${RKVC_BUILD_JOBS_MAX:-4}"
-    local jobs="${BUILD_JOBS:-4}"
+    local max_jobs="${RKVC_BUILD_JOBS_MAX:-6}"
+    local jobs="${BUILD_JOBS:-6}"
 
     if ! [[ "$jobs" =~ ^[0-9]+$ ]] || [ "$jobs" -lt 1 ]; then
         jobs=1

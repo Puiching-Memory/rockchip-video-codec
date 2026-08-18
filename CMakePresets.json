@@ -84,49 +84,49 @@
         {
             "name": "default",
             "configurePreset": "default",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
         },
         {
             "name": "debug",
             "configurePreset": "debug",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
         },
         {
             "name": "tests",
             "configurePreset": "tests",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["check"]
         },
         {
             "name": "asan",
             "configurePreset": "asan",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["check"]
         },
         {
             "name": "coverage",
             "configurePreset": "coverage",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["check"]
         },
         {
             "name": "portable",
             "configurePreset": "portable",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
         },
         {
             "name": "docs",
             "configurePreset": "default",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["docs"]
         },
         {
             "name": "package",
             "configurePreset": "default",
-            "jobs": 4,
+            "jobs": 6,
             "targets": ["package"]
         }
     ],

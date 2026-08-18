@@ -84,11 +84,6 @@ void rkvc_demux_close(rkvc_demux *d)
     rkvc_free(d);
 }
 
-int rkvc_demux_video_stream_index(const rkvc_demux *d)
-{
-    return d ? d->video_idx : -1;
-}
-
 AVCodecParameters *rkvc_demux_video_par(rkvc_demux *d)
 {
     if (!d || d->video_idx < 0)

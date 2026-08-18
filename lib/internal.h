@@ -64,7 +64,6 @@ void rkvc_free(void *ptr);
 #ifdef RKVC_ENABLE_FAULT_INJECTION
 void rkvc_test_fail_alloc_after(long countdown);
 void rkvc_test_clear_faults(void);
-long rkvc_test_alloc_count(void);
 #endif
 
 rkvc_err rkvc_get_hw_device_ctx(AVBufferRef **out);
@@ -226,7 +225,6 @@ typedef struct {
 rkvc_err rkvc_demux_open(rkvc_demux **out, const rkvc_demux_config *cfg);
 void rkvc_demux_close(rkvc_demux *d);
 rkvc_err rkvc_demux_read_packet(rkvc_demux *d, rkvc_buffer **pkt);
-int rkvc_demux_video_stream_index(const rkvc_demux *d);
 AVCodecParameters *rkvc_demux_video_par(rkvc_demux *d);
 
 rkvc_err rkvc_mux_open(rkvc_mux **out, const rkvc_mux_config *cfg,
@@ -269,15 +267,12 @@ void rkvc_decode_pump_cleanup(rkvc_decode_pump *pump);
 rkvc_err rkvc_mpp_enc_open(rkvc_mpp_enc **out, const rkvc_mpp_enc_config *cfg);
 void rkvc_mpp_enc_close(rkvc_mpp_enc *enc);
 rkvc_err rkvc_mpp_enc_send_frame(rkvc_mpp_enc *enc, rkvc_buffer *frame);
-/**
- * 发送帧并附带 ROI（写入 AVFrame REGIONS_OF_INTEREST，由 rkmppenc 桥到 MPP）。
- * `rois==NULL` 或 `roi_count==0` 时行为同 `rkvc_mpp_enc_send_frame`。
- */
-rkvc_err rkvc_mpp_enc_send_frame_roi(rkvc_mpp_enc *enc, rkvc_buffer *frame,
-                                     const rkvc_roi_rect *rois, int roi_count);
 /** 更新 AVCodecContext bit_rate/gop；下一帧由 rkmppenc 推到 MPP。 */
 rkvc_err rkvc_mpp_enc_apply_rc(rkvc_mpp_enc *enc, int64_t bitrate, int gop_size);
-/** 发送帧；`force_idr!=0` 时将该帧标为 I 以触发 MPP IDR。 */
+/**
+ * 发送帧并可附带 ROI（写入 AVFrame REGIONS_OF_INTEREST，由 rkmppenc 桥到 MPP）；
+ * `force_idr!=0` 时将该帧标为 I 以触发 MPP IDR。
+ */
 rkvc_err rkvc_mpp_enc_send_frame_roi_ex(rkvc_mpp_enc *enc, rkvc_buffer *frame,
                                         const rkvc_roi_rect *rois, int roi_count,
                                         int force_idr);

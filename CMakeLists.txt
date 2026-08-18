@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.3.1
+    VERSION 0.3.2
     DESCRIPTION "Rockchip multi-SoC multi-codec pipeline library"
     LANGUAGES C
 )
@@ -23,7 +23,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(RKVC_BUILD_SHARED   "Build shared library"      ON)
 option(RKVC_BUILD_STATIC   "Build static library"      ON)
 option(RKVC_BUILD_EXAMPLES "Build example programs"    ON)
-option(RKVC_BUILD_GUI_EXAMPLES "Build optional SDL2 GUI examples" ON)
 option(RKVC_BUILD_CLI      "Build CLI programs (cli/)" ON)
 option(RKVC_BUILD_TESTS    "Build unit tests (CMocka)" OFF)
 option(RKVC_ENABLE_ASAN    "Enable AddressSanitizer"   OFF)
@@ -285,7 +284,7 @@ endif()
 # 因此不影响日常二次开发（Debug / tests / asan / coverage 构建保持可调试）。
 #
 # 启用项：
-#   -O3 -flto                  链接时优化，让反编译后的控制流/函数边界更难读
+#   -O3                        高优化等级，让反编译后的控制流/函数边界更难读
 #   -fvisibility=hidden        默认隐藏所有符号（配合 librkvc.map 精确导出 API）
 #   -fmerge-all-constants      合并重复常量，增加字符串定位难度
 #   -fno-unwind-tables          移除异常展开表，减少元数据
@@ -400,7 +399,7 @@ endif()
 if(RKVC_BUILD_EXAMPLES)
     set(EXAMPLE_TARGETS "")
 
-    foreach(EXAMPLE encode_file decode_file decode_formats stream_device_pair transcode latency_test live_capture net_loopback adaptive_bitrate adaptive_bitrate_file)
+    foreach(EXAMPLE encode_file decode_file transcode live_capture adaptive_bitrate roi_encode stream_ports upscale_ctx net_loopback)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/${EXAMPLE}.c")
             add_executable(example_${EXAMPLE} examples/${EXAMPLE}.c)
             target_link_libraries(example_${EXAMPLE} PRIVATE rkvc)
@@ -417,47 +416,14 @@ if(RKVC_BUILD_EXAMPLES)
         endif()
     endforeach()
 
-    if(TARGET example_stream_device_pair)
-        target_link_libraries(example_stream_device_pair PRIVATE pthread)
-    endif()
     if(TARGET example_net_loopback)
         target_link_libraries(example_net_loopback PRIVATE pthread)
     endif()
     if(TARGET example_adaptive_bitrate)
         target_link_libraries(example_adaptive_bitrate PRIVATE pthread)
     endif()
-    if(TARGET example_adaptive_bitrate_file)
-        target_link_libraries(example_adaptive_bitrate_file PRIVATE pthread)
-    endif()
-
-    if(RKVC_BUILD_GUI_EXAMPLES)
-        find_package(PkgConfig QUIET)
-        if(PkgConfig_FOUND)
-            pkg_check_modules(SDL2 QUIET sdl2)
-        endif()
-
-        if(SDL2_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/visual_compare.c")
-            add_executable(example_visual_compare examples/visual_compare.c)
-            target_link_libraries(example_visual_compare PRIVATE rkvc m ${SDL2_LIBRARIES})
-            target_include_directories(example_visual_compare
-                PRIVATE
-                    ${AVCODEC_INCLUDE_DIRS}
-                    ${SDL2_INCLUDE_DIRS}
-            )
-            target_link_directories(example_visual_compare
-                PRIVATE
-                    ${RKVC_DEP_LIB_DIRS}
-                    ${SDL2_LIBRARY_DIRS}
-            )
-            target_compile_options(example_visual_compare PRIVATE ${SDL2_CFLAGS_OTHER})
-            target_link_options(example_visual_compare PRIVATE ${RKVC_RPATH_LINK_OPTIONS})
-            set_target_properties(example_visual_compare PROPERTIES
-                BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR};${RKVC_DEP_LIB_DIRS}"
-            )
-            list(APPEND EXAMPLE_TARGETS example_visual_compare)
-        else()
-            message(STATUS "SDL2 not found, skipping example_visual_compare")
-        endif()
+    if(TARGET example_stream_ports)
+        target_link_libraries(example_stream_ports PRIVATE pthread)
     endif()
 endif()
 

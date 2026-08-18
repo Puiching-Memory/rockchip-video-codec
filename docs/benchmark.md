@@ -44,15 +44,10 @@ rkvc session E2E bench (input=clip.mp4)
 
 > 吞吐细分测试请使用 RD 套件或示例程序。
 
-## Session 创建耗时
+## 端到端延迟
 
-`example_latency_test` 测量 `rkvc_session_create()` 耗时（无采集、无编解码、无 CLI 参数）：
-
-```bash
-./.build/release/example_latency_test
-```
-
-输出一行 `session_create: N.NN ms`。端到端帧延迟请用 `example_live_capture` / Session 端口自行打点，或看 `rkvc_bench` 的 E2E fps。
+逐帧端到端延迟请在 Session 端口自行打点（参考 `examples/stream_ports.c` 的
+并发取流方式），或看 `rkvc_bench` 的 E2E fps。
 
 ## 下采样 + 后处理上采样基准
 

@@ -36,12 +36,15 @@ if [[ ! -f "$SVT_SRC/CMakeLists.txt" ]]; then
 fi
 
 echo "=== 构建 SVT-AV1 (submodule) ==="
+# SVT_AV1_LTO 默认 ON(GCC>=9)：-flto 不带并行参数，LTO 链接单线程跑两遍
+# (shared lib + EncApp)，在 ARM 开发机上占打包耗时大头，且对编码速度收益很小
 cmake -S "$SVT_SRC" -B "$SVT_BUILD" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$SVT_PREFIX" \
     -DCMAKE_BUILD_PARALLEL_LEVEL="$BUILD_JOBS" \
     -DBUILD_TESTING=OFF \
-    -DBUILD_APPS=ON
+    -DBUILD_APPS=ON \
+    -DSVT_AV1_LTO=OFF
 
 cmake --build "$SVT_BUILD" -j"$BUILD_JOBS"
 cmake --install "$SVT_BUILD"

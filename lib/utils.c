@@ -14,7 +14,6 @@
 
 #ifdef RKVC_ENABLE_FAULT_INJECTION
 static pthread_mutex_t s_alloc_fault_lock = PTHREAD_MUTEX_INITIALIZER;
-static long s_alloc_count = 0;
 static long s_alloc_fail_after = -1;
 
 static int rkvc_should_fail_alloc(void)
@@ -22,7 +21,6 @@ static int rkvc_should_fail_alloc(void)
     int should_fail = 0;
 
     pthread_mutex_lock(&s_alloc_fault_lock);
-    s_alloc_count++;
     if (s_alloc_fail_after >= 0) {
         if (s_alloc_fail_after == 0) {
             should_fail = 1;
@@ -47,17 +45,6 @@ void rkvc_test_clear_faults(void)
     pthread_mutex_lock(&s_alloc_fault_lock);
     s_alloc_fail_after = -1;
     pthread_mutex_unlock(&s_alloc_fault_lock);
-}
-
-long rkvc_test_alloc_count(void)
-{
-    long count;
-
-    pthread_mutex_lock(&s_alloc_fault_lock);
-    count = s_alloc_count;
-    pthread_mutex_unlock(&s_alloc_fault_lock);
-
-    return count;
 }
 #else
 static int rkvc_should_fail_alloc(void)

@@ -536,6 +536,8 @@ EOF
     cp "$PROJECT_DIR/scripts/test-portable.sh" "$OUT_DIR/$PKG_NAME/test.sh"
     chmod +x "$OUT_DIR/$PKG_NAME/test.sh"
     echo "  test.sh"
+    cp "$PROJECT_DIR/scripts/build-common.sh" "$OUT_DIR/$PKG_NAME/build-common.sh"
+    echo "  build-common.sh (portable-test-helpers.sh 依赖)"
     cp "$PROJECT_DIR/scripts/portable-test-helpers.sh" "$OUT_DIR/$PKG_NAME/portable-test-helpers.sh"
     echo "  portable-test-helpers.sh"
     cp "$PROJECT_DIR/scripts/network-e2e-test.sh" "$OUT_DIR/$PKG_NAME/network-e2e-test.sh"

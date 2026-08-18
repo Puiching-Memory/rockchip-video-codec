@@ -1,16 +1,22 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Copyright (c) 2026 梦归云帆 */
 
-/** live_capture.c — V4L2 LIVE_CAPTURE → H.264 短录 */
+/**
+ * @file live_capture.c
+ * @brief V4L2 采集编码最小示例；`mock` 设备为合成 NV12 源，无摄像头也能跑。
+ *
+ * 用法: example_live_capture [设备|mock] [out.mp4] [帧数] [WxH]
+ */
+
 #include "rkvc/rkvc.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 int main(int argc, char **argv)
 {
-    const char *dev = argc > 1 ? argv[1] : "/dev/video-camera0";
+    const char *dev = argc > 1 ? argv[1] : "mock";
     const char *out = argc > 2 ? argv[2] : "/tmp/rkvc_live.mp4";
-    int frames = argc > 3 ? atoi(argv[3]) : 30;
+    int frames = argc > 3 ? atoi(argv[3]) : 90;
     int w = 640, h = 480;
     if (argc > 4) {
         int tw = 0, th = 0;
@@ -40,24 +46,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* 中心 ROI：保留中间区域细节 */
-    rkvc_roi_rect roi = {
-        .x = w / 4, .y = h / 4, .w = w / 2, .h = h / 2,
-        .qp_offset = -4, .force_intra = 0,
-    };
-    rkvc_session_set_roi(s, &roi, 1);
-
-    /* 热切换示例：运行前也可改；运行中由应用层按带宽调用 */
-    rkvc_session_set_bitrate(s, 1500000);
-    rkvc_session_set_gop(s, 30);
-    rkvc_session_request_idr(s);
-
     err = rkvc_session_run_file(s);
+
     rkvc_session_stats st;
     rkvc_session_get_stats(s, &st);
-    printf("live_capture %s -> %s frames_in=%llu frames_out=%llu err=%s\n",
+    printf("capture %s -> %s frames_in=%llu frames_out=%llu avg_fps=%.2f err=%s\n",
            dev, out, (unsigned long long)st.frames_in,
-           (unsigned long long)st.frames_out, rkvc_err_str(err));
+           (unsigned long long)st.frames_out, st.avg_fps, rkvc_err_str(err));
+
     rkvc_session_destroy(s);
     return err == RKVC_OK ? 0 : 1;
 }

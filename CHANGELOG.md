@@ -4,11 +4,15 @@
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-18
+
 ### 变更（破坏性）
 
 - **彻底移除预设板卡知识，全部改为运行时系统探测**：删除板卡 profile 表、`include/rkvc/board.h` 公共 API（`rkvc_board_id` / `rkvc_detect_board` 等）、CMake `RKVC_BOARD` 选项与 `RKVC_BOARD` 环境变量。`lib/board.c` 重写为 `lib/platform.c`：SoC 名取 `/proc/device-tree/compatible` 的 `rockchip,<soc>` 条目；NPU 存在性看 rknpu debugfs/DRI 节点、核心数数 `rknpu/load` 的 `CoreN:` 条目；RGA 看 `/dev/rga`；VPU 编解码能力用 MPP `mpp_get_vcodec_type()`（内核 `mpp_service` ioctl 上报的硬件能力位，按 MPP 引擎语义映射）。任何 Rockchip SoC（含未登记的 RK3576）无需改代码即正确工作。
 - **`rkvc_caps` 结构调整**：`board`（枚举）替换为 `soc[32]`（探测到的 SoC 名）；移除 `max_width`/`max_height`（内核无探测渠道，`MPP_DEV_GET_MAX_*` ioctl 未实现，不再虚报，超尺寸输入由 MPP 建链时拒绝）。`rkvc_info` 文本/JSON 输出同步（`board`→`soc`，删除 `max_width`/`max_height`）。
 - **NPU core_mask 自适应降级**（新增 `lib/rknn_util.h`，`node_mlvc.c` / `node_rkvc_sr.c` 共用）：`rkvc_rknn_apply_npu_cores()` 从探测核心数向下尝试 `rknn_set_core_mask`，以 RKNN 驱动为最终权威——RK3576 双核自动 0x7→0x3 吃满双核，消除 `unavailable core mask` 失败；单核平台保持默认行为不变。
+- **示例套件重设计（12 → 9，一例一概念）**：删除占位 stub `visual_compare.c`（连带 CMake `RKVC_BUILD_GUI_EXAMPLES` 选项与 SDL2 块）、与 live_capture 同义的 `stream_device_pair.c`、仅测 create 耗时的 `latency_test.c`；`decode_formats.c` 并入 `decode_file.c` 的 `--pix-fmt` 参数；`adaptive_bitrate_file.c` 并入 `adaptive_bitrate.c`（`-i` 文件 / `-d` 设备统一输入，默认 mock 源，调码率时联动 `request_idr`）；`live_capture.c` 剥离 ROI/热切换为纯采集（默认 mock）。新增 `stream_ports.c`（命名端口并发取流，补齐最大教学空白）、`roi_encode.c`（ROI qp_offset/force_intra 独立讲透）、`upscale_ctx.c`（RGA 一次性 vs ctx 批量 API 对比）。`example_net_loopback` 等保留名不变，`network-e2e-test.sh` / `package-portable.sh` 不受影响。
+- **死代码清理**：删除无调用方的内部函数 `rkvc_demux_video_stream_index`、`rkvc_mpp_enc_send_frame_roi`（`_ex` 旧包装）、`rkvc_test_alloc_count`（连带只写变量 `s_alloc_count`）。
 
 ### 修复（文档与重复维护收敛）
 
@@ -18,6 +22,8 @@
 - **scripts 依赖清单单一来源**：可移植包 ffmpeg/全量库清单收敛到 `build-common.sh` 的 `RKVC_BUNDLED_FFMPEG_LIBS` / `RKVC_BUNDLED_ALL_LIBS`（package-portable 与 test-portable 共用）；`test-npu-sr.sh` 的 CLI 库路径改用 `rkvc_dep_library_path()`（原手写清单引用不存在的 `ffmpeg-install`）。
 - **bench 清单收敛**：`run_rd_benchmark.sh` 的 post-upscale 基线/rkvc policy/全 codec 清单收敛为顶部数组（正则由数组生成）；`plot_rd_curve.py` 的 `UPSCALE_BASE_LABELS`/`CODEC_ORDER` 改为从 `CODEC_LABELS` 派生，upscale 正则由 `UPSCALE_BASES` 生成。
 - **MLVC 模型名按探测 SoC 拼接**：`config.json` 的 `mlvc.*_model` 支持 `{soc}` 占位符（config.py 按 `RKVC_SOC`/DT compatible 展开），`run_rd_benchmark.sh` 兜底默认同样按探测拼接，换平台导出模型后无需改脚本；`tools/mlvc/rknn_split_bench.c` 的 core_mask 改用 `rkvc_rknn_apply_npu_cores()`；`tools/mlvc/run_split_exp.py` 的 `--platform` 默认改为 DT 探测。
+- **可移植打包提速（SVT-AV1 关闭 LTO）**：`scripts/build-svt.sh` 显式 `-DSVT_AV1_LTO=OFF`——SVT-AV1 在 GCC≥9 默认开启 LTO，CMake 生成裸 `-flto`（无 `=auto`，链接阶段单线程，shared lib 与 EncApp 各一遍），RK3588 全量构建约 13 min → 2.5 min；rkvc 自身 hardening 注释误写 `-flto` 一并修正（实际从未开启）。
+- **编译并行度默认 4 → 6**：CMakePresets 全部 build preset 与 `build-common.sh` 的 `BUILD_JOBS` / `RKVC_BUILD_JOBS_MAX` 默认值同步；环境变量仍可覆盖。
 
 ## [0.3.1] - 2026-08-17
 

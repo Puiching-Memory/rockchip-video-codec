@@ -187,7 +187,7 @@ ninja -C .build/release -j4 package
 | `scripts/build-svt.sh`                  | 构建 SVT-AV1                                |
 | `scripts/rebuild-ffmpeg-rkmpp.sh`       | 重建 ffmpeg-rockchip                        |
 | `<package>/test.sh`                     | 包内一键自测                                |
-| `<package>/network-e2e-test.sh`         | 冒烟（码流生成 + stream_device_pair）       |
+| `<package>/network-e2e-test.sh`         | 冒烟（`example_net_loopback` UDP/RTP 回环） |
 
 ## 发布文档模板
 

@@ -1,17 +1,24 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Copyright (c) 2026 梦归云帆 */
 
-/** adaptive_bitrate.c — V4L2 采集 + 实时码率自适应示例
+/**
+ * @file adaptive_bitrate.c
+ * @brief 带宽自适应控制环：按输出字节数估算实际码率，运行中调 set_bitrate。
  *
- *  每 ADAPT_INTERVAL_MS 根据输出字节数估算实际码率，与目标带宽比较后
- *  通过 rkvc_session_set_bitrate 调整目标码率。MPP H.264/HEVC 路径在下一帧
- *  编码前生效；SVT-AV1 仅更新 desc，运行中生效需重建 encoder。
+ * 后台线程每秒对比估算码率与目标带宽，偏差超 15% 时步进 ±10% 并请求 IDR
+ * 让解码端快速重同步。MPP H.264/HEVC 下一帧生效；SVT-AV1 运行中不生效。
+ *
+ * 用法: example_adaptive_bitrate [-d 设备|mock | -i in.nv12] [-o out.mp4]
+ *                                 [-n 帧数] [-s WxH] [-b 目标bps]
+ * 默认 mock 采集源，无摄像头/无输入文件也能演示完整控制环。
  */
+
 #include "rkvc/rkvc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <pthread.h>
 #include <sys/time.h>
 
@@ -20,7 +27,7 @@
 
 struct adapt_ctx {
     rkvc_session *session;
-    int64_t       target_bps;     /* 用户设定目标带宽 */
+    int64_t       target_bps;
     int64_t       min_bps;
     int64_t       max_bps;
     int           running;
@@ -37,8 +44,7 @@ static void *adapt_thread(void *arg)
 {
     struct adapt_ctx *a = arg;
     rkvc_session_stats prev = {0};
-    int64_t prev_ts = 0;
-    double  smoothed_bps = 0.0;
+    double smoothed_bps = 0.0;
 
     /* 等待 session 启动 */
     while (a->running) {
@@ -48,7 +54,7 @@ static void *adapt_thread(void *arg)
         usleep(100000);
     }
 
-    prev_ts = now_us();
+    int64_t prev_ts = now_us();
     rkvc_session_get_stats(a->session, &prev);
 
     while (a->running) {
@@ -62,15 +68,13 @@ static void *adapt_thread(void *arg)
         if (dt_us <= 0)
             continue;
 
-        uint64_t bytes_delta = st.bytes_out - prev.bytes_out;
-        double actual_bps = (double)(bytes_delta * 8) * 1e6 / (double)dt_us;
+        double actual_bps = (double)((st.bytes_out - prev.bytes_out) * 8) * 1e6 /
+                            (double)dt_us;
+        smoothed_bps = smoothed_bps <= 0.0
+                       ? actual_bps
+                       : SMOOTH_ALPHA * actual_bps + (1.0 - SMOOTH_ALPHA) * smoothed_bps;
 
-        if (smoothed_bps <= 0.0)
-            smoothed_bps = actual_bps;
-        else
-            smoothed_bps = SMOOTH_ALPHA * actual_bps + (1.0 - SMOOTH_ALPHA) * smoothed_bps;
-
-        /* 比例控制器：按偏差 10% 调整，每 1s 步进一次 */
+        /* 比例控制器：按偏差 10% 调整 */
         double ratio = smoothed_bps / (double)a->target_bps;
         int64_t new_bps = a->target_bps;
         if (ratio > 1.15)
@@ -83,12 +87,15 @@ static void *adapt_thread(void *arg)
         if (new_bps > a->max_bps)
             new_bps = a->max_bps;
 
-        rkvc_session_set_bitrate(a->session, new_bps);
+        if (new_bps != a->target_bps) {
+            rkvc_session_set_bitrate(a->session, new_bps);
+            /* 码率突变后紧跟一个 IDR，解码端无需等 GOP 边界即可重同步 */
+            rkvc_session_request_idr(a->session);
+            printf("adaptive: actual=%.0f bps -> set=%lld bps +IDR\n",
+                   smoothed_bps, (long long)new_bps);
+        }
 
-        printf("adaptive: actual=%.0f bps target=%lld bps set=%lld bps\n",
-               smoothed_bps, (long long)a->target_bps, (long long)new_bps);
-
-        prev    = st;
+        prev = st;
         prev_ts = now_us();
     }
 
@@ -97,32 +104,60 @@ static void *adapt_thread(void *arg)
 
 int main(int argc, char **argv)
 {
-    const char *dev = argc > 1 ? argv[1] : "/dev/video-camera0";
-    const char *out = argc > 2 ? argv[2] : "/tmp/rkvc_adaptive.mp4";
-    int frames      = argc > 3 ? atoi(argv[3]) : 300;
+    const char *input = NULL;
+    const char *dev = NULL;
+    const char *out = "/tmp/rkvc_adaptive.mp4";
+    int frames = 300;
     int w = 640, h = 480;
-    if (argc > 4) {
-        int tw = 0, th = 0;
-        char extra;
-        if (sscanf(argv[4], "%dx%d%c", &tw, &th, &extra) != 2 || tw <= 0 || th <= 0) {
-            fprintf(stderr, "invalid size: %s (expected WxH)\n", argv[4]);
-            return 1;
+    int64_t target_bps = 2000000;
+
+    int c;
+    static struct option opts[] = {
+        { "device",  required_argument, 0, 'd' },
+        { "input",   required_argument, 0, 'i' },
+        { "output",  required_argument, 0, 'o' },
+        { "frames",  required_argument, 0, 'n' },
+        { "size",    required_argument, 0, 's' },
+        { "bitrate", required_argument, 0, 'b' },
+        { 0, 0, 0, 0 }
+    };
+    while ((c = getopt_long(argc, argv, "d:i:o:n:s:b:", opts, NULL)) != -1) {
+        if (c == 'd') dev = optarg;
+        else if (c == 'i') input = optarg;
+        else if (c == 'o') out = optarg;
+        else if (c == 'n') frames = atoi(optarg);
+        else if (c == 'b') target_bps = atoll(optarg);
+        else if (c == 's') {
+            int tw = 0, th = 0;
+            char extra;
+            if (sscanf(optarg, "%dx%d%c", &tw, &th, &extra) != 2 || tw <= 0 || th <= 0) {
+                fprintf(stderr, "invalid size: %s (expected WxH)\n", optarg);
+                return 1;
+            }
+            w = tw;
+            h = th;
         }
-        w = tw;
-        h = th;
     }
 
-    int64_t target_bps = argc > 5 ? atoll(argv[5]) : 2000000;
+    if (input && dev) {
+        fprintf(stderr, "-i 与 -d 互斥\n");
+        return 1;
+    }
 
     rkvc_pipeline_desc d;
-    rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_CAPTURE, &d);
-    d.capture_device = dev;
-    d.output_path    = out;
-    d.width  = w;
+    if (input) {
+        rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_ENCODE, &d);
+        d.input_path = input;
+    } else {
+        rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_CAPTURE, &d);
+        d.capture_device = dev ? dev : "mock";
+        d.capture_max_frames = frames;
+    }
+    d.output_path = out;
+    d.width = w;
     d.height = h;
-    d.capture_max_frames = frames;
     d.bitrate = target_bps;
-    d.policy  = RKVC_POLICY_REALTIME;
+    d.policy = RKVC_POLICY_REALTIME;
 
     rkvc_session *s = NULL;
     rkvc_err err = rkvc_session_create(&d, &s);
@@ -150,7 +185,7 @@ int main(int argc, char **argv)
     rkvc_session_stats st;
     rkvc_session_get_stats(s, &st);
     printf("adaptive %s -> %s frames_in=%llu frames_out=%llu bytes_out=%llu err=%s\n",
-           dev, out,
+           input ? input : d.capture_device, out,
            (unsigned long long)st.frames_in,
            (unsigned long long)st.frames_out,
            (unsigned long long)st.bytes_out,

@@ -45,7 +45,7 @@ if [[ ! -f "$TESTS_DIR/build.ninja" && ! -f "$TESTS_DIR/Makefile" ]]; then
         -DRKVC_BUILD_CLI=OFF \
         -DRKVC_ENABLE_FAULT_INJECTION=ON
 fi
-cmake --build "$TESTS_DIR" --target test_scale -j"${BUILD_JOBS:-4}"
+cmake --build "$TESTS_DIR" --target test_scale -j"${BUILD_JOBS:-6}"
 
 export RKVC_RUN_HARDWARE_TESTS=1
 export RKVC_RGA_SOAK_FRAMES="$SOAK_FRAMES"

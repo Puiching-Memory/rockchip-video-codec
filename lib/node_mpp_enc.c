@@ -154,12 +154,6 @@ rkvc_err rkvc_mpp_enc_apply_rc(rkvc_mpp_enc *enc, int64_t bitrate, int gop_size)
     return RKVC_OK;
 }
 
-rkvc_err rkvc_mpp_enc_send_frame_roi(rkvc_mpp_enc *enc, rkvc_buffer *frame,
-                                     const rkvc_roi_rect *rois, int roi_count)
-{
-    return rkvc_mpp_enc_send_frame_roi_ex(enc, frame, rois, roi_count, 0);
-}
-
 rkvc_err rkvc_mpp_enc_send_frame_roi_ex(rkvc_mpp_enc *enc, rkvc_buffer *frame,
                                         const rkvc_roi_rect *rois, int roi_count,
                                         int force_idr)

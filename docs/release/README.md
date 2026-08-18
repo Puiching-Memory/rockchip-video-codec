@@ -62,10 +62,14 @@
 ## 示例程序
 
 - `encode_file` — 测试图案编码
-- `decode_file` — 文件解码
-- `transcode` — 转码
-- `latency_test` — `session_create` 耗时
-- `decode_formats` — 多像素格式解码验证（NV12/YUV420P/NV16/P010）
+- `decode_file` — 文件解码（可选 NV12/YUV420P/NV16/P010 输出）
+- `transcode` — 转码（Router 自动选型）
+- `live_capture` — V4L2/mock 采集编码
+- `adaptive_bitrate` — 带宽自适应控制环
+- `roi_encode` — ROI 智能压缩
+- `stream_ports` — 命名端口并发取流
+- `upscale_ctx` — RGA 批量上采样
+- `net_loopback` — UDP/RTP 回环
 
 详见 `EXAMPLES.md`。
 
