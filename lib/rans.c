@@ -345,8 +345,11 @@ static inline void put_sym_byte(rkvc_rans_enc_stream *s, const rkvc_rans_enc_sym
 
 static inline void put_sym_64(rkvc_rans_enc_stream *s, const rkvc_rans_enc_sym *sym)
 {
-    /* x_max = m_x_max_hi << (StateBits - 31 + 1) = m_x_max_hi << 33 */
-    uint64_t x_max = ((uint64_t)sym->x_max_hi) << 33;
+    /* x_max = x_max_hi << 32 = freq << (63 - ScaleBits)：重归一后 x < x_max
+     * 保证 x' = (x/freq)*M + start < 2^63（StateBits=63 不变式）。
+     * 原移植误用 << 33（StateBits=64 约定）导致状态可越过 2^63
+     * 回绕，长码流解码提前耗尽字节（由新增 test_rans 回归暴露）。 */
+    uint64_t x_max = ((uint64_t)sym->x_max_hi) << 32;
     renorm_64(s, x_max);
     uint64_t x = s->state;
     uint64_t rcp = ((uint64_t)sym->freq_rcp_hi << 32) | sym->freq_rcp;
@@ -628,6 +631,10 @@ void rkvc_rans_enc_stream_init(rkvc_rans_enc_stream *s,
     s->state = (variant == RKVC_RANS_BYTE)
         ? RANS_BYTE_LOWER_BOUND : RANS_64_LOWER_BOUND;
 }
+
+/* 注：曾尝试按变体（RANS_BYTE vs RANS_64）分裂热循环以消除逐符号分派，
+ * RK3576 交替 A/B 实测（200 万符号×4 轮）无收益且解码回退约 8%
+ * （分支预测命中、双份循环体增大 i-cache 压力），故保留单循环结构。 */
 
 int rkvc_rans_enc_stream_encode(rkvc_rans_enc_stream *s,
                                 const rkvc_rans_coder *coder,

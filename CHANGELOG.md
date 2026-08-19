@@ -4,6 +4,33 @@
 
 ## [Unreleased]
 
+### 性能（MLVC CPU 热路径）
+
+- **多层循环内核重构（新增 `lib/mlvc_pixel.{h,c}`）**：将 `node_mlvc.c` 中每帧执行的像素/张量转换内核抽出为可独立单测的纯数组内核，AArch64 走显式 NEON 快速路径，其它架构回退标量；两条路径经随机数据**逐位等价**验证（含非 4 倍数尺寸、奇宽高、越界值边界），ASan/UBSan 干净。RK3576 实测（performance 调频，640×368 模型几何，y 张量 192×92×160，多轮均值；ref = 优化前实现）：
+
+  | 内核（每帧） | ref | new | 收益 |
+  |---|---|---|---|
+  | `nc1hwc2_to_nchw`（编码侧 z/y0/y1，y 张量） | 13.4 ms | 6.6 ms | **−51%** |
+  | `extract_scales`（编/解码各一次） | 13.5 ms | 11.1 ms | **−18%**（余下为 22MB/帧写带宽下限） |
+  | 解码尾 d2s 段（原转置+DCR+clip 三遍 → 融合一遍） | 8.4 ms | 1.3 ms | **−84%** |
+  | `nchw_yuv_fp16_to_nv12`（含原 clip(0,1) 整遍） | 6.7 ms | 0.4 ms | **−94%** |
+  | `yuv_to_nhwc_fp16`（编码输入） | 1.09 ms | 0.63 ms | **−42%** |
+  | `nchw_to_nc1hwc2_fp16`（解码输入） | 4.8 ms | 5.1 ms | ≈0，保留标量 |
+  | `nc1hwc2_fp16_to_nv12`（遗留整图 x_hat 路径） | 2.68 ms | 2.72 ms | ≈0，仅指针推进微调 |
+
+  主要手段：NEON 8×8 f16 转置 + `vcvtnq`（round-to-nearest-even，等价 lrintf）；NC1HWC2→DepthToSpace(DCR) 融合直出（免中间张量一读一写，输出改连续写入，另省去 `x_pre` 缓冲）；clip 遍并入饱和 NV12 转换（越界值由整数饱和覆盖，有限值域内逐位一致）；256 项 f16 LUT + 两行共享 UV 行；`z_idx` 三重循环改按通道平面常量填充。
+  如实记录的负结果：`nchw_to_nc1hwc2_fp16` 的 NEON 8×8 int32 转置版实测慢约 19%（shuffle 压力），不采用，结论记入代码注释。
+  按 0.3.1 实测的编/解码帧时（编码 ~100 ms、解码 ~142 ms@640×368，NPU 与 CPU 串行）估算：编码侧 CPU 段省约 17 ms/帧（潜在 ≈17%），解码侧省约 16 ms/帧（潜在 ≈11%）；端到端收益需有模型的 RK3588 环境复测。
+
+### 修复
+
+- **Rans64 状态位宽错误**：`put_sym_64` 的 x_max 误用 StateBits=64 约定（`x_max_hi << 33` = freq<<64−sb），与本仓 StateBits=63/LowerBound=1<<31 体系不匹配，状态可越过 2^63 回绕，长码流解码提前耗尽字节报错；改为 `<< 32`（freq<<(63−sb)，与 bypass 路径 `put_raw_64` 既有公式一致）。MLVC 只用 RansByte，无既有码流兼容影响；由新增 `tests/test_rans.c` 双变体 round-trip 暴露并回归。
+- **rANS 变体分派外提尝试回退**：曾将编/解码热循环按 RansByte/Rans64 分裂以消除逐符号分派，RK3576 交替 A/B（200 万符号×4 轮）实测无收益且解码回退约 8%（变体分支预测命中、双份循环体增大 i-cache 压力），已回退单循环结构并在代码中留注释防重复尝试；RansByte 码流与 HEAD 逐字节一致（FNV-1a 指纹相同）。
+
+### 测试
+
+- 新增 `tests/test_rans.c`（双变体 round-trip 含 bypass 离群值与负索引契约、流式多段、码流确定性、截断/非法 PMF 拒绝）与 `tests/test_mlvc_pixel.c`（新内核 vs 优化前参考实现逐位等价），MLVC 启用时随单测套件构建。
+
 ## [0.3.2] - 2026-08-18
 
 ### 变更（破坏性）

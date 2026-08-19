@@ -27,81 +27,11 @@
 #include <rknn_api.h>
 
 #include "rknn_util.h"
+#include "mlvc_pixel.h"
 
 /* ── fp16 辅助 ──────────────────────────────────────────────────────
- * AArch64 上 __fp16 为原生 16-bit 浮点：f32↔f16 各编译为单条 fcvt 指令，
- * 舍入为 IEEE round-to-nearest-even，与下方可移植软件实现逐位等价，
- * 且使编译器能对调用处的循环自动向量化。其它架构回退到软件位运算实现。 */
-#if defined(__ARM_NEON) || defined(__ARM_NEON__)
-
-static inline uint16_t f32_to_f16(float f)
-{
-    __fp16 h = (__fp16)f;
-    uint16_t r;
-    memcpy(&r, &h, 2);
-    return r;
-}
-
-static inline float f16_to_f32(uint16_t h)
-{
-    __fp16 p;
-    memcpy(&p, &h, 2);
-    return (float)p;
-}
-
-#else  /* 可移植软件实现 */
-
-static uint16_t f32_to_f16(float f)
-{
-    uint32_t x;
-    memcpy(&x, &f, 4);
-    uint32_t sign = (x >> 16) & 0x8000;
-    int exp = (int)((x >> 23) & 0xff) - 127 + 15;
-    uint32_t mant = x & 0x7fffff;
-    if (exp <= 0) {
-        if (exp < -10) return (uint16_t)sign;
-        mant |= 0x800000;
-        int shift = 14 - exp;
-        uint32_t hm = mant >> shift;
-        uint32_t rem = mant & ((1u << shift) - 1);
-        uint32_t half_ = 1u << (shift - 1);
-        if (rem > half_ || (rem == half_ && (hm & 1))) hm++;
-        return (uint16_t)(sign | hm);
-    }
-    if (exp >= 31) return (uint16_t)(sign | 0x7bff);
-    uint32_t h = sign | ((uint32_t)exp << 10) | (mant >> 13);
-    uint32_t rem = mant & 0x1fff;
-    if (rem > 0x1000 || (rem == 0x1000 && (h & 1))) h++;
-    return (uint16_t)h;
-}
-
-static float f16_to_f32(uint16_t h)
-{
-    uint32_t sign = ((uint32_t)h & 0x8000) << 16;
-    uint32_t exp = (h >> 10) & 0x1f;
-    uint32_t mant = h & 0x3ff;
-    uint32_t x;
-    if (exp == 0) {
-        if (mant == 0) {
-            x = sign;
-        } else {
-            exp = 1;
-            while (!(mant & 0x400)) { mant <<= 1; exp--; }
-            mant &= 0x3ff;
-            x = sign | ((exp + 127 - 15) << 23) | (mant << 13);
-        }
-    } else if (exp == 31) {
-        x = sign | 0x7f800000u | (mant << 13);
-    } else {
-        x = sign | ((exp + 127 - 15) << 23) | (mant << 13);
-    }
-    float f;
-    memcpy(&f, &x, 4);
-    return f;
-}
-
-#endif  /* __ARM_NEON */
-
+ * fp16 转换与每帧像素/张量转换内核见 lib/mlvc_pixel.{h,c}
+ * （NEON 快速路径 + 标量回退，逐位等价）。 */
 /* ── PMF 二进制表加载 ────────────────────────────────────────────── */
 
 typedef struct {
@@ -417,105 +347,7 @@ static void rknn_write_input(mlvc_rknn_model *m, int i, const uint16_t *data)
     rknn_mem_sync(m->ctx, m->in_mem[i], RKNN_MEMORY_SYNC_TO_DEVICE);
 }
 
-/* ── 几何常量 ────────────────────────────────────────────────────── */
-
-#define MLVC_SCALE_MAX_IDX     127
-#define MLVC_CHANNEL_REPEAT    4
-#define MLVC_SPATIAL_REPEAT    4
-
-/* ── extract_scales ── */
-
-static void extract_scales(const int32_t *z_r, int32_t *s0, int32_t *s1,
-                           int YC, int YH, int YW, int ZH, int ZW)
-{
-    for (int c = 0; c < YC; c++) {
-        int zc0 = c / MLVC_CHANNEL_REPEAT;
-        int zc1 = (c + YC) / MLVC_CHANNEL_REPEAT;
-        for (int y = 0; y < YH; y++) {
-            int zy = y / MLVC_SPATIAL_REPEAT;
-            for (int x = 0; x < YW; x++) {
-                int zx = x / MLVC_SPATIAL_REPEAT;
-                int v0 = abs(z_r[(zc0 * ZH + zy) * ZW + zx]);
-                int v1 = abs(z_r[(zc1 * ZH + zy) * ZW + zx]);
-                if (v0 > MLVC_SCALE_MAX_IDX) v0 = MLVC_SCALE_MAX_IDX;
-                if (v1 > MLVC_SCALE_MAX_IDX) v1 = MLVC_SCALE_MAX_IDX;
-                int chk = ((y & 1) == (x & 1));
-                size_t o = ((size_t)c * YH + y) * YW + x;
-                s0[o] = chk ? v0 : v1;
-                s1[o] = chk ? v1 : v0;
-            }
-        }
-    }
-}
-
-/* ── NC1HWC2 ↔ NCHW 转换 ── */
-
-static void nc1hwc2_to_nchw(const uint16_t *src, int32_t *dst, int C, int H, int W)
-{
-    for (int c = 0; c < C; c++) {
-        int c1 = c >> 3, c2 = c & 7;
-        for (int y = 0; y < H; y++)
-            for (int x = 0; x < W; x++)
-                dst[((size_t)c * H + y) * W + x] =
-                    lrintf(f16_to_f32(src[(((size_t)c1 * H + y) * W + x) * 8 + c2]));
-    }
-}
-
-static void nchw_to_nc1hwc2_fp16(const int32_t *src, uint16_t *dst, int C, int H, int W)
-{
-    for (int c = 0; c < C; c++) {
-        int c1 = c >> 3, c2 = c & 7;
-        for (int y = 0; y < H; y++)
-            for (int x = 0; x < W; x++)
-                dst[(((size_t)c1 * H + y) * W + x) * 8 + c2] =
-                    f32_to_f16((float)src[((size_t)c * H + y) * W + x]);
-    }
-}
-
-static void nc1hwc2_to_nchw_f16(const uint16_t *src, uint16_t *dst,
-                                int C1, int H, int W, int C2)
-{
-    int C = C1 * C2;
-    for (int c = 0; c < C; c++) {
-        int c1 = c / C2, c2 = c % C2;
-        for (int y = 0; y < H; y++)
-            for (int x = 0; x < W; x++)
-                dst[((size_t)c * H + y) * W + x] =
-                    src[(((size_t)c1 * H + y) * W + x) * C2 + c2];
-    }
-}
-
-/* ONNX DepthToSpace mode=DCR：ic = dy*(bs*oc) + dx*oc + c */
-static void depth_to_space_nchw_dcr_f16(const uint16_t *in, uint16_t *out,
-                                        int C, int H, int W, int bs)
-{
-    int oc = C / (bs * bs);
-    int oh = H * bs, ow = W * bs;
-    for (int c = 0; c < oc; c++) {
-        for (int dy = 0; dy < bs; dy++) {
-            for (int dx = 0; dx < bs; dx++) {
-                int ic = dy * (bs * oc) + dx * oc + c;
-                for (int h = 0; h < H; h++) {
-                    for (int w = 0; w < W; w++) {
-                        out[(c * oh + h * bs + dy) * (size_t)ow + (w * bs + dx)] =
-                            in[(ic * H + h) * (size_t)W + w];
-                    }
-                }
-            }
-        }
-    }
-}
-
-static void clip01_f16(uint16_t *p, size_t n)
-{
-    for (size_t i = 0; i < n; i++) {
-        float f = f16_to_f32(p[i]);
-        if (f <= 0.0f)
-            p[i] = f32_to_f16(0.0f);
-        else if (f >= 1.0f)
-            p[i] = f32_to_f16(1.0f);
-    }
-}
+/* ── NC1HWC2 → NV12 / YUV → NHWC 包装（纯数组内核在 mlvc_pixel.c）── */
 
 static rkvc_err nchw_yuv_fp16_to_nv12(const uint16_t *src, int W, int H,
                                       rkvc_buffer **out)
@@ -526,27 +358,10 @@ static rkvc_err nchw_yuv_fp16_to_nv12(const uint16_t *src, int W, int H,
         return err;
 
     AVFrame *avf = b->av_frame;
-    uint8_t *Yp = avf->data[0];
-    uint8_t *UV = avf->data[1];
-    int y_stride = avf->linesize[0];
-    int uv_stride = avf->linesize[1];
-    size_t plane = (size_t)H * W;
-
-    for (int y = 0; y < H; y++) {
-        for (int x = 0; x < W; x++) {
-            int v = (int)lrintf(f16_to_f32(src[(size_t)y * W + x]) * 255.0f);
-            Yp[y * y_stride + x] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
-        }
-    }
-    for (int y = 0; y < H / 2; y++) {
-        for (int x = 0; x < W / 2; x++) {
-            size_t o = (size_t)(y * 2) * W + (x * 2);
-            int u = (int)lrintf(f16_to_f32(src[plane + o]) * 255.0f);
-            int v = (int)lrintf(f16_to_f32(src[2 * plane + o]) * 255.0f);
-            UV[y * uv_stride + x * 2]     = (uint8_t)(u < 0 ? 0 : (u > 255 ? 255 : u));
-            UV[y * uv_stride + x * 2 + 1] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
-        }
-    }
+    /* 饱和内核融合了原 clip(0,1) 遍：越界值由整数饱和直接覆盖 */
+    mlvc_px_nchw_yuv_fp16_to_nv12_planes(src, W, H,
+                                         avf->data[0], avf->linesize[0],
+                                         avf->data[1], avf->linesize[1]);
     *out = b;
     return RKVC_OK;
 }
@@ -556,36 +371,12 @@ static rkvc_err nchw_yuv_fp16_to_nv12(const uint16_t *src, int W, int H,
 static void yuv_to_nhwc_fp16(const rkvc_buffer *frame, uint16_t *nhwc)
 {
     AVFrame *avf = frame->av_frame;
-    int W = (int)frame->width;
-    int H = (int)frame->height;
-    const uint8_t *Yp = avf->data[0];
-    int y_stride = avf->linesize[0];
-    int is_nv12 = (frame->format == RKVC_PIX_FMT_NV12);
-    const uint8_t *Up, *Vp;
-    int uv_stride;
-    if (is_nv12) {
-        Up = avf->data[1];
-        Vp = Up + 1;
-        uv_stride = avf->linesize[1];
-    } else {
-        Up = avf->data[1];
-        Vp = avf->data[2];
-        uv_stride = avf->linesize[1];
-    }
-    for (int y = 0; y < H; y++) {
-        for (int x = 0; x < W; x++) {
-            size_t o = (size_t)y * W + x;
-            int uy = y / 2, ux = x / 2;
-            nhwc[o * 3 + 0] = f32_to_f16(Yp[y * y_stride + x] * (1.0f / 255.0f));
-            if (is_nv12) {
-                nhwc[o * 3 + 1] = f32_to_f16(Up[uy * uv_stride + ux * 2] * (1.0f / 255.0f));
-                nhwc[o * 3 + 2] = f32_to_f16(Vp[uy * uv_stride + ux * 2] * (1.0f / 255.0f));
-            } else {
-                nhwc[o * 3 + 1] = f32_to_f16(Up[uy * uv_stride + ux] * (1.0f / 255.0f));
-                nhwc[o * 3 + 2] = f32_to_f16(Vp[uy * uv_stride + ux] * (1.0f / 255.0f));
-            }
-        }
-    }
+    int nv12 = (frame->format == RKVC_PIX_FMT_NV12);
+    const uint8_t *Up = avf->data[1];
+    const uint8_t *Vp = nv12 ? Up + 1 : avf->data[2];
+    mlvc_px_yuv_to_nhwc_fp16(avf->data[0], avf->linesize[0], Up, Vp,
+                             avf->linesize[1], nv12,
+                             (int)frame->width, (int)frame->height, nhwc);
 }
 
 /* ── fp16 NHWC → NV12 ── */
@@ -599,27 +390,9 @@ static rkvc_err nc1hwc2_fp16_to_nv12(const uint16_t *src, int W, int H, int c2,
         return err;
 
     AVFrame *avf = b->av_frame;
-    uint8_t *Yp = avf->data[0];
-    uint8_t *UV = avf->data[1];
-    int y_stride = avf->linesize[0];
-    int uv_stride = avf->linesize[1];
-
-    for (int y = 0; y < H; y++) {
-        for (int x = 0; x < W; x++) {
-            size_t o = ((size_t)y * W + x) * c2;
-            int v = (int)lrintf(f16_to_f32(src[o + 0]) * 255.0f);
-            Yp[y * y_stride + x] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
-        }
-    }
-    for (int y = 0; y < H / 2; y++) {
-        for (int x = 0; x < W / 2; x++) {
-            size_t o = ((size_t)(y * 2) * W + (x * 2)) * c2;
-            int u = (int)lrintf(f16_to_f32(src[o + 1]) * 255.0f);
-            int v = (int)lrintf(f16_to_f32(src[o + 2]) * 255.0f);
-            UV[y * uv_stride + x * 2]     = (uint8_t)(u < 0 ? 0 : (u > 255 ? 255 : u));
-            UV[y * uv_stride + x * 2 + 1] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
-        }
-    }
+    mlvc_px_nc1hwc2_fp16_to_nv12_planes(src, W, H, c2,
+                                        avf->data[0], avf->linesize[0],
+                                        avf->data[1], avf->linesize[1]);
     *out = b;
     return RKVC_OK;
 }
@@ -705,10 +478,13 @@ static rkvc_err enc_alloc_bufs(rkvc_mlvc_enc *e)
         return RKVC_ERR_NOMEM;
 
     memset(e->ref_nhwc, 0, ref_sz * 2);
-    for (int c = 0; c < e->ZC; c++)
-        for (int y = 0; y < e->ZH; y++)
-            for (int x = 0; x < e->ZW; x++)
-                e->z_idx[((size_t)c * e->ZH + y) * e->ZW + x] = e->qp * e->ZC + c;
+    /* z_idx 在通道平面内为常量：按平面填充（原逐元素三重循环）*/
+    for (int c = 0; c < e->ZC; c++) {
+        int32_t *p = e->z_idx + (size_t)c * e->ZH * e->ZW;
+        size_t n = (size_t)e->ZH * e->ZW;
+        for (size_t i = 0; i < n; i++)
+            p[i] = e->qp * e->ZC + c;
+    }
     return RKVC_OK;
 }
 
@@ -829,12 +605,12 @@ rkvc_err rkvc_mlvc_enc_send_frame(rkvc_mlvc_enc *e, rkvc_buffer *frame)
     if (!bz || !by0 || !by1)
         return RKVC_ERR_HW;
 
-    nc1hwc2_to_nchw(bz, e->z_r, e->ZC, e->ZH, e->ZW);
-    nc1hwc2_to_nchw(by0, e->y0_r, e->YC, e->YH, e->YW);
-    nc1hwc2_to_nchw(by1, e->y1_r, e->YC, e->YH, e->YW);
+    mlvc_px_nc1hwc2_to_nchw(bz, e->z_r, e->ZC, e->ZH, e->ZW);
+    mlvc_px_nc1hwc2_to_nchw(by0, e->y0_r, e->YC, e->YH, e->YW);
+    mlvc_px_nc1hwc2_to_nchw(by1, e->y1_r, e->YC, e->YH, e->YW);
 
     /* 熵编码: push y1, y0, z */
-    extract_scales(e->z_r, e->s0, e->s1, e->YC, e->YH, e->YW, e->ZH, e->ZW);
+    mlvc_px_extract_scales(e->z_r, e->s0, e->s1, e->YC, e->YH, e->YW, e->ZH, e->ZW);
 
     rkvc_rans_enc_stream stream;
     rkvc_rans_enc_stream_init(&stream, RKVC_RANS_BYTE, 65536);
@@ -916,7 +692,7 @@ struct rkvc_mlvc_dec {
     uint16_t *ref_nhwc;
     int32_t *z_d, *y0_d, *y1_d, *s0, *s1, *z_idx;
     uint16_t *z_d_nhwc, *y0_d_nhwc, *y1_d_nhwc;
-    uint16_t *x_pre, *x_img;
+    uint16_t *x_img;
 
     rkvc_buffer *pending_pkt;
     rkvc_buffer *out_frame;
@@ -991,24 +767,22 @@ static rkvc_err dec_alloc_bufs(rkvc_mlvc_dec *d)
     d->z_d_nhwc  = rkvc_malloc(z_sz * 2);
     d->y0_d_nhwc = rkvc_malloc(y_sz * 2);
     d->y1_d_nhwc = rkvc_malloc(y_sz * 2);
-    d->x_pre = NULL;
     d->x_img = NULL;
-    if (d->x_d2s_bs > 0) {
-        size_t pre_n = (size_t)d->x_pre_c * d->x_pre_h * d->x_pre_w;
-        size_t img_n = 3ull * d->IMG_H * d->IMG_W;
-        d->x_pre = rkvc_malloc(pre_n * 2);
-        d->x_img = rkvc_malloc(img_n * 2);
-    }
+    if (d->x_d2s_bs > 0)
+        d->x_img = rkvc_malloc(3ull * d->IMG_H * d->IMG_W * 2);
     if (!d->ref_nhwc || !d->z_d || !d->y0_d || !d->y1_d || !d->s0 || !d->s1 ||
         !d->z_idx || !d->z_d_nhwc || !d->y0_d_nhwc || !d->y1_d_nhwc ||
-        (d->x_d2s_bs > 0 && (!d->x_pre || !d->x_img)))
+        (d->x_d2s_bs > 0 && !d->x_img))
         return RKVC_ERR_NOMEM;
 
     memset(d->ref_nhwc, 0, ref_sz * 2);
-    for (int c = 0; c < d->ZC; c++)
-        for (int y = 0; y < d->ZH; y++)
-            for (int x = 0; x < d->ZW; x++)
-                d->z_idx[((size_t)c * d->ZH + y) * d->ZW + x] = d->qp * d->ZC + c;
+    /* z_idx 在通道平面内为常量：按平面填充（原逐元素三重循环）*/
+    for (int c = 0; c < d->ZC; c++) {
+        int32_t *p = d->z_idx + (size_t)c * d->ZH * d->ZW;
+        size_t n = (size_t)d->ZH * d->ZW;
+        for (size_t i = 0; i < n; i++)
+            p[i] = d->qp * d->ZC + c;
+    }
     return RKVC_OK;
 }
 
@@ -1024,7 +798,6 @@ static void dec_free_bufs(rkvc_mlvc_dec *d)
     rkvc_free(d->z_d_nhwc);
     rkvc_free(d->y0_d_nhwc);
     rkvc_free(d->y1_d_nhwc);
-    rkvc_free(d->x_pre);
     rkvc_free(d->x_img);
 }
 
@@ -1140,7 +913,7 @@ rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *d, rkvc_buffer **frame)
     rc = rkvc_rans_dec_stream_decode(&ds, &d->b_coder, d->z_d, d->z_idx, z_n);
     if (rc != RKVC_RANS_OK) { rkvc_rans_dec_stream_close(&ds); return RKVC_ERR_INTERNAL; }
 
-    extract_scales(d->z_d, d->s0, d->s1, d->YC, d->YH, d->YW, d->ZH, d->ZW);
+    mlvc_px_extract_scales(d->z_d, d->s0, d->s1, d->YC, d->YH, d->YW, d->ZH, d->ZW);
 
     rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y0_d, d->s0, y_n);
     if (rc == RKVC_RANS_OK)
@@ -1150,9 +923,9 @@ rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *d, rkvc_buffer **frame)
     rkvc_rans_dec_stream_close(&ds);
 
     /* NCHW → NC1HWC2 fp16 */
-    nchw_to_nc1hwc2_fp16(d->z_d, d->z_d_nhwc, d->ZC, d->ZH, d->ZW);
-    nchw_to_nc1hwc2_fp16(d->y0_d, d->y0_d_nhwc, d->YC, d->YH, d->YW);
-    nchw_to_nc1hwc2_fp16(d->y1_d, d->y1_d_nhwc, d->YC, d->YH, d->YW);
+    mlvc_px_nchw_to_nc1hwc2_fp16(d->z_d, d->z_d_nhwc, d->ZC, d->ZH, d->ZW);
+    mlvc_px_nchw_to_nc1hwc2_fp16(d->y0_d, d->y0_d_nhwc, d->YC, d->YH, d->YW);
+    mlvc_px_nchw_to_nc1hwc2_fp16(d->y1_d, d->y1_d_nhwc, d->YC, d->YH, d->YW);
 
     /* decoder NPU */
     rknn_write_input(&d->dec_model, d->dec_z_in, d->z_d_nhwc);
@@ -1166,11 +939,11 @@ rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *d, rkvc_buffer **frame)
         return RKVC_ERR_HW;
     rkvc_err err;
     if (d->x_d2s_bs > 0) {
+        /* NC1HWC2 → DepthToSpace 融合（免中间 NCHW 遍）；clip(0,1)
+         * 融合进饱和 NV12 转换（越界值由整数饱和覆盖）*/
         int C1 = d->x_pre_c / d->OUT_C2;
-        nc1hwc2_to_nchw_f16(xh, d->x_pre, C1, d->x_pre_h, d->x_pre_w, d->OUT_C2);
-        depth_to_space_nchw_dcr_f16(d->x_pre, d->x_img, d->x_pre_c,
-                                    d->x_pre_h, d->x_pre_w, d->x_d2s_bs);
-        clip01_f16(d->x_img, 3ull * d->IMG_H * d->IMG_W);
+        mlvc_px_nc1hwc2_d2s_dcr_f16(xh, d->x_img, C1, d->x_pre_h, d->x_pre_w,
+                                    d->OUT_C2, d->x_d2s_bs);
         err = nchw_yuv_fp16_to_nv12(d->x_img, d->IMG_W, d->IMG_H, frame);
     } else {
         err = nc1hwc2_fp16_to_nv12(xh, d->IMG_W, d->IMG_H, d->OUT_C2, frame);

@@ -154,7 +154,7 @@ if(RKVC_ENABLE_MLVC)
     if(NOT RKVC_RKNN_ENABLED)
         message(FATAL_ERROR "RKVC_ENABLE_MLVC=ON requires librknnrt (RKVC_ENABLE_RKNN).")
     endif()
-    set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c)
+    set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c lib/mlvc_pixel.c)
     set(RKVC_MLVC_ENABLED 1)
     message(STATUS "MLVC neural codec: enabled (pure C rANS)")
 endif()
@@ -575,6 +575,14 @@ if(RKVC_BUILD_TESTS)
         tests/test_qppatch.c
         tests/test_cli_parse.c
     )
+
+    if(RKVC_MLVC_ENABLED)
+        # rANS 熵编解码与 MLVC 像素内核回归（逐位等价 + round-trip）
+        list(APPEND RKVC_TEST_SOURCES
+            tests/test_rans.c
+            tests/test_mlvc_pixel.c
+        )
+    endif()
 
     if(RKVC_ENABLE_FAULT_INJECTION)
         list(APPEND RKVC_TEST_SOURCES tests/test_permissions.c)
