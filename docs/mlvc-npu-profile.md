@@ -127,7 +127,7 @@
 
 ### 7.2 下一步空间（模型图编辑，见 `tools/mlvc/`）
 
-CPU fallback（SpaceToDepth / Max / Div）的根因是 **librknnrt 不支持这些算子的 NPU 执行**，对现成 `.rknn` 再转一遍无法解决。正解是**在 ONNX 计算图层面用 NPU 友好的等价算子替换**，再重新导出 RKNN。本仓已提供该链路：[`docs/mlvc-rknn-export.md`](mlvc-rknn-export.md) / `python3 tools/mlvc/export_rknn.py`。
+CPU fallback（SpaceToDepth / Max / Div）的根因是 **librknnrt 不支持这些算子的 NPU 执行**，对现成 `.rknn` 再转一遍无法解决。正解是**在 ONNX 计算图层面用 NPU 友好的等价算子替换**，再重新导出 RKNN。本仓已提供该链路：[`docs/mlvc-rknn-export.md`](mlvc-rknn-export.md) / `tools/.venv/bin/python tools/mlvc/export_rknn.py`。
 
 | 图编辑                                   | 目标       | 预期收益            | 风险                      |
 | ---------------------------------------- | ---------- | ------------------- | ------------------------- |

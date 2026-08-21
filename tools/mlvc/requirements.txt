@@ -1,9 +1,0 @@
-# MLVC → RKNN 导出。推荐：cd tools/mlvc && uv sync
-# PyPI 有 x86_64 / aarch64 manylinux wheel（Python 3.8–3.12）。
-#
-# rknn-toolkit2 2.3.2 的 METADATA 还要求 onnxoptimizer==0.3.8（aarch64 无 wheel）。
-# 转换不需要它；用 pyproject.toml 里的 [tool.uv.dependency-metadata] 覆盖。
-rknn-toolkit2>=2.3.2
-onnx>=1.16.1
-numpy>=1.20,<=1.26.4
-setuptools>=69,<81

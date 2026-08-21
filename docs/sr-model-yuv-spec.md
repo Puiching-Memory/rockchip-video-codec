@@ -59,4 +59,4 @@
 
 - 现网 RGB 路径：`lib/node_rkvc_sr.c`、`lib/rkvc_sr_neon.c`
 - RGA 传统上采样：`lib/node_rga.c`、`lib/node_post_upscale.c`
-- Bench 评估：`bench/README.md` post-upscale 路线
+- Bench 评估：`tools/bench/README.md` post-upscale 路线

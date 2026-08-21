@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-# bench/ab_compare_svt.sh — SVT-AV1 双版本 A/B 对比（同片段、同 CRF 阶梯）
+# tools/bench/ab_compare_svt.sh — SVT-AV1 双版本 A/B 对比（同片段、同 CRF 阶梯）
 #
 # 编码：两个 SvtAv1EncApp 安装前缀同 CRF 编码；
 # 解码/测质：项目 ffmpeg 的 av1_rkmpp 硬解 + hwdownload（与 run_rd_benchmark.sh
 #   的 ffmpeg_to_yuv420p_raw() 走同一条 RD 测质路径，绝对 PSNR/SSIM 与项目一致）。
-# 再算 BD-rate。4.1.0→4.2.0 升级时用本脚本得到 bench/results/svt_ab_compare.csv。
+# 再算 BD-rate。4.1.0→4.2.0 升级时用本脚本得到 tools/bench/results/svt_ab_compare.csv。
 #
 # 重跑需先构建两个版本到不同前缀（默认 A=.build/deps/svt-av1-install，
 #   B=.build/deps/svt-av1-install-420）；可用环境变量覆盖：
 #   SVT_A_BIN / SVT_A_LIB / SVT_A_LABEL   SVT_B_BIN / SVT_B_LIB / SVT_B_LABEL
 #   FFMPEG（默认项目 ffmpeg；测质解码路径需 av1_rkmpp）
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PY=python3; TOOLS="$ROOT/bench/tools"; RAM=/dev/shm/rkvc-ab
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+PY="$ROOT/tools/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  echo "[error] 共享 Python 环境不存在: $PY" >&2
+  echo "请先运行: cd $ROOT/tools && uv sync" >&2
+  exit 1
+fi
+TOOLS="$ROOT/tools/bench/tools"; RAM=/dev/shm/rkvc-ab
 REF_Y4M="$RAM/ref.y4m"; REF_YUV="$RAM/ref.yuv"
 W=1920; H=1080; FRAMES=96; KEYINT=60; LP=4; FPSR=24
 
@@ -33,7 +39,7 @@ SVT_B_LABEL="${SVT_B_LABEL:-v420}"
 
 P11_CRFS=(41 46 52 57 62 65 68 70)
 P4_CRFS=(45 52 57 62 68)
-OUT="$ROOT/bench/results/svt_ab_compare.csv"
+OUT="$ROOT/tools/bench/results/svt_ab_compare.csv"
 printf 'version,preset,crf,actual_kbps,psnr_y,psnr_avg,ssim,encode_sec,enc_fps\n' > "$OUT"
 
 # 测质：av1_rkmpp 硬解 IVF → hwdownload → yuv420p raw，再与 REF 比 PSNR/SSIM。

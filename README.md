@@ -22,7 +22,7 @@
 - **ROI / 配额** — `rkvc_session_set_roi`（MPP 硬区域 QP）；`rkvc_runtime_set_quota`
 - **UDP/RTP 原语** — `rkvc_net_send` / `recv`（分片重组；无国标信令）
 
-## 性能 (RK3588, 1080p E2E, bench/)
+## 性能 (RK3588, 1080p E2E, tools/bench/)
 
 | 路线                    | E2E fps | policy                    |
 | ----------------------- | ------- | ------------------------- |
@@ -94,7 +94,7 @@ rkvc_session_run_file(s);
 rkvc_session_destroy(s);
 ```
 
-## RD 基准测试（bench/）
+## RD 基准测试（tools/bench/）
 
 端到端码率-画质与性能对比，默认四路：**H.264 / H.265 / SVT-AV1 / rkvc**，可选 `rkvc-neural`（MLVC）、`post-upscale`（下采样编码 + RGA / AI 超分）等路线。
 
@@ -103,12 +103,12 @@ rkvc_session_destroy(s);
 ![E2E 性能对比](docs/images/bench/perf_e2e.png)
 
 ```bash
-./bench/run_rd_benchmark.sh /path/to/1080p.mp4
-PLOT_ONLY=1 ./bench/run_rd_benchmark.sh          # 仅重绘图表
-RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
+./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
+PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh          # 仅重绘图表
+RUN_CODECS=h264,rkvc ./tools/bench/run_rd_benchmark.sh clip.mp4
 ```
 
-详见 [bench/README.md](bench/README.md)。
+详见 [tools/bench/README.md](tools/bench/README.md)。
 
 ## 测试
 
@@ -125,7 +125,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 
 - Rockchip BSP、`third_party/` 子模块：MPP、ffmpeg-rockchip、SVT-AV1、[librga](https://github.com/airockchip/librga)
 - libdrm；可选 `librknnrt`（`rkvc_sr` 超分与 MLVC；可移植包可自带）
-- MLVC 模型（`models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）与 PMF 表（`gaussian.bin` / `bitest.bin`）由用户提供，可用 `python3 tools/mlvc/export_rknn.py --from-mlvc` 从 [microsoft/mlvc](https://github.com/microsoft/mlvc) 一条龙导出（见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)）；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
+- MLVC 模型（`models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）与 PMF 表（`gaussian.bin` / `bitest.bin`）由用户提供，可用 `tools/.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 从 [microsoft/mlvc](https://github.com/microsoft/mlvc) 一条龙导出（先在 `tools/` 执行 `uv sync`，见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)）；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
 
 ## 许可证
 

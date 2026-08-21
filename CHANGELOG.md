@@ -72,7 +72,7 @@ rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RK
 
 ### 新增
 
-- **MLVC ONNX → RKNN 导出工具**（`tools/mlvc/`）：`python export_rknn.py --from-mlvc` 浅克隆 microsoft/mlvc 并跑 `convert.py export --target-device generic`，再折叠 `q_index_shifted`、把 SpaceToDepth/Max/Div 换成 NPU 友好算子，经 rknn-toolkit2 转 FP16 `.rknn`，PMF JSON 写成 PMF1。环境：`cd tools/mlvc && uv sync`。无 toolkit 时可用 `--skip-rknn` / `--pmf-only`。文档见 `docs/mlvc-rknn-export.md`。
+- **MLVC ONNX → RKNN 导出工具**（`tools/mlvc/`）：`tools/.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 浅克隆 microsoft/mlvc 并跑 `convert.py export --target-device generic`，再折叠 `q_index_shifted`、把 SpaceToDepth/Max/Div 换成 NPU 友好算子，经 rknn-toolkit2 转 FP16 `.rknn`，PMF JSON 写成 PMF1。环境：`cd tools && uv sync`。无 toolkit 时可用 `--skip-rknn` / `--pmf-only`。文档见 `docs/mlvc-rknn-export.md`。
 - **MLVC 多 QP 单模型（QPP1）**：同尺寸多 qp `.rknn` 打成区间补丁（`tools/mlvc/qppatch.py` / `make_qp_patches.py`）。`rkvc_transcode --mlvc-qp-patch-dir` 在 `rknn_init` 前对基座打一次补丁（编码用 `--mlvc-qp`，解码用容器头 qp）；缺补丁或 CRC 失败则打开失败。C 应用器 `lib/qppatch.c`，测试 `tests/test_qppatch.c`。
 - **共享 CLI 解析器**：`policy` / `WxH` / `rc-mode` / `codec` / `pix-fmt` 抽到 `cli/cli_parse.c`，encode/transcode/bench 共用，消除重复和隐性默认值差异。
 
@@ -112,8 +112,8 @@ rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RK
   - 码流不变（编码侧无改动，MD5 一致），仅解码重建帧正确化。
 
 
-- **bench/ 同步 MLVC `neural` 档位**（`bench/run_rd_benchmark.sh` / `bench/config.json` / `bench/tools/config.py` / `bench/plot_rd_curve.py` / `bench/README.md`）：RD 基准新增 `rkvc-neural` codec 路线，与既有 `rkvc-realtime/balanced/quality/offline` 平行纳入自动扫描。
-  - **`run_rkvc_neural()`**（`bench/run_rd_benchmark.sh`）：缩放到 MLVC 固定 640×368 → `rkvc_transcode -p neural` 编码 `.mlvc` → `rkvc_transcode` 解码 `.yuv`（NV12）→ `measure_quality_nv12` 测质（PSNR/SSIM）。MLVC 不参与码率扫描（用 qp 参数化），与其他 codec 共享 CSV 行格式。
+- **tools/bench/ 同步 MLVC `neural` 档位**（`tools/bench/run_rd_benchmark.sh` / `tools/bench/config.json` / `tools/bench/tools/config.py` / `tools/bench/plot_rd_curve.py` / `tools/bench/README.md`）：RD 基准新增 `rkvc-neural` codec 路线，与既有 `rkvc-realtime/balanced/quality/offline` 平行纳入自动扫描。
+  - **`run_rkvc_neural()`**（`tools/bench/run_rd_benchmark.sh`）：缩放到 MLVC 固定 640×368 → `rkvc_transcode -p neural` 编码 `.mlvc` → `rkvc_transcode` 解码 `.yuv`（NV12）→ `measure_quality_nv12` 测质（PSNR/SSIM）。MLVC 不参与码率扫描（用 qp 参数化），与其他 codec 共享 CSV 行格式。
   - **模型/PMF 路径**：`MLVC_ENC_MODEL` / `MLVC_DEC_MODEL` / `MLVC_GAUSSIAN_PMF` / `MLVC_BITEST_PMF` 环境变量，默认 `models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn` / `gaussian.bin` / `bitest.bin`；`MLVC_QP`（默认 21）、`MLVC_W`/`MLVC_H`（默认 640/368）。
   - **config.json** 新增 `"mlvc"` 节；`run.rkvc_policies` 新增 `"neural"`。**config.py** 新增 `MLVC_QP` 导出。**plot_rd_curve.py** 新增 `rkvc-neural` 显示名/颜色/标记/z-order。**README.md** 新增 codec 行 + 环境变量说明。
   - **验证**：脚本语法（`bash -n`）通过；config.py 正确导出 `RKVC_POLICIES` 含 `neural` + `MLVC_QP=21`；`run_rkvc_neural` 逻辑端到端验证（编码 19 562 B → 解码 72 帧 NV12 → PSNR/SSIM 测质输出）。
@@ -174,10 +174,10 @@ rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RK
   - **硬件验证（RK3588 NPU）**：编码（640x368x72f mp4 -> .mlvc）72 帧成功，20KB 输出（~2.2 kbps / 0.0094 bpp）；解码往返（.mlvc -> mp4）72 帧 HEVC 输出有效。修复 3 个 bug：初始化顺序 segfault、.mlvc magic 长度（5 非 6）、demux use-after-free（copy=1）。
   - **修复编码器参考帧同步逻辑**（源自 mlvc 官方源码确认）：编码器不再内部运行 decoder NPU。mlvc 的 `compress_core(get_recon=False)` 让编码器自身输出 `feature`（用量化后的 `y_hat` 计算，与解码器一致），作为下一帧参考——无需额外解码。编码器现在每帧仅 1 次 NPU 推理（原先为 2 次），`rkvc_mlvc_enc_config` 移除 `dec_model_path` 字段，CLI 编码侧不再需要 `--mlvc-dec`。
 - **SVT-AV1 子模块升级 4.1.0 → 4.2.0**（`.gitmodules` / `third_party/SVT-AV1` @ `v4.2.0`）：跟踪上游点播/RTC 调优与 ARM 核优化；SOVERSION 仍为 `4`（`libSvtAv1Enc.so.4`），ffmpeg `libsvtav1` 与 `librkvc` 链接无需 ABI 改动。
-  - **RD 与性能 A/B**（1080p 片段，`bench/ab_compare_svt.sh` → `bench/results/svt_ab_compare.csv`；解码/测质走项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`，与 `run_rd_benchmark.sh` 同一 RD 测质管线）：
+  - **RD 与性能 A/B**（1080p 片段，`tools/bench/ab_compare_svt.sh` → `tools/bench/results/svt_ab_compare.csv`；解码/测质走项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`，与 `run_rd_benchmark.sh` 同一 RD 测质管线）：
     - **preset 11（rkvc `quality` 档）**：BD-rate(PSNR) **−2.21%**、BD-rate(SSIM) −0.50%；平均编码速度 **34.0→38.4 fps（+13.1%）**。
     - **preset 4（rkvc `offline` 档）**：RD 基本持平（BD-rate(PSNR) +0.67%，落在短片段测量噪声内）；平均编码速度 **3.1→3.3 fps（+4.7%）**。
-  - **档位码率无需重新校准**：同 CRF 下两版实际码率漂移 <0.6%（preset 11 +0.53%、preset 4 −0.07%），`bench/config.json` 的 `calibration.svt_av1` 表（CRF→目标 kbps）原样沿用即可；对应上游「M3-M5 RA 预设调优」带来的码率优化在固定 CRF 下表现为质量增益而非档位偏移。
+  - **档位码率无需重新校准**：同 CRF 下两版实际码率漂移 <0.6%（preset 11 +0.53%、preset 4 −0.07%），`tools/bench/config.json` 的 `calibration.svt_av1` 表（CRF→目标 kbps）原样沿用即可；对应上游「M3-M5 RA 预设调优」带来的码率优化在固定 CRF 下表现为质量增益而非档位偏移。
 - **ffmpeg-rockchip 子模块升级至上游 `8.1` HEAD（`f66f2f8046` → `388741a354`，8.1.2，2026-07-18）**：上游 8.1 分支已 rebase，落后约 200 个提交（~3 个月）。涉及 `rkmppenc`/`rkmppdec` 大重构（编解码器框架 + 扩展 codec）、RKRGA 滤镜重构、新增 `MPP hwcontext` 与 `NV15`/`NV20` 比特流格式。
   - **项目 ROI 补丁兼容性**（`patches/ffmpeg-rockchip/0001-rkmppenc-roi-runtime-rc.patch`）：经核验在重构后的 `rkmppenc.c/h` 上**干净 apply + 编译通过**（225 行新增；patch 依赖的 `MPPEncFrame`/`mpp_sei_set` 上下文结构重构后仍保留）；无需改动。
   - **构建/链接**：`scripts/rebuild-ffmpeg-rkmpp.sh --clean` 全量重编通过；`libavcodec.so.62` 含 patch 烘焙的 ROI 符号（`rkvc_roi_force_intra` / `KEY_ROI_DATA` / `MppEncROICfg`）；libavcodec 主版本仍 `62`，`librkvc` 与全部 87 个目标链接无需改动。
@@ -199,11 +199,11 @@ rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RK
 
 
 - **SVT-AV1 子模块升级 4.1.0 → 4.2.0**（`.gitmodules` / `third_party/SVT-AV1` @ `v4.2.0`）：跟踪上游点播/RTC 调优与 ARM 核优化；SOVERSION 仍为 `4`（`libSvtAv1Enc.so.4`），ffmpeg `libsvtav1` 与 `librkvc` 链接无需 ABI 改动。
-  - **RD 与性能 A/B**（1080p 片段，`bench/ab_compare_svt.sh` → `bench/results/svt_ab_compare.csv`；解码/测质走项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`，与 `run_rd_benchmark.sh` 同一 RD 测质管线）：
+  - **RD 与性能 A/B**（1080p 片段，`tools/bench/ab_compare_svt.sh` → `tools/bench/results/svt_ab_compare.csv`；解码/测质走项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`，与 `run_rd_benchmark.sh` 同一 RD 测质管线）：
     - **preset 11（rkvc `quality` 档）**：BD-rate(PSNR) **−2.21%**、BD-rate(SSIM) −0.50%；平均编码速度 **34.0→38.4 fps（+13.1%）**。
     - **preset 4（rkvc `offline` 档）**：RD 基本持平（BD-rate(PSNR) +0.67%，落在短片段测量噪声内）；平均编码速度 **3.1→3.3 fps（+4.7%）**。
-  - **档位码率无需重新校准**：同 CRF 下两版实际码率漂移 <0.6%（preset 11 +0.53%、preset 4 −0.07%），`bench/config.json` 的 `calibration.svt_av1` 表（CRF→目标 kbps）原样沿用即可；对应上游「M3-M5 RA 预设调优」带来的码率优化在固定 CRF 下表现为质量增益而非档位偏移。
-  - **新增 bench 脚本** `bench/ab_compare_svt.sh`：SVT 版本 A/B 对比（同片段、同 CRF 阶梯，preset 11/4），输出码率/PSNR/SSIM/编码耗时 CSV；测质解码用项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`（与 `run_rd_benchmark.sh` 的 `ffmpeg_to_yuv420p_raw()` IVF 分支同一管线），经核对与系统 `libaom-av1` 软解的 PSNR/SSIM 逐位一致（AV1 解码确定性，硬解软解同帧）。
+  - **档位码率无需重新校准**：同 CRF 下两版实际码率漂移 <0.6%（preset 11 +0.53%、preset 4 −0.07%），`tools/bench/config.json` 的 `calibration.svt_av1` 表（CRF→目标 kbps）原样沿用即可；对应上游「M3-M5 RA 预设调优」带来的码率优化在固定 CRF 下表现为质量增益而非档位偏移。
+  - **新增 bench 脚本** `tools/bench/ab_compare_svt.sh`：SVT 版本 A/B 对比（同片段、同 CRF 阶梯，preset 11/4），输出码率/PSNR/SSIM/编码耗时 CSV；测质解码用项目 ffmpeg 的 `av1_rkmpp` 硬解 + `hwdownload`（与 `run_rd_benchmark.sh` 的 `ffmpeg_to_yuv420p_raw()` IVF 分支同一管线），经核对与系统 `libaom-av1` 软解的 PSNR/SSIM 逐位一致（AV1 解码确定性，硬解软解同帧）。
   - **VPU 硬解核查**：`av1_rkmpp` AV1 硬解在本机工作正常（`/proc/mpp/` 注册 `av1d` 客户端，IVF→`-c:v av1_rkmpp -vf hwdownload,format=nv12`→rawvideo 解出完整帧，实测 v4.1.0/v4.2.0 两版解码 PSNR 与 `libaom` 完全一致）；RD 测质脚本中曾出现的 `ENOSYS`（Function not implemented）为早期调用形态缺 `-vf hwdownload`（DRM_PRIME 帧无法落系统内存）所致，非 VPU 硬件故障，已对齐 bench 测质管线修复。
 
 ## [0.2.8] - 2026-08-05
@@ -222,7 +222,7 @@ rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RK
   - **双许可声明**（[LICENSE](LICENSE) / [README.md](README.md)）：正式声明「AGPLv3 开源 + 商业授权」双许可，明确 AGPL 版（`RKVC_ENABLE_LICENSE=OFF`，默认）无附加限制，强制授权仅存在于商业授权构建。
   - **发行包补全第三方许可**（`scripts/package-portable.sh`）：`licenses/` 加入 SVT-AV1 `PATENTS.md`（AOM 专利许可 1.0）；新增 `licenses/ffmpeg-modifications/`，随包附 FFmpeg 修改补丁与对应源码说明（子模块 commit / URL / configure 参数），满足 LGPLv3 §4 修改版本源码义务。
   - **文档修正与来源声明**（[docs/packaging.md](docs/packaging.md) / [docs/delivery.md](docs/delivery.md)）：纠正 SVT-AV1 许可为 BSD-3-Clause Clear + AOM 专利许可（原误标 BSD-2）；补全第三方许可表（librga / libsodium / 本项目）；新增模型（自训练、加密交付范围）与 `librknnrt`（Rockchip 专有、再分发须遵守 SDK 条款）来源声明。
-  - **bench 许可证标注**：9 个 Python 脚本补 `SPDX-License-Identifier: AGPL-3.0-or-later`；`bench/pyproject.toml` 补 `license` 字段。
+  - **bench 许可证标注**：9 个 Python 脚本补 `SPDX-License-Identifier: AGPL-3.0-or-later`；`tools/pyproject.toml` 补 `license` 字段。
 - **clang-tidy 机制收敛**（`CMakeLists.txt` / `CMakePresets.json`）：删除 `RKVC_ENABLE_TIDY` option 与自定义 `tidy` target 两条冗余路径，仅保留 `tidy` preset（`CMAKE_C_CLANG_TIDY`）一种用法。
 - **`full-tests` preset 并入 `tests`**（`CMakePresets.json`）：`tests` 显式开启 `RKVC_BUILD_CLI`，CLI 脚本用例（`test_cli_args` / `test_bench_permission_failure`）与单元测试同树运行（19 个 CTest 目标）；原 `.build/full-tests/` 目录废弃。
 - **install 规则常规定义**（`CMakeLists.txt`）：移除从未声明的幻影变量 `RKVC_INSTALL` 守卫，install 规则始终定义（仅 `cmake --install` 时生效），与 `docs/getting-started.md` 记载行为一致。
@@ -233,7 +233,7 @@ rkvc **0.3.1** 是以稳定性为主的 MLVC 增强版本：补齐 **ONNX → RK
   - 零调用公共 API：`rkvc_hash_file()`（`include/rkvc/rkvc.h` / `lib/ffmpeg_util.c`）、`rkvc_net_send_buffer()`（`include/rkvc/net.h` / `lib/net.c`）。
   - 从未被读取的 `rkvc_pipeline_desc.b_frames` 字段（`include/rkvc/pipeline.h`）：RKMPP 编码器固定 `max_b_frames = 0`，SVT 路径亦不消费。
   - 三组重复示例 `stream_decode` / `stream_transcode` / `stream_encode`（与 `decode_file` / `transcode` / `encode_file` 功能重复）及占位示例 `psnr_test`（不做 PSNR，仅打印 caps）。
-  - `scripts/run-bench.sh` 转发脚本：RD 基准入口统一为 `bench/run_rd_benchmark.sh`（`RKVC_BUILD` 默认值本就由 `bench/config.json` 提供），CMake `bench-rd` 目标与全部文档同步指向真实脚本。
+  - `scripts/run-bench.sh` 转发脚本：RD 基准入口统一为 `tools/bench/run_rd_benchmark.sh`（`RKVC_BUILD` 默认值本就由 `tools/bench/config.json` 提供），CMake `bench-rd` 目标与全部文档同步指向真实脚本。
   - 自研 base64（`lib/license_b64.c/h`）：注册码编解码统一改用 libsodium `sodium_base642bin()` / `sodium_bin2base64()`（`lib/license.c` / `tools/rkvc_lic.c` / `scripts/package-portable.sh` 同步），签发端与校验端共享同一成熟实现；同时收紧校验，不再容忍 URL-safe 字母表（签发端从未产生）。
   - CMake 侧 `RKVC_BUILD_JOBS_MAX` 推测性旋钮（各 build preset 已硬编码 `jobs: 4`；`scripts/build-common.sh` 的同名环境变量保留）。
 
@@ -376,7 +376,7 @@ rkvc **0.2.3** 补齐 **NPU / `rkvc_sr` 完整测试门禁**，可移植包在�
 ### 变更
 
 - 版本号升至 **0.2.3**（`CMakeLists.txt` `project(VERSION)` 为唯一来源）。
-- **源码目录重命名**：`tools/` → `cli/`（正式命令行入口；与 `bench/tools/` 辅助脚本区分）。
+- **源码目录重命名**：`tools/` → `cli/`（正式命令行入口；与 `tools/bench/tools/` 辅助脚本区分）。
 - **CMake 选项重命名**：`RKVC_BUILD_TOOLS` → `RKVC_BUILD_CLI`（内部目标列表 `RKVC_CLI_TARGETS`）。
 - **`rkvc_caps.has_rknn`** / **`rkvc_info --json` `rknn`**：RKNN 已编译且 NPU 可访问时置位。
 - **`rknn_query(RKNN_QUERY_SDK_VERSION)`**：`rkvc_sr` 初始化日志打印 `rknnrt api=` / `drv=`。
@@ -418,9 +418,9 @@ rkvc **0.2.2** 将 **RKNN 运行时 `librknnrt.so`** 纳入可移植包，使 `r
 rkvc **0.2.1** 在 v2 Session 管线之上补齐 **RKNN 神经网络超分（`rkvc_sr`）**、重构 **RD 基准测试配置与绘图**，并强化 **可移植包与硬件测试** 门禁。后处理上采样从「RGA 三档插值」扩展为可选 **AI 超分**；bench 支持 **SVT-AV1 内建 superres** 实验路线与 **左右对比演示视频** 批量生成。
 
 - **RKVC SR**：`post_upscale_algo=rkvc_sr` + `post_upscale_rkvc_model_path`，RKNN 双缓冲异步推理，NEON 量化/反量化，RGA CSC（NV12↔RGB）；`rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH`。
-- **Bench 配置化**：`bench/config.json` 集中路径、码率扫点、RD 校准表与路线开关；`bench/tools/config.py` 校验/导出；`BENCH_CSV_MODE=session` 默认仅保留本次跑分 codec。
+- **Bench 配置化**：`tools/bench/config.json` 集中路径、码率扫点、RD 校准表与路线开关；`tools/bench/tools/config.py` 校验/导出；`BENCH_CSV_MODE=session` 默认仅保留本次跑分 codec。
 - **可移植包**：`test.sh` **99 项**（+7：三策略 bench 严格匹配、`rkvc_session_upscale` 2× 上采样）；CI `package` job 新增 portable 构建与自测。
-- **演示管线**：`bench/tools/comparison_demo_rkvc.py` + `scripts/make-comparison-demo.sh`，生成「1080p AV1 参考 | 低码率 AV1 + RKVC SR 3× 还原」左右对比片。
+- **演示管线**：`tools/bench/tools/comparison_demo_rkvc.py` + `scripts/make-comparison-demo.sh`，生成「1080p AV1 参考 | 低码率 AV1 + RKVC SR 3× 还原」左右对比片。
 
 ### 新增
 
@@ -434,9 +434,9 @@ rkvc **0.2.1** 在 v2 Session 管线之上补齐 **RKNN 神经网络超分（`rk
   - 统一日志回调（`[rkvc:ffmpeg]` 前缀）、`rkvc_now_us()`、`rkvc_dict_parse_opts()`、`rkvc_codec_open2()` 等；`rkvc_init()` 自动调用 `rkvc_ffmpeg_utils_init()`。
 
 - **Bench 套件增强**
-  - `bench/config.json`、`bench/demo_videos.json`：路径、clip、校准表、`svt.superres` 开关。
-  - `bench/tools/comparison_demo_rkvc.py`：可配置码率/标签/字体，批量输出对比演示 MP4。
-  - `bench/tools/config.py`、`bench/tools/bitrate.py`：配置加载与码率计算辅助。
+  - `tools/bench/config.json`、`tools/bench/demo_videos.json`：路径、clip、校准表、`svt.superres` 开关。
+  - `tools/bench/tools/comparison_demo_rkvc.py`：可配置码率/标签/字体，批量输出对比演示 MP4。
+  - `tools/bench/tools/config.py`、`tools/bench/tools/bitrate.py`：配置加载与码率计算辅助。
   - SVT-AV1 + superres 实验路线（`svt-av1+superres`）；默认关闭，需 `paths.superres_decode_ffmpeg`（libaom 软解）。
   - post-upscale 路线支持 `rkvc_sr` 算法名（`{codec}+up{N}x-rkvc_sr`）。
   - RD/性能图：`plot_rd_curve.py` 重构（codec 族配色、RGA 均值带、superres 虚线）；`plot_perf.py` 同步。
@@ -487,7 +487,7 @@ rkvc **0.2.0**（v2 API）是面向 RK3588 的破坏性大版本：以 **Session
 - **策略路由**：`REALTIME` → H.264 RKMPP；`BALANCED` → HEVC RKMPP（1080p@≥50fps 自动降级 H.264）；`QUALITY` → SVT-AV1 编码 + `av1_rkmpp` 硬解。
 - **后处理上采样**：`enc_scale_denom` + `post_upscale_algo` 贯穿 Session 管线与 bench，模拟「低分辨率编码 → 硬解 DMABUF → RGA 上采样还原」产品路径。
 - **可移植包**：`rkvc-0.2.0-linux-aarch64-portable.tar.gz`（约 4.5 MB），自包含 `libSvtAv1Enc.so.4`、ffmpeg-rockchip（含 AV1 硬解）与 rockchip-mpp；`test.sh` **92 项全过**。
-- **RD 基准套件**：`bench/` 支持 H.264 / HEVC / SVT-AV1 / rkvc 三档策略 / post-upscale 端到端码率-画质与性能对比。
+- **RD 基准套件**：`tools/bench/` 支持 H.264 / HEVC / SVT-AV1 / rkvc 三档策略 / post-upscale 端到端码率-画质与性能对比。
 
 ### 破坏性变更
 
@@ -519,7 +519,7 @@ rkvc **0.2.0**（v2 API）是面向 RK3588 的破坏性大版本：以 **Session
   - `node_post_upscale`：RKMPP 硬解 DMABUF → RGA `importbuffer` → `imresize` → 主机 NV12。
   - CLI 工具：`rkvc_yuv_upscale`（YUV420p 批处理）、`rkvc_session_upscale`（Session 硬解 + RGA，bench 与产品同路径）。
 
-- **RD 基准测试（bench/）**
+- **RD 基准测试（tools/bench/）**
   - `scripts/run-bench.sh`：端到端 PSNR/SSIM/码率/fps 采样，`plot_rd_curve.py` / `plot_perf.py` 绘图。
   - 默认路线：`h264`、`h265`、`svt-av1`、`rkvc-v2`（三档策略展开）、`post-upscale`（下采样编码 + Session 解码上采样）。
   - 可配置 `ENC_SCALE_DENOM`、`UPSCALE_ALGOS`、`RUN_CODECS`；支持 SVT-AV1 superres 实验路线（搁置，硬解 stride 不一致）。

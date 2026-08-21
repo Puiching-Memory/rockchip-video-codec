@@ -39,9 +39,10 @@ third_party/ffmpeg-rockchip/ffplay
 *.gcov
 coverage/
 
-# Test & Bench results（bench/ 内 work/、results/ 见 bench/.gitignore）
+# Test & Bench results（tools/bench/ 内 work/、results/ 见 tools/bench/.gitignore）
 results/
 bench_results/
+/tools/.venv/
 *.bak
 *.pre_*
 

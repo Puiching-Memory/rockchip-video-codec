@@ -88,8 +88,30 @@ def _uv_environment_marker() -> str:
     return f"sys_platform == '{sys.platform}' and platform_machine == '{platform.machine()}'"
 
 
+def _force_cpu_torch_source(text: str, package: str) -> str:
+    """Bind an upstream PyTorch package to the CPU-only index."""
+    pattern = rf"(?ms)^{re.escape(package)}\s*=\s*\[.*?^\]\s*"
+    replacement = f'{package} = [\n    {{ index = "pytorch-cpu" }},\n]\n'
+    new, count = re.subn(pattern, replacement, text, count=1)
+    if count == 0:
+        raise OnnxExportError(
+            f"无法在 microsoft/mlvc [tool.uv.sources] 中找到 {package} source"
+        )
+    return new
+
+
+def _remove_cuda_torch_indexes(text: str) -> str:
+    """Remove explicit CUDA indexes so later dependency changes cannot select them."""
+    pattern = (
+        r'(?ms)^\[\[tool\.uv\.index\]\]\s*\n'
+        r'name\s*=\s*"pytorch-cu[^"]*"\s*\n'
+        r'.*?(?=^\[\[tool\.uv\.index\]\]|^\[tool\.|\Z)'
+    )
+    return re.sub(pattern, "", text)
+
+
 def patch_mlvc_pyproject(text: str) -> str:
-    """让当前平台能 uv lock：只解析本机 environment，并去掉 aarch64 上没有的包。"""
+    """只解析本机 environment，并强制使用 CPU-only PyTorch wheel。"""
     env = _uv_environment_marker()
     desired_envs = f'environments = [\n    "{env}",\n]'
     m = re.search(r"environments = \[[^\]]*\]", text, re.S)
@@ -116,20 +138,12 @@ def patch_mlvc_pyproject(text: str) -> str:
     if gpu in text:
         text = text.replace(gpu, gpu_fixed, 1)
 
-    sources = text.split("[tool.uv.sources]", 1)[-1] if "[tool.uv.sources]" in text else ""
-    if sys.platform == "linux" and platform.machine() == "aarch64" and "aarch64" not in sources:
-        m = re.search(
-            r'^([ \t]*)\{ index = "pytorch-cpu", marker = "sys_platform == \'win32\' and platform_machine != \'AMD64\'" \},[ \t]*$',
-            text,
-            re.M,
-        )
-        if m:
-            indent = m.group(1)
-            extra = (
-                f'{indent}{{ index = "pytorch-cpu", '
-                f'marker = "sys_platform == \'linux\' and platform_machine == \'aarch64\'" }},'
-            )
-            text = text.replace(m.group(0), m.group(0) + "\n" + extra, 1)
+    if "[tool.uv.sources]" not in text or 'name = "pytorch-cpu"' not in text:
+        raise OnnxExportError("microsoft/mlvc 缺少 pytorch-cpu uv index")
+    text = _force_cpu_torch_source(text, "torch")
+    if re.search(r"(?m)^torchvision\s*=\s*\[", text):
+        text = _force_cpu_torch_source(text, "torchvision")
+    text = _remove_cuda_torch_indexes(text)
     return text
 
 
@@ -171,7 +185,7 @@ def patch_mlvc_checkout(mlvc_dir: Path) -> None:
     text = patch_mlvc_pyproject(orig)
     if text != orig:
         pyproject.write_text(text, encoding="utf-8")
-        print("已补丁 pyproject.toml（当前平台 uv environment / coremltools）")
+        print("已补丁 pyproject.toml（当前平台 environment / CPU-only PyTorch / coremltools）")
 
     example = mlvc_dir / "video" / "conversion" / "_full_model" / "model_configs_example.yaml"
     dest = mlvc_dir / "video" / "conversion" / "_full_model" / "model_configs.yaml"
@@ -247,7 +261,11 @@ def _venv_ok(mlvc_dir: Path) -> bool:
     if not py.is_file():
         return False
     proc = subprocess.run(
-        [str(py), "-c", "import torch, onnx, msrtc.rans"],
+        [
+            str(py),
+            "-c",
+            "import torch, onnx, msrtc.rans; assert torch.version.cuda is None",
+        ],
         capture_output=True,
         text=True,
     )
@@ -266,9 +284,21 @@ def ensure_mlvc_venv(mlvc_dir: Path) -> None:
     rans = mlvc_dir / "packages" / "msrtc_rans"
     if not rans.is_dir():
         raise OnnxExportError(f"缺少 {rans}（microsoft/mlvc 熵编码器）")
-    _run(["uv", "pip", "install", str(rans)], cwd=mlvc_dir)
+    _run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(mlvc_dir / ".venv" / "bin" / "python"),
+            str(rans),
+        ],
+        cwd=mlvc_dir,
+    )
     if not _venv_ok(mlvc_dir):
-        raise OnnxExportError("MLVC venv 已创建，但 import torch/onnx/msrtc.rans 失败")
+        raise OnnxExportError(
+            "MLVC venv 已创建，但 CPU-only torch/onnx/msrtc.rans 校验失败"
+        )
 
 
 def find_exported_onnx(export_root: Path) -> Path:

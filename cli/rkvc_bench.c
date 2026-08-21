@@ -111,7 +111,7 @@ int main(int argc, char **argv)
         { RKVC_POLICY_BALANCED, "BALANCED (HEVC)" },
         { RKVC_POLICY_QUALITY,  "QUALITY (AV1)" },
         { RKVC_POLICY_OFFLINE,  "OFFLINE (AV1 HQ)" },
-        /* NEURAL/MLVC 需要模型与 PMF，由 bench/ RD 套件单独跑，不塞进这条 mp4 转码表。 */
+        /* NEURAL/MLVC 需要模型与 PMF，由 tools/bench/ RD 套件单独跑，不塞进这条 mp4 转码表。 */
     };
 
     int failed = 0;

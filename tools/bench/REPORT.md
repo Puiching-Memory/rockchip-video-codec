@@ -16,15 +16,15 @@ rkvc Session 三档分别路由到 H.264 / HEVC / AV1，RD 曲线可与底层 co
 ## 复现
 
 ```bash
-./bench/run_rd_benchmark.sh /path/to/video.mp4
+./tools/bench/run_rd_benchmark.sh /path/to/video.mp4
 ```
 
-输出：`bench/results/rd_data.csv`、`rd_curve_e2e.png`、`perf_e2e.png`。
+输出：`tools/bench/results/rd_data.csv`、`rd_curve_e2e.png`、`perf_e2e.png`。
 
 ## 项目结构
 
 ```
-bench/
+tools/bench/
 ├── run_rd_benchmark.sh   # 主编排
 ├── plot_rd_curve.py
 ├── plot_perf.py
@@ -32,6 +32,6 @@ bench/
 └── work/                 # 中间产物（gitignore）
 ```
 
-入口脚本：`bench/run_rd_benchmark.sh`
+入口脚本：`tools/bench/run_rd_benchmark.sh`
 
 详见 [README.md](README.md)。

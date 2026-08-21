@@ -12,7 +12,7 @@
 - **模板管线** — 文件编解码、转码、AV1 存储、LiveCapture（V4L2 待接）
 - **下采样 + 后处理上采样** — `enc_scale_denom` + `post_upscale_algo`（RGA 插值 / `rkvc_sr` RKNN 超分）
 
-性能数字与 RD 曲线见 [benchmark.md](benchmark.md) / [bench/README.md](../bench/README.md)。
+性能数字与 RD 曲线见 [benchmark.md](benchmark.md) / [tools/bench/README.md](../tools/bench/README.md)。
 
 ## 导航
 

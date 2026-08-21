@@ -508,6 +508,13 @@ torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'win32' and platform_machine == 'AMD64'" },
     { index = "pytorch-cpu", marker = "sys_platform == 'win32' and platform_machine != 'AMD64'" },
 ]
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 """
         fake_utils = '''
 def download_test_data(path: Path | str, base_path: Path | str = DEFAULT_TEST_DATA_DIR) -> Path:
@@ -536,6 +543,8 @@ def download_job_outputs(path: Path | str, base_path: Path | str = DEFAULT_JOB_O
             pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
             self.assertIn(export_onnx._uv_environment_marker(), pyproject)
             self.assertIn("coremltools; sys_platform == 'darwin'", pyproject)
+            self.assertIn('torch = [\n    { index = "pytorch-cpu" },\n]', pyproject)
+            self.assertNotIn("pytorch-cu128", pyproject)
             self.assertTrue((cfg / "model_configs.yaml").is_file())
             utils = (root / "video" / "conversion" / "utils.py").read_text(encoding="utf-8")
             self.assertEqual(utils.count("if local.is_file():"), 2)

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Sequence
 
 _BENCH_DIR = Path(__file__).resolve().parents[1]
-_PROJECT_ROOT = _BENCH_DIR.parent
+_PROJECT_ROOT = _BENCH_DIR.parents[1]
 if str(_BENCH_DIR) not in sys.path:
     sys.path.insert(0, str(_BENCH_DIR))
 
@@ -1026,7 +1026,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("-i", "--input", help="源视频")
     p.add_argument("-o", "--output", help="输出 MP4")
-    p.add_argument("--config", help="批量配置 JSON（bench/demo_videos.json）")
+    p.add_argument("--config", help="批量配置 JSON（tools/bench/demo_videos.json）")
     p.add_argument("--target-kbps", type=int, default=DEFAULT_TARGET_KBPS)
     p.add_argument("--reference-kbps", type=int, default=DEFAULT_REFERENCE_KBPS)
     p.add_argument(

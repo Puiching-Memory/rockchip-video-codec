@@ -2,12 +2,12 @@
 
 ## RD 端到端对比（码率-画质）
 
-RK3588 上 H.264 / HEVC / SVT-AV1 / rkvc Session 的端到端 RD 与性能对比，见 **[bench/README.md](../bench/README.md)**。
+RK3588 上 H.264 / HEVC / SVT-AV1 / rkvc Session 的端到端 RD 与性能对比，见 **[tools/bench/README.md](../tools/bench/README.md)**。
 
 ```bash
-./bench/run_rd_benchmark.sh /path/to/1080p.mp4
-PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
-RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
+./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
+PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh
+RUN_CODECS=h264,rkvc ./tools/bench/run_rd_benchmark.sh clip.mp4
 ```
 
 默认对比路线：`h264`、`h265`、`svt-av1`、`svt-av1-hq`、`rkvc`（展开为 realtime / balanced / quality / offline 四档）。
@@ -54,11 +54,11 @@ rkvc session E2E bench (input=clip.mp4)
 评估低分辨率编码 + 上采样还原的画质损失：
 
 ```bash
-RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh clip.mp4
+RUN_CODECS=svt-av1,post-upscale ./tools/bench/run_rd_benchmark.sh clip.mp4
 ENC_SCALE_DENOM=2 UPSCALE_ALGOS=nearest,bilinear,bicubic \
-  RUN_CODECS=post-upscale ./bench/run_rd_benchmark.sh clip.mp4
+  RUN_CODECS=post-upscale ./tools/bench/run_rd_benchmark.sh clip.mp4
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
-  RUN_CODECS=post-upscale ./bench/run_rd_benchmark.sh clip.mp4
+  RUN_CODECS=post-upscale ./tools/bench/run_rd_benchmark.sh clip.mp4
 ```
 
 Session 字段：`enc_scale_denom`、`post_upscale_algo`。CLI 请用 `rkvc_session_upscale --enc-scale-denom N --post-upscale …`（编码工具 `rkvc_encode` 只做下采样，不接受 `--post-upscale`）。

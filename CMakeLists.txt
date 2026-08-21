@@ -469,7 +469,7 @@ if(RKVC_BUILD_CLI)
     endforeach()
 
     add_custom_target(bench-rd
-        COMMAND ${CMAKE_SOURCE_DIR}/bench/run_rd_benchmark.sh
+        COMMAND ${CMAKE_SOURCE_DIR}/tools/bench/run_rd_benchmark.sh
         DEPENDS ${RKVC_CLI_TARGETS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Run RD benchmark (requires SRC_VIDEO or pass video path to script)"

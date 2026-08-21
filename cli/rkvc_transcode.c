@@ -3,7 +3,7 @@
 
 /**
  * @file rkvc_transcode.c
- * @brief Session 转码 CLI（供 bench/ RD 基准与脚本调用）。
+ * @brief Session 转码 CLI（供 tools/bench/ RD 基准与脚本调用）。
  *
  * 支持 MLVC 神经编解码：`--codec mlvc` + `--mlvc-enc/--mlvc-dec/--mlvc-pmf-*`
  * + 可选 `--mlvc-qp-patch-dir`（打开时打 QPP1 补丁）。

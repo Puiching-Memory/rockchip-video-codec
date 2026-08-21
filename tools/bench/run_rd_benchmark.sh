@@ -1,31 +1,37 @@
 #!/usr/bin/env bash
-# bench/run_rd_benchmark.sh — RK3588 端到端 RD 基准（集成于 rkvc 项目）
+# tools/bench/run_rd_benchmark.sh — RK3588 端到端 RD 基准（集成于 rkvc 项目）
 #
 # 对比路线（默认）: h264 / h265 / svt-av1 / svt-av1-hq / rkvc / post-upscale
-# 实验路线（搁置）: svt-av1+superres — AV1 内建 superres，见 bench/README.md
+# 实验路线（搁置）: svt-av1+superres — AV1 内建 superres，见 tools/bench/README.md
 #
 # 用法:
-#   ./bench/run_rd_benchmark.sh [源视频.mp4]
-#   RUN_CODECS=h264,rkvc ./bench/run_rd_benchmark.sh clip.mp4
-#   PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
+#   ./tools/bench/run_rd_benchmark.sh [源视频.mp4]
+#   RUN_CODECS=h264,rkvc ./tools/bench/run_rd_benchmark.sh clip.mp4
+#   PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh
 
 set -euo pipefail
 
 BENCH_ROOT="$(cd "$(dirname "$0")" && pwd)"
-BENCH_PY="${BENCH_PY:-python3}"
+TOOLS_ROOT="$(cd "$BENCH_ROOT/.." && pwd)"
+TOOLS_PY="$TOOLS_ROOT/.venv/bin/python"
+if [[ ! -x "$TOOLS_PY" ]]; then
+    echo "[error] 共享 Python 环境不存在: $TOOLS_PY" >&2
+    echo "请先运行: cd $TOOLS_ROOT && uv sync" >&2
+    exit 1
+fi
 BENCH_TOOLS="$BENCH_ROOT/tools"
 BENCH_CONFIG="${BENCH_CONFIG:-$BENCH_ROOT/config.json}"
-PROJECT_ROOT="$(cd "$BENCH_ROOT/.." && pwd)"
+PROJECT_ROOT="$(cd "$BENCH_ROOT/../.." && pwd)"
 RESULTS="$BENCH_ROOT/results"
 WORKDIR="$BENCH_ROOT/work"
 
-# 从 bench/config.json 加载默认值；环境变量可覆盖（在调用前 export）。
+# 从 tools/bench/config.json 加载默认值；环境变量可覆盖（在调用前 export）。
 load_bench_config() {
     if [[ ! -f "$BENCH_CONFIG" ]]; then
         echo "[error] 配置文件不存在: $BENCH_CONFIG" >&2
         exit 1
     fi
-    "$BENCH_PY" "$BENCH_TOOLS/config.py" validate "$BENCH_CONFIG" "$PROJECT_ROOT" >/dev/null
+    "$TOOLS_PY" "$BENCH_TOOLS/config.py" validate "$BENCH_CONFIG" "$PROJECT_ROOT" >/dev/null
     local line key val
     while IFS= read -r line; do
         [[ -z "$line" || "$line" == \#* ]] && continue
@@ -34,7 +40,7 @@ load_bench_config() {
         if [[ -z "${!key+x}" ]]; then
             export "$key=$val"
         fi
-    done < <("$BENCH_PY" "$BENCH_TOOLS/config.py" defaults "$BENCH_CONFIG" "$PROJECT_ROOT")
+    done < <("$TOOLS_PY" "$BENCH_TOOLS/config.py" defaults "$BENCH_CONFIG" "$PROJECT_ROOT")
 }
 
 SRC_VIDEO="${1:-${SRC_VIDEO:-}}"
@@ -131,7 +137,7 @@ usage() {
     cat <<EOF
 用法: $(basename "$0") [源视频.mp4]
 
-默认从 bench/config.json 读取路径、码率点、RD 校准表等；环境变量可覆盖单项。
+默认从 tools/bench/config.json 读取路径、码率点、RD 校准表等；环境变量可覆盖单项。
 
 常用覆盖:
   BENCH_CONFIG   配置文件路径（默认 $BENCH_ROOT/config.json）
@@ -213,31 +219,11 @@ plot_results() {
         title_perf="E2E Performance (${CLIP_SEC}s@${CLIP_START:-0}s)"
     fi
 
-    if [[ -f "$BENCH_ROOT/.venv/bin/python" ]]; then
-        (cd "$BENCH_ROOT" && .venv/bin/python plot_rd_curve.py --csv "$CSV" \
-            --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
-        (cd "$BENCH_ROOT" && .venv/bin/python plot_perf.py --csv "$CSV" \
-            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
-            "${plot_extra[@]}")
-        return
-    fi
-    if command -v uv >/dev/null 2>&1; then
-        (cd "$BENCH_ROOT" && uv run plot_rd_curve.py --csv "$CSV" \
-            --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
-        (cd "$BENCH_ROOT" && uv run plot_perf.py --csv "$CSV" \
-            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
-            "${plot_extra[@]}")
-        return
-    fi
-    if python3 -c "import matplotlib" 2>/dev/null; then
-        (cd "$BENCH_ROOT" && python3 plot_rd_curve.py --csv "$CSV" \
-            --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
-        (cd "$BENCH_ROOT" && python3 plot_perf.py --csv "$CSV" \
-            --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
-            "${plot_extra[@]}")
-        return
-    fi
-    echo "[warn] 未安装 matplotlib，跳过绘图。可在 bench/ 下运行: uv sync && uv run plot_rd_curve.py"
+    (cd "$BENCH_ROOT" && "$TOOLS_PY" plot_rd_curve.py --csv "$CSV" \
+        --out "$RESULTS/rd_curve_e2e" --title "$title_rd" "${plot_extra[@]}")
+    (cd "$BENCH_ROOT" && "$TOOLS_PY" plot_perf.py --csv "$CSV" \
+        --out "$RESULTS/perf_e2e" --frames "$frames" --title "$title_perf" \
+        "${plot_extra[@]}")
 }
 
 if [[ "${PLOT_ONLY:-0}" == "1" ]]; then
@@ -277,7 +263,7 @@ compute_clip_start() {
     fi
     local dur
     dur=$(probe_src_duration_sec)
-    CLIP_START=$("$BENCH_PY" "$BENCH_TOOLS/clip.py" start "$dur" "$CLIP_SEC")
+    CLIP_START=$("$TOOLS_PY" "$BENCH_TOOLS/clip.py" start "$dur" "$CLIP_SEC")
 }
 
 src_is_raw_elementary() {
@@ -307,7 +293,7 @@ resolve_demux_ffprobe() {
 # 源视频时长（秒）；裸码流首次 count_frames 较慢，结果缓存在 work/。
 probe_src_duration_sec() {
     local cache_key
-    cache_key=$("$BENCH_PY" "$BENCH_TOOLS/clip.py" cache-key "$SRC_VIDEO")
+    cache_key=$("$TOOLS_PY" "$BENCH_TOOLS/clip.py" cache-key "$SRC_VIDEO")
     local cache="$WORKDIR/src_duration_${cache_key}.cache"
     local mtime cached_mtime cached_dur
     mtime=$(stat -c %Y "$SRC_VIDEO" 2>/dev/null || echo 0)
@@ -335,7 +321,7 @@ probe_src_duration_sec() {
                 -show_entries stream=nb_read_frames,r_frame_rate -of csv=p=0 "$SRC_VIDEO" 2>/dev/null || true)
             fps_s=$(echo "$probe_out" | cut -d, -f1)
             frames=$(echo "$probe_out" | cut -d, -f2)
-            dur=$(FPS_S="$fps_s" FRAMES_N="$frames" "$BENCH_PY" "$BENCH_TOOLS/clip.py" duration-from-frames)
+            dur=$(FPS_S="$fps_s" FRAMES_N="$frames" "$TOOLS_PY" "$BENCH_TOOLS/clip.py" duration-from-frames)
         else
             dur=0
         fi
@@ -419,14 +405,14 @@ DURATION=$("$FFPROBE" -v error -show_entries format=duration -of csv=p=0 "$SRC_C
 if [[ ! -f "$CSV" ]]; then
     echo "$CSV_HEADER" > "$CSV"
 elif ! head -1 "$CSV" | grep -q rga_sec; then
-    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" migrate "$CSV"
+    "$TOOLS_PY" "$BENCH_TOOLS/csv_io.py" migrate "$CSV"
 fi
 
 # 合并分片 CSV → rd_data.csv。
 # session（默认）：仅写入本次 results_*.csv，rd_data.csv 与本次 RUN_CODECS 一致。
 # accumulate：未出现在分片中的 codec 保留旧 rd_data.csv 行。
 finalize_csv() {
-    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" finalize \
+    "$TOOLS_PY" "$BENCH_TOOLS/csv_io.py" finalize \
         "$CSV" "$WORKDIR" "$BENCH_CSV_MODE" "$SESSION_META" "$SESSION_CODECS"
 }
 
@@ -447,7 +433,7 @@ EOF
 }
 
 parse_quality_log() {
-    "$BENCH_PY" "$BENCH_TOOLS/quality.py" parse "$1"
+    "$TOOLS_PY" "$BENCH_TOOLS/quality.py" parse "$1"
 }
 
 measure_quality() {
@@ -484,20 +470,20 @@ measure_quality_nv12() {
 
 actual_kbps() {
     local file="$1" frames="${2:-}" dur="${3:-$DURATION}"
-    "$BENCH_PY" "$BENCH_TOOLS/bitrate.py" "$file" "$frames" "$dur" "$FPS_NUM" "$FPS_DEN"
+    "$TOOLS_PY" "$BENCH_TOOLS/bitrate.py" "$file" "$frames" "$dur" "$FPS_NUM" "$FPS_DEN"
 }
 
 # 写入当前 $CSV（本次路线的分片文件，非 rd_data.csv 追加）。
 write_csv_row() {
-    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" write-row "$@"
+    "$TOOLS_PY" "$BENCH_TOOLS/csv_io.py" write-row "$@"
 }
 
 write_csv_row_session() {
-    "$BENCH_PY" "$BENCH_TOOLS/csv_io.py" write-session-row "$@"
+    "$TOOLS_PY" "$BENCH_TOOLS/csv_io.py" write-session-row "$@"
 }
 
 bench_cal() {
-    "$BENCH_PY" "$BENCH_TOOLS/config.py" lookup "$BENCH_CONFIG" "$PROJECT_ROOT" "$1" "$2"
+    "$TOOLS_PY" "$BENCH_TOOLS/config.py" lookup "$BENCH_CONFIG" "$PROJECT_ROOT" "$1" "$2"
 }
 
 rkmpp_cqp_encode_args() {

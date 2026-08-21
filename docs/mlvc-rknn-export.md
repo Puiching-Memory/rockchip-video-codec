@@ -2,9 +2,9 @@
 
 把 [Microsoft MLVC](https://github.com/microsoft/mlvc) 的固定分辨率 ONNX 与 PMF JSON，转成 `rkvc` 运行时（`lib/node_mlvc.c`）使用的 `.rknn` + `PMF1` 二进制表。
 
-本仓库**不 vendoring** 上游训练/转换代码。`python export_rknn.py --from-mlvc` 会浅克隆官方仓、下载公开 checkpoint、跑 `convert.py export --target-device generic`，再做图处理与 RKNN 转换。
+本仓库**不 vendoring** 上游训练/转换代码。`tools/.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 会浅克隆官方仓、下载公开 checkpoint、跑 `convert.py export --target-device generic`，再做图处理与 RKNN 转换。
 
-微软仓与本工具用**两套 venv**：`convert.py` 要 Python 3.12（clone 目录 `.venv`）；rknn-toolkit2 用 `tools/mlvc/.venv`（Python 3.8–3.12）。
+本仓的 bench 与 MLVC ONNX/RKNN 工具共用 `tools/.venv`。微软上游 `convert.py` 仍使用 clone 目录内的独立 Python 3.12 venv：上游固定 `torch==2.10.0`，而 rknn-toolkit2 要求 `torch<=2.4.0`，两者无法可靠地装进同一个环境。两套环境均强制使用 PyTorch CPU wheel，不会下载 CUDA/NVIDIA 包。
 
 ## 运行时 I/O 约定
 
@@ -24,16 +24,11 @@ C 侧不向 NPU 喂 qp（qp 只用于 rANS：`z_idx = qp * ZC + c`）。因此�
 图处理需要 `onnx`（及 numpy）。RKNN 转换需要 [rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2)（PyPI 提供 x86_64 / aarch64 manylinux wheel，Python 3.8–3.12）。
 
 ```bash
-cd tools/mlvc
-uv sync          # Python 3.8–3.12；创建 .venv 并安装 rknn-toolkit2 / onnx / numpy / setuptools
+cd tools
+uv sync          # Python 3.10–3.12；创建共享 .venv
 ```
 
-aarch64 上请用 `uv sync`（`pyproject.toml` 已去掉 `onnxoptimizer`：该包无 ARM wheel，转换也不需要）。若直接 `pip install rknn-toolkit2` 因编译 `onnxoptimizer` 失败，改用：
-
-```bash
-uv pip install rknn-toolkit2 --no-deps
-uv pip install -r requirements.txt
-```
+请使用 `tools/pyproject.toml` + `tools/uv.lock` 安装，不要直接 `pip install rknn-toolkit2`。共享配置已去掉无 ARM wheel、且转换不需要的 `onnxoptimizer`，并把 torch 绑定到 PyTorch CPU-only index。
 
 `do_quantization=False`，`float_dtype=float16`。不要套 YOLO 那套 `mean/std=255` 图像预处理。
 
@@ -42,9 +37,10 @@ uv pip install -r requirements.txt
 一条命令走通（浅克隆 [microsoft/mlvc](https://github.com/microsoft/mlvc) 到 `.build/deps/mlvc`，下载公开 checkpoint，跑 `convert.py export --target-device generic`）：
 
 ```bash
-cd tools/mlvc && uv sync
-python export_rknn.py --from-mlvc --out-dir ../../models --platform rk3588 --qp 21
-# 只要 ONNX：python export_onnx.py
+(cd tools && uv sync)
+tools/.venv/bin/python tools/mlvc/export_rknn.py \
+  --from-mlvc --out-dir models --platform rk3588 --qp 21
+# 只要 ONNX：tools/.venv/bin/python tools/mlvc/export_onnx.py
 ```
 
 或在已有 microsoft/mlvc 仓库里自行导出后再喂给本工具：
@@ -73,7 +69,7 @@ python convert.py export --model-version dmc61sbr_reglu --model-type onnx \
 ## 本仓库转换
 
 ```bash
-python3 tools/mlvc/export_rknn.py \
+tools/.venv/bin/python tools/mlvc/export_rknn.py \
     --onnx-dir /path/to/onnx-generic/640x368 \
     --out-dir models \
     --platform rk3588 \
@@ -137,13 +133,13 @@ JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_length
 各 qp 折叠进图后，RKNN 权重局部不同、文件大小相同。不必在运行时切换整份 `.rknn`：保留一份基座（默认 `MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`），打开时按 qp 打一次二进制补丁。
 
 ```bash
-python3 tools/mlvc/export_rknn.py \
+tools/.venv/bin/python tools/mlvc/export_rknn.py \
     --onnx-dir /path/to/onnx-generic/640x368 \
     --out-dir models --platform rk3588 \
     --qp 21 --qp-list 10,21,30,40
 
 # 或对已有 qpXX/*.rknn 目录单独生成：
-python3 tools/mlvc/make_qp_patches.py \
+tools/.venv/bin/python tools/mlvc/make_qp_patches.py \
     --models-dir models/rk3588_qp_models --base-qp 21 --out-dir models/qp_patches
 ```
 

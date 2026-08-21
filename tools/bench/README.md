@@ -1,4 +1,4 @@
-# RD 基准测试（bench/）
+# RD 基准测试（tools/bench/）
 
 RK3588 端到端 **码率-画质（RD）** 与 **性能** 对比框架，已集成到 rkvc 项目。
 
@@ -30,7 +30,7 @@ SVT-AV1 开启 `--superres-mode` 等参数，在编码器内部做低分辨率�
 
 ```bash
 # 显式启用（不在默认 RUN_CODECS 中）
-RUN_CODECS=svt-av1,svt-av1+superres ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+RUN_CODECS=svt-av1,svt-av1+superres ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # superres 参数（可选）
 SVT_SUPERRES_MODE=4          # 默认 auto；1=fixed 3=qthresh
@@ -57,15 +57,15 @@ SVT_SUPERRES_FFMPEG=/path/to/ffmpeg-with-libaom   # 须在 config.json paths.sup
 
 ```bash
 # 仅跑 post-upscale 路线（对比 SVT-AV1 全分辨率基线）
-RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+RUN_CODECS=svt-av1,post-upscale ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 3× 下采样 + RGA 三档插值
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=nearest,bilinear,bicubic \
-  RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+  RUN_CODECS=svt-av1,post-upscale ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 含 AI 超分（默认 config 的 upscale_algos 不含 rkvc_sr，需显式打开）
 ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
-  RUN_CODECS=svt-av1,post-upscale ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+  RUN_CODECS=svt-av1,post-upscale ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 ```
 
 管线：`REF → 1/N 下采样 → 编码 → 硬解 → 上采样 → 与全分辨率 REF 比 PSNR/SSIM`。
@@ -81,44 +81,45 @@ Session 字段：`enc_scale_denom`、`post_upscale_algo`。**编码 CLI**（`rkv
 cmake -B .build/release -DCMAKE_BUILD_TYPE=Release
 cmake --build .build/release -j4
 
-# 2. （可选）绘图 Python 环境
-cd bench && uv sync    # 或 pip install matplotlib numpy
+# 2. Python 工具环境（绘图 + MLVC ONNX/RKNN 导出，共用 tools/.venv）
+(cd tools && uv sync)
 
 # 3. 跑基准（默认从源视频中间截取 4s，17 个码率点 25–1000 kbps）
-./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 仅重绘图表
-PLOT_ONLY=1 ./bench/run_rd_benchmark.sh
+PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh
 ```
 
 ## 输出
 
 | 路径                             | 说明                                    |
 | -------------------------------- | --------------------------------------- |
-| `bench/results/rd_data.csv`      | 原始数据（**默认仅含本次 RUN_CODECS**） |
-| `bench/results/session.meta`     | 本次跑分元数据（码率点、clip、模式等）  |
-| `bench/results/session.codecs`   | 本次 CSV 中的 codec 列表                |
-| `bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log）                     |
-| `bench/results/perf_e2e.png`     | E2E 性能对比                            |
-| `bench/work/`                    | 中间文件（可删）                        |
+| `tools/bench/results/rd_data.csv`      | 原始数据（**默认仅含本次 RUN_CODECS**） |
+| `tools/bench/results/session.meta`     | 本次跑分元数据（码率点、clip、模式等）  |
+| `tools/bench/results/session.codecs`   | 本次 CSV 中的 codec 列表                |
+| `tools/bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log）                     |
+| `tools/bench/results/perf_e2e.png`     | E2E 性能对比                            |
+| `tools/bench/work/`                    | 中间文件（可删）                        |
 
-## 配置（bench/config.json）
+## 配置（tools/bench/config.json）
 
-基准参数、路径、RD 校准表集中在 `bench/config.json`，**不再依赖系统 `/usr/bin/ffmpeg`**，也不再在 shell 里硬编码 QP/CRF 表。
+基准参数、路径、RD 校准表集中在 `tools/bench/config.json`，**不再依赖系统 `/usr/bin/ffmpeg`**，也不再在 shell 里硬编码 QP/CRF 表。
 
 ```bash
 # 校验配置与项目 ffmpeg 是否就绪
-python3 bench/tools/config.py validate bench/config.json
+tools/.venv/bin/python tools/bench/tools/config.py validate tools/bench/config.json
 
 # 查看将生效的默认值
-python3 bench/tools/config.py defaults bench/config.json /path/to/rockchip-video-codec
+tools/.venv/bin/python tools/bench/tools/config.py defaults \
+  tools/bench/config.json /path/to/rockchip-video-codec
 
 # 单次覆盖（环境变量优先于 config）
 RUN_CODECS=svt-av1,post-upscale ENC_SCALE_DENOM=3 \
-  ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+  ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 使用自定义配置
-BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
+BENCH_CONFIG=tools/bench/my_config.json ./tools/bench/run_rd_benchmark.sh clip.mp4
 ```
 
 主要配置项：
@@ -136,7 +137,7 @@ BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
 
 ## 环境变量（覆盖 config）
 
-- `BENCH_CONFIG` — 配置文件路径（默认 `bench/config.json`）
+- `BENCH_CONFIG` — 配置文件路径（默认 `tools/bench/config.json`）
 - `RUN_CODECS` — 见 `config.json` → `run.codecs`
 - `TARGET_KBPS` — 见 `config.json` → `target_kbps`
 - `SVT_RD_MODE` — SVT-AV1 RD 扫点：`calibrated`（默认，CRF/CQP 校准表）或 `vbr`（`--rc 1 --tbr`）
@@ -158,20 +159,21 @@ BENCH_CONFIG=bench/my_config.json ./bench/run_rd_benchmark.sh clip.mp4
 
 ### CSV 合并模式
 
-默认 **`session`**：`finalize_csv` 只用本次 `bench/work/results_*.csv` 重写 `rd_data.csv`，不会把上次 h264/h265 等历史路线混进来。
+默认 **`session`**：`finalize_csv` 只用本次 `tools/bench/work/results_*.csv` 重写 `rd_data.csv`，不会把上次 h264/h265 等历史路线混进来。
 
 若需多次跑分累积到同一张表（旧行为），显式设置：
 
 ```bash
-BENCH_CSV_MODE=accumulate ./bench/run_rd_benchmark.sh clip.mp4
+BENCH_CSV_MODE=accumulate ./tools/bench/run_rd_benchmark.sh clip.mp4
 ```
 
 ## 单独绘图
 
 ```bash
-cd bench
-python3 plot_rd_curve.py --csv results/rd_data.csv
-python3 plot_perf.py --csv results/rd_data.csv --frames 62
+tools/.venv/bin/python tools/bench/plot_rd_curve.py \
+  --csv tools/bench/results/rd_data.csv
+tools/.venv/bin/python tools/bench/plot_perf.py \
+  --csv tools/bench/results/rd_data.csv --frames 62
 ```
 
 详细结论见 [REPORT.md](REPORT.md)。

@@ -18,7 +18,7 @@
 | 文件转码                  | `FILE_TRANSCODE` / `rkvc_transcode` | 码流换格式/换策略 | 容器 → 容器                  |
 | 文件解码                  | `FILE_DECODE` / `rkvc_decode`       | 回放、后处理      | 容器 → NV12                  |
 | 低分辨率编码 + 上采样还原 | `rkvc_session_upscale`              | AI/RGA 画质评估   | 容器 → NV12（全分辨率）      |
-| RD 基准                   | `bench/run_rd_benchmark.sh`         | 码率-画质曲线     | 1080p 片段 → CSV/图表        |
+| RD 基准                   | `tools/bench/run_rd_benchmark.sh`   | 码率-画质曲线     | 1080p 片段 → CSV/图表        |
 
 **特点**：吞吐优先，可跑满存储 I/O；`QUALITY` 策略下 SVT-AV1 **软编码**会占满多核 CPU，但编解码均可离线批处理。
 
@@ -75,7 +75,7 @@ gantt
 | **P2** AV1 存储档            | SVT-AV1 软编 + `av1_rkmpp` 硬解            | ✅ 已交付   | 2026-06-30                                              |
 | **P3** 下采样 + RGA 上采样   | `enc_scale_denom` + `post_upscale_algo`    | ✅ 已交付   | 2026-06-30                                              |
 | **P4** RKNN AI 超分          | `rkvc_sr` 节点、双缓冲异步推理             | ✅ 已交付   | **2026-07-02**（v0.2.1）                                |
-| **P5** RD 基准与演示         | `bench/config.json`、对比演示 MP4          | ✅ 已交付   | 2026-07-02                                              |
+| **P5** RD 基准与演示         | `tools/bench/config.json`、对比演示 MP4    | ✅ 已交付   | 2026-07-02                                              |
 | **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` + `models/`    | ✅ 已交付   | **2026-07-09**（v0.2.3）                                |
 | **P6** YUV-native 模型       | 消除 NV12↔RGB CSC，降延迟                  | 📋 设计稿   | 待定（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
 | **P7** 在线采集/组网         | V4L2、ROI/配额、UDP/RTP 原语               | ✅ 原语完成 | 2026-07-10                                              |
@@ -155,13 +155,13 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 | RGA 后处理上采样  | `rkvc_session_upscale --enc-scale-denom 2 --post-upscale bilinear`                          |
 | RKNN 超分（可选） | `rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH`（需 `RKVC_ENABLE_RKNN`） |
 | 多像素格式解码    | `./example_decode_file input.mp4 out.yuv p010`                                              |
-| RD 基准           | `./bench/run_rd_benchmark.sh /path/to/1080p.mp4`                                            |
+| RD 基准           | `./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4`                                      |
 
 ---
 
 ## AI 超分与 RK3588 性能（`rkvc_sr`）
 
-> 评测条件：**RK3588** · **1920×1080** · 测试片段默认 **4 s / ~122 帧 @ 30 fps**（`bench/config.json` `clip.sec=4`）· 模型 **`rkvc_sr_x3.crypt.rknn`（3× 超分）**
+> 评测条件：**RK3588** · **1920×1080** · 测试片段默认 **4 s / ~122 帧 @ 30 fps**（`tools/bench/config.json` `clip.sec=4`）· 模型 **`rkvc_sr_x3.crypt.rknn`（3× 超分）**
 
 ### 管线说明
 
@@ -223,14 +223,14 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 | 场景           | 参考码率  | 低码率 + AI 还原 | 演示输出（生成后）                                            |
 | -------------- | --------- | ---------------- | ------------------------------------------------------------- |
-| 集装箱物流港口 | 1600 kbps | 350 kbps         | `bench/results/demos/container_logistics_port_comparison.mp4` |
-| 帆船海洋       | 4000 kbps | 900 kbps         | `bench/results/demos/sailboat_ocean_comparison.mp4`           |
+| 集装箱物流港口 | 1600 kbps | 350 kbps         | `tools/bench/results/demos/container_logistics_port_comparison.mp4` |
+| 帆船海洋       | 4000 kbps | 900 kbps         | `tools/bench/results/demos/sailboat_ocean_comparison.mp4`           |
 
 ```bash
-./scripts/make-comparison-demo.sh   # 需源视频与 RKVC SR 模型；见 bench/demo_videos.json
+./scripts/make-comparison-demo.sh   # 需源视频与 RKVC SR 模型；见 tools/bench/demo_videos.json
 ```
 
-完整演示片默认写到 `bench/results/demos/*.mp4`（不入库；需自行生成或向交付方索取）。
+完整演示片默认写到 `tools/bench/results/demos/*.mp4`（不入库；需自行生成或向交付方索取）。
 
 ### RD 曲线与性能图（1080p E2E）
 
@@ -240,7 +240,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ### 量化对比（1080p · 4 s 片段 · 3× 下采样编码 · 目标码率 500 kbps）
 
-> 数据来源：`bench/results/rd_data.csv`（RK3588 实测）
+> 数据来源：`tools/bench/results/rd_data.csv`（RK3588 实测）
 
 | 方案                         | 实际码率  | PSNR 加权   | SSIM      | 相对全分辨率 AV1                                       |
 | ---------------------------- | --------- | ----------- | --------- | ------------------------------------------------------ |
@@ -254,7 +254,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ```bash
 ENC_SCALE_DENOM=3 RUN_CODECS=svt-av1,post-upscale \
-  UPSCALE_ALGOS=bilinear,rkvc_sr ./bench/run_rd_benchmark.sh /path/to/1080p.mp4
+  UPSCALE_ALGOS=bilinear,rkvc_sr ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 所有构建产物收在隐藏目录 **`.build/`** 下，由 `CMakePresets.json` 的 `binaryDir` 定义。根目录不再并列 `build/`、`build-tests/` 等树；**不要**再手搓形如 `build-*`、`build_dbg` 之类别名。
 
-`bench/`、`bench_results/` 不在本约定内（独立工作区）。
+`tools/bench/`、`bench_results/` 不在本约定内（独立工作区）。
 
 ## 目录一览
 

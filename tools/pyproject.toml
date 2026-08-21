@@ -1,0 +1,46 @@
+[project]
+name = "rkvc-tools"
+version = "0.2.0"
+description = "Shared Python environment for rkvc tools"
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "matplotlib>=3.8",
+    "numpy>=1.26,<=1.26.4",
+    "onnx>=1.16.1",
+    "rknn-toolkit2>=2.3.2",
+    "setuptools>=69,<81",
+    # rknn-toolkit2 2.3.2 supports torch <=2.4. Keep a known-good
+    # CPU-only release and bind it to the explicit PyTorch CPU index below.
+    "torch==2.2.0",
+]
+
+[tool.uv]
+package = false
+
+# The wheel metadata also declares onnxoptimizer==0.3.8. It is not used by
+# `from rknn.api import RKNN`, and has no aarch64 wheel.
+[[tool.uv.dependency-metadata]]
+name = "rknn-toolkit2"
+version = "2.3.2"
+requires-dist = [
+    "protobuf>=3.20.3,<=4.25.4",
+    "psutil>=5.9.0",
+    "ruamel.yaml>=0.17.21",
+    "scipy>=1.9.3",
+    "tqdm>=4.64.1",
+    "opencv-python>=4.5.5.64",
+    "fast-histogram>=0.11",
+    "numpy<=1.26.4",
+    "onnx>=1.16.1",
+    "onnxruntime>=1.16.0",
+    "torch>=1.13.1,<=2.4.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

@@ -3,9 +3,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CONFIG="${1:-$ROOT/bench/demo_videos.json}"
-PY="$ROOT/bench/tools/comparison_demo_rkvc.py"
+CONFIG="${1:-$ROOT/tools/bench/demo_videos.json}"
+PY="$ROOT/tools/bench/tools/comparison_demo_rkvc.py"
+TOOLS_PY="$ROOT/tools/.venv/bin/python"
 
-mkdir -p "$ROOT/bench/results/demos"
+if [[ ! -x "$TOOLS_PY" ]]; then
+    echo "[error] 共享 Python 环境不存在: $TOOLS_PY" >&2
+    echo "请先运行: cd $ROOT/tools && uv sync" >&2
+    exit 1
+fi
 
-exec python3 "$PY" --config "$CONFIG" "${@:2}"
+mkdir -p "$ROOT/tools/bench/results/demos"
+
+exec "$TOOLS_PY" "$PY" --config "$CONFIG" "${@:2}"
