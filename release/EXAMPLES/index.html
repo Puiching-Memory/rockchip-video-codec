@@ -1,0 +1,814 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/release/EXAMPLES/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.56">
+    
+    
+      
+        <title>示例程序指南 - rkvc — RK3588 Video Codec</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="rkvc — RK3588 Video Codec" class="md-header__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc — RK3588 Video Codec
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              示例程序指南
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="rkvc — RK3588 Video Codec" class="md-nav__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc — RK3588 Video Codec
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  基准测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  交付文档
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        基础层：跑通管线
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="基础层：跑通管线">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example_encode_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_encode_file
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_decode_file" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_decode_file
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_transcode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_transcode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        应用层：核心业务场景
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="应用层：核心业务场景">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example_live_capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_live_capture
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_adaptive_bitrate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_adaptive_bitrate
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_roi_encode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_roi_encode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_net_loopback" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_net_loopback
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        进阶层：高级 API
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="进阶层：高级 API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example_stream_ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_stream_ports
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example_upscale_ctx" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        example_upscale_ctx
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        与 CLI 工具对比
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        二次开发参考
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="_1">示例程序指南<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>9 个示例位于 <code>examples/</code> 目录，一例一概念，构建后在 <code>examples/bin/</code> 或 <code>.build/release/</code> 下运行。</p>
+<h2 id="_2">基础层：跑通管线<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="example_encode_file">example_encode_file<a class="headerlink" href="#example_encode_file" title="Permanent link">&para;</a></h3>
+<p>合成 NV12 测试图案 → MP4，最小编码流程（模板 + <code>rkvc_session_run_file</code>）。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>./examples/bin/example_encode_file<span class="w"> </span>-o<span class="w"> </span>output.mp4<span class="w"> </span>-s<span class="w"> </span>1920x1080<span class="w"> </span>-n<span class="w"> </span><span class="m">300</span><span class="w"> </span>-b<span class="w"> </span><span class="m">4000000</span>
+</span></code></pre></div>
+<h3 id="example_decode_file">example_decode_file<a class="headerlink" href="#example_decode_file" title="Permanent link">&para;</a></h3>
+<p>容器 → 原始 YUV，可选输出像素格式（硬解不出的格式由库内经 swscale 转换）。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./examples/bin/example_decode_file<span class="w"> </span>input.mp4<span class="w"> </span>decoded.nv12
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>./examples/bin/example_decode_file<span class="w"> </span>input.mp4<span class="w"> </span>decoded.p010<span class="w"> </span>p010<span class="w">   </span><span class="c1"># nv12|yuv420p|nv16|p010</span>
+</span></code></pre></div>
+<h3 id="example_transcode">example_transcode<a class="headerlink" href="#example_transcode" title="Permanent link">&para;</a></h3>
+<p>文件转码，Codec Router 按策略自动选型并打印选型结果。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./examples/bin/example_transcode<span class="w"> </span>input.mp4<span class="w"> </span>output.mp4<span class="w"> </span><span class="o">[</span>realtime<span class="p">|</span>balanced<span class="p">|</span>quality<span class="p">|</span>offline<span class="o">]</span>
+</span></code></pre></div>
+<h2 id="_3">应用层：核心业务场景<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h3 id="example_live_capture">example_live_capture<a class="headerlink" href="#example_live_capture" title="Permanent link">&para;</a></h3>
+<p>V4L2 采集编码最小示例；<code>mock</code> 为合成 NV12 源，无摄像头也能跑。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./examples/bin/example_live_capture<span class="w">                          </span><span class="c1"># mock 90 帧</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./examples/bin/example_live_capture<span class="w"> </span>/dev/video-camera0<span class="w"> </span>out.mp4<span class="w"> </span><span class="m">300</span><span class="w"> </span>1280x720
+</span></code></pre></div>
+<h3 id="example_adaptive_bitrate">example_adaptive_bitrate<a class="headerlink" href="#example_adaptive_bitrate" title="Permanent link">&para;</a></h3>
+<p>带宽自适应控制环：后台线程按输出字节数估算实际码率，偏差超 15% 时经
+<code>rkvc_session_set_bitrate</code> 步进调整，并 <code>rkvc_session_request_idr</code> 让解码端快速重同步。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./examples/bin/example_adaptive_bitrate<span class="w"> </span>-d<span class="w"> </span>mock<span class="w"> </span>-n<span class="w"> </span><span class="m">240</span><span class="w"> </span>-b<span class="w"> </span><span class="m">1500000</span><span class="w">   </span><span class="c1"># 采集源（默认 mock）</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./examples/bin/example_adaptive_bitrate<span class="w"> </span>-i<span class="w"> </span><span class="k">in</span>.nv12<span class="w"> </span>-s<span class="w"> </span>640x480<span class="w">       </span><span class="c1"># 文件源</span>
+</span></code></pre></div>
+<h3 id="example_roi_encode">example_roi_encode<a class="headerlink" href="#example_roi_encode" title="Permanent link">&para;</a></h3>
+<p>ROI 智能压缩（仅 MPP H.264/HEVC）：中心区域 <code>qp_offset=-6</code> 保清晰、
+背景区 <code>qp_offset=+10</code> 省码、角区 <code>force_intra=1</code> 限制误码扩散。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./examples/bin/example_roi_encode<span class="w"> </span>out.mp4<span class="w"> </span><span class="m">90</span>
+</span></code></pre></div>
+<h3 id="example_net_loopback">example_net_loopback<a class="headerlink" href="#example_net_loopback" title="Permanent link">&para;</a></h3>
+<p>UDP/RTP 本机回环：<code>rkvc_net_send</code> / <code>rkvc_net_recv</code> 分片重组冒烟。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./examples/bin/example_net_loopback<span class="w"> </span><span class="o">[</span>udp<span class="p">|</span>rtp<span class="o">]</span><span class="w"> </span><span class="o">[</span>port<span class="o">]</span>
+</span></code></pre></div>
+<h2 id="api">进阶层：高级 API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
+<h3 id="example_stream_ports">example_stream_ports<a class="headerlink" href="#example_stream_ports" title="Permanent link">&para;</a></h3>
+<p>命名端口流式消费：FILE_ENCODE 在后台线程跑，主线程并发从 <code>output</code> 端口
+拉取码流包（<code>rkvc_buffer_get_bitstream</code> 读 pts/key_frame）另存 Annex-B，
+演示边录边取流、<code>AGAIN</code> 超时与结束后排空队列。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./examples/bin/example_stream_ports<span class="w"> </span>out.h264
+</span></code></pre></div>
+<h3 id="example_upscale_ctx">example_upscale_ctx<a class="headerlink" href="#example_upscale_ctx" title="Permanent link">&para;</a></h3>
+<p>RGA 上采样两种 API 对比：一次性 <code>rkvc_upscale_nv12</code> vs 复用 DMA 缓冲的
+<code>rkvc_upscale_ctx_*</code>（批处理省去每帧 import/release）。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>./examples/bin/example_upscale_ctx<span class="w"> </span><span class="m">100</span>
+</span></code></pre></div>
+<h2 id="cli">与 CLI 工具对比<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>示例程序</th>
+<th>CLI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>测试图案编码</td>
+<td><code>example_encode_file</code></td>
+<td><code>rkvc_encode</code></td>
+</tr>
+<tr>
+<td>文件解码</td>
+<td><code>example_decode_file</code></td>
+<td><code>rkvc_decode</code></td>
+</tr>
+<tr>
+<td>文件转码</td>
+<td><code>example_transcode</code></td>
+<td><code>rkvc_transcode</code></td>
+</tr>
+<tr>
+<td>采集/ROI/自适应</td>
+<td><code>example_live_capture</code> 等</td>
+<td>—</td>
+</tr>
+<tr>
+<td>E2E fps 对比</td>
+<td>—</td>
+<td><code>rkvc_bench</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">二次开发参考<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>建议阅读顺序：</p>
+<ol>
+<li><code>encode_file.c</code> — 模板 + run_file 最小流程</li>
+<li><code>decode_file.c</code> — 解码与像素格式</li>
+<li><code>transcode.c</code> — Codec Router 选型</li>
+<li><code>live_capture.c</code> — V4L2 采集</li>
+<li><code>stream_ports.c</code> — 命名端口并发消费</li>
+<li><code>adaptive_bitrate.c</code> — 运行中热切换控制环</li>
+<li><code>roi_encode.c</code> — ROI 区域编码</li>
+<li><code>upscale_ctx.c</code> — RGA 批量上采样</li>
+<li><code>net_loopback.c</code> — UDP/RTP 收发</li>
+</ol>
+<p>完整 API 文档见项目 <code>docs/api.md</code> 或包内 <code>DEVELOPMENT.md</code>。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":[],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      
+    
+  </body>
+</html>

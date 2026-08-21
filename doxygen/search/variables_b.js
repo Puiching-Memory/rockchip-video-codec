@@ -1,0 +1,20 @@
+var searchData=
+[
+  ['machine_5fid_0',['machine_id',['../structlic__fp__info.html#a7021552b9e38f2fbcd50916491cbc375',1,'lic_fp_info::machine_id'],['../structrkvc__license__info.html#a3d83193d35a1f24fc4ae43602775f8fd',1,'rkvc_license_info::machine_id']]],
+  ['machine_5fmatches_1',['machine_matches',['../structrkvc__license__info.html#ad6a1f42ae3439a9766a36ede3d0d1be1',1,'rkvc_license_info']]],
+  ['max_5fenc_5fsessions_2',['max_enc_sessions',['../structrkvc__runtime__quota.html#acf29c6595cb92aee84996d681b5a057d',1,'rkvc_runtime_quota']]],
+  ['max_5fnpu_5fsessions_3',['max_npu_sessions',['../structrkvc__runtime__quota.html#ab32a23f258662d9298ba1424a12ee2dc',1,'rkvc_runtime_quota']]],
+  ['max_5fsessions_4',['max_sessions',['../structrkvc__runtime__quota.html#a23dd92895c0ca071047a967ca0e1735a',1,'rkvc_runtime_quota']]],
+  ['mem_5ftype_5',['mem_type',['../structrkvc__buffer__video__info.html#ad8df88d4eb149c6d080a8fa084f6f129',1,'rkvc_buffer_video_info::mem_type'],['../structrkvc__buffer.html#ac84a648e3ea906ae7be83e1e60928a2a',1,'rkvc_buffer::mem_type']]],
+  ['mlvc_5fbitest_5fpmf_5fpath_6',['mlvc_bitest_pmf_path',['../structrkvc__pipeline__desc.html#aacd00cab14f76c2989eba7542187d380',1,'rkvc_pipeline_desc']]],
+  ['mlvc_5fdec_5fmodel_5fpath_7',['mlvc_dec_model_path',['../structrkvc__pipeline__desc.html#adf0387aaefd78fa6d871b9037441912b',1,'rkvc_pipeline_desc']]],
+  ['mlvc_5fenc_5fmodel_5fpath_8',['mlvc_enc_model_path',['../structrkvc__pipeline__desc.html#a0e7230532ebb52607f912f2edd9662b2',1,'rkvc_pipeline_desc']]],
+  ['mlvc_5fgaussian_5fpmf_5fpath_9',['mlvc_gaussian_pmf_path',['../structrkvc__pipeline__desc.html#afac8f2701f3b03920771a2579fd3a444',1,'rkvc_pipeline_desc']]],
+  ['mlvc_5fqp_10',['mlvc_qp',['../structrkvc__pipeline__desc.html#a9a2244bf711dc3f10a11fdd6f610554b',1,'rkvc_pipeline_desc']]],
+  ['mlvc_5fqp_5fpatch_5fdir_11',['mlvc_qp_patch_dir',['../structrkvc__pipeline__desc.html#a8e228ef12c04de17946e4fe3a04a8e1d',1,'rkvc_pipeline_desc']]],
+  ['mmap_5fbase_12',['mmap_base',['../structrkvc__buffer.html#a6aed1bac711d06bce1e2570dd87601ea',1,'rkvc_buffer']]],
+  ['mmap_5fsize_13',['mmap_size',['../structrkvc__buffer.html#ac1264d78f1db247f40653a67ef162be9',1,'rkvc_buffer']]],
+  ['mode_14',['mode',['../structrkvc__net__config.html#aca0b02c565c72db2eabdc05d074fec47',1,'rkvc_net_config']]],
+  ['modifier_15',['modifier',['../structrkvc__buffer__video__info.html#aad63f5b8bb6674daf65bd1e8fd8f2637',1,'rkvc_buffer_video_info::modifier'],['../structrkvc__buffer.html#ad58548b8f901b69f2d5bc0543212693c',1,'rkvc_buffer::modifier']]],
+  ['mux_16',['mux',['../structrkvc__session.html#abf2d3c7dd1be1e0c599625a0f5bf50c7',1,'rkvc_session']]]
+];

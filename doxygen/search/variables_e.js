@@ -1,0 +1,21 @@
+var searchData=
+[
+  ['path_0',['path',['../structlic__fp__info.html#a223867162dda089f7c5961a1bcad99e6',1,'lic_fp_info']]],
+  ['peer_5fip_1',['peer_ip',['../structrkvc__net__config.html#a630e2eab293883542e973133b02186ca',1,'rkvc_net_config']]],
+  ['peer_5fport_2',['peer_port',['../structrkvc__net__config.html#a313e692d53e7ae90f5a533ac82e87c35',1,'rkvc_net_config']]],
+  ['pending_5fpkt_3',['pending_pkt',['../structrkvc__decode__pump.html#a008fe42e7fcf51b16e3e1a08c459d32f',1,'rkvc_decode_pump']]],
+  ['pixel_5fformat_4',['pixel_format',['../structrkvc__pipeline__desc.html#a370c0242947493e7379f7ea1cfcaaf93',1,'rkvc_pipeline_desc::pixel_format'],['../structrkvc__mux__config.html#abede196175149202d96788c4efc49d2c',1,'rkvc_mux_config::pixel_format']]],
+  ['pkts_5frecv_5',['pkts_recv',['../structrkvc__net__stats.html#aeaba5680a69bd02d956c6b4717e3f2ac',1,'rkvc_net_stats']]],
+  ['pkts_5fsent_6',['pkts_sent',['../structrkvc__net__stats.html#a105d5cd1e6697b21dff4a00a97e50707',1,'rkvc_net_stats']]],
+  ['policy_7',['policy',['../structrkvc__pipeline__desc.html#a5523fc6d27e64d3b3e1ae1c7e1ab00d5',1,'rkvc_pipeline_desc']]],
+  ['pool_8',['pool',['../structrkvc__session.html#aa9889a8cd019ea18d0dd3fca02f8da96',1,'rkvc_session']]],
+  ['port_5fcapture_9',['port_capture',['../structrkvc__session.html#a34525f0e698421a0cfdac16e4c335b55',1,'rkvc_session']]],
+  ['port_5foutput_10',['port_output',['../structrkvc__session.html#a2d1bb551e1adb3bdff90f110cda58f3d',1,'rkvc_session']]],
+  ['port_5fpreview_11',['port_preview',['../structrkvc__session.html#a8c0519e2c53d04215cefd83c4a58372c',1,'rkvc_session']]],
+  ['post_5fupscale_5falgo_12',['post_upscale_algo',['../structrkvc__pipeline__desc.html#ae1f2e6eb2503f3821723517781d9f1b6',1,'rkvc_pipeline_desc']]],
+  ['post_5fupscale_5frkvc_5fmodel_5fpath_13',['post_upscale_rkvc_model_path',['../structrkvc__pipeline__desc.html#a3d0e5c30b30a0a17f0bbe757e5767a9e',1,'rkvc_pipeline_desc']]],
+  ['postproc_5fsec_14',['postproc_sec',['../structrkvc__session__stats.html#a0d82f4f59a7e0050e7a86cc52c1e3d65',1,'rkvc_session_stats']]],
+  ['product_5fid_15',['product_id',['../structrkvc__license__info.html#a37b7881affb17d64a2925112b4395d3c',1,'rkvc_license_info']]],
+  ['ptr_16',['ptr',['../structrkvc__rans__enc__stream.html#a3b6c7057c299cc7f6d00a58e764741bd',1,'rkvc_rans_enc_stream::ptr'],['../structrkvc__rans__dec__stream.html#a18a96a87297599dbf17b4b34d81819b2',1,'rkvc_rans_dec_stream::ptr']]],
+  ['pts_17',['pts',['../structrkvc__buffer__video__info.html#a2ad234db3f763a2275d435602368112f',1,'rkvc_buffer_video_info::pts'],['../structrkvc__buffer__bitstream__view.html#ae1ed7d887208f9b8d35e877857804b2d',1,'rkvc_buffer_bitstream_view::pts'],['../structrkvc__buffer.html#aa29dae0d2bc4623437a36d50bafe23cb',1,'rkvc_buffer::pts']]]
+];

@@ -1,0 +1,946 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/testing/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+        <link rel="next" href="../benchmark/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.56">
+    
+    
+      
+        <title>测试 - rkvc — RK3588 Video Codec</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.20815dad.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-header__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc — RK3588 Video Codec
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              测试
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-nav__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc — RK3588 Video Codec
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        测试哲学
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        当前测试矩阵
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="当前测试矩阵">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ctest" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CTest 目标统计
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        执行命令
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#valgrind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Valgrind
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        交付前最低要求
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        发布清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  基准测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  交付文档
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        测试哲学
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        当前测试矩阵
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="当前测试矩阵">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ctest" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CTest 目标统计
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        执行命令
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#valgrind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Valgrind
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        交付前最低要求
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        发布清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="_1">测试<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<h2 id="_2">测试哲学<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<ul>
+<li>公共 API 契约优先：非法输入、边界值、错误码和资源释放先于 happy path（对照 <a href="../api/">api.md</a>）。</li>
+<li>异常路径必须可重复：OOM、I/O 错误、NULL 参数和无硬件环境均有确定性测试。</li>
+<li>同一批测试在多种构建配置下重复运行：Debug、ASan/UBSan、coverage。</li>
+<li>缺陷修复必须沉淀为回归测试。</li>
+</ul>
+<h2 id="_3">当前测试矩阵<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>目标</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>类型与默认</td>
+<td><code>tests/test_types.c</code></td>
+<td>版本、pipeline 默认值、init 幂等</td>
+</tr>
+<tr>
+<td>Codec Router</td>
+<td><code>tests/test_router.c</code></td>
+<td>policy → H.264/HEVC/AV1 路由</td>
+</tr>
+<tr>
+<td>Buffer</td>
+<td><code>tests/test_buffer.c</code></td>
+<td>视频/码流分配、引用计数</td>
+</tr>
+<tr>
+<td>公共契约</td>
+<td><code>tests/test_contracts.c</code></td>
+<td>caps、端口名、模板</td>
+</tr>
+<tr>
+<td>内部一致性</td>
+<td><code>tests/test_internal.c</code></td>
+<td>FFmpeg 错误映射、像素格式、端口队列</td>
+</tr>
+<tr>
+<td>后处理上采样</td>
+<td><code>tests/test_post_upscale.c</code></td>
+<td>算法名、pipeline 默认值</td>
+</tr>
+<tr>
+<td>权限门控</td>
+<td><code>tests/test_permissions.c</code></td>
+<td>fake <code>/dev</code> 权限回归（fault injection preset）</td>
+</tr>
+<tr>
+<td>异常注入</td>
+<td><code>tests/test_fault_injection.c</code></td>
+<td>确定性 OOM 模拟</td>
+</tr>
+<tr>
+<td>硬件集成</td>
+<td><code>tests/test_hardware.c</code></td>
+<td><strong>默认跳过</strong>；<code>RKVC_RUN_HARDWARE_TESTS=1</code> 时执行（含 RGA 3× 与 <code>rkvc_sr</code> AI 3×）</td>
+</tr>
+<tr>
+<td>RGA 缩放</td>
+<td><code>tests/test_scale.c</code></td>
+<td>参数/布局始终运行；RGA 用例需硬件标志</td>
+</tr>
+<tr>
+<td>V4L2 mock</td>
+<td><code>tests/test_v4l2.c</code></td>
+<td><code>capture_device=mock</code> 合成 NV12；Session 短录需 <code>RKVC_RUN_HARDWARE_TESTS=1</code></td>
+</tr>
+<tr>
+<td>RGA 推广门禁</td>
+<td><code>scripts/test-rga.sh</code></td>
+<td>1080p↔360p、padding 源、post_upscale、soak；需 <code>/dev/rga</code></td>
+</tr>
+<tr>
+<td>NPU / <code>rkvc_sr</code> 门禁</td>
+<td><code>scripts/test-npu-sr.sh</code></td>
+<td>AI 3× 硬件用例 + 可选 session smoke；需 NPU + <code>models/rkvc_sr_x3.crypt.rknn</code></td>
+</tr>
+<tr>
+<td>CLI 脚本</td>
+<td><code>tests/test_cli_args.sh</code></td>
+<td>CLI 参数错误（<code>tests</code> preset）</td>
+</tr>
+<tr>
+<td>MLVC 导出</td>
+<td><code>tests/test_mlvc_export.py</code></td>
+<td>PMF JSON→PMF1；QPP1；ONNX 图重写（需 <code>onnx</code>）；<code>export_onnx</code> 补丁/占位 YUV（不跑 convert.py）</td>
+</tr>
+<tr>
+<td>MLVC QPP1</td>
+<td><code>tests/test_qppatch.c</code></td>
+<td>打开时二进制补丁：区间应用、空补丁、CRC/尺寸/越界、路径解析</td>
+</tr>
+<tr>
+<td>可移植包</td>
+<td><code>scripts/test-portable.sh</code></td>
+<td>包完整性、RPATH、三策略 bench、后处理上采样、<code>rkvc_sr</code> NPU 冒烟、pkg-config</td>
+</tr>
+<tr>
+<td>动态分析</td>
+<td><code>asan</code> preset</td>
+<td>ASan + UBSan</td>
+</tr>
+<tr>
+<td>覆盖率</td>
+<td><code>coverage</code> preset</td>
+<td>gcov instrumentation</td>
+</tr>
+<tr>
+<td>严格门禁</td>
+<td><code>scripts/test-strict.sh</code></td>
+<td>顺序执行 tests / asan / coverage</td>
+</tr>
+</tbody>
+</table>
+<p><code>RKVC_ENABLE_FAULT_INJECTION</code> 默认关闭，仅在 <code>tests</code> preset 中启用。</p>
+<h3 id="ctest">CTest 目标统计<a class="headerlink" href="#ctest" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>preset</th>
+<th>CTest 目标数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests</code></td>
+<td>20+</td>
+<td>原矩阵 + <code>test_qppatch</code> + <code>test_mlvc_export</code>（Python；无 rknn-toolkit2 也可跑）</td>
+</tr>
+</tbody>
+</table>
+<p>硬件测试拆为 8 个独立 CTest 用例（含三策略转码、RGA 3× 上采样与 <code>rkvc_sr</code> AI 3×），未设置 <code>RKVC_RUN_HARDWARE_TESTS=1</code> 时 <strong>exit 77（Skipped）</strong>；设置后夹具自生成，无需 <code>tests/fixtures/</code> 内嵌文件。AI 用例另需 <code>caps.has_rknn</code> 与约定模型 <code>models/rkvc_sr_x3.crypt.rknn</code>（可用 <code>RKVC_SR_MODEL</code> 覆盖）。</p>
+<h2 id="_4">执行命令<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>构建脚本与 CMake Presets 默认将编译并行度限制为 <strong>4</strong>。各 preset 对应目录见 <a href="../build-layout/">build-layout.md</a>（<code>tests</code>→<code>.build/tests/</code>，<code>asan</code>→<code>.build/asan/</code>，等）。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 基线单元测试 + CLI 工具脚本 → .build/tests/</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>cmake<span class="w"> </span>--preset<span class="w"> </span>tests
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>tests
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>ctest<span class="w"> </span>--preset<span class="w"> </span>tests<span class="w"> </span>-j1<span class="w"> </span>--output-on-failure
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># 仅 MLVC 导出（PMF / 图处理，不需要 NPU 或 rknn-toolkit2）</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>ctest<span class="w"> </span>--preset<span class="w"> </span>tests<span class="w"> </span>-R<span class="w"> </span>test_mlvc_export<span class="w"> </span>--output-on-failure
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># RK3588 硬件集成</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">export</span><span class="w"> </span><span class="nv">RKVC_RUN_HARDWARE_TESTS</span><span class="o">=</span><span class="m">1</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>ctest<span class="w"> </span>--test-dir<span class="w"> </span>.build/tests<span class="w"> </span>-j1<span class="w"> </span>-R<span class="w"> </span><span class="s1">'test_session_'</span><span class="w"> </span>--output-on-failure
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># RGA 缩放推广门禁（1080p↔360p + soak）</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>./scripts/test-rga.sh
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1"># 加长 soak：RKVC_RGA_SOAK_FRAMES=1000 ./scripts/test-rga.sh</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="c1"># NPU / rkvc_sr AI 超分门禁（需 models/rkvc_sr_x3.crypt.rknn）</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>./scripts/test-npu-sr.sh
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="c1"># Sanitizer / 覆盖率 / 严格模式</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>cmake<span class="w"> </span>--preset<span class="w"> </span>asan<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>asan<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ctest<span class="w"> </span>--preset<span class="w"> </span>asan
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>cmake<span class="w"> </span>--preset<span class="w"> </span>coverage<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>coverage<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ctest<span class="w"> </span>--preset<span class="w"> </span>coverage
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>./scripts/test-strict.sh
+</span></code></pre></div>
+<p>覆盖率门禁（需 gcovr）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">RKVC_COVERAGE_MIN_LINE</span><span class="o">=</span><span class="m">80</span><span class="w"> </span><span class="nv">RKVC_COVERAGE_MIN_BRANCH</span><span class="o">=</span><span class="m">70</span><span class="w"> </span>./scripts/test-strict.sh
+</span></code></pre></div>
+<p>无 RKMPP 设备节点环境可使用 <code>60/50</code> 作为基础门禁。</p>
+<h2 id="valgrind">Valgrind<a class="headerlink" href="#valgrind" title="Permanent link">&para;</a></h2>
+<p>默认包含无硬件依赖的 <code>test_*</code>。第三方 MPP/FFmpeg 噪声通过 <code>scripts/mpp.supp</code> 屏蔽。CI 环境设置 <code>RKVC_VALGRIND_HARDWARE=0</code> 跳过硬件测试。</p>
+<h2 id="_5">交付前最低要求<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>./scripts/test-strict.sh</code> 全部通过</li>
+<li>可移植包通过 <code>./scripts/test-portable.sh &lt;package-dir&gt;</code></li>
+<li>RK3588 实机完成固定样本编码、解码、转码与长时间 soak test</li>
+<li>实机通过 <code>./scripts/test-rga.sh</code> 与 <code>./scripts/test-npu-sr.sh</code>（需 <code>models/rkvc_sr_x3.crypt.rknn</code>）</li>
+<li>新缺陷附带回归测试</li>
+</ul>
+<h2 id="_6">发布清单<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<ul>
+<li>源码：<code>git status --short</code> 只含本次变更，子模块版本已锁定</li>
+<li>构建：Debug、Release、ASan、coverage 均成功</li>
+<li>单元：<code>test_types</code> ~ <code>test_post_upscale</code> 全部通过</li>
+<li>硬件：记录 SoC、内核、设备权限、FFmpeg/MPP/SVT/<code>librknnrt</code> 版本、样本 SHA256</li>
+<li>包：SDK/可移植包完整性、RPATH、动态库依赖与 <code>models/</code> 验证</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      
+    
+  </body>
+</html>

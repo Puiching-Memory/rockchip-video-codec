@@ -1,0 +1,963 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/mlvc-rknn-export/">
+      
+      
+        <link rel="prev" href="../benchmark/">
+      
+      
+        <link rel="next" href="../packaging/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.56">
+    
+    
+      
+        <title>MLVC ONNX → RKNN 导出 - rkvc — RK3588 Video Codec</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.20815dad.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mlvc-onnx-rknn" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-header__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc — RK3588 Video Codec
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MLVC ONNX → RKNN 导出
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-nav__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc — RK3588 Video Codec
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  基准测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#io" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        运行时 I/O 约定
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        依赖
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#onnx" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上游 ONNX
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        本仓库转换
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        图重写
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pmf1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        PMF1
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上板
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qp-qpp1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        多 QP 单模型（QPP1）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  交付文档
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#io" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        运行时 I/O 约定
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        依赖
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#onnx" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上游 ONNX
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        本仓库转换
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        图重写
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pmf1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        PMF1
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上板
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#qp-qpp1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        多 QP 单模型（QPP1）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="mlvc-onnx-rknn">MLVC ONNX → RKNN 导出<a class="headerlink" href="#mlvc-onnx-rknn" title="Permanent link">&para;</a></h1>
+<p>把 <a href="https://github.com/microsoft/mlvc">Microsoft MLVC</a> 的固定分辨率 ONNX 与 PMF JSON，转成 <code>rkvc</code> 运行时（<code>lib/node_mlvc.c</code>）使用的 <code>.rknn</code> + <code>PMF1</code> 二进制表。</p>
+<p>本仓库<strong>不 vendoring</strong> 上游训练/转换代码。<code>tools/.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc</code> 会浅克隆官方仓、下载公开 checkpoint、跑 <code>convert.py export --target-device generic</code>，再做图处理与 RKNN 转换。</p>
+<p>本仓的 bench 与 MLVC ONNX/RKNN 工具共用 <code>tools/.venv</code>。微软上游 <code>convert.py</code> 仍使用 clone 目录内的独立 Python 3.12 venv：上游固定 <code>torch==2.10.0</code>，而 rknn-toolkit2 要求 <code>torch&lt;=2.4.0</code>，两者无法可靠地装进同一个环境。两套环境均强制使用 PyTorch CPU wheel，不会下载 CUDA/NVIDIA 包。</p>
+<h2 id="io">运行时 I/O 约定<a class="headerlink" href="#io" title="Permanent link">&para;</a></h2>
+<p>C 侧不向 NPU 喂 qp（qp 只用于 rANS：<code>z_idx = qp * ZC + c</code>）。因此导出时必须把 <code>q_index_shifted</code> <strong>折成常量</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>部件</th>
+<th>输入</th>
+<th>输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>编码器</td>
+<td>按名字：图像（<code>x</code> / <code>New_input_x</code>）、<code>ref_feature</code></td>
+<td>按名字：<code>feature</code> / <code>z_raw</code> / <code>y_raw_0</code> / <code>y_raw_1</code></td>
+</tr>
+<tr>
+<td>解码器</td>
+<td>按名字：<code>z_raw</code>、<code>y_raw_0</code>、<code>y_raw_1</code>、<code>ref_feature</code></td>
+<td>按名字：<code>x_hat</code>、<code>feature</code></td>
+</tr>
+</tbody>
+</table>
+<p>默认把解码器尾部 <code>DepthToSpace(mode=DCR)+Clip(0,1)</code> 拆出图外（<code>--no-extract-tail</code> 关闭）。此时 RKNN 的 <code>x_hat</code> 是 shuffle 前的 head conv（640×368 时为 <code>[1,192,46,80]</code>），<code>node_mlvc.c</code> 按 native 通道数自动做 CPU DCR + clip；旧的整图 <code>x_hat=[1,3,H,W]</code> 模型不用改。</p>
+<p>官方 split <code>dmc61sbr_e1d1</code> / <code>dmc61sr_e1d1</code> 的 ONNX 还带 <code>q_index_shifted</code>（编码器 3 入、解码器 5 入）。折叠后才是上表的 2 / 4 输入。</p>
+<h2 id="_1">依赖<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>图处理需要 <code>onnx</code>（及 numpy）。RKNN 转换需要 <a href="https://github.com/airockchip/rknn-toolkit2">rknn-toolkit2</a>（PyPI 提供 x86_64 / aarch64 manylinux wheel，Python 3.8–3.12）。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>tools
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>sync<span class="w">          </span><span class="c1"># Python 3.10–3.12；创建共享 .venv</span>
+</span></code></pre></div>
+<p>请使用 <code>tools/pyproject.toml</code> + <code>tools/uv.lock</code> 安装，不要直接 <code>pip install rknn-toolkit2</code>。共享配置已去掉无 ARM wheel、且转换不需要的 <code>onnxoptimizer</code>，并把 torch 绑定到 PyTorch CPU-only index。</p>
+<p><code>do_quantization=False</code>，<code>float_dtype=float16</code>。不要套 YOLO 那套 <code>mean/std=255</code> 图像预处理。</p>
+<h2 id="onnx">上游 ONNX<a class="headerlink" href="#onnx" title="Permanent link">&para;</a></h2>
+<p>一条命令走通（浅克隆 <a href="https://github.com/microsoft/mlvc">microsoft/mlvc</a> 到 <code>.build/deps/mlvc</code>，下载公开 checkpoint，跑 <code>convert.py export --target-device generic</code>）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">(</span><span class="nb">cd</span><span class="w"> </span>tools<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="o">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>tools/.venv/bin/python<span class="w"> </span>tools/mlvc/export_rknn.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--from-mlvc<span class="w"> </span>--out-dir<span class="w"> </span>models<span class="w"> </span>--platform<span class="w"> </span>rk3588<span class="w"> </span>--qp<span class="w"> </span><span class="m">21</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># 只要 ONNX：tools/.venv/bin/python tools/mlvc/export_onnx.py</span>
+</span></code></pre></div>
+<p>或在已有 microsoft/mlvc 仓库里自行导出后再喂给本工具：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># 在 microsoft/mlvc 的 video/ 目录</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>convert.py<span class="w"> </span><span class="nb">export</span><span class="w"> </span>--model-version<span class="w"> </span>dmc61sbr_reglu<span class="w"> </span>--model-type<span class="w"> </span>onnx<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>--target-device<span class="w"> </span>generic<span class="w"> </span>--model-width<span class="w"> </span><span class="m">640</span><span class="w"> </span>--model-height<span class="w"> </span><span class="m">368</span>
+</span></code></pre></div>
+<p>产物目录形如：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>.../onnx-generic/640x368/
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  MLVCEncoder.onnx
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  MLVCDecoder.onnx
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  gaussian_pmf.json
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>  bit_estimator_pmf.json
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  metadata.json
+</span></code></pre></div>
+<p><code>--target-device</code> 建议 <code>generic</code> 或 <code>intel</code>。<strong>不要用 <code>qualcomm</code></strong>：官方 Qualcomm 优化会把 PixelUnshuffle 收成 <code>SpaceToDepth</code>、把 Clip 收成 <code>Max</code>，在 RKNN 上都会 CPU fallback（见 <a href="../mlvc-npu-profile/">mlvc-npu-profile.md</a> §7.2）。即便 generic 默认 pass 里仍可能出现 <code>SpaceToDepth</code>，本工具会再写回 NPU 友好算子。</p>
+<p>公开 checkpoint（约 70 MB）落到 <code>.build/deps/mlvc-data/pretrained/mlvc-psnr-v1.ckpt</code>。tracing 用占位 I420（640×360 灰帧；模型 640×368 由上游 EDGE padding）。<code>convert.py</code> 默认还会做导出后校验，本包装器用 <code>--no-validate-conversion</code> 跳过。</p>
+<h2 id="_2">本仓库转换<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>tools/.venv/bin/python<span class="w"> </span>tools/mlvc/export_rknn.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span>--onnx-dir<span class="w"> </span>/path/to/onnx-generic/640x368<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span>--out-dir<span class="w"> </span>models<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span>--platform<span class="w"> </span>rk3588<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span>--qp<span class="w"> </span><span class="m">21</span>
+</span></code></pre></div>
+<p>常用选项：</p>
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--qp 21</code></td>
+<td>折进图的 <code>q_index</code>（默认 21，与 <code>node_mlvc</code> 一致）</td>
+</tr>
+<tr>
+<td><code>--qp-list 10,21,30,40</code></td>
+<td>每个 qp 一份模型，写入 <code>models/{platform}_qp_models/qpXX/</code>；<code>--qp</code> 若在列表中则再拷到 <code>models/</code> 根目录作默认</td>
+</tr>
+<tr>
+<td><code>--skip-rknn</code></td>
+<td>只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用）</td>
+</tr>
+<tr>
+<td><code>--pmf-only</code></td>
+<td>只把 JSON 写成 <code>gaussian.bin</code> / <code>bitest.bin</code></td>
+</tr>
+<tr>
+<td><code>--inspect</code></td>
+<td>只打印 ONNX I/O</td>
+</tr>
+<tr>
+<td><code>--no-rewrite</code></td>
+<td>不做 SpaceToDepth / Max / Div 替换</td>
+</tr>
+<tr>
+<td><code>--no-extract-tail</code></td>
+<td>保留解码器尾部 DepthToSpace+Clip 在图内（默认拆到 CPU）</td>
+</tr>
+<tr>
+<td><code>--no-fold-qp</code></td>
+<td>保留 <code>q_index</code> 输入（C 运行时目前不能喂）</td>
+</tr>
+<tr>
+<td><code>--keep-onnx</code></td>
+<td>在输出目录保留处理后的 ONNX</td>
+</tr>
+<tr>
+<td><code>--platform rk3588</code></td>
+<td>RKNN <code>target_platform</code></td>
+</tr>
+<tr>
+<td><code>--from-mlvc</code></td>
+<td>浅克隆 microsoft/mlvc 并先导出 ONNX（权重与占位 YUV 在 <code>.build/deps/mlvc-data</code>）</td>
+</tr>
+<tr>
+<td><code>--mlvc-dir</code> / <code>--weights-path</code></td>
+<td>覆盖上游源码或 checkpoint 路径</td>
+</tr>
+<tr>
+<td><code>--onnx-frame-count</code></td>
+<td><code>convert.py</code> tracing 帧数（默认 2；官方默认 48）</td>
+</tr>
+<tr>
+<td><code>--patch-dir DIR</code></td>
+<td>QPP1 输出目录（默认 <code>{out-dir}/qp_patches</code>）</td>
+</tr>
+</tbody>
+</table>
+<p><code>--onnx-dir</code> 也可指向更上层目录，工具会递归查找 <code>MLVCEncoder.onnx</code> 等文件名。</p>
+<h2 id="_3">图重写<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>对齐 NPU profile 的 CPU fallback：</p>
+<table>
+<thead>
+<tr>
+<th>原算子</th>
+<th>替换</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SpaceToDepth</code></td>
+<td><code>Reshape</code> + <code>Transpose(perm=[0,3,5,1,2,4])</code> + <code>Reshape</code></td>
+<td>与 ONNX 规范等价</td>
+</tr>
+<tr>
+<td><code>Max(x, const)</code> / <code>Min(x, const)</code></td>
+<td><code>Clip</code></td>
+<td>RKNN 上 Max 走 CPU，Clip 可上 NPU</td>
+</tr>
+<tr>
+<td><code>Div(x, const)</code></td>
+<td><code>Mul(x, 1/const)</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>需要固定 NCHW 形状才能展开 SpaceToDepth；动态维会跳过并打日志。</p>
+<h2 id="pmf1">PMF1<a class="headerlink" href="#pmf1" title="Permanent link">&para;</a></h2>
+<p>JSON 字段与上游 <code>GaussianCoderPmf</code> / <code>BitEstimatorPmf</code> 一致：<code>pmf_lengths</code> / <code>pmf_offsets</code> / <code>pmf_table</code>，gaussian 另有 <code>scale_min</code> / <code>scale_max</code> / <code>scale_levels</code> / <code>index_space</code>，bitest 另有 <code>qp_num</code> / <code>channels</code>。</p>
+<p>二进制布局见 <code>lib/node_mlvc.c</code> <code>load_pmf()</code>。<code>node_mlvc.c</code> <strong>要求</strong> gaussian 的 <code>index_space=1</code>。</p>
+<h2 id="_4">上板<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./.build/release/rkvc_transcode<span class="w"> </span>-i<span class="w"> </span><span class="k">in</span>.mp4<span class="w"> </span>-o<span class="w"> </span>out.mlvc<span class="w"> </span>-p<span class="w"> </span>neural<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--mlvc-enc<span class="w"> </span>models/MLVCEncoder_rk3588.rknn<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--mlvc-dec<span class="w"> </span>models/MLVCDecoder_rk3588.rknn<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>--mlvc-gaussian-pmf<span class="w"> </span>models/gaussian.bin<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>--mlvc-bitest-pmf<span class="w"> </span>models/bitest.bin<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>--mlvc-qp<span class="w"> </span><span class="m">21</span>
+</span></code></pre></div>
+<p>分辨率须与导出时 <code>--model-width</code> / <code>--model-height</code> 一致（现网 640×368）。<code>--mlvc-qp</code> 须与折叠进图的 <code>--qp</code> 一致，否则 rANS 码表与 NPU 嵌入错位。</p>
+<h2 id="qp-qpp1">多 QP 单模型（QPP1）<a class="headerlink" href="#qp-qpp1" title="Permanent link">&para;</a></h2>
+<p>各 qp 折叠进图后，RKNN 权重局部不同、文件大小相同。不必在运行时切换整份 <code>.rknn</code>：保留一份基座（默认 <code>MLVCEncoder_rk3588.rknn</code> / <code>MLVCDecoder_rk3588.rknn</code>），打开时按 qp 打一次二进制补丁。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>tools/.venv/bin/python<span class="w"> </span>tools/mlvc/export_rknn.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span>--onnx-dir<span class="w"> </span>/path/to/onnx-generic/640x368<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span>--out-dir<span class="w"> </span>models<span class="w"> </span>--platform<span class="w"> </span>rk3588<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>--qp<span class="w"> </span><span class="m">21</span><span class="w"> </span>--qp-list<span class="w"> </span><span class="m">10</span>,21,30,40
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># 或对已有 qpXX/*.rknn 目录单独生成：</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>tools/.venv/bin/python<span class="w"> </span>tools/mlvc/make_qp_patches.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span>--models-dir<span class="w"> </span>models/rk3588_qp_models<span class="w"> </span>--base-qp<span class="w"> </span><span class="m">21</span><span class="w"> </span>--out-dir<span class="w"> </span>models/qp_patches
+</span></code></pre></div>
+<p>产物：<code>models/qp_patches/{enc|dec}_qp{N}.qppatch</code>（含基座 qp 的空补丁）。格式为 48 字节小端头 <code>QPP1</code> + 合并后的 <code>(offset, length)</code> 区间 + payload；头里带基座 / payload CRC32。缺补丁或 CRC 不对会打开失败，不会静默用错权重。</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./.build/release/rkvc_transcode<span class="w"> </span>-i<span class="w"> </span><span class="k">in</span>.mp4<span class="w"> </span>-o<span class="w"> </span>out.mlvc<span class="w"> </span>-p<span class="w"> </span>neural<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--mlvc-enc<span class="w"> </span>models/MLVCEncoder_rk3588.rknn<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--mlvc-gaussian-pmf<span class="w"> </span>models/gaussian.bin<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span>--mlvc-bitest-pmf<span class="w"> </span>models/bitest.bin<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>--mlvc-qp-patch-dir<span class="w"> </span>models/qp_patches<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span>--mlvc-qp<span class="w"> </span><span class="m">30</span>
+</span></code></pre></div>
+<p>编码用 <code>--mlvc-qp</code> 选 <code>enc_qpN.qppatch</code>；解码用容器头里的 qp 选 <code>dec_qpN.qppatch</code>。不传 <code>--mlvc-qp-patch-dir</code> 时行为与单模型相同（基座须已是该 qp）。不做运行时热切换。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,22 @@
+var searchData=
+[
+  ['raw_0',['raw',['../structlic__fp__info.html#a81ffa10e6d10a22cfc6d4a36068b653f',1,'lic_fp_info']]],
+  ['rc_5fmode_1',['rc_mode',['../structrkvc__pipeline__desc.html#ae10c55191fbe2e9fe4713ed9b1a4c303',1,'rkvc_pipeline_desc::rc_mode'],['../structrkvc__mpp__enc__config.html#a49c8a56e9871361516772b29e93d9746',1,'rkvc_mpp_enc_config::rc_mode'],['../structrkvc__svt__enc__config.html#ab5b617fc778e192735ac2c73d4187924',1,'rkvc_svt_enc_config::rc_mode']]],
+  ['read_5fpacket_2',['read_packet',['../structrkvc__decode__pump__ops.html#aa4e0c9f870c7a470261b6e29ac2f4303',1,'rkvc_decode_pump_ops']]],
+  ['reason_3',['reason',['../structrkvc__route__plan.html#a8204423513d8223f67c626b3ecc0a44e',1,'rkvc_route_plan']]],
+  ['receive_5fframe_4',['receive_frame',['../structrkvc__decode__pump__ops.html#a5974498c76a45b7d4944e3f06f5446d1',1,'rkvc_decode_pump_ops']]],
+  ['reconfig_5fpending_5',['reconfig_pending',['../structrkvc__session.html#ae54ecc20ac9fd884a209ed53ac8c5125',1,'rkvc_session']]],
+  ['ref_5fcount_6',['ref_count',['../structrkvc__buffer.html#af83f30b811fb73fc467460b9a659bb88',1,'rkvc_buffer']]],
+  ['rga_5fscale_7',['rga_scale',['../structrkvc__session.html#a672284d7d4b1c2e987446391aba0fb2d',1,'rkvc_session']]],
+  ['rga_5fsec_8',['rga_sec',['../structrkvc__session__stats.html#a6b04eac79ca5f8f92bcb77707639b768',1,'rkvc_session_stats']]],
+  ['rknn_5fsr_9',['rknn_sr',['../structrkvc__session.html#a8beb50b873c3c981170900cafa0978d7',1,'rkvc_session']]],
+  ['rkvc_5flicense_5fpubkey_5fenc_10',['rkvc_license_pubkey_enc',['../license__pubkey_8c.html#a9f918e7752e6ef490596934ff868a18c',1,'rkvc_license_pubkey_enc:&#160;license_pubkey.c'],['../license_8c.html#a9f918e7752e6ef490596934ff868a18c',1,'rkvc_license_pubkey_enc:&#160;license_pubkey.c']]],
+  ['rkvc_5flicense_5fpubkey_5flen_11',['rkvc_license_pubkey_len',['../license__pubkey_8c.html#a6dab89c55534c91ba5d96f84b8becc97',1,'rkvc_license_pubkey_len:&#160;license_pubkey.c'],['../license_8c.html#a6dab89c55534c91ba5d96f84b8becc97',1,'rkvc_license_pubkey_len:&#160;license_pubkey.c']]],
+  ['roi_5fcount_12',['roi_count',['../structrkvc__session.html#aaf20caf03a8a76ca025ae3055469bf10',1,'rkvc_session']]],
+  ['rois_13',['rois',['../structrkvc__session.html#a386b9cea73d77ae5bbef9d280ed6443f',1,'rkvc_session']]],
+  ['route_14',['route',['../structrkvc__mpp__dec__config.html#a319f0c2455bd1583cb1b526447ac18aa',1,'rkvc_mpp_dec_config::route'],['../structrkvc__mpp__enc__config.html#a8bae785c5ec33c9a55d4aa6e2bf73d2f',1,'rkvc_mpp_enc_config::route'],['../structrkvc__session.html#a9424a751a06dc67d8abc124ca80eeb0d',1,'rkvc_session::route'],['../structrkvc__mux__config.html#a991735506ab98a9f18f5e4e4cc72733f',1,'rkvc_mux_config::route'],['../structrkvc__session__stats.html#a8c6b2defb23eca6acc7661b0c04775e9',1,'rkvc_session_stats::route']]],
+  ['rtp_5fpayload_5ftype_15',['rtp_payload_type',['../structrkvc__net__config.html#a3bb1ac3574ba07b788f7519e368de594',1,'rkvc_net_config']]],
+  ['rtp_5fssrc_16',['rtp_ssrc',['../structrkvc__net__config.html#a3cdf5278519a4ae77e1aa761eeac3d41',1,'rkvc_net_config']]],
+  ['running_17',['running',['../structrkvc__session__stats.html#ab1b9c8b4baff4600f91585c5adec24c8',1,'rkvc_session_stats::running'],['../structrkvc__session.html#a6004d002344d9a88665879a66596eb82',1,'rkvc_session::running']]],
+  ['runtime_5fflags_18',['runtime_flags',['../structrkvc__session.html#aa48749af029e06036a07366ea3730fca',1,'rkvc_session']]]
+];

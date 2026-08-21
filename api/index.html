@@ -1,0 +1,1845 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/api/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../testing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.56">
+    
+    
+      
+        <title>rkvc API 参考 - rkvc — RK3588 Video Codec</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.20815dad.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#rkvc-api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-header__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc — RK3588 Video Codec
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              rkvc API 参考
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-nav__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc — RK3588 Video Codec
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        头文件
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        全局初始化与版本
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        日志
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        能力与权限
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        输入格式探测
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        错误码
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        像素格式
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        码率控制
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policycodec-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Policy、Codec 与 Router
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        管线描述
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="管线描述">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        模板
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_pipeline_desc_defaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        默认值（<code>rkvc_pipeline_desc_defaults</code>）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Session
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Session">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#session_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Session 端口
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        文件转码示例
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        端口流式示例
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        拉取输出示例
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#port" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Port
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#buffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Buffer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rga-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上采样算法与 RGA API
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="上采样算法与 RGA API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        一次性缩放（调用方提供平面缓冲）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rga-import-bench" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        批量上下文（复用 RGA import，适合 bench / 多帧）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CLI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doxygen" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Doxygen
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  基准测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  交付文档
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        头文件
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        全局初始化与版本
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        日志
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        能力与权限
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        输入格式探测
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        错误码
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        像素格式
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        码率控制
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policycodec-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Policy、Codec 与 Router
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        管线描述
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="管线描述">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        模板
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_pipeline_desc_defaults" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        默认值（<code>rkvc_pipeline_desc_defaults</code>）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Session
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Session">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#session_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Session 端口
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        文件转码示例
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        端口流式示例
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        拉取输出示例
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#port" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Port
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#buffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Buffer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rga-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上采样算法与 RGA API
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="上采样算法与 RGA API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        一次性缩放（调用方提供平面缓冲）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rga-import-bench" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        批量上下文（复用 RGA import，适合 bench / 多帧）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CLI
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#doxygen" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Doxygen
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="rkvc-api">rkvc API 参考<a class="headerlink" href="#rkvc-api" title="Permanent link">&para;</a></h1>
+<p>以 <strong>Session + Pipeline + Codec Router</strong> 为核心 API，替代旧版 <code>encoder</code> / <code>decoder</code> / <code>stream</code> / <code>frame</code> 四套 API。</p>
+<h2 id="_1">头文件<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>头文件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>types.h</code></td>
+<td>错误码、像素格式、码率控制、上采样枚举</td>
+</tr>
+<tr>
+<td><code>rkvc.h</code></td>
+<td>主入口：版本、init、日志、caps、探测、RGA 上采样</td>
+</tr>
+<tr>
+<td><code>buffer.h</code></td>
+<td><code>rkvc_buffer</code> 视频/码流统一缓冲</td>
+</tr>
+<tr>
+<td><code>policy.h</code></td>
+<td><code>rkvc_policy</code>、<code>rkvc_codec</code>、Codec Router</td>
+</tr>
+<tr>
+<td><code>pipeline.h</code></td>
+<td><code>rkvc_pipeline_desc</code>、管线模板</td>
+</tr>
+<tr>
+<td><code>session.h</code></td>
+<td><code>rkvc_session</code> 生命周期与统计</td>
+</tr>
+<tr>
+<td><code>port.h</code></td>
+<td><code>rkvc_port_push</code> / <code>rkvc_port_pull</code></td>
+</tr>
+</tbody>
+</table>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"rkvc/rkvc.h"</span><span class="w">   </span><span class="c1">// 包含以上全部头文件</span>
+</span></code></pre></div>
+<p>也可按需单独包含子头文件。</p>
+<hr />
+<h2 id="_2">全局初始化与版本<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_init</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span><span class="w">              </span><span class="c1">// 线程安全，可多次调用（pthread_once）</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kt">void</span><span class="w">     </span><span class="nf">rkvc_deinit</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span><span class="w">            </span><span class="c1">// 不反初始化 FFmpeg 全局状态</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">  </span><span class="o">*</span><span class="nf">rkvc_version</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span><span class="w">       </span><span class="c1">// 与 CMake project(VERSION) 一致</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kt">uint32_t</span><span class="w">     </span><span class="nf">rkvc_version_number</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span><span class="w"> </span><span class="c1">// major&lt;&lt;16 | minor&lt;&lt;8 | patch</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">  </span><span class="o">*</span><span class="nf">rkvc_err_str</span><span class="p">(</span><span class="n">rkvc_err</span><span class="w"> </span><span class="n">err</span><span class="p">);</span>
+</span></code></pre></div>
+<ul>
+<li><code>rkvc_init()</code>：注册 FFmpeg 日志回调、探测硬件；<code>rkvc_session_create</code> 也会隐式调用。</li>
+<li><code>rkvc_deinit()</code>：仅标记未初始化，避免多实例共享 FFmpeg 时崩溃。</li>
+</ul>
+<hr />
+<h2 id="_3">日志<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kt">void</span><span class="w"> </span><span class="nf">rkvc_set_log_level</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">level</span><span class="p">);</span><span class="w">  </span><span class="c1">// FFmpeg AV_LOG_*，如 AV_LOG_INFO、AV_LOG_DEBUG</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kt">int</span><span class="w">  </span><span class="nf">rkvc_get_log_level</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span>
+</span></code></pre></div>
+<p>同时作用于 <code>[rkvc]</code> 前缀日志与 FFmpeg <code>av_log</code>。</p>
+<hr />
+<h2 id="_4">能力与权限<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">soc</span><span class="p">[</span><span class="mi">32</span><span class="p">];</span><span class="w">       </span><span class="c1">// 探测到的 SoC 名（如 "rk3588"），未知为空串</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">has_h264_enc</span><span class="p">,</span><span class="w"> </span><span class="n">has_hevc_enc</span><span class="p">,</span><span class="w"> </span><span class="n">has_av1_enc</span><span class="p">;</span><span class="w">   </span><span class="c1">// has_av1_enc = SVT-AV1</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">has_h264_dec</span><span class="p">,</span><span class="w"> </span><span class="n">has_hevc_dec</span><span class="p">,</span><span class="w"> </span><span class="n">has_av1_dec</span><span class="p">;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">has_dma_heap</span><span class="p">,</span><span class="w"> </span><span class="n">has_rga</span><span class="p">,</span><span class="w"> </span><span class="n">has_rknn</span><span class="p">;</span><span class="w">  </span><span class="c1">// has_rknn：RKNN 已编译且 NPU 可访问</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_caps</span><span class="p">;</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_query_caps</span><span class="p">(</span><span class="n">rkvc_caps</span><span class="w"> </span><span class="o">*</span><span class="n">caps</span><span class="p">);</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_check_hw_permissions</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span><span class="w">  </span><span class="c1">// → RKVC_ERR_PERMISSION</span>
+</span></code></pre></div>
+<p>所有能力均为运行时探测：硬件编解码 = FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 内核能力位上报的 VPU 支持，平台无预设表。<code>rkvc_query_caps</code> 在设备权限不足时将对应 <code>has_*_enc/dec</code> 置 0。<code>has_rknn</code> 需 <code>RKVC_ENABLE_RKNN</code> 构建且 NPU 可访问（<code>/sys/kernel/debug/rknpu/version</code> 或 <code>/dev/dri/by-path/*npu-render*</code>）。<code>rkvc_info --json</code> 字段与此结构对应（含 <code>soc</code>、<code>rknn</code>）。</p>
+<p><code>rkvc_check_hw_permissions</code> 检查 <code>/dev/mpp_service</code>、DMA heap（<code>/dev/dma_heap/system-uncached</code>）或 DRM/Ion 分配器。</p>
+<hr />
+<h2 id="_5">输入格式探测<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>编码 CLI 在打开原始 NV12 前探测文件头；压缩视频误作 raw 输入时返回 <code>RKVC_ERR_FORMAT</code>。</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="n">RKVC_INPUT_UNKNOWN</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">          </span><span class="c1">// 无法判定（原始 YUV 无魔数）</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="n">RKVC_INPUT_RAW_VIDEO</span><span class="p">,</span><span class="w">            </span><span class="c1">// 保留；当前实现不返回此值</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="n">RKVC_INPUT_COMPRESSED_VIDEO</span><span class="p">,</span><span class="w">     </span><span class="c1">// 检测到 MP4/MKV/Annex-B 等</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_input_format_probe</span><span class="p">;</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">rkvc_input_format_probe</span><span class="w"> </span><span class="nf">rkvc_probe_input_format</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">);</span>
+</span></code></pre></div>
+<p>建议传入 ≥ 12 字节文件头。原始 NV12 文件通常返回 <code>UNKNOWN</code>，需由路径/参数约定格式。</p>
+<hr />
+<h2 id="_6">错误码<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>错误码</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKVC_OK</code></td>
+<td>0</td>
+<td>成功</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_NOMEM</code></td>
+<td>-1</td>
+<td>内存分配失败</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_INVALID</code></td>
+<td>-2</td>
+<td>参数无效</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_NOT_FOUND</code></td>
+<td>-3</td>
+<td>编解码器或设备未找到</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_IO</code></td>
+<td>-4</td>
+<td>I/O 错误</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_HW</code></td>
+<td>-5</td>
+<td>硬件加速初始化失败</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_EOF</code></td>
+<td>-6</td>
+<td>流结束</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_AGAIN</code></td>
+<td>-7</td>
+<td>队列满/空、需重试（非致命）</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_MUX</code></td>
+<td>-8</td>
+<td>封装器错误</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_INTERNAL</code></td>
+<td>-9</td>
+<td>内部 FFmpeg 错误</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_PERMISSION</code></td>
+<td>-10</td>
+<td>设备节点权限不足</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_FORMAT</code></td>
+<td>-11</td>
+<td>输入数据格式不匹配</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_LICENSE</code></td>
+<td>-12</td>
+<td>授权校验失败（1机1码）</td>
+</tr>
+<tr>
+<td><code>RKVC_ERR_UNLICENSED</code></td>
+<td>-13</td>
+<td>未找到授权</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_7">像素格式<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>格式</th>
+<th>枚举</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NV12</td>
+<td><code>RKVC_PIX_FMT_NV12</code></td>
+<td>默认，VPU 原生</td>
+</tr>
+<tr>
+<td>YUV420P</td>
+<td><code>RKVC_PIX_FMT_YUV420P</code></td>
+<td>Planar 4:2:0</td>
+</tr>
+<tr>
+<td>NV16</td>
+<td><code>RKVC_PIX_FMT_NV16</code></td>
+<td>4:2:2 semi-planar</td>
+</tr>
+<tr>
+<td>P010</td>
+<td><code>RKVC_PIX_FMT_P010</code></td>
+<td>10-bit 4:2:0</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_8">码率控制<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="n">RKVC_RC_VBR</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">   </span><span class="c1">// 可变码率</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="n">RKVC_RC_CBR</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">   </span><span class="c1">// 恒定码率（pipeline 默认）</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">RKVC_RC_CQP</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w">   </span><span class="c1">// 固定 QP</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_rc_mode</span><span class="p">;</span>
+</span></code></pre></div>
+<p>数值与 MPP / FFmpeg <code>rkmppenc</code> 的 <code>rc_mode</code> 一致。</p>
+<hr />
+<h2 id="policycodec-router">Policy、Codec 与 Router<a class="headerlink" href="#policycodec-router" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">    </span><span class="n">RKVC_POLICY_REALTIME</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">  </span><span class="c1">// H.264 RKMPP，≥30fps@1080p</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="n">RKVC_POLICY_BALANCED</span><span class="p">,</span><span class="w">      </span><span class="c1">// HEVC RKMPP（高帧率 1080p+ 回退 H.264）</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="n">RKVC_POLICY_QUALITY</span><span class="p">,</span><span class="w">       </span><span class="c1">// SVT-AV1 preset 11 + av1_rkmpp（近实时）</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="n">RKVC_POLICY_OFFLINE</span><span class="p">,</span><span class="w">       </span><span class="c1">// SVT-AV1 preset 4 + av1_rkmpp（非实时，≥1fps@1080p）</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="n">RKVC_POLICY_NEURAL</span><span class="p">,</span><span class="w">        </span><span class="c1">// MLVC 神经视频编解码（RKNN NPU + rANS 熵编码）</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_policy</span><span class="p">;</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="n">RKVC_CODEC_H264</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_CODEC_HEVC</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_CODEC_AV1</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_CODEC_MLVC</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_CODEC_AUTO</span><span class="p">,</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_codec</span><span class="p">;</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">    </span><span class="n">RKVC_ENC_BACKEND_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_ENC_BACKEND_MPP</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_ENC_BACKEND_SVT</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_ENC_BACKEND_MLVC</span><span class="p">,</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_enc_backend</span><span class="p">;</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a><span class="w">    </span><span class="n">RKVC_DEC_BACKEND_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_DEC_BACKEND_MPP</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_DEC_BACKEND_MLVC</span><span class="p">,</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_dec_backend</span><span class="p">;</span>
+</span></code></pre></div>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">    </span><span class="n">rkvc_codec</span><span class="w">       </span><span class="n">codec</span><span class="p">;</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="n">rkvc_enc_backend</span><span class="w"> </span><span class="n">enc_backend</span><span class="p">;</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="n">rkvc_dec_backend</span><span class="w"> </span><span class="n">dec_backend</span><span class="p">;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">      </span><span class="o">*</span><span class="n">enc_name</span><span class="p">;</span><span class="w">     </span><span class="c1">// "h264_rkmpp" / "svt-av1" 等</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">      </span><span class="o">*</span><span class="n">dec_name</span><span class="p">;</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">    </span><span class="kt">int</span><span class="w">              </span><span class="n">svt_preset</span><span class="p">;</span><span class="w">   </span><span class="c1">// SVT enc_mode（如 4–11）</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">      </span><span class="o">*</span><span class="n">reason</span><span class="p">;</span><span class="w">       </span><span class="c1">// 选型原因（静态字符串）</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_route_plan</span><span class="p">;</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_route_resolve</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_pipeline_desc</span><span class="w"> </span><span class="o">*</span><span class="n">desc</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_route_plan</span><span class="w"> </span><span class="o">*</span><span class="n">plan</span><span class="p">);</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_codec_name</span><span class="p">(</span><span class="n">rkvc_codec</span><span class="w"> </span><span class="n">codec</span><span class="p">);</span><span class="w">    </span><span class="c1">// "h264" / "hevc" / "av1" / "mlvc" / "auto"</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_policy_name</span><span class="p">(</span><span class="n">rkvc_policy</span><span class="w"> </span><span class="n">policy</span><span class="p">);</span><span class="w"> </span><span class="c1">// "realtime" / "balanced" / "quality" / "offline" / "neural"</span>
+</span></code></pre></div>
+<p><code>desc-&gt;codec != RKVC_CODEC_AUTO</code> 时强制对应路线，忽略 policy 自动规则。</p>
+<hr />
+<h2 id="_9">管线描述<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">    </span><span class="n">RKVC_TEMPLATE_FILE_ENCODE</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="n">RKVC_TEMPLATE_FILE_DECODE</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="n">RKVC_TEMPLATE_FILE_TRANSCODE</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="n">RKVC_TEMPLATE_LIVE_CAPTURE</span><span class="p">,</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">    </span><span class="n">RKVC_TEMPLATE_AV1_STORAGE</span><span class="p">,</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="n">RKVC_TEMPLATE_MLVC_STORAGE</span><span class="p">,</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_pipeline_template</span><span class="p">;</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">rkvc_pipeline_desc</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">    </span><span class="n">rkvc_pipeline_template</span><span class="w"> </span><span class="n">template_id</span><span class="p">;</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">    </span><span class="n">rkvc_policy</span><span class="w">            </span><span class="n">policy</span><span class="p">;</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">    </span><span class="n">rkvc_codec</span><span class="w">             </span><span class="n">codec</span><span class="p">;</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">width</span><span class="p">,</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">fps_num</span><span class="p">,</span><span class="w"> </span><span class="n">fps_den</span><span class="p">;</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">    </span><span class="kt">int64_t</span><span class="w">        </span><span class="n">bitrate</span><span class="p">;</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">    </span><span class="n">rkvc_pix_fmt</span><span class="w">   </span><span class="n">pixel_format</span><span class="p">;</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">gop_size</span><span class="p">;</span>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">low_latency</span><span class="p">;</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">queue_depth</span><span class="p">;</span><span class="w">       </span><span class="c1">// 端口队列深度，默认 3</span>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="w">    </span><span class="n">rkvc_rc_mode</span><span class="w">   </span><span class="n">rc_mode</span><span class="p">;</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">qp_init</span><span class="p">;</span><span class="w">           </span><span class="c1">// -1 表示编码器默认</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">input_path</span><span class="p">;</span>
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">output_path</span><span class="p">;</span>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">capture_device</span><span class="p">;</span><span class="w">            </span><span class="c1">// LIVE_CAPTURE 必填，"mock" 合成输入</span>
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">capture_max_frames</span><span class="p">;</span><span class="w">        </span><span class="c1">// 0=直到 stop/错误</span>
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">capture_timeout_ms</span><span class="p">;</span><span class="w">        </span><span class="c1">// 单帧等待超时，默认 1000</span>
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a>
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">enc_scale_denom</span><span class="p">;</span><span class="w">           </span><span class="c1">// 1=全分辨率编码</span>
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a><span class="w">    </span><span class="n">rkvc_upscale_algo</span><span class="w"> </span><span class="n">post_upscale_algo</span><span class="p">;</span>
+</span><span id="__span-8-34"><a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">post_upscale_rkvc_model_path</span><span class="p">;</span><span class="w">  </span><span class="c1">// AI_SR 必填</span>
+</span><span id="__span-8-35"><a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a>
+</span><span id="__span-8-36"><a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">svt_lp</span><span class="p">;</span><span class="w">                    </span><span class="c1">// 0=自动，1–6 手动</span>
+</span><span id="__span-8-37"><a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">svt_rtc</span><span class="p">;</span><span class="w">                   </span><span class="c1">// 0/1</span>
+</span><span id="__span-8-38"><a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a>
+</span><span id="__span-8-39"><a id="__codelineno-8-39" name="__codelineno-8-39" href="#__codelineno-8-39"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">mlvc_enc_model_path</span><span class="p">;</span><span class="w">       </span><span class="c1">// MLVC 编码器 .rknn（基座）</span>
+</span><span id="__span-8-40"><a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">mlvc_dec_model_path</span><span class="p">;</span><span class="w">       </span><span class="c1">// MLVC 解码器 .rknn（基座）</span>
+</span><span id="__span-8-41"><a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">mlvc_gaussian_pmf_path</span><span class="p">;</span><span class="w">    </span><span class="c1">// gaussian.bin</span>
+</span><span id="__span-8-42"><a id="__codelineno-8-42" name="__codelineno-8-42" href="#__codelineno-8-42"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">mlvc_bitest_pmf_path</span><span class="p">;</span><span class="w">      </span><span class="c1">// bitest.bin</span>
+</span><span id="__span-8-43"><a id="__codelineno-8-43" name="__codelineno-8-43" href="#__codelineno-8-43"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">mlvc_qp</span><span class="p">;</span><span class="w">                   </span><span class="c1">// 默认 21；有补丁目录时也选补丁</span>
+</span><span id="__span-8-44"><a id="__codelineno-8-44" name="__codelineno-8-44" href="#__codelineno-8-44"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">mlvc_qp_patch_dir</span><span class="p">;</span><span class="w">         </span><span class="c1">// 可选：QPP1 目录 enc_qpN.qppatch</span>
+</span><span id="__span-8-45"><a id="__codelineno-8-45" name="__codelineno-8-45" href="#__codelineno-8-45"></a>
+</span><span id="__span-8-46"><a id="__codelineno-8-46" name="__codelineno-8-46" href="#__codelineno-8-46"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w">    </span><span class="o">*</span><span class="n">codec_opts</span><span class="p">;</span><span class="w">                </span><span class="c1">// FFmpeg key=val:key2=val2</span>
+</span><span id="__span-8-47"><a id="__codelineno-8-47" name="__codelineno-8-47" href="#__codelineno-8-47"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_pipeline_desc</span><span class="p">;</span>
+</span></code></pre></div>
+<h3 id="_10">模板<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>模板</th>
+<th>默认 policy</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKVC_TEMPLATE_FILE_ENCODE</code></td>
+<td><code>REALTIME</code></td>
+<td>原始 NV12 → 编码文件</td>
+</tr>
+<tr>
+<td><code>RKVC_TEMPLATE_FILE_DECODE</code></td>
+<td><code>BALANCED</code></td>
+<td>容器 → 原始 NV12</td>
+</tr>
+<tr>
+<td><code>RKVC_TEMPLATE_FILE_TRANSCODE</code></td>
+<td><code>BALANCED</code></td>
+<td>转码（Router 选 codec）</td>
+</tr>
+<tr>
+<td><code>RKVC_TEMPLATE_AV1_STORAGE</code></td>
+<td><code>QUALITY</code></td>
+<td>强制 AV1 SVT 存储档</td>
+</tr>
+<tr>
+<td><code>RKVC_TEMPLATE_MLVC_STORAGE</code></td>
+<td><code>QUALITY</code></td>
+<td><code>.mlvc</code> 神经编码（<code>codec=MLVC</code>）</td>
+</tr>
+<tr>
+<td><code>RKVC_TEMPLATE_LIVE_CAPTURE</code></td>
+<td><code>REALTIME</code></td>
+<td>低延迟 H.264 + V4L2，<code>low_latency=1</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="rkvc_pipeline_desc_defaults">默认值（<code>rkvc_pipeline_desc_defaults</code>）<a class="headerlink" href="#rkvc_pipeline_desc_defaults" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>默认</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>template</td>
+<td><code>FILE_TRANSCODE</code></td>
+</tr>
+<tr>
+<td>policy</td>
+<td><code>BALANCED</code></td>
+</tr>
+<tr>
+<td>codec</td>
+<td><code>AUTO</code></td>
+</tr>
+<tr>
+<td>分辨率</td>
+<td>1920×1080@30</td>
+</tr>
+<tr>
+<td>bitrate</td>
+<td>4_000_000</td>
+</tr>
+<tr>
+<td>pixel_format</td>
+<td>NV12</td>
+</tr>
+<tr>
+<td>gop_size</td>
+<td>60</td>
+</tr>
+<tr>
+<td>queue_depth</td>
+<td>3</td>
+</tr>
+<tr>
+<td>rc_mode</td>
+<td>CBR</td>
+</tr>
+<tr>
+<td>qp_init</td>
+<td>-1</td>
+</tr>
+<tr>
+<td>enc_scale_denom</td>
+<td>1</td>
+</tr>
+<tr>
+<td>post_upscale_algo</td>
+<td>NONE</td>
+</tr>
+<tr>
+<td>mlvc_qp</td>
+<td>21</td>
+</tr>
+<tr>
+<td>mlvc_qp_patch_dir</td>
+<td><code>NULL</code>（不打补丁）</td>
+</tr>
+</tbody>
+</table>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="n">rkvc_pipeline_desc</span><span class="w"> </span><span class="nf">rkvc_pipeline_desc_defaults</span><span class="p">(</span><span class="kt">void</span><span class="p">);</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_pipeline_from_template</span><span class="p">(</span><span class="n">rkvc_pipeline_template</span><span class="w"> </span><span class="n">tmpl</span><span class="p">,</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">                                     </span><span class="n">rkvc_pipeline_desc</span><span class="w"> </span><span class="o">*</span><span class="n">desc</span><span class="p">);</span>
+</span></code></pre></div>
+<hr />
+<h2 id="session">Session<a class="headerlink" href="#session" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">    </span><span class="n">rkvc_route_plan</span><span class="w"> </span><span class="n">route</span><span class="p">;</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="kt">int</span><span class="w">             </span><span class="n">running</span><span class="p">;</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="kt">uint64_t</span><span class="w">        </span><span class="n">frames_in</span><span class="p">,</span><span class="w"> </span><span class="n">frames_out</span><span class="p">,</span><span class="w"> </span><span class="n">frames_dropped</span><span class="p">;</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="kt">uint64_t</span><span class="w">        </span><span class="n">bytes_out</span><span class="p">;</span><span class="w">       </span><span class="c1">// 输出累计字节数（码流/视频帧）</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="kt">double</span><span class="w">          </span><span class="n">avg_fps</span><span class="p">;</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="kt">double</span><span class="w">          </span><span class="n">decode_sec</span><span class="p">;</span><span class="w">    </span><span class="c1">// 解码累计耗时（bench）</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="kt">double</span><span class="w">          </span><span class="n">rga_sec</span><span class="p">;</span><span class="w">         </span><span class="c1">// RGA 上采样累计耗时</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="kt">double</span><span class="w">          </span><span class="n">write_sec</span><span class="p">;</span><span class="w">       </span><span class="c1">// NV12 写盘累计耗时</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">    </span><span class="kt">double</span><span class="w">          </span><span class="n">postproc_sec</span><span class="p">;</span><span class="w">    </span><span class="c1">// rga_sec + write_sec</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_session_stats</span><span class="p">;</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_session_create</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_pipeline_desc</span><span class="w"> </span><span class="o">*</span><span class="n">desc</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">**</span><span class="n">out</span><span class="p">);</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_session_start</span><span class="p">(</span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">);</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_session_stop</span><span class="p">(</span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">);</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_session_get_route</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_route_plan</span><span class="w"> </span><span class="o">*</span><span class="n">plan</span><span class="p">);</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="n">rkvc_port</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_session_port</span><span class="p">(</span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">name</span><span class="p">);</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_session_get_stats</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_session_stats</span><span class="w"> </span><span class="o">*</span><span class="n">stats</span><span class="p">);</span>
+</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="kt">void</span><span class="w">     </span><span class="nf">rkvc_session_destroy</span><span class="p">(</span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">);</span>
+</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a>
+</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_session_run_file</span><span class="p">(</span><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">session</span><span class="p">);</span><span class="w">  </span><span class="c1">// 文件模板阻塞跑完</span>
+</span></code></pre></div>
+<ul>
+<li><code>create</code>：<code>post_upscale_algo == RKVC_UPSCALE_AI_SR</code> 时须提供 <code>post_upscale_rkvc_model_path</code>。</li>
+<li><code>run_file</code>：内部 start → 处理路径 → stop；流式模板勿用。</li>
+</ul>
+<h3 id="session_1">Session 端口<a class="headerlink" href="#session_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>端口</th>
+<th>方向</th>
+<th>数据类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capture</code></td>
+<td>输入</td>
+<td><code>RKVC_BUF_VIDEO</code></td>
+<td>采集/原始帧入口</td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td>输出</td>
+<td><code>RKVC_BUF_VIDEO</code> 或 <code>RKVC_BUF_BITSTREAM</code></td>
+<td>解码帧或编码码流</td>
+</tr>
+<tr>
+<td><code>preview</code></td>
+<td>输出</td>
+<td><code>RKVC_BUF_VIDEO</code></td>
+<td><code>LIVE_CAPTURE</code>：与 <code>capture</code> 同帧侧抽；满则丢最旧</td>
+</tr>
+</tbody>
+</table>
+<p>文件模式用 <code>rkvc_session_run_file()</code>，无需手动操作端口。详见 <a href="../architecture/">architecture.md</a>。</p>
+<h3 id="_11">文件转码示例<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="n">rkvc_init</span><span class="p">();</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="n">rkvc_pipeline_desc</span><span class="w"> </span><span class="n">d</span><span class="p">;</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="n">rkvc_pipeline_from_template</span><span class="p">(</span><span class="n">RKVC_TEMPLATE_FILE_TRANSCODE</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">d</span><span class="p">);</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">d</span><span class="p">.</span><span class="n">input_path</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="s">"in.mp4"</span><span class="p">;</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">d</span><span class="p">.</span><span class="n">output_path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"out.mp4"</span><span class="p">;</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="n">d</span><span class="p">.</span><span class="n">policy</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="n">RKVC_POLICY_BALANCED</span><span class="p">;</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="n">d</span><span class="p">.</span><span class="n">bitrate</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="mi">4000000</span><span class="p">;</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="n">rkvc_session_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">d</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">s</span><span class="p">);</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="n">rkvc_session_run_file</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">rkvc_session_destroy</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="n">rkvc_deinit</span><span class="p">();</span>
+</span></code></pre></div>
+<h3 id="_12">端口流式示例<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="n">rkvc_pipeline_desc</span><span class="w"> </span><span class="n">d</span><span class="p">;</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">rkvc_pipeline_from_template</span><span class="p">(</span><span class="n">RKVC_TEMPLATE_FILE_ENCODE</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">d</span><span class="p">);</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="n">d</span><span class="p">.</span><span class="n">output_path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"out.mp4"</span><span class="p">;</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="n">d</span><span class="p">.</span><span class="n">width</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1920</span><span class="p">;</span><span class="w"> </span><span class="n">d</span><span class="p">.</span><span class="n">height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1080</span><span class="p">;</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="n">rkvc_session</span><span class="w"> </span><span class="o">*</span><span class="n">s</span><span class="p">;</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="n">rkvc_session_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">d</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">s</span><span class="p">);</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="n">rkvc_session_start</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="n">rkvc_port</span><span class="w"> </span><span class="o">*</span><span class="n">capture</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rkvc_session_port</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="s">"capture"</span><span class="p">);</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">300</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">    </span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">    </span><span class="n">rkvc_buffer_alloc_video_host</span><span class="p">(</span><span class="o">&amp;</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="mi">1920</span><span class="p">,</span><span class="w"> </span><span class="mi">1080</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_PIX_FMT_NV12</span><span class="p">);</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">    </span><span class="n">rkvc_buffer_set_pts</span><span class="p">(</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">    </span><span class="c1">// 填充像素 ...</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="w">    </span><span class="n">rkvc_port_push</span><span class="p">(</span><span class="n">capture</span><span class="p">,</span><span class="w"> </span><span class="n">buf</span><span class="p">);</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="w">    </span><span class="n">rkvc_buffer_unref</span><span class="p">(</span><span class="n">buf</span><span class="p">);</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="p">}</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="n">rkvc_session_stop</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="n">rkvc_session_destroy</span><span class="p">(</span><span class="n">s</span><span class="p">);</span>
+</span></code></pre></div>
+<h3 id="_13">拉取输出示例<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="n">rkvc_port</span><span class="w"> </span><span class="o">*</span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rkvc_session_port</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="s">"output"</span><span class="p">);</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">pkt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">rkvc_port_pull</span><span class="p">(</span><span class="n">out</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">pkt</span><span class="p">,</span><span class="w"> </span><span class="mi">100</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">RKVC_OK</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="n">rkvc_buffer_bitstream_view</span><span class="w"> </span><span class="n">view</span><span class="p">;</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="n">rkvc_buffer_get_bitstream</span><span class="p">(</span><span class="n">pkt</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">view</span><span class="p">);</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="c1">// 处理 view.data / view.size ...</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">    </span><span class="n">rkvc_buffer_unref</span><span class="p">(</span><span class="n">pkt</span><span class="p">);</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">    </span><span class="n">pkt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<hr />
+<h2 id="port">Port<a class="headerlink" href="#port" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_port_push</span><span class="p">(</span><span class="n">rkvc_port</span><span class="w"> </span><span class="o">*</span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">);</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_port_pull</span><span class="p">(</span><span class="n">rkvc_port</span><span class="w"> </span><span class="o">*</span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">**</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">timeout_ms</span><span class="p">);</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th><code>timeout_ms</code></th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>非阻塞；队列空 → <code>RKVC_ERR_AGAIN</code></td>
+</tr>
+<tr>
+<td><code>&gt; 0</code></td>
+<td>等待至多 N 毫秒；超时 → <code>RKVC_ERR_AGAIN</code></td>
+</tr>
+<tr>
+<td><code>&lt; 0</code></td>
+<td>无限阻塞直至有数据</td>
+</tr>
+</tbody>
+</table>
+<p><code>push</code> 队列满时返回 <code>RKVC_ERR_AGAIN</code>（深度由 <code>queue_depth</code> 控制）。内部对 <code>buf</code> 引用计数 +1。</p>
+<hr />
+<h2 id="buffer">Buffer<a class="headerlink" href="#buffer" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">RKVC_BUF_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_BUF_VIDEO</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_BUF_BITSTREAM</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">rkvc_buffer_kind</span><span class="p">;</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">RKVC_MEM_HOST</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_MEM_DMABUF</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="n">rkvc_mem_type</span><span class="p">;</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="n">rkvc_mem_type</span><span class="w">  </span><span class="n">mem_type</span><span class="p">;</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">fd</span><span class="p">;</span><span class="w">           </span><span class="c1">// DMA-BUF fd，主机内存为 -1</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">    </span><span class="kt">uint32_t</span><span class="w">       </span><span class="n">width</span><span class="p">,</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">    </span><span class="n">rkvc_pix_fmt</span><span class="w">   </span><span class="n">format</span><span class="p">;</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">    </span><span class="kt">uint32_t</span><span class="w">       </span><span class="n">strides</span><span class="p">[</span><span class="mi">4</span><span class="p">];</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">    </span><span class="kt">int64_t</span><span class="w">        </span><span class="n">pts</span><span class="p">;</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">    </span><span class="kt">uint64_t</span><span class="w">       </span><span class="n">modifier</span><span class="p">;</span><span class="w">     </span><span class="c1">// DRM modifier</span>
+</span><span id="__span-15-12"><a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_buffer_video_info</span><span class="p">;</span>
+</span><span id="__span-15-13"><a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a>
+</span><span id="__span-15-14"><a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-15-15"><a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="p">;</span>
+</span><span id="__span-15-16"><a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="w">    </span><span class="kt">size_t</span><span class="w">         </span><span class="n">size</span><span class="p">;</span>
+</span><span id="__span-15-17"><a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="w">    </span><span class="kt">int64_t</span><span class="w">        </span><span class="n">pts</span><span class="p">,</span><span class="w"> </span><span class="n">dts</span><span class="p">;</span>
+</span><span id="__span-15-18"><a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a><span class="w">    </span><span class="kt">int</span><span class="w">            </span><span class="n">key_frame</span><span class="p">;</span>
+</span><span id="__span-15-19"><a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_buffer_bitstream_view</span><span class="p">;</span>
+</span></code></pre></div>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_buffer_ref</span><span class="p">(</span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">);</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="kt">void</span><span class="w">         </span><span class="nf">rkvc_buffer_unref</span><span class="p">(</span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">);</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">rkvc_buffer_kind</span><span class="w"> </span><span class="nf">rkvc_buffer_kind_of</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">);</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_buffer_alloc_video_host</span><span class="p">(</span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">**</span><span class="n">out</span><span class="p">,</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">                                      </span><span class="kt">int</span><span class="w"> </span><span class="n">w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">h</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_pix_fmt</span><span class="w"> </span><span class="n">fmt</span><span class="p">);</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_buffer_alloc_bitstream</span><span class="p">(</span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">**</span><span class="n">out</span><span class="p">,</span>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">                                     </span><span class="k">const</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="kt">size_t</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">copy</span><span class="p">);</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_buffer_get_video_info</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">,</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="w">                                    </span><span class="n">rkvc_buffer_video_info</span><span class="w"> </span><span class="o">*</span><span class="n">info</span><span class="p">);</span>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_buffer_get_video_planes</span><span class="p">(</span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">,</span>
+</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a><span class="w">                                      </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">planes</span><span class="p">[</span><span class="mi">4</span><span class="p">],</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">strides</span><span class="p">[</span><span class="mi">4</span><span class="p">]);</span>
+</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_buffer_get_bitstream</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">,</span>
+</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a><span class="w">                                   </span><span class="n">rkvc_buffer_bitstream_view</span><span class="w"> </span><span class="o">*</span><span class="n">view</span><span class="p">);</span>
+</span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_buffer_set_pts</span><span class="p">(</span><span class="n">rkvc_buffer</span><span class="w"> </span><span class="o">*</span><span class="n">buf</span><span class="p">,</span><span class="w"> </span><span class="kt">int64_t</span><span class="w"> </span><span class="n">pts</span><span class="p">);</span>
+</span></code></pre></div>
+<ul>
+<li><code>alloc_bitstream(..., copy=1)</code>：深拷贝；<code>copy=0</code>：零拷贝引用 <code>data</code>，调用方须保持有效直至 <code>unref</code>。</li>
+<li><code>get_video_planes</code>：仅主机帧 / 已映射 AVFrame；DMA-BUF 硬解帧请用 <code>get_video_info</code> + 节点下载。</li>
+</ul>
+<p>缓冲区生命周期详见 <a href="../architecture/#缓冲区生命周期">architecture.md</a>。</p>
+<hr />
+<h2 id="rga-api">上采样算法与 RGA API<a class="headerlink" href="#rga-api" title="Permanent link">&para;</a></h2>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">enum</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">    </span><span class="n">RKVC_UPSCALE_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_UPSCALE_NEAREST</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_UPSCALE_BILINEAR</span><span class="p">,</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="n">RKVC_UPSCALE_BICUBIC</span><span class="p">,</span><span class="w"> </span><span class="n">RKVC_UPSCALE_AI_SR</span><span class="p">,</span><span class="w">  </span><span class="c1">// rkvc_sr（需 RKNN 模型路径）</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="p">}</span><span class="w"> </span><span class="n">rkvc_upscale_algo</span><span class="p">;</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="kt">int</span><span class="w"> </span><span class="nf">rkvc_upscale_algo_from_name</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">rkvc_upscale_algo</span><span class="w"> </span><span class="o">*</span><span class="n">out</span><span class="p">);</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_upscale_algo_name</span><span class="p">(</span><span class="n">rkvc_upscale_algo</span><span class="w"> </span><span class="n">algo</span><span class="p">);</span>
+</span></code></pre></div>
+<p>名称映射：<code>none</code> / <code>nearest</code> / <code>bilinear</code> / <code>bicubic</code> / <code>rkvc_sr</code>。</p>
+<h3 id="_14">一次性缩放（调用方提供平面缓冲）<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_upscale_yuv420p</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">src</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">dst</span><span class="p">,</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">                              </span><span class="kt">int</span><span class="w"> </span><span class="n">src_w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">src_h</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">dst_w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">dst_h</span><span class="p">,</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">                              </span><span class="n">rkvc_upscale_algo</span><span class="w"> </span><span class="n">algo</span><span class="p">);</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_upscale_nv12</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">src</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">dst</span><span class="p">,</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">                           </span><span class="kt">int</span><span class="w"> </span><span class="n">src_w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">src_h</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">dst_w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">dst_h</span><span class="p">,</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">                           </span><span class="n">rkvc_upscale_algo</span><span class="w"> </span><span class="n">algo</span><span class="p">);</span>
+</span></code></pre></div>
+<p>NV12 布局：<code>width*height</code> 字节 Y + <code>width*height/2</code> 字节 UV。不支持 <code>NONE</code> / <code>AI_SR</code>。</p>
+<h3 id="rga-import-bench">批量上下文（复用 RGA import，适合 bench / 多帧）<a class="headerlink" href="#rga-import-bench" title="Permanent link">&para;</a></h3>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">rkvc_upscale_ctx</span><span class="w"> </span><span class="n">rkvc_upscale_ctx</span><span class="p">;</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_upscale_ctx_create</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">src_w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">src_h</span><span class="p">,</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">                                          </span><span class="kt">int</span><span class="w"> </span><span class="n">dst_w</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">dst_h</span><span class="p">,</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">                                          </span><span class="n">rkvc_upscale_algo</span><span class="w"> </span><span class="n">algo</span><span class="p">);</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="kt">void</span><span class="w"> </span><span class="nf">rkvc_upscale_ctx_destroy</span><span class="p">(</span><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="p">);</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_upscale_ctx_src_buf</span><span class="p">(</span><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="p">);</span>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="nf">rkvc_upscale_ctx_dst_buf</span><span class="p">(</span><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="p">);</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="kt">size_t</span><span class="w"> </span><span class="nf">rkvc_upscale_ctx_src_bytes</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="p">);</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="kt">size_t</span><span class="w"> </span><span class="nf">rkvc_upscale_ctx_dst_bytes</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="p">);</span>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="n">rkvc_err</span><span class="w"> </span><span class="nf">rkvc_upscale_ctx_process</span><span class="p">(</span><span class="n">rkvc_upscale_ctx</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="p">);</span>
+</span></code></pre></div>
+<p>内部缓冲为 NV12 紧凑布局，可直接 <code>pread</code>/<code>pwrite</code> 或 <code>memcpy</code>。对应 CLI：<code>rkvc_yuv_upscale</code>。</p>
+<p><strong>路径分工</strong>：<code>FILE_ENCODE</code> / <code>rkvc_encode</code> 仅应用 <code>enc_scale_denom</code>（编码前下采样）；<code>post_upscale_algo</code> 只在 <strong>解码路径</strong>（<code>FILE_DECODE</code> / <code>rkvc_session_upscale</code>）生效。AI 超分：<code>post_upscale_algo=RKVC_UPSCALE_AI_SR</code> + 模型路径，或 CLI <code>rkvc_session_upscale --post-upscale rkvc_sr</code>。</p>
+<hr />
+<h2 id="cli">CLI<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<p>源码在 <code>cli/</code>（构建选项 <code>RKVC_BUILD_CLI</code>；安装到 <code>bin/</code>）。</p>
+<table>
+<thead>
+<tr>
+<th>程序</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rkvc_encode</code></td>
+<td>原始 NV12 → MP4（<code>-p</code>；<code>--enc-scale-denom</code>；<code>--svt-lp</code>/<code>--svt-rtc</code>）</td>
+</tr>
+<tr>
+<td><code>rkvc_decode</code></td>
+<td>容器/码流 → 原始 NV12</td>
+</tr>
+<tr>
+<td><code>rkvc_transcode</code></td>
+<td>容器 → 容器，Router 选 codec（<code>--svt-lp</code>/<code>--svt-rtc</code>）</td>
+</tr>
+<tr>
+<td><code>rkvc_bench</code></td>
+<td>四档 policy E2E fps 对比（<strong>须</strong> <code>-i INPUT.mp4</code>）</td>
+</tr>
+<tr>
+<td><code>rkvc_info</code></td>
+<td>硬件能力查询（<code>-j</code> JSON）</td>
+</tr>
+<tr>
+<td><code>rkvc_session_upscale</code></td>
+<td>硬解 + 后处理上采样（RGA / <code>rkvc_sr</code> + <code>--rkvc-sr-model</code>）</td>
+</tr>
+<tr>
+<td><code>rkvc_yuv_upscale</code></td>
+<td>YUV420p 批处理 RGA 缩放（<code>rkvc_upscale_ctx_*</code>）</td>
+</tr>
+</tbody>
+</table>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>rkvc_encode<span class="w"> </span>-i<span class="w"> </span>raw.nv12<span class="w"> </span>-o<span class="w"> </span>out.mp4<span class="w"> </span>-s<span class="w"> </span>1920x1080<span class="w"> </span>-p<span class="w"> </span>balanced<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span>--rc-mode<span class="w"> </span>cbr<span class="w"> </span>-b<span class="w"> </span><span class="m">4000000</span><span class="w"> </span>--enc-scale-denom<span class="w"> </span><span class="m">2</span><span class="w"> </span>--svt-lp<span class="w"> </span><span class="m">4</span><span class="w"> </span>--svt-rtc<span class="w"> </span><span class="m">0</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>rkvc_transcode<span class="w"> </span>-i<span class="w"> </span><span class="k">in</span>.mp4<span class="w"> </span>-o<span class="w"> </span>out.mp4<span class="w"> </span>-p<span class="w"> </span>quality<span class="w"> </span>-b<span class="w"> </span><span class="m">6000000</span><span class="w"> </span>--svt-lp<span class="w"> </span><span class="m">4</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>rkvc_transcode<span class="w"> </span>-i<span class="w"> </span><span class="k">in</span>.mp4<span class="w"> </span>-o<span class="w"> </span>hq.mp4<span class="w"> </span>-p<span class="w"> </span>offline<span class="w"> </span>-b<span class="w"> </span><span class="m">6000000</span><span class="w"> </span>--svt-lp<span class="w"> </span><span class="m">4</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>rkvc_session_upscale<span class="w"> </span>-i<span class="w"> </span>stream.mp4<span class="w"> </span>-o<span class="w"> </span>out.nv12<span class="w"> </span>--width<span class="w"> </span><span class="m">1920</span><span class="w"> </span>--height<span class="w"> </span><span class="m">1080</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span>--enc-scale-denom<span class="w"> </span><span class="m">2</span><span class="w"> </span>--post-upscale<span class="w"> </span>rkvc_sr<span class="w"> </span>--rkvc-sr-model<span class="w"> </span>model.rknn
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>rkvc_bench<span class="w"> </span>-i<span class="w"> </span>clip.mp4
+</span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>rkvc_info<span class="w"> </span>-j
+</span></code></pre></div>
+<hr />
+<h2 id="doxygen">Doxygen<a class="headerlink" href="#doxygen" title="Permanent link">&para;</a></h2>
+<p>启用 <code>-DRKVC_BUILD_DOCS=ON</code> 构建时，Doxygen 从 <code>include/rkvc/*.h</code> 生成 HTML API 文档（与本文档互补）。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      
+    
+  </body>
+</html>

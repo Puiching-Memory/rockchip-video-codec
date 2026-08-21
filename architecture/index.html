@@ -1,0 +1,1285 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/architecture/">
+      
+      
+        <link rel="prev" href="../getting-started/">
+      
+      
+        <link rel="next" href="../api/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.56">
+    
+    
+      
+        <title>架构 - rkvc — RK3588 Video Codec</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.20815dad.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-header__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc — RK3588 Video Codec
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              架构
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc — RK3588 Video Codec" class="md-nav__button md-logo" aria-label="rkvc — RK3588 Video Codec" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc — RK3588 Video Codec
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        平台探测（无预设板卡）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        模块关系
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codec-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Codec Router
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        管线模板
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Session 端口
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Session 端口">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        端口队列语义
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        缓冲区生命周期
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="缓冲区生命周期">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rga-api-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        独立 RGA API（不经 Session）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roi-qp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ROI（区域相对 QP）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gop-idr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        热切换（码率 / GOP / IDR）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#udp-rtp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        UDP / RTP 原语
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        下采样 + 后处理上采样
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        辅助模块
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rkmpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RKMPP 解码器初始化
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmark/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  基准测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../delivery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  交付文档
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        平台探测（无预设板卡）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        模块关系
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codec-router" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Codec Router
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        管线模板
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Session 端口
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Session 端口">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        端口队列语义
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        缓冲区生命周期
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="缓冲区生命周期">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rga-api-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        独立 RGA API（不经 Session）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#roi-qp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ROI（区域相对 QP）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gop-idr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        热切换（码率 / GOP / IDR）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#udp-rtp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        UDP / RTP 原语
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        下采样 + 后处理上采样
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        辅助模块
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rkmpp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RKMPP 解码器初始化
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="_1">架构<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>rkvc 以 <strong>Session</strong> 为核心，将编解码流程建模为可配置的 <strong>节点图</strong>，由 <strong>Codec Router</strong> 按策略选择 H.264 / HEVC / AV1 路线。</p>
+<h2 id="_2">平台探测（无预设板卡）<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>rkvc 不维护任何预设板卡/SoC 知识：所有平台事实都在运行时从系统信息探测（<code>lib/platform.c</code>），新增板卡无需改动任何代码。</p>
+<ul>
+<li><strong>SoC 名</strong>：<code>/proc/device-tree/compatible</code> 的 <code>rockchip,&lt;soc&gt;</code> 条目（如 <code>rk3588</code>、<code>rk3576</code>）。</li>
+<li><strong>NPU</strong>：存在性看 <code>/sys/kernel/debug/rknpu/version</code> 或 <code>/dev/dri/by-path/*npu*</code>；核心数数 rknpu debugfs <code>load</code> 的 <code>CoreN:</code> 条目。</li>
+<li><strong>RGA</strong>：<code>/dev/rga</code> 存在性。</li>
+<li><strong>VPU 编解码能力</strong>：MPP <code>mpp_get_vcodec_type()</code>——内核驱动经 <code>mpp_service</code> ioctl 上报的硬件能力位（内核不可用时 MPP 按其 SoC 库兜底）；按 MPP 引擎语义映射（VDPU/RKVDEC → 解码、VEPU/RKVENC → 编码、AV1DEC → AV1 硬解；Rockchip 无 AV1 硬编引擎，AV1 编码走软件 SVT-AV1）。</li>
+<li><strong>NPU 多核自适应</strong>（<code>lib/rknn_util.h</code>）：<code>rkvc_rknn_apply_npu_cores()</code> 从探测核心数向下尝试 <code>rknn_set_core_mask</code>，以 RKNN 驱动为最终权威（如 RK3576 双核自动 0x7→0x3）。</li>
+<li><strong>能力汇总</strong>：<code>rkvc_query_caps</code>（<code>lib/init.c</code>）= FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 上报的 VPU 支持；<code>rkvc_caps.soc</code> 为探测到的 SoC 名。</li>
+<li><strong>分辨率上限</strong>：内核无探测渠道（<code>MPP_DEV_GET_MAX_*</code> ioctl 未实现），rkvc 不再虚报——超尺寸输入由 MPP 在建链时拒绝。</li>
+</ul>
+<h2 id="_3">模块关系<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>graph TD
+    subgraph 应用层
+        CLI["CLI 工具&lt;br/&gt;encode/decode/transcode/bench"]
+        App["用户代码&lt;br/&gt;rkvc_session + port"]
+    end
+
+    subgraph 核心层
+        Session["session.c&lt;br/&gt;会话生命周期"]
+        Pipeline["pipeline.c&lt;br/&gt;模板与默认参数"]
+        Router["router.c&lt;br/&gt;Codec Router"]
+        Port["port.c&lt;br/&gt;命名端口队列"]
+        Buffer["buffer_pool.c&lt;br/&gt;rkvc_buffer"]
+        Scheduler["scheduler.c&lt;br/&gt;节点调度"]
+    end
+
+    subgraph 节点层
+        Demux["node_demux"]
+        MppDec["node_mpp_dec"]
+        MppEnc["node_mpp_enc"]
+        SvtEnc["node_svt_enc"]
+        Rga["node_rga"]
+        DmaHost["node_dma_to_host"]
+        PostUp["node_post_upscale"]
+        RkvcSr["node_rkvc_sr"]
+        Mux["node_mux"]
+    end
+
+    subgraph 底层
+        FFmpeg["ffmpeg-rockchip&lt;br/&gt;libavcodec/format"]
+        MPP["rockchip-mpp"]
+        SVT["SVT-AV1"]
+        RGA_hw["RGA 2D"]
+    end
+
+    CLI --&gt; Session
+    App --&gt; Session
+    Session --&gt; Pipeline
+    Session --&gt; Router
+    Session --&gt; Port
+    Session --&gt; Scheduler
+    Scheduler --&gt; Demux
+    Scheduler --&gt; MppDec
+    Scheduler --&gt; MppEnc
+    Scheduler --&gt; SvtEnc
+    Scheduler --&gt; Rga
+    Scheduler --&gt; DmaHost
+    Scheduler --&gt; PostUp
+    Scheduler --&gt; RkvcSr
+    Scheduler --&gt; Mux
+    PostUp --&gt; Rga
+    PostUp --&gt; RkvcSr
+    Buffer --&gt; Rga
+    Demux --&gt; FFmpeg
+    MppDec --&gt; FFmpeg
+    MppEnc --&gt; FFmpeg
+    SvtEnc --&gt; SVT
+    Rga --&gt; RGA_hw
+    MppDec --&gt; MPP
+    MppEnc --&gt; MPP</code></pre>
+<h2 id="codec-router">Codec Router<a class="headerlink" href="#codec-router" title="Permanent link">&para;</a></h2>
+<p><code>rkvc_route_resolve()</code> 根据 <code>rkvc_pipeline_desc</code> 中的 <code>policy</code>、<code>codec</code>、分辨率与帧率选择路线：</p>
+<table>
+<thead>
+<tr>
+<th>policy</th>
+<th>默认路线</th>
+<th>编码器</th>
+<th>解码器</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REALTIME</code></td>
+<td>H.264 RKMPP</td>
+<td><code>h264_rkmpp</code></td>
+<td><code>h264_rkmpp</code></td>
+</tr>
+<tr>
+<td><code>BALANCED</code></td>
+<td>HEVC RKMPP</td>
+<td><code>hevc_rkmpp</code></td>
+<td><code>hevc_rkmpp</code></td>
+</tr>
+<tr>
+<td><code>BALANCED</code>（1080p+ 且 ≥50fps）</td>
+<td>H.264 RKMPP</td>
+<td><code>h264_rkmpp</code></td>
+<td><code>h264_rkmpp</code></td>
+</tr>
+<tr>
+<td><code>QUALITY</code></td>
+<td>AV1</td>
+<td><code>libsvtav1</code> (preset 11)</td>
+<td><code>av1_rkmpp</code></td>
+</tr>
+<tr>
+<td><code>OFFLINE</code></td>
+<td>AV1（非实时高质量）</td>
+<td><code>libsvtav1</code> (preset 4，≥1fps@1080p)</td>
+<td><code>av1_rkmpp</code></td>
+</tr>
+</tbody>
+</table>
+<p>显式设置 <code>codec</code> 为 <code>H264</code> / <code>HEVC</code> / <code>AV1</code> 时跳过 policy 路由，强制对应编解码族。</p>
+<h2 id="_4">管线模板<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>模板</th>
+<th>用途</th>
+<th>典型节点链</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FILE_ENCODE</code></td>
+<td>原始 NV12 → 容器</td>
+<td>mux ← mpp/svt enc ← (rga 下采样)</td>
+</tr>
+<tr>
+<td><code>FILE_DECODE</code></td>
+<td>容器 → 原始 NV12</td>
+<td>dma_to_host ← (post_upscale) ← mpp dec ← demux</td>
+</tr>
+<tr>
+<td><code>FILE_TRANSCODE</code></td>
+<td>容器 → 容器</td>
+<td>mux ← enc ← (rga) ← mpp dec ← demux</td>
+</tr>
+<tr>
+<td><code>AV1_STORAGE</code></td>
+<td>AV1 存储档</td>
+<td>强制 AV1 SVT + av1_rkmpp</td>
+</tr>
+<tr>
+<td><code>LIVE_CAPTURE</code></td>
+<td>低延迟 V4L2 采集编码</td>
+<td>v4l2 → (rga) → mpp/svt enc → mux</td>
+</tr>
+</tbody>
+</table>
+<h2 id="session">Session 端口<a class="headerlink" href="#session" title="Permanent link">&para;</a></h2>
+<p>每个 Session 暴露三个命名端口，用于流式 push/pull：</p>
+<table>
+<thead>
+<tr>
+<th>端口</th>
+<th>方向</th>
+<th>数据类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capture</code></td>
+<td>输入</td>
+<td><code>RKVC_BUF_VIDEO</code></td>
+<td>采集/原始帧入口</td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td>输出</td>
+<td><code>RKVC_BUF_VIDEO</code> 或 <code>RKVC_BUF_BITSTREAM</code></td>
+<td>解码帧或编码码流</td>
+</tr>
+<tr>
+<td><code>preview</code></td>
+<td>输出</td>
+<td><code>RKVC_BUF_VIDEO</code></td>
+<td><code>LIVE_CAPTURE</code>：与 <code>capture</code> 同帧侧抽；满则丢最旧</td>
+</tr>
+</tbody>
+</table>
+<p>文件模式通过 <code>rkvc_session_run_file()</code> 阻塞跑完整条管线，无需手动操作端口。</p>
+<h3 id="_5">端口队列语义<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p><code>port.c</code> 实现有界 FIFO（默认深度 3，由 <code>queue_depth</code> 配置）：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>队列满/空</th>
+<th>返回值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rkvc_port_push</code></td>
+<td>满</td>
+<td><code>RKVC_ERR_AGAIN</code></td>
+</tr>
+<tr>
+<td><code>rkvc_port_pull(..., 0)</code></td>
+<td>空</td>
+<td><code>RKVC_ERR_AGAIN</code>（非阻塞）</td>
+</tr>
+<tr>
+<td><code>rkvc_port_pull(..., N)</code></td>
+<td>空超时</td>
+<td><code>RKVC_ERR_AGAIN</code></td>
+</tr>
+<tr>
+<td><code>rkvc_port_pull(..., -1)</code></td>
+<td>—</td>
+<td>阻塞直至有数据</td>
+</tr>
+</tbody>
+</table>
+<p>详见 <a href="../api/#port">api.md</a>。</p>
+<h2 id="_6">缓冲区生命周期<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>分配</strong>: <code>rkvc_buffer_alloc_video_host()</code> 创建主机帧，或 <code>rkvc_buffer_alloc_bitstream()</code> 包装码流（<code>copy=0</code> 为零拷贝引用）</li>
+<li><strong>查询</strong>: <code>rkvc_buffer_kind_of()</code>、<code>rkvc_buffer_get_video_info()</code>（DMA-BUF 元数据）、<code>get_video_planes()</code>（主机可写帧）</li>
+<li><strong>上传</strong>: 节点内部通过 <code>av_hwframe_transfer_data</code> 上传到 RKMPP DMA-BUF</li>
+<li><strong>处理</strong>: MPP / SVT 硬件或软件编码；RGA 负责下采样</li>
+<li><strong>下载</strong>: <code>node_dma_to_host</code> 将硬件帧拉回主机内存</li>
+<li><strong>后处理</strong>: <code>node_post_upscale</code> 按 <code>post_upscale_algo</code> 分流 — <strong>RGA</strong>（<code>nearest</code>/<code>bilinear</code>/<code>bicubic</code>：<code>node_rga</code>）或 <strong>RKNN 超分</strong>（<code>rkvc_sr</code>：<code>node_rkvc_sr</code>）</li>
+<li><strong>释放</strong>: <code>rkvc_buffer_unref()</code> 引用计数归零时释放</li>
+</ol>
+<h3 id="rga-api-session">独立 RGA API（不经 Session）<a class="headerlink" href="#rga-api-session" title="Permanent link">&para;</a></h3>
+<p><code>node_rga.c</code> 同时导出公共 C API，供 CLI <code>rkvc_yuv_upscale</code> 与测试直接调用：</p>
+<ul>
+<li><code>rkvc_upscale_yuv420p</code> / <code>rkvc_upscale_nv12</code> — 单次平面缩放</li>
+<li><code>rkvc_upscale_ctx_*</code> — 复用 RGA import 的批量上下文</li>
+</ul>
+<h2 id="roi-qp">ROI（区域相对 QP）<a class="headerlink" href="#roi-qp" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>H.264/HEVC（MPP）</th>
+<th>SVT-AV1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rkvc_session_set_roi</code></td>
+<td>硬 ROI：<code>AVRegionOfInterest</code> + metadata <code>rkvc_roi_force_intra</code> → <code>rkmppenc</code> → <code>KEY_ROI_DATA</code></td>
+<td>忽略（无硬 ROI 桥接）</td>
+</tr>
+</tbody>
+</table>
+<p>公开结构为 <code>rkvc_roi_rect{x,y,w,h,qp_offset,force_intra}</code>；<code>qp_offset→qoffset</code> 换算只在 <code>node_mpp_enc</code> 一处。桥接层（<code>rkmppenc</code>）必要：编码仍走 <code>avcodec_send_frame</code>，外部无法直接写 <code>MppFrame</code> meta。</p>
+<h2 id="gop-idr">热切换（码率 / GOP / IDR）<a class="headerlink" href="#gop-idr" title="Permanent link">&para;</a></h2>
+<p><code>include/rkvc/reconfig.h</code>：应用层带宽自适应调用；策略状态机不进 SDK。</p>
+<table>
+<thead>
+<tr>
+<th>API</th>
+<th>MPP（H.264/HEVC）</th>
+<th>SVT-AV1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>set_bitrate</code> / <code>set_gop</code></td>
+<td>下一帧写 <code>AVCodecContext</code>，<code>rkmppenc</code> → <code>MPP_ENC_SET_CFG</code></td>
+<td>仅更新 <code>desc</code>（运行中改参需重建）</td>
+</tr>
+<tr>
+<td><code>request_idr</code></td>
+<td>下一帧 <code>pict_type=I</code> → <code>MPP_ENC_SET_IDR_FRAME</code></td>
+<td>挂起标志无硬效果</td>
+</tr>
+<tr>
+<td><code>reconfigure</code></td>
+<td>按 <code>flags</code> 批量上述项</td>
+<td>同左</td>
+</tr>
+</tbody>
+</table>
+<p>分辨率 / profile 变更需重建 Session（mux/SPS 绑定），不在本 API。</p>
+<h2 id="udp-rtp">UDP / RTP 原语<a class="headerlink" href="#udp-rtp" title="Permanent link">&para;</a></h2>
+<p><code>rkvc_net</code>（<code>include/rkvc/net.h</code>）提供码流收发，<strong>不</strong>绑定 Session：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>协议</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKVC_NET_UDP</code></td>
+<td>16B 分片头 + 载荷（最多 16 片）</td>
+<td>任意裸码流 / Annex-B</td>
+</tr>
+<tr>
+<td><code>RKVC_NET_RTP</code></td>
+<td>12B RTP（PT=96）+ ≤1400B 分片，Marker 帧尾</td>
+<td>简化 RTP；非完整 RFC / 无 SIP</td>
+</tr>
+</tbody>
+</table>
+<p>典型用法：Session <code>output</code> 拉码流 → <code>rkvc_net_send</code>；对端 <code>rkvc_net_recv</code> → 解码 Session。GB28181 / WebRTC 信令属应用层。</p>
+<h2 id="_7">下采样 + 后处理上采样<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<p>模拟「低分辨率编码 → 解码 → 上采样还原」管线：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>全分辨率 REF → RGA 1/N 下采样 → 编码 → 解码 → RGA / RKNN 上采样 → 输出
+</span></code></pre></div>
+<p>对应字段：<code>enc_scale_denom</code>（编码前下采样分母）、<code>post_upscale_algo</code>（<code>nearest</code> / <code>bilinear</code> / <code>bicubic</code> / <code>rkvc_sr</code>，RGA 或 RKVC 神经网络超分）。<code>width</code>/<code>height</code> 始终为显示/参考分辨率。</p>
+<p><strong>注意</strong>：编码模板（<code>FILE_ENCODE</code> / <code>FILE_TRANSCODE</code>）只应用下采样；上采样仅在解码模板与 <code>rkvc_session_upscale</code> 中执行。</p>
+<p><code>rkvc_sr</code> 走 RKVC 神经网络超分（<code>lib/node_rkvc_sr.c</code>）。现网模型在 RGB 域训练，推理含 NV12↔RGB CSC；下一代 <strong>YUV-native</strong> 模型规格见 <a href="../sr-model-yuv-spec/">sr-model-yuv-spec.md</a>。</p>
+<h2 id="_8">辅助模块<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>文件</th>
+<th>公共 API</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>平台探测</td>
+<td><code>platform.c</code></td>
+<td>（内部）<code>rkvc_platform_probe</code></td>
+</tr>
+<tr>
+<td>初始化</td>
+<td><code>init.c</code></td>
+<td><code>rkvc_init</code> / <code>rkvc_deinit</code> / <code>rkvc_version</code></td>
+</tr>
+<tr>
+<td>能力</td>
+<td><code>init.c</code></td>
+<td><code>rkvc_query_caps</code> / <code>rkvc_check_hw_permissions</code></td>
+</tr>
+<tr>
+<td>FFmpeg 工具</td>
+<td><code>ffmpeg_util.c</code></td>
+<td><code>rkvc_set_log_level</code> / <code>rkvc_get_log_level</code></td>
+</tr>
+<tr>
+<td>输入探测</td>
+<td><code>utils.c</code></td>
+<td><code>rkvc_probe_input_format</code></td>
+</tr>
+<tr>
+<td>名称转换</td>
+<td><code>router.c</code></td>
+<td><code>rkvc_codec_name</code> / <code>rkvc_policy_name</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="rkmpp">RKMPP 解码器初始化<a class="headerlink" href="#rkmpp" title="Permanent link">&para;</a></h2>
+<p>RKMPP 解码器在 <code>avcodec_open2()</code> 时自动创建硬件设备上下文，无需手动设置 <code>hw_device_ctx</code>。这是 ffmpeg-rockchip 的内部行为，与标准 FFmpeg hwaccel API 不同。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      
+    
+  </body>
+</html>
