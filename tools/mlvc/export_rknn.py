@@ -469,7 +469,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "models": models_meta,
         "qppatch": patch_meta,
         "extract_tail": not args.no_extract_tail,
-        "runtime": "lib/node_mlvc.c（编码器用标准 I/O：2 输入 NHWC fp16、输出逻辑 NCHW；解码器 4 输入与输出走 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
+        "runtime": "lib/node_mlvc.c（编码器用混合 I/O：2 输入走 native set_io_mem、输出为逻辑 NCHW；解码器 4 输入与输出走 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
     }
     _write_json(out_dir / "mlvc_rknn_export_manifest.json", manifest)
     print(f"清单: {out_dir / 'mlvc_rknn_export_manifest.json'}")

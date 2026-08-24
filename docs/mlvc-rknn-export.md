@@ -15,12 +15,21 @@ C 侧不向 NPU 喂 qp（qp 只用于 rANS：`z_idx = qp * ZC + c`）。因此�
 | 编码器 | 按名字：图像（`x` / `New_input_x`）、`ref_feature`   | 按名字：`feature` / `z_raw` / `y_raw_0` / `y_raw_1` |
 | 解码器 | 按名字：`z_raw`、`y_raw_0`、`y_raw_1`、`ref_feature` | 按名字：`x_hat`、`feature`                          |
 
-编码器必须成对使用 `rknn_inputs_set()` / `rknn_outputs_get()`：输入按 NHWC
-交给 runtime，输出按逻辑 NCHW 读取，再把 `feature` 转成下一帧 NHWC reference。
+编码器的保底路径成对使用 `rknn_inputs_set()` / `rknn_outputs_get()`：
+输入按 NHWC 交给 runtime，输出按逻辑 NCHW 读取，再把 `feature` 转成
+下一帧 NHWC reference。默认的高性能路径只把输入换成 `rknn_set_io_mem()`，
+输出仍保持 `rknn_outputs_get()` 的逻辑 NCHW 契约。
 不要把 native feature 输出直接复制到下一帧 native `ref_feature` 输入：即使查询
 到的元素数与 NC1HWC2 维度相同，这个图的 producer/consumer native layout 也不具备
 可直接互换的契约；标准 MLVC 的 256 通道 reference 会在第二帧被错误解释并产生
 NaN/Inf。解码器的四输入/两输出 native 布局已单独验证，可继续使用零拷贝路径。
+
+encoder 混合 I/O 按查询到的 native input attr（含 C2 和 `w_stride`）
+把逻辑 `feature` 直接打包进下一帧 reference I/O memory，不会恢复错误的
+native-output `memcpy`。RK3576 上 MLVC/MLVC-S 各 70 帧、3 轮递归已与标准
+I/O 码流逐字节一致，因此该路径默认开启。设置
+`RKVC_MLVC_ENCODER_ZERO_COPY=0` 可回退到标准 host I/O；若 native attr 查询或
+几何校验不通过，运行时也会自动回退。
 
 默认把解码器尾部 `DepthToSpace(mode=DCR)+Clip(0,1)` 拆出图外（`--no-extract-tail` 关闭）。此时 RKNN 的 `x_hat` 是 shuffle 前的 head conv（640×368 时为 `[1,192,46,80]`），`node_mlvc.c` 按 native 通道数自动做 CPU DCR + clip；旧的整图 `x_hat=[1,3,H,W]` 模型不用改。
 

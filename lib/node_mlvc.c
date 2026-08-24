@@ -5,7 +5,9 @@
  *
  * 完整移植自 node_mlvc.cpp（C++），消除 msrtc_rans / C++17 依赖：
  *   - 熵编解码改用 lib/rans.c（本仓纯 C rANS 实现）
- *   - 编码器使用成对的标准 RKNN I/O；解码器使用 native NC1HWC2 零拷贝 I/O
+ *   - 编码器默认使用 native 输入 + 逻辑输出的混合 I/O，
+ *     native attr 不兼容时回退标准 I/O；
+ *     解码器使用 native NC1HWC2 零拷贝 I/O
  *   - 编码器：YUV(NV12) → encoder NPU → rANS 熵编码 → 码流包
  *     （feature 输出直接作为下一帧参考，无需运行 decoder NPU）
  *   - 解码器：码流包 → rANS 熵解码 → decoder NPU → YUV(NV12)
@@ -349,24 +351,36 @@ static int tensor_is_pixel_input(const rknn_tensor_attr *a)
     return 0;
 }
 
+static int rknn_query_input_mem_attr(mlvc_rknn_model *m, uint32_t i,
+                                     rknn_tensor_attr *out)
+{
+    if (!m || !out || i >= m->io_num.n_input)
+        return 0;
+    memset(out, 0, sizeof(*out));
+    out->index = i;
+    if (tensor_is_pixel_input(&m->in_attr[i])) {
+        int q = rknn_query(m->ctx, RKNN_QUERY_NATIVE_NHWC_INPUT_ATTR,
+                           out, sizeof(*out));
+        if (q == RKNN_SUCC && out->n_dims == 4 && out->n_elems > 0)
+            return 1;
+    } else {
+        int q = rknn_query(m->ctx, RKNN_QUERY_NATIVE_NC1HWC2_INPUT_ATTR,
+                           out, sizeof(*out));
+        if (q == RKNN_SUCC && out->n_dims >= 5 && out->n_elems > 0)
+            return 1;
+    }
+    *out = m->in_attr[i];
+    out->index = i;
+    out->type = RKNN_TENSOR_FLOAT16;
+    out->fmt = RKNN_TENSOR_NHWC;
+    return 0;
+}
+
 static rkvc_err rknn_alloc_input_mems(mlvc_rknn_model *m)
 {
     for (uint32_t i = 0; i < m->io_num.n_input; i++) {
         rknn_tensor_attr a;
-        memset(&a, 0, sizeof(a));
-        a.index = i;
-        int use_native = 0;
-        if (!tensor_is_pixel_input(&m->in_attr[i])) {
-            int q = rknn_query(m->ctx, RKNN_QUERY_NATIVE_NC1HWC2_INPUT_ATTR,
-                               &a, sizeof(a));
-            use_native = (q == RKNN_SUCC && a.n_dims >= 5 && a.n_elems > 0);
-        }
-        if (!use_native) {
-            a = m->in_attr[i];
-            a.index = i;
-            a.type = RKNN_TENSOR_FLOAT16;
-            a.fmt = RKNN_TENSOR_NHWC;
-        }
+        rknn_query_input_mem_attr(m, i, &a);
         a.pass_through = 1;
         uint32_t bytes = a.size_with_stride ? a.size_with_stride
                                             : a.n_elems * (uint32_t)sizeof(uint16_t);
@@ -541,6 +555,8 @@ struct rkvc_mlvc_enc {
     int ZC, ZH, ZW, YC, YH, YW;
     int enc_x_in, enc_ref_in;
     int enc_feat_out, enc_z_out, enc_y0_out, enc_y1_out;
+    int zero_copy_inputs;
+    int zero_copy_x_direct;
 
     /* 工作缓冲 */
     uint16_t *x_nhwc;
@@ -584,7 +600,7 @@ static rkvc_err enc_resolve_geom(rkvc_mlvc_enc *e)
         enc->out_attr[e->enc_y1_out].type != RKNN_TENSOR_FLOAT16)
         return RKVC_ERR_FORMAT;
 
-    /* encoder 使用成对的标准 RKNN I/O API，输出为逻辑 NCHW。 */
+    /* encoder 标准输出 API 返回逻辑 NCHW。 */
     const rknn_tensor_attr *za = &enc->out_attr[e->enc_z_out];
     const rknn_tensor_attr *ya = &enc->out_attr[e->enc_y0_out];
     if (za->n_dims < 4 || ya->n_dims < 4)
@@ -595,10 +611,98 @@ static rkvc_err enc_resolve_geom(rkvc_mlvc_enc *e)
     e->YC = (int)ya->dims[1];
     e->YH = (int)ya->dims[2];
     e->YW = (int)ya->dims[3];
-    if (enc->out_attr[e->enc_feat_out].n_elems !=
-            enc->in_attr[e->enc_ref_in].n_elems)
+    const rknn_tensor_attr *fa = &enc->out_attr[e->enc_feat_out];
+    if (fa->n_dims < 4 || fa->dims[1] != (uint32_t)e->REF_C ||
+        fa->dims[2] != (uint32_t)e->REF_H ||
+        fa->dims[3] != (uint32_t)e->REF_W ||
+        fa->n_elems != enc->in_attr[e->enc_ref_in].n_elems)
         return RKVC_ERR_FORMAT;
 
+    return RKVC_OK;
+}
+
+static int enc_zero_copy_requested(void)
+{
+    const char *v = getenv("RKVC_MLVC_ENCODER_ZERO_COPY");
+    return !v || !v[0] || strcmp(v, "0") != 0;
+}
+
+static int enc_native_x_compatible(const rkvc_mlvc_enc *e,
+                                   const rknn_tensor_attr *a)
+{
+    if (!e || !a || a->n_dims != 4 || a->type != RKNN_TENSOR_FLOAT16 ||
+        a->fmt != RKNN_TENSOR_NHWC)
+        return 0;
+    uint32_t h = a->dims[1], w = a->dims[2], c = a->dims[3];
+    uint32_t ws = a->w_stride ? a->w_stride : w;
+    size_t required = (size_t)h * ws * c * sizeof(uint16_t);
+    size_t available = a->size_with_stride ? a->size_with_stride
+                                           : (size_t)a->n_elems * sizeof(uint16_t);
+    return h == (uint32_t)e->IMG_H && w == (uint32_t)e->IMG_W && c == 3 &&
+           ws >= w && required <= available;
+}
+
+static int enc_native_ref_compatible(const rkvc_mlvc_enc *e,
+                                     const rknn_tensor_attr *a)
+{
+    if (!e || !a || a->n_dims < 5 || a->type != RKNN_TENSOR_FLOAT16)
+        return 0;
+    uint32_t c1 = a->dims[1], h = a->dims[2], w = a->dims[3], c2 = a->dims[4];
+    uint32_t ws = a->w_stride ? a->w_stride : w;
+    if (!c1 || !c2 || h != (uint32_t)e->REF_H || w != (uint32_t)e->REF_W ||
+        c1 * c2 < (uint32_t)e->REF_C || ws < w)
+        return 0;
+    size_t required = (size_t)c1 * h * ws * c2 * sizeof(uint16_t);
+    size_t available = a->size_with_stride ? a->size_with_stride
+                                           : (size_t)a->n_elems * sizeof(uint16_t);
+    return required <= available;
+}
+
+static rkvc_err enc_init_zero_copy_inputs(rkvc_mlvc_enc *e)
+{
+    if (!enc_zero_copy_requested())
+        return RKVC_OK;
+
+    rknn_tensor_attr x_attr, ref_attr;
+    int native_x = rknn_query_input_mem_attr(&e->enc_model,
+                                             (uint32_t)e->enc_x_in, &x_attr);
+    int native = rknn_query_input_mem_attr(&e->enc_model,
+                                           (uint32_t)e->enc_ref_in, &ref_attr);
+    if (!native_x || !enc_native_x_compatible(e, &x_attr) ||
+        !native || !enc_native_ref_compatible(e, &ref_attr)) {
+        RKVC_LOG("MLVC encoder native inputs are incompatible; using standard host inputs");
+        return RKVC_OK;
+    }
+
+    rkvc_err err = rknn_alloc_input_mems(&e->enc_model);
+    if (err != RKVC_OK)
+        return err;
+    e->zero_copy_inputs = 1;
+
+    const rknn_tensor_attr *bound_x = &e->enc_model.in_mem_attr[e->enc_x_in];
+    uint32_t x_ws = bound_x->w_stride ? bound_x->w_stride : bound_x->dims[2];
+    e->zero_copy_x_direct =
+        bound_x->n_dims == 4 && bound_x->fmt == RKNN_TENSOR_NHWC &&
+        bound_x->dims[1] == (uint32_t)e->IMG_H &&
+        bound_x->dims[2] == (uint32_t)e->IMG_W && bound_x->dims[3] == 3 &&
+        x_ws == (uint32_t)e->IMG_W;
+
+    rknn_tensor_mem *ref_mem = e->enc_model.in_mem[e->enc_ref_in];
+    size_t bytes = e->enc_model.in_mem_attr[e->enc_ref_in].size_with_stride;
+    if (!bytes)
+        bytes = (size_t)e->enc_model.in_mem_attr[e->enc_ref_in].n_elems *
+                sizeof(uint16_t);
+    memset(ref_mem->virt_addr, 0, bytes);
+    if (rknn_mem_sync(e->enc_model.ctx, ref_mem,
+                      RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC)
+        return RKVC_ERR_HW;
+
+    RKVC_LOG("MLVC encoder hybrid I/O enabled: zero-copy inputs + logical outputs, "
+             "x_direct=%d ref native=%ux%ux%ux%u w_stride=%u",
+             e->zero_copy_x_direct,
+             ref_attr.dims[1], ref_attr.dims[2], ref_attr.dims[3],
+             ref_attr.dims[4], ref_attr.w_stride ? ref_attr.w_stride
+                                                 : ref_attr.dims[3]);
     return RKVC_OK;
 }
 
@@ -609,19 +713,22 @@ static rkvc_err enc_alloc_bufs(rkvc_mlvc_enc *e)
     size_t z_sz     = (size_t)e->ZC * e->ZH * e->ZW;
     size_t y_sz     = (size_t)e->YC * e->YH * e->YW;
 
-    e->x_nhwc  = rkvc_malloc(img_sz * 3 * 2);
-    e->ref_nhwc = rkvc_malloc(ref_sz * 2);
+    e->x_nhwc  = e->zero_copy_x_direct ? NULL : rkvc_malloc(img_sz * 3 * 2);
+    e->ref_nhwc = e->zero_copy_inputs ? NULL : rkvc_malloc(ref_sz * 2);
     e->z_r     = rkvc_malloc(z_sz * 4);
     e->y0_r    = rkvc_malloc(y_sz * 4);
     e->y1_r    = rkvc_malloc(y_sz * 4);
     e->s0      = rkvc_malloc(y_sz * 4);
     e->s1      = rkvc_malloc(y_sz * 4);
     e->z_idx   = rkvc_malloc(z_sz * 4);
-    if (!e->x_nhwc || !e->ref_nhwc || !e->z_r || !e->y0_r || !e->y1_r ||
+    if ((!e->zero_copy_x_direct && !e->x_nhwc) ||
+        (!e->zero_copy_inputs && !e->ref_nhwc) ||
+        !e->z_r || !e->y0_r || !e->y1_r ||
         !e->s0 || !e->s1 || !e->z_idx)
         return RKVC_ERR_NOMEM;
 
-    memset(e->ref_nhwc, 0, ref_sz * 2);
+    if (e->ref_nhwc)
+        memset(e->ref_nhwc, 0, ref_sz * 2);
     /* z_idx 在通道平面内为常量：按平面填充（原逐元素三重循环）*/
     for (int c = 0; c < e->ZC; c++) {
         int32_t *p = e->z_idx + (size_t)c * e->ZH * e->ZW;
@@ -695,6 +802,8 @@ rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg
 
     err = enc_resolve_geom(e);
     if (err) goto fail_model;
+    err = enc_init_zero_copy_inputs(e);
+    if (err) goto fail_model;
     err = enc_alloc_bufs(e);
     if (err) goto fail_model;
 
@@ -717,10 +826,11 @@ void rkvc_mlvc_enc_close(rkvc_mlvc_enc *e)
         double total = 0.0;
         for (int i = 0; i < 7; i++)
             total += mlvc_profile_avg_ms(&e->profile, i);
-        RKVC_LOG("MLVC encoder profile: samples=%llu warmup=%d ms/frame "
-                 "yuv=%.3f inputs_set=%.3f rknn_run=%.3f outputs_get=%.3f "
+        RKVC_LOG("MLVC encoder profile: samples=%llu warmup=%d io=%s ms/frame "
+                 "yuv=%.3f input_prepare=%.3f rknn_run=%.3f outputs_get=%.3f "
                  "output_post=%.3f scales=%.3f rans_packet=%.3f total=%.3f",
                  (unsigned long long)e->profile.samples, e->profile.warmup,
+                 e->zero_copy_inputs ? "hybrid" : "standard",
                  mlvc_profile_avg_ms(&e->profile, 0),
                  mlvc_profile_avg_ms(&e->profile, 1),
                  mlvc_profile_avg_ms(&e->profile, 2),
@@ -754,19 +864,33 @@ rkvc_err rkvc_mlvc_enc_send_frame(rkvc_mlvc_enc *e, rkvc_buffer *frame)
 
     uint64_t profile_stamp[8];
     profile_stamp[0] = mlvc_profile_stamp(&e->profile);
-    yuv_to_nhwc_fp16(frame, e->x_nhwc);
+    uint16_t *x_dst = e->zero_copy_x_direct
+                    ? e->enc_model.in_mem[e->enc_x_in]->virt_addr
+                    : e->x_nhwc;
+    yuv_to_nhwc_fp16(frame, x_dst);
     profile_stamp[1] = mlvc_profile_stamp(&e->profile);
 
     /* encoder NPU */
-    const void *inputs[MLVC_MAX_IO] = {0};
-    rknn_tensor_format formats[MLVC_MAX_IO] = {0};
-    inputs[e->enc_x_in] = e->x_nhwc;
-    formats[e->enc_x_in] = RKNN_TENSOR_NHWC;
-    inputs[e->enc_ref_in] = e->ref_nhwc;
-    formats[e->enc_ref_in] = RKNN_TENSOR_NHWC;
-    rkvc_err run_err = rknn_set_host_inputs(&e->enc_model, inputs, formats);
-    if (run_err != RKVC_OK)
-        return run_err;
+    if (e->zero_copy_inputs) {
+        if (e->zero_copy_x_direct) {
+            if (rknn_mem_sync(e->enc_model.ctx,
+                              e->enc_model.in_mem[e->enc_x_in],
+                              RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC)
+                return RKVC_ERR_HW;
+        } else {
+            rknn_write_input(&e->enc_model, e->enc_x_in, e->x_nhwc);
+        }
+    } else {
+        const void *inputs[MLVC_MAX_IO] = {0};
+        rknn_tensor_format formats[MLVC_MAX_IO] = {0};
+        inputs[e->enc_x_in] = e->x_nhwc;
+        formats[e->enc_x_in] = RKNN_TENSOR_NHWC;
+        inputs[e->enc_ref_in] = e->ref_nhwc;
+        formats[e->enc_ref_in] = RKNN_TENSOR_NHWC;
+        rkvc_err run_err = rknn_set_host_inputs(&e->enc_model, inputs, formats);
+        if (run_err != RKVC_OK)
+            return run_err;
+    }
     profile_stamp[2] = mlvc_profile_stamp(&e->profile);
     MLVC_RKNN_CHECK(rknn_run(e->enc_model.ctx, NULL));
     profile_stamp[3] = mlvc_profile_stamp(&e->profile);
@@ -821,7 +945,23 @@ rkvc_err rkvc_mlvc_enc_send_frame(rkvc_mlvc_enc *e, rkvc_buffer *frame)
     nchw_fp16_to_int32(bz, e->z_r, (size_t)e->ZC * e->ZH * e->ZW);
     nchw_fp16_to_int32(by0, e->y0_r, (size_t)e->YC * e->YH * e->YW);
     nchw_fp16_to_int32(by1, e->y1_r, (size_t)e->YC * e->YH * e->YW);
-    nchw_to_nhwc_fp16(fv, e->ref_nhwc, e->REF_C, e->REF_H, e->REF_W);
+    if (e->zero_copy_inputs) {
+        rknn_tensor_attr *a = &e->enc_model.in_mem_attr[e->enc_ref_in];
+        uint16_t *dst = e->enc_model.in_mem[e->enc_ref_in]->virt_addr;
+        int c2 = (int)a->dims[4];
+        int ws = a->w_stride ? (int)a->w_stride : (int)a->dims[3];
+        mlvc_px_nchw_f16_to_nc1hwc2(fv, dst, e->REF_C, e->REF_H,
+                                    e->REF_W, c2, ws);
+        if (rknn_mem_sync(e->enc_model.ctx,
+                          e->enc_model.in_mem[e->enc_ref_in],
+                          RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC) {
+            rknn_outputs_release(e->enc_model.ctx,
+                                 e->enc_model.io_num.n_output, outputs);
+            return RKVC_ERR_HW;
+        }
+    } else {
+        nchw_to_nhwc_fp16(fv, e->ref_nhwc, e->REF_C, e->REF_H, e->REF_W);
+    }
     rknn_outputs_release(e->enc_model.ctx, e->enc_model.io_num.n_output,
                          outputs);
     profile_stamp[5] = mlvc_profile_stamp(&e->profile);

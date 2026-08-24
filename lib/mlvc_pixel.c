@@ -187,6 +187,55 @@ void mlvc_px_nchw_to_nc1hwc2_fp16(const int32_t *src, uint16_t *dst,
     }
 }
 
+void mlvc_px_nchw_f16_to_nc1hwc2(const uint16_t *src, uint16_t *dst,
+                                 int C, int H, int W, int C2, int w_stride)
+{
+    if (!src || !dst || C <= 0 || H <= 0 || W <= 0 || C2 <= 0)
+        return;
+    if (w_stride <= 0)
+        w_stride = W;
+    if (w_stride < W)
+        return;
+
+    int C1 = (C + C2 - 1) / C2;
+    memset(dst, 0, (size_t)C1 * H * w_stride * C2 * sizeof(*dst));
+
+#ifdef MLVC_PX_NEON
+    if (C2 == 8 && (C & 7) == 0) {
+        for (int c1 = 0; c1 < C1; c1++) {
+            for (int y = 0; y < H; y++) {
+                uint16_t *dp = dst + ((size_t)c1 * H + y) * w_stride * 8;
+                const uint16_t *sp[8];
+                for (int k = 0; k < 8; k++)
+                    sp[k] = src + ((size_t)(c1 * 8 + k) * H + y) * W;
+
+                int x = 0;
+                for (; x + 8 <= W; x += 8) {
+                    uint16x8_t r[8];
+                    for (int k = 0; k < 8; k++)
+                        r[k] = vld1q_u16(sp[k] + x);
+                    transpose_8x8_u16(r);
+                    for (int k = 0; k < 8; k++)
+                        vst1q_u16(dp + (size_t)(x + k) * 8, r[k]);
+                }
+                for (; x < W; x++)
+                    for (int k = 0; k < 8; k++)
+                        dp[(size_t)x * 8 + k] = sp[k][x];
+            }
+        }
+        return;
+    }
+#endif
+
+    for (int c = 0; c < C; c++) {
+        int c1 = c / C2, c2 = c % C2;
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+                dst[(((size_t)c1 * H + y) * w_stride + x) * C2 + c2] =
+                    src[((size_t)c * H + y) * W + x];
+    }
+}
+
 /* ════════════════════════════════════════════════════════════════════ */
 /*  NC1HWC2 → DepthToSpace(DCR) 融合                                    */
 /* ════════════════════════════════════════════════════════════════════ */

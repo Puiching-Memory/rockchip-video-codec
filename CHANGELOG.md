@@ -11,7 +11,8 @@
 
 ### 性能（MLVC CPU 热路径）
 
-- **MLVC 可复现分阶段 profile**：新增默认关闭的 `RKVC_MLVC_PROFILE=1` 聚合诊断，`RKVC_MLVC_PROFILE_WARMUP` 控制预热帧数（默认 10），节点关闭时分别输出 encoder/decoder 各阶段的每帧均值。RK3576 Release 构建固定 CPU4–7，以同一 70 帧输入、QP 21、3 个独立进程复测：标准 MLVC 编/解码节点为 125.78/81.23 ms/帧，MLVC-S 为 66.89/40.48 ms/帧；两种变体三轮码流和解码输出均逐字节一致。完整数据与模型指纹见 `docs/mlvc-npu-profile.md`。
+- **Encoder 混合 RKNN I/O**：在保留 `rknn_outputs_get` 逻辑 NCHW 正确性边界的同时，图像/reference 输入改用 `rknn_set_io_mem`；新增 stride-aware NCHW fp16→NC1HWC2 打包，直接写入下一帧 native reference memory。RK3576、640×368、70 帧、各 3 轮 A/B：MLVC 125.607→95.293 ms/帧（**−23.0%**），MLVC-S 66.660→47.781 ms/帧（**−28.3%**）；两变体码流与标准 I/O 逐字节一致，默认启用，`RKVC_MLVC_ENCODER_ZERO_COPY=0` 可回退。
+- **MLVC 可复现分阶段 profile**：新增默认关闭的 `RKVC_MLVC_PROFILE=1` 聚合诊断，`RKVC_MLVC_PROFILE_WARMUP` 控制预热帧数（默认 10），节点关闭时分别输出 encoder/decoder 各阶段的每帧均值。RK3576 Release 构建固定 CPU4–7，以同一 70 帧输入、QP 21、3 个独立进程复测：标准 I/O 基线下 MLVC 编/解码节点为 125.78/81.23 ms/帧，MLVC-S 为 66.89/40.48 ms/帧；两种变体三轮码流和解码输出均逐字节一致。完整数据与模型指纹见 `docs/mlvc-npu-profile.md`。
 
 - **多层循环内核重构（新增 `lib/mlvc_pixel.{h,c}`）**：将 `node_mlvc.c` 中每帧执行的像素/张量转换内核抽出为可独立单测的纯数组内核，AArch64 走显式 NEON 快速路径，其它架构回退标量；两条路径经随机数据**逐位等价**验证（含非 4 倍数尺寸、奇宽高、越界值边界），ASan/UBSan 干净。RK3576 实测（performance 调频，640×368 模型几何，y 张量 192×92×160，多轮均值；ref = 优化前实现）：
 

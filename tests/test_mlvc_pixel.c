@@ -73,6 +73,20 @@ static void ref_nchw_to_nc1hwc2_fp16(const int32_t *src, uint16_t *dst, int C, i
     }
 }
 
+static void ref_nchw_f16_to_nc1hwc2(const uint16_t *src, uint16_t *dst,
+                                    int C, int H, int W, int C2, int w_stride)
+{
+    int C1 = (C + C2 - 1) / C2;
+    memset(dst, 0, (size_t)C1 * H * w_stride * C2 * sizeof(*dst));
+    for (int c = 0; c < C; c++) {
+        int c1 = c / C2, c2 = c % C2;
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+                dst[(((size_t)c1 * H + y) * w_stride + x) * C2 + c2] =
+                    src[((size_t)c * H + y) * W + x];
+    }
+}
+
 static void ref_nc1hwc2_to_nchw_f16(const uint16_t *src, uint16_t *dst,
                                     int C1, int H, int W, int C2)
 {
@@ -233,6 +247,40 @@ static void test_nchw_to_nc1hwc2(void **state)
     }
 }
 
+static void test_nchw_f16_to_nc1hwc2(void **state)
+{
+    (void)state;
+    rng_state = 0x3A56789u;
+    static const int cases[][5] = {
+        { 256, 46, 80, 8, 80 }, /* 标准 MLVC encoder reference 实际几何 */
+        { 16,  3,  8, 8,  8 }, /* NEON 整块 */
+        { 10,  4,  7, 8, 11 }, /* 通道和行填充 */
+        { 9,   2,  5, 4,  6 }, /* 非 C2=8 标量路径 */
+    };
+    for (size_t t = 0; t < 4; t++) {
+        int C = cases[t][0], H = cases[t][1], W = cases[t][2];
+        int C2 = cases[t][3], ws = cases[t][4];
+        size_t src_n = (size_t)C * H * W;
+        size_t dst_n = (size_t)((C + C2 - 1) / C2) * H * ws * C2;
+        uint16_t *src = malloc(src_n * sizeof(*src));
+        uint16_t *a = malloc(dst_n * sizeof(*a));
+        uint16_t *b = malloc(dst_n * sizeof(*b));
+        assert_non_null(src);
+        assert_non_null(a);
+        assert_non_null(b);
+        for (size_t i = 0; i < src_n; i++)
+            src[i] = (uint16_t)rng();
+        memset(a, 0xa5, dst_n * sizeof(*a));
+        memset(b, 0x5a, dst_n * sizeof(*b));
+        ref_nchw_f16_to_nc1hwc2(src, a, C, H, W, C2, ws);
+        mlvc_px_nchw_f16_to_nc1hwc2(src, b, C, H, W, C2, ws);
+        assert_memory_equal(a, b, dst_n * sizeof(*a));
+        free(src);
+        free(a);
+        free(b);
+    }
+}
+
 /* 融合内核 vs 优化前两段式（NC1HWC2→NCHW + DCR shuffle） */
 static void test_d2s_fused(void **state)
 {
@@ -338,6 +386,7 @@ int main(void)
         cmocka_unit_test(test_extract_scales),
         cmocka_unit_test(test_nc1hwc2_to_nchw),
         cmocka_unit_test(test_nchw_to_nc1hwc2),
+        cmocka_unit_test(test_nchw_f16_to_nc1hwc2),
         cmocka_unit_test(test_d2s_fused),
         cmocka_unit_test(test_yuv_to_nhwc),
         cmocka_unit_test(test_nchw_to_nv12),

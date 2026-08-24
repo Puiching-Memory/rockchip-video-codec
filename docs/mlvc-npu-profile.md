@@ -4,21 +4,26 @@
 
 ## 1. 结论
 
-标准 MLVC encoder 改用成对的 `rknn_inputs_set` / `rknn_outputs_get` 后，70 帧连续编码、解码均通过，第二帧及后续帧不再出现 NaN/Inf。三轮独立运行生成的码流逐字节一致，说明修复后的 temporal feature 递归路径稳定且确定。
+标准 host I/O 修复了第二帧 NaN/Inf；在此正确性基线上，encoder 进一步
+改为“native 零拷贝输入 + 逻辑 NCHW 输出”的混合 I/O。MLVC 和 MLVC-S 各
+70 帧、3 轮连续编码的码流均与标准 I/O 逐字节一致，解码输出也保持
+既有基线哈希。
 
-| 变体   | 编码节点 (ms/帧)  | 编码节点吞吐 | 解码节点 (ms/帧) | 解码节点吞吐 | 70 帧码流 | bpp      | Y MS-SSIM |
-| ------ | ----------------- | ------------ | ---------------- | ------------ | --------- | -------- | --------- |
-| MLVC   | **125.778±0.492** | 7.95 fps     | **81.225±0.122** | 12.31 fps    | 18,207 B  | 0.008835 | 0.974157  |
-| MLVC-S | **66.891±0.126**  | 14.95 fps    | **40.475±0.035** | 24.71 fps    | 11,898 B  | 0.005773 | 0.970691  |
+| 变体   | 编码节点 (ms/帧) | 编码节点吞吐 | 解码节点 (ms/帧) | 解码节点吞吐 | 70 帧码流 | bpp      | Y MS-SSIM |
+| ------ | ---------------- | ------------ | ---------------- | ------------ | --------- | -------- | --------- |
+| MLVC   | **95.293±0.136** | 10.49 fps    | **81.225±0.122** | 12.31 fps    | 18,207 B  | 0.008835 | 0.974157  |
+| MLVC-S | **47.781±0.265** | 20.93 fps    | **40.475±0.035** | 24.71 fps    | 11,898 B  | 0.005773 | 0.970691  |
 
-这里的“节点”只统计 MLVC 节点内完成一帧所需的所有阶段，不含模型初始化、容器输入解析和进程退出。完整 CLI 进程的 70 帧墙钟如下：
+这里的“节点”只统计 MLVC 节点内完成一帧所需的所有阶段，不含模型初始化、容器输入解析和进程退出。以下完整 CLI 墙钟是混合 I/O 落地前的标准 I/O 基线，仅作对照：
 
 | 变体   | 编码墙钟      | 编码整程吞吐 | 解码墙钟      | 解码整程吞吐 |
 | ------ | ------------- | ------------ | ------------- | ------------ |
 | MLVC   | 9.253±0.020 s | 7.57 fps     | 6.177±0.069 s | 11.33 fps    |
 | MLVC-S | 5.071±0.010 s | 13.80 fps    | 3.202±0.078 s | 21.86 fps    |
 
-标准 MLVC encoder 的正确性修复有明确成本：标准 I/O 与输出逻辑化相关阶段合计 **35.63 ms/帧（28.3%）**。不能恢复旧的 native feature 直接复制来换取速度，因为 producer/consumer 的 native layout 不具备可交换契约；旧路径的低延迟是以第二帧数值损坏为代价的无效结果。
+混合 I/O 不传递 producer 的 native feature：它仍从 `rknn_outputs_get` 取逻辑
+NCHW，然后按 consumer 的 native input attr 显式打包。因此既保留了修复的布局
+契约，又去掉了每帧约 28/18 ms 的 runtime input conversion。
 
 ## 2. 硬件、软件与模型
 
@@ -50,7 +55,7 @@
 - 每个变体的 encoder 和 decoder 各启动 3 个独立进程。每轮先预热 10 帧，再对后 60 帧做节点内分阶段聚合。
 - 表中 `±` 是三轮“每轮均值”的样本标准差，而不是 180 个单帧样本混算后的标准差。
 - 码流和解码 YUV 写入 `/dev/shm`。整程墙钟包含模型初始化、输入解析和文件 I/O；节点计时不包含这些项目。
-- encoder 使用标准 host I/O，输出是逻辑 NCHW；decoder 保持 native NC1HWC2 零拷贝 I/O。
+- encoder 默认使用混合 I/O（native 输入、逻辑 NCHW 输出）；decoder 保持 native NC1HWC2 零拷贝 I/O。
 - 质量值是 70 帧 Y 通道 5-scale MS-SSIM。输入由 3 帧循环得到，适合回归与性能复测，不应当作为自然视频 RD 曲线结论。
 
 节点内 profile 默认关闭。启用后只增加分段时间戳，并在节点关闭时打印聚合值：
@@ -59,6 +64,15 @@
 export RKVC_MLVC_PROFILE=1
 export RKVC_MLVC_PROFILE_WARMUP=10
 ```
+
+encoder profile 会额外打印 `io=standard|hybrid`，原 `inputs_set` 阶段在日志中
+统一记为 `input_prepare`。可用以下方式回退复测标准 I/O：
+
+```bash
+export RKVC_MLVC_ENCODER_ZERO_COPY=0
+```
+
+混合路径默认开启；将开关设为 0 才使用 `io=standard`。
 
 `RKVC_MLVC_PROFILE_WARMUP` 缺省为 10；设为 0 可统计所有帧。以标准 MLVC 为例：
 
@@ -82,6 +96,8 @@ taskset -c 4-7 "$RKVC_BIN" -i /dev/shm/profile.mlvc -o /dev/shm/profile.yuv \
 
 ## 4. Encoder 分阶段
 
+以下是修复 NaN 后的标准 I/O 基线，用于展示原始优化目标：
+
 | 阶段               | MLVC (ms)   | MLVC 占比 | MLVC-S (ms) | MLVC-S 占比 | 说明                                        |
 | ------------------ | ----------- | --------- | ----------- | ----------- | ------------------------------------------- |
 | YUV→fp16 NHWC      | 0.611       | 0.5%      | 0.613       | 0.9%        | 两种变体输入尺寸相同                        |
@@ -93,7 +109,14 @@ taskset -c 4-7 "$RKVC_BIN" -i /dev/shm/profile.mlvc -o /dev/shm/profile.yuv \
 | rANS + packet      | 1.359       | 1.1%      | 0.540       | 0.8%        | 熵编码与帧包分配                            |
 | **合计**           | **125.778** | **100%**  | **66.891**  | **100%**    | 三轮均值；分项显示值有舍入                  |
 
-标准 MLVC 的 `inputs_set + outputs_get + 输出后处理` 为 35.63 ms/帧，已是仅次于 `rknn_run` 的优化目标。后续若重新引入零拷贝，必须显式证明 feature producer layout 到 reference consumer layout 的映射并做至少 70 帧递归一致性测试，不能仅凭 `n_elems` 或 native shape 相同直接 `memcpy`。
+标准 MLVC 的 `inputs_set + outputs_get + 输出后处理` 为 35.63 ms/帧，是混合 I/O 的主要优化来源。混合路径显式保留逻辑 feature 边界并通过 70 帧递归一致性测试；仍不能仅凭 `n_elems` 或 native shape 相同直接 `memcpy`。
+
+混合 I/O 与同轮标准 I/O A/B 如下（均为 3 轮均值的样本统计）：
+
+| 变体   | 标准 I/O (ms/帧) | 混合 I/O (ms/帧) | 节省      | `input_prepare` 代表值 |
+| ------ | ---------------- | ---------------- | --------- | ---------------------- |
+| MLVC   | 125.607±0.571    | **95.293±0.136** | **23.0%** | 27.96 → 0.29 ms        |
+| MLVC-S | 66.660±0.299     | **47.781±0.265** | **28.3%** | 18.27 → 0.29 ms        |
 
 ## 5. Decoder 分阶段
 
@@ -122,8 +145,8 @@ decoder 的 native feature 输出与下一帧 native reference 已经由当前�
 
 ## 7. 当前优化优先级
 
-1. **Encoder 标准 I/O（MLVC 28.3%）**：研究显式、可验证的 native layout bridge，或在导出图边界消除 reference 布局歧义。正确性门槛是 ONNX 对照、跨帧 finite、70 帧以上递归和端到端质量同时通过。
-2. **NPU 模型执行（MLVC enc 70.0%，dec 90.7%）**：继续从 ONNX/RKNN 算子分配和网络结构入手；绝对收益上限高于零散 CPU 微优化。
+1. **NPU 模型执行（混合 I/O 后 MLVC encoder 约 91%）**：继续从 ONNX/RKNN 算子分配和网络结构入手；这已成为 encoder 的绝对主瓶颈。
+2. **Encoder 输出逻辑化**：若继续优化，需在导出图边界显式证明 producer 到 consumer 的 native 映射；不能回退到 native `memcpy`。
 3. **Decoder x_hat→NV12（MLVC/MLVC-S 均约 2.56 ms）**：两种变体固定成本几乎相同，可继续做 SIMD/并行化，但优先级低于 encoder I/O 和 NPU 模型本体。
 
 ## 附录 A：旧 RK3588 数据（仅作历史参考）

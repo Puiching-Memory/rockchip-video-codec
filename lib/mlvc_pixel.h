@@ -129,6 +129,18 @@ void mlvc_px_nchw_to_nc1hwc2_fp16(const int32_t *src, uint16_t *dst,
                                   int C, int H, int W);
 
 /**
+ * @brief NCHW fp16 → NC1HWC2 fp16，保留 fp16 位模式。
+ *
+ * 用于把 RKNN 标准输出的逻辑 NCHW feature 直接打包到
+ * native reference 输入内存。函数会清零通道和行 stride 填充。
+ * @param C 逻辑通道数。
+ * @param C2 native 组内通道数（RKNN fp16 通常为 8）。
+ * @param w_stride native 宽度 stride，0 表示等于 W。
+ */
+void mlvc_px_nchw_f16_to_nc1hwc2(const uint16_t *src, uint16_t *dst,
+                                 int C, int H, int W, int C2, int w_stride);
+
+/**
  * @brief NC1HWC2 → ONNX DepthToSpace(mode=DCR) 融合内核，直接输出 NCHW fp16。
  *
  * 等价于先 NC1HWC2→NCHW 再 DCR shuffle，但省去中间张量的一读一写。
