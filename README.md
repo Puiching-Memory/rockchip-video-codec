@@ -67,16 +67,18 @@ MLVC 用法示例：
 ```bash
 # 编码：mp4 → .mlvc（neural 档位自动选 MLVC）
 ./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/MLVCEncoder_rk3588.rknn --mlvc-gaussian-pmf gaussian.bin --mlvc-bitest-pmf bitest.bin
+  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
+  --mlvc-gaussian-pmf models/mlvc/gaussian.bin --mlvc-bitest-pmf models/mlvc/bitest.bin
 
 # 纯解码：.mlvc → .yuv（NV12，无再编码）
-./.build/release/rkvc_transcode -i out.mlvc -o out.yuv --mlvc-dec models/MLVCDecoder_rk3588.rknn \
-  --mlvc-gaussian-pmf gaussian.bin --mlvc-bitest-pmf bitest.bin
+./.build/release/rkvc_transcode -i out.mlvc -o out.yuv --mlvc-dec models/mlvc/MLVCDecoder_rk3588.rknn \
+  --mlvc-gaussian-pmf models/mlvc/gaussian.bin --mlvc-bitest-pmf models/mlvc/bitest.bin
 
 # 多 QP：基座模型 + 打开时打补丁（编码用 --mlvc-qp，解码用容器头 qp）
 ./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/MLVCEncoder_rk3588.rknn --mlvc-gaussian-pmf gaussian.bin --mlvc-bitest-pmf bitest.bin \
-  --mlvc-qp-patch-dir models/qp_patches --mlvc-qp 30
+  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
+  --mlvc-gaussian-pmf models/mlvc/gaussian.bin --mlvc-bitest-pmf models/mlvc/bitest.bin \
+  --mlvc-qp-patch-dir models/mlvc/qp_patches --mlvc-qp 30
 ```
 
 ## API 示例
@@ -124,8 +126,8 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 ## 依赖
 
 - Rockchip BSP、`third_party/` 子模块：MPP、ffmpeg-rockchip、SVT-AV1、[librga](https://github.com/airockchip/librga)
-- libdrm；可选 `librknnrt`（`rkvc_sr` 超分与 MLVC；可移植包可自带）
-- MLVC 模型（`models/MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`）与 PMF 表（`gaussian.bin` / `bitest.bin`）由用户提供，可用 `tools/.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 从 [microsoft/mlvc](https://github.com/microsoft/mlvc) 一条龙导出（先在 `tools/` 执行 `uv sync`，见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)）；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
+- libdrm；`librknnrt`（`rkvc_sr` 超分与 MLVC）：`./scripts/install-rknnrt.sh` 下载到 `.build/deps/rknn-install/`，可移植包自带
+- MLVC 与 MLVC-S 各自使用自包含 bundle：`models/mlvc/`、`models/mlvc-s/`，目录内包含 RKNN、PMF、QP 补丁和 manifest。可用 `.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 从 [microsoft/mlvc](https://github.com/microsoft/mlvc) 导出（见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)）；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
 
 ## 许可证
 

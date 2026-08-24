@@ -45,6 +45,10 @@ def load_config(config_path: Path, project_root: Path) -> Dict[str, Any]:
     for key in ("enc_model", "dec_model", "gaussian_pmf", "bitest_pmf"):
         if mlvc.get(key):
             mlvc[key] = _resolve_path(project_root, mlvc[key].replace("{soc}", _detect_soc()))
+    hevc_e = cfg.setdefault("hevc_e", {})
+    for key in ("mlvc_model_dir", "mlvc_s_model_dir"):
+        if hevc_e.get(key):
+            hevc_e[key] = _resolve_path(project_root, hevc_e[key])
     return cfg
 
 

@@ -36,7 +36,7 @@ option(RKVC_RKNN_ALLOW_DEBUG_LOG "Respect RKNN_LOG_LEVEL / RKVC_DEBUG_RKNN_LOG a
 option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
 
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
-# 始终使用 third_party/ 源码树构建的静态库
+# 始终使用 third_party/ 源码树构建的静态库（禁止系统 FFmpeg，否则破坏可移植包）。
 set(AVCODEC_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip")
 set(AVCODEC_LIB_DIRS
     "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavcodec"
@@ -69,11 +69,15 @@ if(NOT EXISTS "${RGA_PREFIX}/lib/librga.so")
         "       ./scripts/install-librga.sh")
 endif()
 
+# librknnrt（Rockchip 专有运行时，经 scripts/install-rknnrt.sh 下载到本仓前缀）
+set(RKNN_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/rknn-install" CACHE PATH "RKNN runtime install prefix")
+
 set(RKVC_DEP_LIB_DIRS
     ${AVCODEC_LIB_DIRS}
     ${MPP_LIB_DIR}
     ${SVT_PREFIX}/lib
     ${RGA_PREFIX}/lib
+    ${RKNN_PREFIX}/lib
 )
 
 set(RKVC_RPATH_LINK_OPTIONS "")
@@ -130,17 +134,19 @@ set(RKVC_SOURCES
 )
 
 if(RKVC_ENABLE_RKNN)
-    find_library(RKNNRT_LIB rknnrt
-        PATHS /usr/lib/aarch64-linux-gnu /usr/lib /lib)
-    find_path(RKNN_INCLUDE_DIR rknn_api.h
-        PATHS /usr/include /usr/local/include)
-    if(RKNNRT_LIB AND RKNN_INCLUDE_DIR)
+    # 可移植构建只认本仓前缀（./scripts/install-rknnrt.sh），避免链到系统 /usr 的 librknnrt。
+    if(EXISTS "${RKNN_PREFIX}/lib/librknnrt.so" AND EXISTS "${RKNN_PREFIX}/include/rknn_api.h")
+        set(RKNNRT_LIB "${RKNN_PREFIX}/lib/librknnrt.so")
+        set(RKNN_INCLUDE_DIR "${RKNN_PREFIX}/include")
         message(STATUS "RKNN runtime: ${RKNNRT_LIB}")
         set(RKVC_RKNN_LIBS ${RKNNRT_LIB})
         set(RKVC_RKNN_INCLUDES ${RKNN_INCLUDE_DIR})
         set(RKVC_RKNN_ENABLED 1)
     else()
-        message(WARNING "RKVC_ENABLE_RKNN=ON but librknnrt not found; building without NPU SR")
+        message(WARNING
+            "RKVC_ENABLE_RKNN=ON but librknnrt not found at ${RKNN_PREFIX}\n"
+            "  Run: ./scripts/install-rknnrt.sh\n"
+            "  Building without NPU SR / MLVC")
     endif()
 endif()
 
@@ -152,7 +158,9 @@ add_library(rkvc_instrumentation INTERFACE)
 # 不再依赖 third_party/mlvc 子模块或 C++17。
 if(RKVC_ENABLE_MLVC)
     if(NOT RKVC_RKNN_ENABLED)
-        message(FATAL_ERROR "RKVC_ENABLE_MLVC=ON requires librknnrt (RKVC_ENABLE_RKNN).")
+        message(FATAL_ERROR
+            "RKVC_ENABLE_MLVC=ON requires librknnrt (RKVC_ENABLE_RKNN).\n"
+            "  Run: ./scripts/install-rknnrt.sh")
     endif()
     set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c lib/mlvc_pixel.c)
     set(RKVC_MLVC_ENABLED 1)

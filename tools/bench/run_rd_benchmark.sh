@@ -12,16 +12,15 @@
 set -euo pipefail
 
 BENCH_ROOT="$(cd "$(dirname "$0")" && pwd)"
-TOOLS_ROOT="$(cd "$BENCH_ROOT/.." && pwd)"
-TOOLS_PY="$TOOLS_ROOT/.venv/bin/python"
+PROJECT_ROOT="$(cd "$BENCH_ROOT/../.." && pwd)"
+TOOLS_PY="$PROJECT_ROOT/.venv/bin/python"
 if [[ ! -x "$TOOLS_PY" ]]; then
     echo "[error] 共享 Python 环境不存在: $TOOLS_PY" >&2
-    echo "请先运行: cd $TOOLS_ROOT && uv sync" >&2
+    echo "请先在仓库根目录运行: uv sync" >&2
     exit 1
 fi
 BENCH_TOOLS="$BENCH_ROOT/tools"
 BENCH_CONFIG="${BENCH_CONFIG:-$BENCH_ROOT/config.json}"
-PROJECT_ROOT="$(cd "$BENCH_ROOT/../.." && pwd)"
 RESULTS="$BENCH_ROOT/results"
 WORKDIR="$BENCH_ROOT/work"
 
@@ -86,8 +85,8 @@ RKVC_ENC="$RKVC_BUILD/rkvc_encode"
 
 # MLVC 神经编解码（-p neural）：模型/PMF 路径与分辨率默认由 config.json
 # （mlvc.*，{soc} 占位符按探测 SoC 展开）经 config.py 导出；env 可覆盖。
-MLVC_ENC_MODEL="${MLVC_ENC_MODEL:-$PROJECT_ROOT/models/MLVCEncoder_${RKVC_SOC}.rknn}"
-MLVC_DEC_MODEL="${MLVC_DEC_MODEL:-$PROJECT_ROOT/models/MLVCDecoder_${RKVC_SOC}.rknn}"
+MLVC_ENC_MODEL="${MLVC_ENC_MODEL:-$PROJECT_ROOT/models/mlvc/MLVCEncoder_${RKVC_SOC}.rknn}"
+MLVC_DEC_MODEL="${MLVC_DEC_MODEL:-$PROJECT_ROOT/models/mlvc/MLVCDecoder_${RKVC_SOC}.rknn}"
 
 # codec/policy 清单单一来源：新增时改这里 + config.json + plot_rd_curve.py
 POST_UPSCALE_BASE_LIST=(h264 h265 svt-av1 svt-av1-hq)
@@ -152,7 +151,7 @@ usage() {
 前置条件:
   ./scripts/build-svt.sh
   ./scripts/rebuild-ffmpeg-rkmpp.sh
-  cmake -B .build/release && cmake --build .build/release -j4
+  cmake -B .build/release && cmake --build .build/release
 EOF
 }
 

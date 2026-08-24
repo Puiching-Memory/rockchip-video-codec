@@ -44,7 +44,7 @@
 
 ## 执行命令
 
-构建脚本与 CMake Presets 默认将编译并行度限制为 **4**。各 preset 对应目录见 [build-layout.md](build-layout.md)（`tests`→`.build/tests/`，`asan`→`.build/asan/`，等）。
+CMake build preset 固定使用 **6** 个并行任务；构建脚本则默认使用 **round(nproc × 80%)**（`BUILD_JOBS` 可覆盖）。各 preset 对应目录见 [build-layout.md](build-layout.md)（`tests`→`.build/tests/`，`asan`→`.build/asan/`，等）。
 
 ```bash
 # 基线单元测试 + CLI 工具脚本 → .build/tests/

@@ -23,6 +23,9 @@ MLVC_GIT = "https://github.com/microsoft/mlvc.git"
 CKPT_URL = "https://mlvideopub.blob.core.windows.net/mlvc/models/mlvc-psnr-v1.ckpt"
 CKPT_SHA256 = "834adaab680837c4106a9bb62e5778b3f13729b4fe6f751797e0747214f5cca1"
 DEFAULT_MODEL_VERSION = "dmc61sbr_reglu"
+DEFAULT_S_MODEL_VERSION = "dmc61sbr_reglu_s"
+DEFAULT_WEIGHTS_VERSION = "mlvc-psnr-v1"
+DEFAULT_S_WEIGHTS_VERSION = "mlvc-s-psnr-v1"
 DEFAULT_WIDTH = 640
 DEFAULT_HEIGHT = 368
 # convert.py 对 640×368 选用的默认测试序列（见 video/conversion/const.py）
@@ -178,6 +181,57 @@ def patch_download_helpers(src: str) -> str:
     return new
 
 
+MLVC_S_MODEL_CONFIG = """
+dmc61sbr_reglu_s:
+  module: ._dmc61sb_model
+  class: TraceableMLVC
+  weights_path: pretrained/mlvc-s-psnr-v1.ckpt
+  weights_version: mlvc-s-psnr-v1
+  iframe_period: 64
+  reset_period: null
+  split_type: dmc61sbr_e1d1
+  params:
+    disable_feature_reset: true
+    depth_conv_block_params:
+      activation: LeakyReLU
+      zero_init_residual: true
+      chunk_mode: gated
+      ffn_gate_activation: ReLU1
+    feature_channels: 48
+    spatial_prior_channels: 128
+    input_offset: -0.5
+    memory_activation: identity
+    chain_feature_adaptors: true
+    recon_channels: 192
+    hidden_channels: 192
+    hyperprior_num_blocks: 2
+    y_scale_repeat: 4
+    z_channels: 48
+    y_channels: 48
+    hyperprior_variant: mini
+    feature_extractor_num_conv1_layers: 1
+    feature_extractor_num_conv2_layers: 1
+"""
+
+
+def ensure_mlvc_s_model_config(mlvc_dir: Path) -> None:
+    """把 MLVC-S（DMC-6.1SB 窄通道）写进 conversion model_configs.yaml。"""
+    dest = mlvc_dir / "video" / "conversion" / "_full_model" / "model_configs.yaml"
+    if not dest.is_file():
+        return
+    text = dest.read_text(encoding="utf-8")
+    if re.search(r"^dmc61sbr_reglu_s\s*:", text, re.M):
+        return
+    dest.write_text(text.rstrip() + "\n" + MLVC_S_MODEL_CONFIG, encoding="utf-8")
+    print(f"已写入 MLVC-S 转换配置: {dest}")
+
+
+def default_weights_version(model_version: str) -> str:
+    if model_version == DEFAULT_S_MODEL_VERSION:
+        return DEFAULT_S_WEIGHTS_VERSION
+    return DEFAULT_WEIGHTS_VERSION
+
+
 def patch_mlvc_checkout(mlvc_dir: Path) -> None:
     """让当前平台能 uv sync，并优先用本地权重/测试 YUV（不强制 Azure）。"""
     pyproject = mlvc_dir / "pyproject.toml"
@@ -214,6 +268,79 @@ def patch_mlvc_checkout(mlvc_dir: Path) -> None:
             bundler.write_text(bnew, encoding="utf-8")
             print("已补丁 conversion/_model_bundler.py：coremltools 可选")
 
+    exporter = mlvc_dir / "video" / "conversion" / "_exporter" / "_onnx_exporter.py"
+    if exporter.is_file():
+        esrc = exporter.read_text(encoding="utf-8")
+        # torch.onnx.export(dynamo=...) 需要 torch>=2.4；本板 CPU 只能用 2.2（2.10 SIGILL）
+        if "dynamo=False," in esrc:
+            exporter.write_text(
+                esrc.replace("            dynamo=False,\n", ""),
+                encoding="utf-8",
+            )
+            print("已补丁 _onnx_exporter.py：去掉 torch.onnx.export(dynamo=)（兼容 torch 2.2）")
+
+    # 本地 convert.py 不装 Azure SDK：推迟 import azure（幂等）
+    factory = mlvc_dir / "video" / "conversion" / "_full_model" / "_model_factory.py"
+    if factory.is_file():
+        fsrc = factory.read_text(encoding="utf-8")
+        factory_top = (
+            "from ..const import DEFAULT_JOB_OUTPUTS_DIR\nfrom .._azure import get_azureml_job\n"
+        )
+        if factory_top in fsrc:
+            fsrc = fsrc.replace(factory_top, "from ..const import DEFAULT_JOB_OUTPUTS_DIR\n", 1)
+            fsrc = fsrc.replace(
+                "                job = get_azureml_job(job_name)\n",
+                "                from .._azure import get_azureml_job\n\n"
+                "                job = get_azureml_job(job_name)\n",
+                1,
+            )
+            factory.write_text(fsrc, encoding="utf-8")
+            print("已补丁 _model_factory.py：Azure 延迟导入")
+
+    utils = mlvc_dir / "video" / "conversion" / "utils.py"
+    if utils.is_file():
+        usrc = utils.read_text(encoding="utf-8")
+        utils_top = "from typing import NamedTuple, Any\nfrom ._azure import download_blob\n"
+        if utils_top in usrc:
+            usrc = usrc.replace(
+                utils_top,
+                "from typing import NamedTuple, Any\n",
+                1,
+            )
+            usrc = usrc.replace(
+                "    return download_blob(\n",
+                "    from ._azure import download_blob\n\n    return download_blob(\n",
+            )
+            utils.write_text(usrc, encoding="utf-8")
+            print("已补丁 conversion/utils.py：Azure 延迟导入")
+
+    tester = mlvc_dir / "video" / "conversion" / "_model_tester.py"
+    if tester.is_file():
+        tsrc = tester.read_text(encoding="utf-8")
+        tester_top = (
+            "from dataclasses import dataclass\n"
+            "from azure.core.exceptions import ResourceNotFoundError\n"
+        )
+        if tester_top in tsrc:
+            tsrc = tsrc.replace(tester_top, "from dataclasses import dataclass\n", 1)
+            marker = (
+                "    def _load_azureml_results(self, conversion_metadata: ConversionMetadata)"
+                " -> list[FrameLoopSummary]:\n"
+            )
+            inject = (
+                marker
+                + "        try:\n"
+                + "            from azure.core.exceptions import ResourceNotFoundError\n"
+                + "        except ImportError:\n"
+                + "            ResourceNotFoundError = Exception  # 本地导出不装 Azure SDK\n"
+            )
+            if marker in tsrc and "ResourceNotFoundError = Exception" not in tsrc:
+                tsrc = tsrc.replace(marker, inject, 1)
+            tester.write_text(tsrc, encoding="utf-8")
+            print("已补丁 _model_tester.py：Azure 延迟导入")
+
+    ensure_mlvc_s_model_config(mlvc_dir)
+
 
 def ensure_mlvc_src(mlvc_dir: Path) -> Path:
     convert_py = mlvc_dir / "video" / "convert.py"
@@ -228,11 +355,20 @@ def ensure_mlvc_src(mlvc_dir: Path) -> Path:
     return mlvc_dir
 
 
-def ensure_checkpoint(data_dir: Path, weights_path: Path | None) -> Path:
+def ensure_checkpoint(
+    data_dir: Path,
+    weights_path: Path | None,
+    model_version: str = DEFAULT_MODEL_VERSION,
+) -> Path:
     if weights_path is not None:
         if not weights_path.is_file():
             raise OnnxExportError(f"权重不存在: {weights_path}")
         return weights_path
+    if model_version == DEFAULT_S_MODEL_VERSION:
+        raise OnnxExportError(
+            "MLVC-S 没有可校验的公开 checkpoint 下载地址；"
+            "请用 --weights-path 指定 mlvc-s-psnr-v1.ckpt"
+        )
     dest = data_dir / "pretrained" / "mlvc-psnr-v1.ckpt"
     if dest.is_file() and sha256_file(dest) == CKPT_SHA256:
         print(f"权重已就绪: {dest}")
@@ -256,15 +392,19 @@ def ensure_test_yuv(test_data_dir: Path, width: int = 640, height: int = 360) ->
     return path
 
 
-def _venv_ok(mlvc_dir: Path) -> bool:
-    py = mlvc_dir / ".venv" / "bin" / "python"
+def project_venv_python() -> Path:
+    return repo_root() / ".venv" / "bin" / "python"
+
+
+def _venv_ok() -> bool:
+    py = project_venv_python()
     if not py.is_file():
         return False
     proc = subprocess.run(
         [
             str(py),
             "-c",
-            "import torch, onnx, msrtc.rans; assert torch.version.cuda is None",
+            "import torch, onnx; assert torch.version.cuda is None",
         ],
         capture_output=True,
         text=True,
@@ -272,33 +412,47 @@ def _venv_ok(mlvc_dir: Path) -> bool:
     return proc.returncode == 0
 
 
-def ensure_mlvc_venv(mlvc_dir: Path) -> None:
-    if _venv_ok(mlvc_dir):
-        print(f"使用已有 MLVC venv: {mlvc_dir / '.venv'}")
-        return
-    _run(["uv", "python", "install", "3.12"])
-    _run(
-        ["uv", "sync", "--python", "3.12", "--no-dev", "--extra", "onnxruntime"],
-        cwd=mlvc_dir,
-    )
+def ensure_project_venv(mlvc_dir: Path) -> Path:
+    """使用仓库根目录唯一的 ``.venv``；msrtc.rans 从 microsoft/mlvc 源码装进该环境。"""
+    py = project_venv_python()
+    if not py.is_file():
+        raise OnnxExportError(
+            f"仓库根目录没有 .venv（{py}）。请先运行: uv sync"
+        )
+    if not _venv_ok():
+        raise OnnxExportError(
+            f"{py} 缺少 CPU-only torch/onnx。请在仓库根目录运行: uv sync"
+        )
     rans = mlvc_dir / "packages" / "msrtc_rans"
     if not rans.is_dir():
         raise OnnxExportError(f"缺少 {rans}（microsoft/mlvc 熵编码器）")
-    _run(
-        [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            str(mlvc_dir / ".venv" / "bin" / "python"),
-            str(rans),
-        ],
-        cwd=mlvc_dir,
+    chk = subprocess.run(
+        [str(py), "-c", "import msrtc.rans"],
+        capture_output=True,
+        text=True,
     )
-    if not _venv_ok(mlvc_dir):
-        raise OnnxExportError(
-            "MLVC venv 已创建，但 CPU-only torch/onnx/msrtc.rans 校验失败"
+    if chk.returncode != 0:
+        _run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(py),
+                str(rans),
+            ]
         )
+    chk = subprocess.run(
+        [str(py), "-c", "import msrtc.rans"],
+        capture_output=True,
+        text=True,
+    )
+    if chk.returncode != 0:
+        raise OnnxExportError(
+            f"无法把 msrtc.rans 装进 {py}（{chk.stderr.strip() or chk.stdout.strip()}）"
+        )
+    print(f"使用项目 venv: {py}")
+    return py
 
 
 def find_exported_onnx(export_root: Path) -> Path:
@@ -314,6 +468,7 @@ def export_onnx(
     data_dir: Path | None = None,
     weights_path: Path | None = None,
     model_version: str = DEFAULT_MODEL_VERSION,
+    weights_version: str | None = None,
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
     target_device: str = "generic",
@@ -323,15 +478,15 @@ def export_onnx(
 ) -> Path:
     if target_device == "qualcomm":
         raise OnnxExportError("不要用 --target-device qualcomm（RKNN 上会 CPU fallback）")
-    mlvc_dir = ensure_mlvc_src(mlvc_dir or default_mlvc_dir())
-    data_dir = data_dir or default_data_dir()
+    mlvc_dir = ensure_mlvc_src(mlvc_dir or default_mlvc_dir()).resolve()
+    data_dir = (data_dir or default_data_dir()).resolve()
     data_dir.mkdir(parents=True, exist_ok=True)
     test_data_dir = data_dir / "test-set"
-    ckpt = ensure_checkpoint(data_dir, weights_path)
+    ckpt = ensure_checkpoint(data_dir, weights_path, model_version)
     ensure_test_yuv(test_data_dir)
-    ensure_mlvc_venv(mlvc_dir)
+    py = ensure_project_venv(mlvc_dir)
 
-    out = output_path or (mlvc_dir / "video" / "output" / "models")
+    out = (output_path or (mlvc_dir / "video" / "output" / "models")).resolve()
     if skip_if_exists:
         try:
             existing = find_exported_onnx(out)
@@ -342,7 +497,7 @@ def export_onnx(
             pass
 
     cmd = [
-        str(mlvc_dir / ".venv" / "bin" / "python"),
+        str(py),
         "convert.py",
         "--job-outputs-dir", str(data_dir),
         "--test-data-dir", str(test_data_dir),
@@ -355,7 +510,7 @@ def export_onnx(
         "--frame-count", str(frame_count),
         "--output-path", str(out),
         "--weights-path", str(ckpt.resolve()),
-        "--weights-version", "mlvc-psnr-v1",
+        "--weights-version", weights_version or default_weights_version(model_version),
         "--skip-if-exists",
         "--no-validate-conversion",
     ]
@@ -368,8 +523,14 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="调用 microsoft/mlvc convert.py 导出 ONNX（generic）")
     p.add_argument("--mlvc-dir", type=Path, default=None, help="MLVC 源码目录（默认 .build/deps/mlvc）")
     p.add_argument("--data-dir", type=Path, default=None, help="权重与测试数据（默认 .build/deps/mlvc-data）")
-    p.add_argument("--weights-path", type=Path, default=None, help="覆盖 checkpoint 路径")
+    p.add_argument(
+        "--weights-path",
+        type=Path,
+        default=None,
+        help="覆盖 checkpoint 路径（MLVC-S 必填）",
+    )
     p.add_argument("--model-version", default=DEFAULT_MODEL_VERSION)
+    p.add_argument("--weights-version", default=None, help="覆盖 checkpoint 版本名（默认随 --model-version）")
     p.add_argument("--model-width", type=int, default=DEFAULT_WIDTH)
     p.add_argument("--model-height", type=int, default=DEFAULT_HEIGHT)
     p.add_argument("--target-device", default="generic")
@@ -386,6 +547,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         data_dir=args.data_dir,
         weights_path=args.weights_path,
         model_version=args.model_version,
+        weights_version=args.weights_version,
         width=args.model_width,
         height=args.model_height,
         target_device=args.target_device,

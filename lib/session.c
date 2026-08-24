@@ -197,9 +197,19 @@ static rkvc_err session_open_nodes(rkvc_session *s)
             return err;
 
         AVCodecParameters *par = rkvc_demux_video_par(s->demux);
+        rkvc_pix_fmt dec_out = d->pixel_format;
+#ifdef RKVC_ENABLE_MLVC
+        /* MLVC 可直接消费 YUV420P/NV12；保留原始格式可避免一次无用转换。 */
+        if (s->route.enc_backend == RKVC_ENC_BACKEND_MLVC && par) {
+            if (par->format == AV_PIX_FMT_YUV420P)
+                dec_out = RKVC_PIX_FMT_YUV420P;
+            else if (par->format == AV_PIX_FMT_NV12)
+                dec_out = RKVC_PIX_FMT_NV12;
+        }
+#endif
         rkvc_mpp_dec_config mdc = {
             .route         = &s->route,
-            .output_format = d->pixel_format,
+            .output_format = dec_out,
             .low_latency   = d->low_latency,
             .codec_opts    = d->codec_opts,
         };
@@ -427,7 +437,7 @@ rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc,
             s->route.dec_backend = RKVC_DEC_BACKEND_MLVC;
             s->route.dec_name    = "mlvc";
         } else if (out_mlvc) {
-            /* 编码：标准视频输入由 MPP 解码 */
+            /* 编码：压缩输入由 MPP 解；y4m/raw 由 FFmpeg rawvideo 解 */
             s->route.dec_name    = "mpp";
         }
         if (out_mlvc) {

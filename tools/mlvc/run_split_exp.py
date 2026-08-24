@@ -179,7 +179,7 @@ def cmd_bench(exp: Path, warmup: int, frames: int, platform: str) -> None:
                 "--exp",
                 "custom_std",
                 "--a",
-                str(ROOT / f"models/MLVCEncoder_{platform}.rknn"),
+                str(ROOT / f"models/mlvc/MLVCEncoder_{platform}.rknn"),
                 "--warmup",
                 str(warmup),
                 "--frames",

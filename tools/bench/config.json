@@ -32,13 +32,26 @@
     "parallel": false
   },
   "mlvc": {
-    "enc_model": "models/MLVCEncoder_{soc}.rknn",
-    "dec_model": "models/MLVCDecoder_{soc}.rknn",
-    "gaussian_pmf": "models/gaussian.bin",
-    "bitest_pmf": "models/bitest.bin",
+    "enc_model": "models/mlvc/MLVCEncoder_{soc}.rknn",
+    "dec_model": "models/mlvc/MLVCDecoder_{soc}.rknn",
+    "gaussian_pmf": "models/mlvc/gaussian.bin",
+    "bitest_pmf": "models/mlvc/bitest.bin",
     "width": 640,
     "height": 368,
     "qp": 21
+  },
+  "hevc_e": {
+    "src_dir": "/dev/shm/hevc-e",
+    "sequences": ["FourPeople", "Johnny", "KristenAndSara"],
+    "width": 640,
+    "height": 368,
+    "frames": 96,
+    "fps": 60,
+    "codecs": ["h264", "h265", "mlvc", "mlvc-s"],
+    "mpp_qp": [22, 28, 34, 40, 44, 51],
+    "mlvc_qp": [0, 21, 42, 63],
+    "mlvc_model_dir": "models/mlvc",
+    "mlvc_s_model_dir": "models/mlvc-s"
   },
   "ramdisk_dir": "/dev/shm/rkvc-bench",
   "rkmpp": {

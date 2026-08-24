@@ -44,6 +44,11 @@ rkvc_err rkvc_mpp_dec_open(rkvc_mpp_dec **out, const rkvc_mpp_dec_config *cfg,
     case AV_CODEC_ID_AV1:
         codec = avcodec_find_decoder_by_name("av1_rkmpp");
         break;
+    case AV_CODEC_ID_RAWVIDEO:
+    case AV_CODEC_ID_WRAPPED_AVFRAME:
+        /* y4m / raw：走软解，不能按路由名去开 h264_rkmpp */
+        codec = avcodec_find_decoder(par->codec_id);
+        break;
     default:
         break;
     }
@@ -60,9 +65,13 @@ rkvc_err rkvc_mpp_dec_open(rkvc_mpp_dec **out, const rkvc_mpp_dec_config *cfg,
     if (!codec)
         return RKVC_ERR_NOT_FOUND;
 
-    rkvc_err perm = rkvc_check_hw_permissions();
-    if (perm != RKVC_OK)
-        return perm;
+    const int software = (par->codec_id == AV_CODEC_ID_RAWVIDEO ||
+                          par->codec_id == AV_CODEC_ID_WRAPPED_AVFRAME);
+    if (!software) {
+        rkvc_err perm = rkvc_check_hw_permissions();
+        if (perm != RKVC_OK)
+            return perm;
+    }
 
     rkvc_mpp_dec *dec = rkvc_calloc(1, sizeof(*dec));
     if (!dec)

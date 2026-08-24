@@ -5,11 +5,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="${1:-$ROOT/tools/bench/demo_videos.json}"
 PY="$ROOT/tools/bench/tools/comparison_demo_rkvc.py"
-TOOLS_PY="$ROOT/tools/.venv/bin/python"
+TOOLS_PY="$ROOT/.venv/bin/python"
 
 if [[ ! -x "$TOOLS_PY" ]]; then
     echo "[error] 共享 Python 环境不存在: $TOOLS_PY" >&2
-    echo "请先运行: cd $ROOT/tools && uv sync" >&2
+    echo "请先在仓库根目录运行: uv sync" >&2
     exit 1
 fi
 

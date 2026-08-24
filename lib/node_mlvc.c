@@ -5,7 +5,7 @@
  *
  * 完整移植自 node_mlvc.cpp（C++），消除 msrtc_rans / C++17 依赖：
  *   - 熵编解码改用 lib/rans.c（本仓纯 C rANS 实现）
- *   - RKNN 零拷贝 I/O（native NC1HWC2 fp16）
+ *   - 编码器使用成对的标准 RKNN I/O；解码器使用 native NC1HWC2 零拷贝 I/O
  *   - 编码器：YUV(NV12) → encoder NPU → rANS 熵编码 → 码流包
  *     （feature 输出直接作为下一帧参考，无需运行 decoder NPU）
  *   - 解码器：码流包 → rANS 熵解码 → decoder NPU → YUV(NV12)
@@ -126,7 +126,7 @@ fail:
     return err;
 }
 
-/* ── RKNN 零拷贝模型封装 ─────────────────────────────────────────── */
+/* ── RKNN 模型封装（标准 I/O + native 零拷贝 I/O）────────────────── */
 
 #define MLVC_RKNN_CHECK(call)                                                   \
     do {                                                                        \
@@ -139,6 +139,54 @@ fail:
 
 #define MLVC_MAX_IO 8
 #define MLVC_MAX_MODEL_BYTES ((size_t)256 * 1024 * 1024)
+#define MLVC_PROFILE_MAX_PHASES 8
+
+typedef struct {
+    int enabled;
+    int warmup;
+    uint64_t samples;
+    uint64_t phase_us[MLVC_PROFILE_MAX_PHASES];
+} mlvc_profile;
+
+static void mlvc_profile_init(mlvc_profile *p)
+{
+    const char *enabled = getenv("RKVC_MLVC_PROFILE");
+    const char *warmup = getenv("RKVC_MLVC_PROFILE_WARMUP");
+    char *end = NULL;
+    long parsed = 10;
+
+    memset(p, 0, sizeof(*p));
+    p->enabled = enabled && enabled[0] && strcmp(enabled, "0") != 0;
+    if (warmup && warmup[0]) {
+        parsed = strtol(warmup, &end, 10);
+        if (end == warmup || *end != '\0' || parsed < 0 || parsed > 1000000)
+            parsed = 10;
+    }
+    p->warmup = (int)parsed;
+}
+
+static uint64_t mlvc_profile_stamp(const mlvc_profile *p)
+{
+    return p->enabled ? rkvc_now_us() : 0;
+}
+
+static void mlvc_profile_commit(mlvc_profile *p, int frame_count,
+                                const uint64_t *stamp, int phases)
+{
+    if (!p->enabled || frame_count < p->warmup || phases < 1 ||
+        phases > MLVC_PROFILE_MAX_PHASES)
+        return;
+    for (int i = 0; i < phases; i++)
+        p->phase_us[i] += stamp[i + 1] - stamp[i];
+    p->samples++;
+}
+
+static double mlvc_profile_avg_ms(const mlvc_profile *p, int phase)
+{
+    if (!p->samples || phase < 0 || phase >= MLVC_PROFILE_MAX_PHASES)
+        return 0.0;
+    return (double)p->phase_us[phase] / (double)p->samples / 1000.0;
+}
 
 typedef struct {
     rknn_context ctx;
@@ -146,6 +194,7 @@ typedef struct {
     rknn_tensor_attr in_attr[MLVC_MAX_IO];
     rknn_tensor_attr out_attr[MLVC_MAX_IO];
     rknn_tensor_attr native_out_attr[MLVC_MAX_IO];
+    rknn_tensor_attr in_mem_attr[MLVC_MAX_IO]; /* 实际 set_io_mem 用的 attr */
     rknn_tensor_mem *in_mem[MLVC_MAX_IO];
     rknn_tensor_mem *out_mem[MLVC_MAX_IO];
     char *model_buf;
@@ -288,17 +337,44 @@ static int rknn_find_output(const mlvc_rknn_model *m, const char *key)
     return -1;
 }
 
+static int tensor_is_pixel_input(const rknn_tensor_attr *a)
+{
+    if (!a || a->n_dims != 4)
+        return 0;
+    uint32_t d1 = a->dims[1], d2 = a->dims[2], d3 = a->dims[3];
+    if (d3 == 3 && d1 >= 64 && d2 >= 64)
+        return 1; /* NHWC 图像 */
+    if (d1 == 3 && d2 >= 64 && d3 >= 64)
+        return 1; /* NCHW 图像 */
+    return 0;
+}
+
 static rkvc_err rknn_alloc_input_mems(mlvc_rknn_model *m)
 {
     for (uint32_t i = 0; i < m->io_num.n_input; i++) {
-        rknn_tensor_attr a = m->in_attr[i];
+        rknn_tensor_attr a;
+        memset(&a, 0, sizeof(a));
         a.index = i;
-        a.type = RKNN_TENSOR_FLOAT16;
-        a.fmt = RKNN_TENSOR_NHWC;
+        int use_native = 0;
+        if (!tensor_is_pixel_input(&m->in_attr[i])) {
+            int q = rknn_query(m->ctx, RKNN_QUERY_NATIVE_NC1HWC2_INPUT_ATTR,
+                               &a, sizeof(a));
+            use_native = (q == RKNN_SUCC && a.n_dims >= 5 && a.n_elems > 0);
+        }
+        if (!use_native) {
+            a = m->in_attr[i];
+            a.index = i;
+            a.type = RKNN_TENSOR_FLOAT16;
+            a.fmt = RKNN_TENSOR_NHWC;
+        }
         a.pass_through = 1;
-        a.size = a.size_with_stride;
-        m->in_mem[i] = rknn_create_mem(m->ctx, a.size_with_stride);
-        if (!m->in_mem[i]) return RKVC_ERR_HW;
+        uint32_t bytes = a.size_with_stride ? a.size_with_stride
+                                            : a.n_elems * (uint32_t)sizeof(uint16_t);
+        a.size = bytes;
+        m->in_mem_attr[i] = a;
+        m->in_mem[i] = rknn_create_mem(m->ctx, bytes);
+        if (!m->in_mem[i])
+            return RKVC_ERR_HW;
         MLVC_RKNN_CHECK(rknn_set_io_mem(m->ctx, m->in_mem[i], &a));
     }
     return RKVC_OK;
@@ -329,20 +405,46 @@ static const uint16_t *rknn_output_data(mlvc_rknn_model *m, int i)
     return (const uint16_t *)m->out_mem[i]->virt_addr;
 }
 
+static rkvc_err rknn_set_host_inputs(mlvc_rknn_model *m,
+                                     const void *const *buffers,
+                                     const rknn_tensor_format *formats)
+{
+    if (!m || !buffers || !formats || m->io_num.n_input > MLVC_MAX_IO)
+        return RKVC_ERR_INVALID;
+    rknn_input inputs[MLVC_MAX_IO];
+    memset(inputs, 0, sizeof(inputs));
+    for (uint32_t i = 0; i < m->io_num.n_input; i++) {
+        if (!buffers[i])
+            return RKVC_ERR_INVALID;
+        if (m->in_attr[i].n_elems > UINT32_MAX / sizeof(uint16_t))
+            return RKVC_ERR_FORMAT;
+        inputs[i].index = i;
+        inputs[i].buf = (void *)buffers[i];
+        inputs[i].size = m->in_attr[i].n_elems * (uint32_t)sizeof(uint16_t);
+        inputs[i].pass_through = 0;
+        inputs[i].type = RKNN_TENSOR_FLOAT16;
+        inputs[i].fmt = formats[i];
+    }
+    MLVC_RKNN_CHECK(rknn_inputs_set(m->ctx, m->io_num.n_input, inputs));
+    return RKVC_OK;
+}
+
 static void rknn_write_input(mlvc_rknn_model *m, int i, const uint16_t *data)
 {
     if (!m || i < 0 || (uint32_t)i >= m->io_num.n_input || !m->in_mem[i] || !data)
         return;
-    rknn_tensor_attr *a = &m->in_attr[i];
-    if (a->w_stride == 0 || a->w_stride == (uint32_t)a->dims[2]) {
-        memcpy(m->in_mem[i]->virt_addr, data, (size_t)a->n_elems * sizeof(uint16_t));
-    } else {
-        int H = a->dims[1], W = a->dims[2], C = a->dims[3];
+    rknn_tensor_attr *a = &m->in_mem_attr[i];
+    size_t nbytes = (size_t)a->n_elems * sizeof(uint16_t);
+    if (a->fmt == RKNN_TENSOR_NHWC && a->n_dims == 4 &&
+        a->w_stride != 0 && a->w_stride != a->dims[2]) {
+        int H = (int)a->dims[1], W = (int)a->dims[2], C = (int)a->dims[3];
         uint16_t *dst = (uint16_t *)m->in_mem[i]->virt_addr;
         for (int h = 0; h < H; h++)
             memcpy(dst + (size_t)h * a->w_stride * C,
                    data + (size_t)h * W * C,
                    (size_t)W * C * sizeof(uint16_t));
+    } else {
+        memcpy(m->in_mem[i]->virt_addr, data, nbytes);
     }
     rknn_mem_sync(m->ctx, m->in_mem[i], RKNN_MEMORY_SYNC_TO_DEVICE);
 }
@@ -367,6 +469,35 @@ static rkvc_err nchw_yuv_fp16_to_nv12(const uint16_t *src, int W, int H,
 }
 
 /* ── YUV → fp16 NHWC ── */
+
+static int fp16_tensor_is_finite(const uint16_t *data, size_t n)
+{
+    if (!data)
+        return 0;
+    for (size_t i = 0; i < n; i++) {
+        if ((data[i] & 0x7c00u) == 0x7c00u)
+            return 0;
+    }
+    return 1;
+}
+
+static void nchw_fp16_to_int32(const uint16_t *src, int32_t *dst, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        dst[i] = (int32_t)lrintf(mlvc_px_f16_to_f32(src[i]));
+}
+
+static void nchw_to_nhwc_fp16(const uint16_t *src, uint16_t *dst,
+                              int C, int H, int W)
+{
+    for (int h = 0; h < H; h++) {
+        for (int w = 0; w < W; w++) {
+            uint16_t *dp = dst + ((size_t)h * W + w) * C;
+            for (int c = 0; c < C; c++)
+                dp[c] = src[((size_t)c * H + h) * W + w];
+        }
+    }
+}
 
 static void yuv_to_nhwc_fp16(const rkvc_buffer *frame, uint16_t *nhwc)
 {
@@ -419,6 +550,7 @@ struct rkvc_mlvc_enc {
     rkvc_buffer *pending_pkt;
     int frame_count;
     int flushed;
+    mlvc_profile profile;
 };
 
 static rkvc_err enc_resolve_geom(rkvc_mlvc_enc *e)
@@ -444,16 +576,28 @@ static rkvc_err enc_resolve_geom(rkvc_mlvc_enc *e)
     if (e->enc_feat_out < 0 || e->enc_z_out < 0 ||
         e->enc_y0_out < 0 || e->enc_y1_out < 0)
         return RKVC_ERR_FORMAT;
+    if (enc->in_attr[e->enc_x_in].type != RKNN_TENSOR_FLOAT16 ||
+        enc->in_attr[e->enc_ref_in].type != RKNN_TENSOR_FLOAT16 ||
+        enc->out_attr[e->enc_feat_out].type != RKNN_TENSOR_FLOAT16 ||
+        enc->out_attr[e->enc_z_out].type != RKNN_TENSOR_FLOAT16 ||
+        enc->out_attr[e->enc_y0_out].type != RKNN_TENSOR_FLOAT16 ||
+        enc->out_attr[e->enc_y1_out].type != RKNN_TENSOR_FLOAT16)
+        return RKVC_ERR_FORMAT;
 
-    int zC1 = enc->native_out_attr[e->enc_z_out].dims[1];
-    e->ZC = zC1 * 8;
-    e->ZH = enc->native_out_attr[e->enc_z_out].dims[2];
-    e->ZW = enc->native_out_attr[e->enc_z_out].dims[3];
-
-    int yC1 = enc->native_out_attr[e->enc_y0_out].dims[1];
-    e->YC = yC1 * 8;
-    e->YH = enc->native_out_attr[e->enc_y0_out].dims[2];
-    e->YW = enc->native_out_attr[e->enc_y0_out].dims[3];
+    /* encoder 使用成对的标准 RKNN I/O API，输出为逻辑 NCHW。 */
+    const rknn_tensor_attr *za = &enc->out_attr[e->enc_z_out];
+    const rknn_tensor_attr *ya = &enc->out_attr[e->enc_y0_out];
+    if (za->n_dims < 4 || ya->n_dims < 4)
+        return RKVC_ERR_FORMAT;
+    e->ZC = (int)za->dims[1];
+    e->ZH = (int)za->dims[2];
+    e->ZW = (int)za->dims[3];
+    e->YC = (int)ya->dims[1];
+    e->YH = (int)ya->dims[2];
+    e->YW = (int)ya->dims[3];
+    if (enc->out_attr[e->enc_feat_out].n_elems !=
+            enc->in_attr[e->enc_ref_in].n_elems)
+        return RKVC_ERR_FORMAT;
 
     return RKVC_OK;
 }
@@ -509,7 +653,12 @@ rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg
 
     rkvc_mlvc_enc *e = rkvc_calloc(1, sizeof(*e));
     if (!e) return RKVC_ERR_NOMEM;
-    e->qp = cfg->qp > 0 ? cfg->qp : 21;
+    mlvc_profile_init(&e->profile);
+    e->qp = cfg->qp >= 0 ? cfg->qp : 21;
+    if (e->qp > 63) {
+        rkvc_free(e);
+        return RKVC_ERR_INVALID;
+    }
 
     /* PMF 表 */
     mlvc_pmf gpmf = {0}, bpmf = {0};
@@ -544,11 +693,6 @@ rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg
                           cfg->qp_patch_path, e->qp);
     if (err) { rkvc_rans_coder_free(&e->g_coder); rkvc_rans_coder_free(&e->b_coder); rkvc_free(e); return err; }
 
-    err = rknn_alloc_input_mems(&e->enc_model);
-    if (err) goto fail_model;
-    err = rknn_alloc_output_mems(&e->enc_model);
-    if (err) goto fail_model;
-
     err = enc_resolve_geom(e);
     if (err) goto fail_model;
     err = enc_alloc_bufs(e);
@@ -569,6 +713,22 @@ fail_model:
 void rkvc_mlvc_enc_close(rkvc_mlvc_enc *e)
 {
     if (!e) return;
+    if (e->profile.enabled) {
+        double total = 0.0;
+        for (int i = 0; i < 7; i++)
+            total += mlvc_profile_avg_ms(&e->profile, i);
+        RKVC_LOG("MLVC encoder profile: samples=%llu warmup=%d ms/frame "
+                 "yuv=%.3f inputs_set=%.3f rknn_run=%.3f outputs_get=%.3f "
+                 "output_post=%.3f scales=%.3f rans_packet=%.3f total=%.3f",
+                 (unsigned long long)e->profile.samples, e->profile.warmup,
+                 mlvc_profile_avg_ms(&e->profile, 0),
+                 mlvc_profile_avg_ms(&e->profile, 1),
+                 mlvc_profile_avg_ms(&e->profile, 2),
+                 mlvc_profile_avg_ms(&e->profile, 3),
+                 mlvc_profile_avg_ms(&e->profile, 4),
+                 mlvc_profile_avg_ms(&e->profile, 5),
+                 mlvc_profile_avg_ms(&e->profile, 6), total);
+    }
     rkvc_buffer_unref(e->pending_pkt);
     enc_free_bufs(e);
     rknn_model_cleanup(&e->enc_model);
@@ -592,25 +752,83 @@ rkvc_err rkvc_mlvc_enc_send_frame(rkvc_mlvc_enc *e, rkvc_buffer *frame)
         return RKVC_ERR_FORMAT;
     }
 
+    uint64_t profile_stamp[8];
+    profile_stamp[0] = mlvc_profile_stamp(&e->profile);
     yuv_to_nhwc_fp16(frame, e->x_nhwc);
+    profile_stamp[1] = mlvc_profile_stamp(&e->profile);
 
     /* encoder NPU */
-    rknn_write_input(&e->enc_model, e->enc_x_in, e->x_nhwc);
-    rknn_write_input(&e->enc_model, e->enc_ref_in, e->ref_nhwc);
+    const void *inputs[MLVC_MAX_IO] = {0};
+    rknn_tensor_format formats[MLVC_MAX_IO] = {0};
+    inputs[e->enc_x_in] = e->x_nhwc;
+    formats[e->enc_x_in] = RKNN_TENSOR_NHWC;
+    inputs[e->enc_ref_in] = e->ref_nhwc;
+    formats[e->enc_ref_in] = RKNN_TENSOR_NHWC;
+    rkvc_err run_err = rknn_set_host_inputs(&e->enc_model, inputs, formats);
+    if (run_err != RKVC_OK)
+        return run_err;
+    profile_stamp[2] = mlvc_profile_stamp(&e->profile);
     MLVC_RKNN_CHECK(rknn_run(e->enc_model.ctx, NULL));
+    profile_stamp[3] = mlvc_profile_stamp(&e->profile);
 
-    const uint16_t *bz  = rknn_output_data(&e->enc_model, e->enc_z_out);
-    const uint16_t *by0 = rknn_output_data(&e->enc_model, e->enc_y0_out);
-    const uint16_t *by1 = rknn_output_data(&e->enc_model, e->enc_y1_out);
-    if (!bz || !by0 || !by1)
+    rknn_output outputs[MLVC_MAX_IO];
+    memset(outputs, 0, sizeof(outputs));
+    for (uint32_t i = 0; i < e->enc_model.io_num.n_output; i++) {
+        outputs[i].index = i;
+        outputs[i].want_float = 0;
+        outputs[i].is_prealloc = 0;
+    }
+    int output_rc = rknn_outputs_get(e->enc_model.ctx,
+                                     e->enc_model.io_num.n_output,
+                                     outputs, NULL);
+    if (output_rc != RKNN_SUCC)
         return RKVC_ERR_HW;
+    profile_stamp[4] = mlvc_profile_stamp(&e->profile);
+    for (uint32_t i = 0; i < e->enc_model.io_num.n_output; i++) {
+        size_t required =
+            (size_t)e->enc_model.out_attr[i].n_elems * sizeof(uint16_t);
+        if (!outputs[i].buf || outputs[i].size < required) {
+            rknn_outputs_release(e->enc_model.ctx,
+                                 e->enc_model.io_num.n_output, outputs);
+            return RKVC_ERR_HW;
+        }
+    }
+    const uint16_t *bz  = outputs[e->enc_z_out].buf;
+    const uint16_t *by0 = outputs[e->enc_y0_out].buf;
+    const uint16_t *by1 = outputs[e->enc_y1_out].buf;
+    const uint16_t *fv  = outputs[e->enc_feat_out].buf;
+    if (!fp16_tensor_is_finite(bz,
+                               e->enc_model.out_attr[e->enc_z_out].n_elems) ||
+        !fp16_tensor_is_finite(by0,
+                               e->enc_model.out_attr[e->enc_y0_out].n_elems) ||
+        !fp16_tensor_is_finite(by1,
+                               e->enc_model.out_attr[e->enc_y1_out].n_elems)) {
+        RKVC_LOG("MLVC encoder produced non-finite latent values at frame %d",
+                 e->frame_count);
+        rknn_outputs_release(e->enc_model.ctx,
+                             e->enc_model.io_num.n_output, outputs);
+        return RKVC_ERR_HW;
+    }
+    if (!fp16_tensor_is_finite(
+            fv, e->enc_model.out_attr[e->enc_feat_out].n_elems)) {
+        RKVC_LOG("MLVC encoder produced non-finite reference values at frame %d",
+                 e->frame_count);
+        rknn_outputs_release(e->enc_model.ctx,
+                             e->enc_model.io_num.n_output, outputs);
+        return RKVC_ERR_HW;
+    }
 
-    mlvc_px_nc1hwc2_to_nchw(bz, e->z_r, e->ZC, e->ZH, e->ZW);
-    mlvc_px_nc1hwc2_to_nchw(by0, e->y0_r, e->YC, e->YH, e->YW);
-    mlvc_px_nc1hwc2_to_nchw(by1, e->y1_r, e->YC, e->YH, e->YW);
+    nchw_fp16_to_int32(bz, e->z_r, (size_t)e->ZC * e->ZH * e->ZW);
+    nchw_fp16_to_int32(by0, e->y0_r, (size_t)e->YC * e->YH * e->YW);
+    nchw_fp16_to_int32(by1, e->y1_r, (size_t)e->YC * e->YH * e->YW);
+    nchw_to_nhwc_fp16(fv, e->ref_nhwc, e->REF_C, e->REF_H, e->REF_W);
+    rknn_outputs_release(e->enc_model.ctx, e->enc_model.io_num.n_output,
+                         outputs);
+    profile_stamp[5] = mlvc_profile_stamp(&e->profile);
 
     /* 熵编码: push y1, y0, z */
     mlvc_px_extract_scales(e->z_r, e->s0, e->s1, e->YC, e->YH, e->YW, e->ZH, e->ZW);
+    profile_stamp[6] = mlvc_profile_stamp(&e->profile);
 
     rkvc_rans_enc_stream stream;
     rkvc_rans_enc_stream_init(&stream, RKVC_RANS_BYTE, 65536);
@@ -643,13 +861,10 @@ rkvc_err rkvc_mlvc_enc_send_frame(rkvc_mlvc_enc *e, rkvc_buffer *frame)
     pkt->dts = frame->pts;
     pkt->key_frame = (e->frame_count == 0);
     e->pending_pkt = pkt;
+    profile_stamp[7] = mlvc_profile_stamp(&e->profile);
+    mlvc_profile_commit(&e->profile, e->frame_count, profile_stamp, 7);
 
-    /* encoder feature 输出 → 下一帧参考（native NC1HWC2 直接拷贝）*/
-    const uint16_t *fv = rknn_output_data(&e->enc_model, e->enc_feat_out);
-    if (!fv)
-        return RKVC_ERR_HW;
-    memcpy(e->ref_nhwc, fv, (size_t)e->REF_C * e->REF_H * e->REF_W * sizeof(uint16_t));
-
+    /* feature 已转成逻辑 NHWC，下一帧交给标准输入 API。 */
     e->frame_count++;
     return RKVC_OK;
 }
@@ -698,6 +913,7 @@ struct rkvc_mlvc_dec {
     rkvc_buffer *out_frame;
     int frame_count;
     int input_eof;
+    mlvc_profile profile;
 };
 
 static rkvc_err dec_resolve_geom(rkvc_mlvc_dec *d)
@@ -748,14 +964,23 @@ static rkvc_err dec_resolve_geom(rkvc_mlvc_dec *d)
     d->YC = dec->in_attr[d->dec_y0_in].dims[3];
     d->YH = dec->in_attr[d->dec_y0_in].dims[1];
     d->YW = dec->in_attr[d->dec_y0_in].dims[2];
+    if (dec->native_out_attr[d->dec_ref_out].n_elems !=
+        dec->in_mem_attr[d->dec_ref_in].n_elems)
+        return RKVC_ERR_FORMAT;
     return RKVC_OK;
 }
 
 static rkvc_err dec_alloc_bufs(rkvc_mlvc_dec *d)
 {
-    size_t ref_sz = (size_t)d->REF_C * d->REF_H * d->REF_W;
+    size_t ref_sz = (size_t)d->dec_model.in_mem_attr[d->dec_ref_in].n_elems;
+    if (!ref_sz)
+        ref_sz = (size_t)d->REF_C * d->REF_H * d->REF_W;
     size_t z_sz   = (size_t)d->ZC * d->ZH * d->ZW;
     size_t y_sz   = (size_t)d->YC * d->YH * d->YW;
+    size_t z_in   = (size_t)d->dec_model.in_mem_attr[d->dec_z_in].n_elems;
+    size_t y_in   = (size_t)d->dec_model.in_mem_attr[d->dec_y0_in].n_elems;
+    if (z_in < z_sz) z_in = z_sz;
+    if (y_in < y_sz) y_in = y_sz;
 
     d->ref_nhwc  = rkvc_malloc(ref_sz * 2);
     d->z_d       = rkvc_malloc(z_sz * 4);
@@ -764,9 +989,9 @@ static rkvc_err dec_alloc_bufs(rkvc_mlvc_dec *d)
     d->s0        = rkvc_malloc(y_sz * 4);
     d->s1        = rkvc_malloc(y_sz * 4);
     d->z_idx     = rkvc_malloc(z_sz * 4);
-    d->z_d_nhwc  = rkvc_malloc(z_sz * 2);
-    d->y0_d_nhwc = rkvc_malloc(y_sz * 2);
-    d->y1_d_nhwc = rkvc_malloc(y_sz * 2);
+    d->z_d_nhwc  = rkvc_malloc(z_in * 2);
+    d->y0_d_nhwc = rkvc_malloc(y_in * 2);
+    d->y1_d_nhwc = rkvc_malloc(y_in * 2);
     d->x_img = NULL;
     if (d->x_d2s_bs > 0)
         d->x_img = rkvc_malloc(3ull * d->IMG_H * d->IMG_W * 2);
@@ -810,7 +1035,12 @@ rkvc_err rkvc_mlvc_dec_open(rkvc_mlvc_dec **out, const rkvc_mlvc_dec_config *cfg
 
     rkvc_mlvc_dec *d = rkvc_calloc(1, sizeof(*d));
     if (!d) return RKVC_ERR_NOMEM;
-    d->qp = cfg->qp > 0 ? cfg->qp : 21;
+    mlvc_profile_init(&d->profile);
+    d->qp = cfg->qp >= 0 ? cfg->qp : 21;
+    if (d->qp > 63) {
+        rkvc_free(d);
+        return RKVC_ERR_INVALID;
+    }
 
     mlvc_pmf gpmf = {0}, bpmf = {0};
     rkvc_err err = load_pmf(&gpmf, cfg->gaussian_pmf_path);
@@ -865,6 +1095,21 @@ fail_model:
 void rkvc_mlvc_dec_close(rkvc_mlvc_dec *d)
 {
     if (!d) return;
+    if (d->profile.enabled) {
+        double total = 0.0;
+        for (int i = 0; i < 6; i++)
+            total += mlvc_profile_avg_ms(&d->profile, i);
+        RKVC_LOG("MLVC decoder profile: samples=%llu warmup=%d ms/frame "
+                 "rans_scales=%.3f tensor_pack=%.3f inputs_sync=%.3f "
+                 "rknn_run=%.3f pixels=%.3f feature_copy=%.3f total=%.3f",
+                 (unsigned long long)d->profile.samples, d->profile.warmup,
+                 mlvc_profile_avg_ms(&d->profile, 0),
+                 mlvc_profile_avg_ms(&d->profile, 1),
+                 mlvc_profile_avg_ms(&d->profile, 2),
+                 mlvc_profile_avg_ms(&d->profile, 3),
+                 mlvc_profile_avg_ms(&d->profile, 4),
+                 mlvc_profile_avg_ms(&d->profile, 5), total);
+    }
     rkvc_buffer_unref(d->pending_pkt);
     rkvc_buffer_unref(d->out_frame);
     dec_free_bufs(d);
@@ -900,6 +1145,8 @@ rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *d, rkvc_buffer **frame)
     }
 
     const rkvc_buffer *pkt = d->pending_pkt;
+    uint64_t profile_stamp[7];
+    profile_stamp[0] = mlvc_profile_stamp(&d->profile);
 
     /* 熵解码 */
     rkvc_rans_dec_stream ds;
@@ -911,32 +1158,57 @@ rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *d, rkvc_buffer **frame)
     size_t y_n = (size_t)d->YC * d->YH * d->YW;
 
     rc = rkvc_rans_dec_stream_decode(&ds, &d->b_coder, d->z_d, d->z_idx, z_n);
-    if (rc != RKVC_RANS_OK) { rkvc_rans_dec_stream_close(&ds); return RKVC_ERR_INTERNAL; }
+    if (rc != RKVC_RANS_OK) {
+        RKVC_LOG("mlvc rANS decode z failed rc=%d pkt_size=%zu frame=%d z_n=%zu remain=%td",
+                 rc, pkt->size, d->frame_count, z_n, ds.end - ds.ptr);
+        rkvc_rans_dec_stream_close(&ds);
+        return RKVC_ERR_INTERNAL;
+    }
 
     mlvc_px_extract_scales(d->z_d, d->s0, d->s1, d->YC, d->YH, d->YW, d->ZH, d->ZW);
 
     rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y0_d, d->s0, y_n);
-    if (rc == RKVC_RANS_OK)
-        rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y1_d, d->s1, y_n);
-    if (rc != RKVC_RANS_OK) { rkvc_rans_dec_stream_close(&ds); return RKVC_ERR_INTERNAL; }
+    if (rc != RKVC_RANS_OK) {
+        RKVC_LOG("mlvc rANS decode y0 failed rc=%d pkt_size=%zu frame=%d y_n=%zu remain=%td",
+                 rc, pkt->size, d->frame_count, y_n, ds.end - ds.ptr);
+        rkvc_rans_dec_stream_close(&ds);
+        return RKVC_ERR_INTERNAL;
+    }
+    rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y1_d, d->s1, y_n);
+    if (rc != RKVC_RANS_OK) {
+        RKVC_LOG("mlvc rANS decode y1 failed rc=%d pkt_size=%zu frame=%d y_n=%zu remain=%td",
+                 rc, pkt->size, d->frame_count, y_n, ds.end - ds.ptr);
+        rkvc_rans_dec_stream_close(&ds);
+        return RKVC_ERR_INTERNAL;
+    }
 
     rkvc_rans_dec_stream_close(&ds);
+    profile_stamp[1] = mlvc_profile_stamp(&d->profile);
 
-    /* NCHW → NC1HWC2 fp16 */
+    /* NCHW → NC1HWC2 fp16（与 NPU native 输入一致）*/
     mlvc_px_nchw_to_nc1hwc2_fp16(d->z_d, d->z_d_nhwc, d->ZC, d->ZH, d->ZW);
     mlvc_px_nchw_to_nc1hwc2_fp16(d->y0_d, d->y0_d_nhwc, d->YC, d->YH, d->YW);
     mlvc_px_nchw_to_nc1hwc2_fp16(d->y1_d, d->y1_d_nhwc, d->YC, d->YH, d->YW);
+    profile_stamp[2] = mlvc_profile_stamp(&d->profile);
 
     /* decoder NPU */
     rknn_write_input(&d->dec_model, d->dec_z_in, d->z_d_nhwc);
     rknn_write_input(&d->dec_model, d->dec_y0_in, d->y0_d_nhwc);
     rknn_write_input(&d->dec_model, d->dec_y1_in, d->y1_d_nhwc);
     rknn_write_input(&d->dec_model, d->dec_ref_in, d->ref_nhwc);
+    profile_stamp[3] = mlvc_profile_stamp(&d->profile);
     MLVC_RKNN_CHECK(rknn_run(d->dec_model.ctx, NULL));
+    profile_stamp[4] = mlvc_profile_stamp(&d->profile);
 
     const uint16_t *xh = rknn_output_data(&d->dec_model, d->dec_x_out);
     if (!xh)
         return RKVC_ERR_HW;
+    if (!fp16_tensor_is_finite(
+            xh, d->dec_model.native_out_attr[d->dec_x_out].n_elems)) {
+        RKVC_LOG("MLVC decoder produced non-finite pixels at frame %d",
+                 d->frame_count);
+        return RKVC_ERR_HW;
+    }
     rkvc_err err;
     if (d->x_d2s_bs > 0) {
         /* NC1HWC2 → DepthToSpace 融合（免中间 NCHW 遍）；clip(0,1)
@@ -949,14 +1221,26 @@ rkvc_err rkvc_mlvc_dec_receive_frame(rkvc_mlvc_dec *d, rkvc_buffer **frame)
         err = nc1hwc2_fp16_to_nv12(xh, d->IMG_W, d->IMG_H, d->OUT_C2, frame);
     }
     if (err != RKVC_OK) return err;
+    profile_stamp[5] = mlvc_profile_stamp(&d->profile);
     (*frame)->pts = pkt->pts;
     (*frame)->key_frame = (d->frame_count == 0);
 
-    /* ref_feature → 下一帧 */
+    /* decoder feature 输出 → 下一帧参考（native NC1HWC2 直接拷贝）*/
     const uint16_t *fv = rknn_output_data(&d->dec_model, d->dec_ref_out);
-    if (!fv)
+    if (!fv || !fp16_tensor_is_finite(
+                   fv, d->dec_model.native_out_attr[d->dec_ref_out].n_elems)) {
+        if (fv)
+            RKVC_LOG("MLVC decoder produced non-finite reference values at frame %d",
+                     d->frame_count);
+        rkvc_buffer_unref(*frame);
+        *frame = NULL;
         return RKVC_ERR_HW;
-    memcpy(d->ref_nhwc, fv, (size_t)d->REF_C * d->REF_H * d->REF_W * sizeof(uint16_t));
+    }
+    memcpy(d->ref_nhwc, fv,
+           (size_t)d->dec_model.in_mem_attr[d->dec_ref_in].n_elems *
+               sizeof(uint16_t));
+    profile_stamp[6] = mlvc_profile_stamp(&d->profile);
+    mlvc_profile_commit(&d->profile, d->frame_count, profile_stamp, 6);
 
     rkvc_buffer_unref(d->pending_pkt);
     d->pending_pkt = NULL;

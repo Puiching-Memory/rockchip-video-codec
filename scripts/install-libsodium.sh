@@ -9,16 +9,20 @@
 # 用法:
 #   ./scripts/install-libsodium.sh
 #   PREFIX=/usr/local ./scripts/install-libsodium.sh   # 装到系统前缀（需写权限）
-#   NPROCS=8 ./scripts/install-libsodium.sh             # 指定并行编译任务数
+#   BUILD_JOBS=8 ./scripts/install-libsodium.sh         # 指定并行编译任务数
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=build-common.sh
+source "$SCRIPT_DIR/build-common.sh"
+rkvc_limit_build_jobs
+
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PREFIX="${PREFIX:-$PROJECT_DIR/.build/deps/libsodium-install}"
 SRC_DIR="${SRC_DIR:-$PROJECT_DIR/third_party/libsodium}"
-NPROCS="${NPROCS:-$(nproc 2>/dev/null || echo 4)}"
+NPROCS="${NPROCS:-$BUILD_JOBS}"
 
 if [[ ! -f "$SRC_DIR/configure.ac" ]]; then
     echo "错误: libsodium 子模块未初始化或不完整: $SRC_DIR"

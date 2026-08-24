@@ -5,7 +5,7 @@
 
 一条龙（浅克隆 microsoft/mlvc 并跑 convert.py）：
 
-    python export_rknn.py --from-mlvc --out-dir models --qp 21
+    python export_rknn.py --from-mlvc --out-dir models/mlvc --qp 21
 
 或消费已有 ONNX：
 
@@ -118,6 +118,16 @@ def _parse_qp_list(text: str | None, default_qp: int) -> list[int]:
     if not out:
         raise ExportError("--qp-list 为空")
     return out
+
+
+def default_output_dir(model_version: str) -> Path:
+    """让标准版与轻量版落到平行、自包含的模型 bundle。"""
+    variant = (
+        "mlvc-s"
+        if model_version == export_onnx.DEFAULT_S_MODEL_VERSION
+        else "mlvc"
+    )
+    return Path("models") / variant
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -290,7 +300,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--decoder", type=Path, help="解码器 ONNX 路径")
     p.add_argument("--gaussian-json", type=Path, help="gaussian_pmf.json")
     p.add_argument("--bitest-json", type=Path, help="bit_estimator_pmf.json")
-    p.add_argument("--out-dir", type=Path, default=Path("models"), help="输出目录（默认 models/）")
+    p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=None,
+        help="输出 bundle 目录（默认按模型版本选择 models/mlvc 或 models/mlvc-s）",
+    )
     p.add_argument("--platform", default="rk3588", help="RKNN target_platform（默认 rk3588）")
     p.add_argument("--qp", type=int, default=21, help="折叠进图的 q_index（默认 21，与 node_mlvc 默认 qp 一致）")
     p.add_argument(
@@ -318,8 +333,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="先跑 microsoft/mlvc convert.py 导出 ONNX（浅克隆到 .build/deps/mlvc）")
     p.add_argument("--mlvc-dir", type=Path, default=None, help="microsoft/mlvc 源码目录")
     p.add_argument("--mlvc-data-dir", type=Path, default=None, help="权重与占位 YUV（默认 .build/deps/mlvc-data）")
-    p.add_argument("--weights-path", type=Path, default=None, help="覆盖 MLVC checkpoint")
+    p.add_argument(
+        "--weights-path", type=Path, default=None,
+        help="覆盖 MLVC checkpoint（MLVC-S 必填）",
+    )
     p.add_argument("--model-version", default=export_onnx.DEFAULT_MODEL_VERSION)
+    p.add_argument("--weights-version", default=None, help="覆盖 checkpoint 版本名（默认随 --model-version）")
     p.add_argument("--model-width", type=int, default=export_onnx.DEFAULT_WIDTH)
     p.add_argument("--model-height", type=int, default=export_onnx.DEFAULT_HEIGHT)
     p.add_argument("--target-device", default="generic", help="convert.py --target-device（必须 generic 或 intel）")
@@ -377,6 +396,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             data_dir=args.mlvc_data_dir,
             weights_path=args.weights_path,
             model_version=args.model_version,
+            weights_version=args.weights_version,
             width=args.model_width,
             height=args.model_height,
             target_device=args.target_device,
@@ -395,7 +415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.inspect:
         return cmd_inspect(sources)
 
-    out_dir = args.out_dir
+    out_dir = args.out_dir or default_output_dir(args.model_version)
     out_dir.mkdir(parents=True, exist_ok=True)
     qp_list = _parse_qp_list(args.qp_list, args.qp)
 
@@ -449,7 +469,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "models": models_meta,
         "qppatch": patch_meta,
         "extract_tail": not args.no_extract_tail,
-        "runtime": "lib/node_mlvc.c（编码器 2 输入 NHWC fp16，解码器 4 输入，输出 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
+        "runtime": "lib/node_mlvc.c（编码器用标准 I/O：2 输入 NHWC fp16、输出逻辑 NCHW；解码器 4 输入与输出走 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
     }
     _write_json(out_dir / "mlvc_rknn_export_manifest.json", manifest)
     print(f"清单: {out_dir / 'mlvc_rknn_export_manifest.json'}")

@@ -22,6 +22,7 @@ sys.path.insert(0, str(TOOLS))
 import pmf  # noqa: E402
 import qppatch  # noqa: E402
 import rknn_convert  # noqa: E402
+import export_rknn  # noqa: E402
 
 try:
     import onnx  # type: ignore  # noqa: F401
@@ -106,6 +107,10 @@ class TestPmf1(unittest.TestCase):
 
 
 class TestCli(unittest.TestCase):
+    def test_default_variant_bundle_dirs(self) -> None:
+        self.assertEqual(export_rknn.default_output_dir("dmc61sbr_reglu"), Path("models/mlvc"))
+        self.assertEqual(export_rknn.default_output_dir("dmc61sbr_reglu_s"), Path("models/mlvc-s"))
+
     def test_help_without_args(self) -> None:
         proc = subprocess.run(
             [sys.executable, str(EXPORT)],
@@ -465,6 +470,15 @@ class TestOnnxExport(unittest.TestCase):
             path = Path(tmp) / "a.yuv"
             export_onnx.write_dummy_yuv420(path, 640, 360, frames=2)
             self.assertEqual(path.stat().st_size, 640 * 360 * 3 // 2 * 2)
+
+    def test_mlvc_s_requires_explicit_checkpoint(self) -> None:
+        import export_onnx
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(export_onnx.OnnxExportError, "--weights-path"):
+                export_onnx.ensure_checkpoint(
+                    Path(tmp), None, export_onnx.DEFAULT_S_MODEL_VERSION
+                )
 
     def test_find_exported_onnx(self) -> None:
         import export_onnx

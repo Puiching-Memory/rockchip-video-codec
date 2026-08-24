@@ -55,7 +55,7 @@ ensure_test_hardware() {
             -DRKVC_BUILD_CLI=OFF \
             -DRKVC_ENABLE_FAULT_INJECTION=ON
     fi
-    cmake --build "$TESTS_DIR" --target test_hardware -j"${BUILD_JOBS:-6}"
+    cmake --build "$TESTS_DIR" --target test_hardware -j"${BUILD_JOBS:-$(rkvc_default_build_jobs 2>/dev/null || echo 1)}"
 }
 
 ensure_test_hardware

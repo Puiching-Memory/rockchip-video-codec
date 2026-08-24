@@ -4,7 +4,14 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **唯一 Python 环境**：`pyproject.toml` / `uv.lock` 挪到仓库根目录，`uv sync` 生成 `.venv`。依赖全部 `==` 钉死（Python 3.12、torch 2.2.2 CPU、rknn-toolkit2 2.3.2、onnx 1.16.1、numpy 1.26.4、scipy 1.11.4）。不再维护 `tools/.venv`，也不再给 microsoft/mlvc clone 单独 `uv sync`；`convert.py` 用根目录 `.venv`。`onnx` 锁 1.16.1 是因为 rknn-toolkit2 2.3.2 仍使用已删除的 `onnx.mapping`。
+- **模型 bundle 并列化**：标准 MLVC 从 `models/` 根目录迁入 `models/mlvc/`，与 `models/mlvc-s/` 对称；每个变体独立持有 RKNN、PMF、QP 补丁和导出 manifest，工具默认路径与文档统一，避免跨变体误配。
+
 ### 性能（MLVC CPU 热路径）
+
+- **MLVC 可复现分阶段 profile**：新增默认关闭的 `RKVC_MLVC_PROFILE=1` 聚合诊断，`RKVC_MLVC_PROFILE_WARMUP` 控制预热帧数（默认 10），节点关闭时分别输出 encoder/decoder 各阶段的每帧均值。RK3576 Release 构建固定 CPU4–7，以同一 70 帧输入、QP 21、3 个独立进程复测：标准 MLVC 编/解码节点为 125.78/81.23 ms/帧，MLVC-S 为 66.89/40.48 ms/帧；两种变体三轮码流和解码输出均逐字节一致。完整数据与模型指纹见 `docs/mlvc-npu-profile.md`。
 
 - **多层循环内核重构（新增 `lib/mlvc_pixel.{h,c}`）**：将 `node_mlvc.c` 中每帧执行的像素/张量转换内核抽出为可独立单测的纯数组内核，AArch64 走显式 NEON 快速路径，其它架构回退标量；两条路径经随机数据**逐位等价**验证（含非 4 倍数尺寸、奇宽高、越界值边界），ASan/UBSan 干净。RK3576 实测（performance 调频，640×368 模型几何，y 张量 192×92×160，多轮均值；ref = 优化前实现）：
 
@@ -24,7 +31,9 @@
 
 ### 修复
 
+- **标准 MLVC 第二帧 NaN/Inf**：根因不是 checkpoint 或 RKNN 模型产物，而是 encoder 把 native temporal feature 输出直接复制为下一帧 native `ref_feature` 输入；即使元素数与 NC1HWC2 维度相同，该图的 producer/consumer native layout 也不能直接互换，256 通道标准模型因此在第二帧发生布局误解释，MLVC-S 未明显溢出只是尺寸相关的偶然表现。encoder 改为成对使用 `rknn_inputs_set` / `rknn_outputs_get`，输出逻辑 NCHW 后显式把 feature 转成下一帧 NHWC reference。RK3576 标准 MLVC 30 帧实机往返通过，MS-SSIM 0.9728；MLVC-S 三帧结果保持 0.9470。
 - **Rans64 状态位宽错误**：`put_sym_64` 的 x_max 误用 StateBits=64 约定（`x_max_hi << 33` = freq<<64−sb），与本仓 StateBits=63/LowerBound=1<<31 体系不匹配，状态可越过 2^63 回绕，长码流解码提前耗尽字节报错；改为 `<< 32`（freq<<(63−sb)，与 bypass 路径 `put_raw_64` 既有公式一致）。MLVC 只用 RansByte，无既有码流兼容影响；由新增 `tests/test_rans.c` 双变体 round-trip 暴露并回归。
+- **rANS 初始化错误码分类**：`num_lengths != num_offsets` 属调用参数不一致，现按公共契约返回 `RKVC_RANS_ERR_PARAMS`，不再误报为 PMF 内容损坏；`test_invalid_pmf` 覆盖该分支。
 - **rANS 变体分派外提尝试回退**：曾将编/解码热循环按 RansByte/Rans64 分裂以消除逐符号分派，RK3576 交替 A/B（200 万符号×4 轮）实测无收益且解码回退约 8%（变体分支预测命中、双份循环体增大 i-cache 压力），已回退单循环结构并在代码中留注释防重复尝试；RansByte 码流与 HEAD 逐字节一致（FNV-1a 指纹相同）。
 
 ### 测试

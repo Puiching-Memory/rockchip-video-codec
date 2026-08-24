@@ -1,139 +1,139 @@
 # MLVC NPU 执行 Profile 报告
 
-> 生成日期：2026-08-13 ｜ 环境：RK3588 ｜ **全部数据采自同一次上板、单进程、core_mask 三核**
+> 更新日期：2026-08-24 ｜ 当前数据：RK3576 ｜ 标准 MLVC 与 MLVC-S 使用同一测量口径
 
-## 1. 硬件与软件环境
+## 1. 结论
 
-| 项目        | 值                                                        |
-| ----------- | --------------------------------------------------------- |
-| SoC         | Rockchip RK3588                                           |
-| NPU         | 3 核 × 2 TOPS @ INT8 = 6 TOPS（运行时探测 `npu_cores=3`） |
-| RKNN API    | 2.4.2a2 (59d3cd02ad@2026-07-24)                           |
-| RKNN Driver | 0.9.8                                                     |
-| 模型分辨率  | 640×368（固定）                                           |
-| 数据类型    | fp16（FLOAT16）                                           |
+标准 MLVC encoder 改用成对的 `rknn_inputs_set` / `rknn_outputs_get` 后，70 帧连续编码、解码均通过，第二帧及后续帧不再出现 NaN/Inf。三轮独立运行生成的码流逐字节一致，说明修复后的 temporal feature 递归路径稳定且确定。
 
-## 2. 测量方法
+| 变体   | 编码节点 (ms/帧)  | 编码节点吞吐 | 解码节点 (ms/帧) | 解码节点吞吐 | 70 帧码流 | bpp      | Y MS-SSIM |
+| ------ | ----------------- | ------------ | ---------------- | ------------ | --------- | -------- | --------- |
+| MLVC   | **125.778±0.492** | 7.95 fps     | **81.225±0.122** | 12.31 fps    | 18,207 B  | 0.008835 | 0.974157  |
+| MLVC-S | **66.891±0.126**  | 14.95 fps    | **40.475±0.035** | 24.71 fps    | 11,898 B  | 0.005773 | 0.970691  |
 
-全部数据由单进程采集程序在同一次上板中输出，避免跨轮次 NPU 争用/热状态差异：
+这里的“节点”只统计 MLVC 节点内完成一帧所需的所有阶段，不含模型初始化、容器输入解析和进程退出。完整 CLI 进程的 70 帧墙钟如下：
 
-- **纯推理（§3）**：独立模型实例，`flag=0` + `core_mask=CORE_0_1_2`，零拷贝 I/O，warmup 10 帧后计时 50 帧 `rknn_run`。
-- **端到端分阶段（§4）**：通过 `rkvc_mlvc_enc/dec` API 跑完整编/解码管线，函数内分阶段插桩，warmup 10 帧后计时 60 帧。**各行计时点无遗漏，求和严格等于总耗时**（§4 校验：ENC 行和 98.36 = 表头 98.36；DEC 行和 188.38 = 表头 188.38）。
-- **perf 开销**：同一模型分别用 `flag=0` 和 `flag=COLLECT_PERF_MASK` 初始化，对比 wall 时间。
-- **算子级（§5）**：`flag=COLLECT_PERF_MASK` 初始化后查询 `RKNN_QUERY_PERF_DETAIL`。因 perf 采集本身有开销（§3.1 实测 +15%/+28%），**§5 仅展示算子间相对占比，绝对时间以 §3/§4 为准**。
+| 变体   | 编码墙钟      | 编码整程吞吐 | 解码墙钟      | 解码整程吞吐 |
+| ------ | ------------- | ------------ | ------------- | ------------ |
+| MLVC   | 9.253±0.020 s | 7.57 fps     | 6.177±0.069 s | 11.33 fps    |
+| MLVC-S | 5.071±0.010 s | 13.80 fps    | 3.202±0.078 s | 21.86 fps    |
 
-## 3. 纯推理延迟（flag=0，无 perf 开销）
+标准 MLVC encoder 的正确性修复有明确成本：标准 I/O 与输出逻辑化相关阶段合计 **35.63 ms/帧（28.3%）**。不能恢复旧的 native feature 直接复制来换取速度，因为 producer/consumer 的 native layout 不具备可交换契约；旧路径的低延迟是以第二帧数值损坏为代价的无效结果。
 
-| 模型                    | 延迟 (ms/帧) | 吞吐     |
-| ----------------------- | ------------ | -------- |
-| MLVCEncoder_rk3588.rknn | **88.0**     | 11.4 fps |
-| MLVCDecoder_rk3588.rknn | **178.2**    | 5.6 fps  |
+## 2. 硬件、软件与模型
 
-### 3.1 perf 采集开销（实测）
+| 项目          | 值                                                                        |
+| ------------- | ------------------------------------------------------------------------- |
+| SoC / 板卡    | Rockchip RK3576 EVB1 v1.0                                                 |
+| 内核          | Linux 6.1.118，aarch64                                                    |
+| NPU           | 2 核，采样时 950 MHz，`rknpu_ondemand`                                    |
+| CPU / 绑核    | policy0 / policy4 均为 `performance`；进程固定 CPU4–7（2.208 GHz 大核簇） |
+| RKNN Runtime  | 2.3.2 (`429f97ae6b`)                                                      |
+| RKNN Driver   | 0.9.8                                                                     |
+| 分辨率 / 类型 | 640×368 / FP16                                                            |
+| QP            | 21                                                                        |
+| 采样末温度    | SoC 44.4 °C / NPU 43.5 °C                                                 |
 
-| 模型   | 无 perf (ms) | 有 perf (ms) | 开销       |
-| ------ | ------------ | ------------ | ---------- |
-| 编码器 | 86.5         | 99.6         | **+15.1%** |
-| 解码器 | 173.1        | 221.4        | **+27.9%** |
+本次模型指纹：
 
-## 4. 端到端帧耗时分解
+| 变体   | 模型    | SHA-256                                                            |
+| ------ | ------- | ------------------------------------------------------------------ |
+| MLVC   | encoder | `f8212344e56fad866fa2d16903e7a70abc09ef6cbef43d5ba2748f359ef6921f` |
+| MLVC   | decoder | `cbe3c50788717f9aed2528b0e0f8fe9d59d4fe45e92e78307855ded323c88e33` |
+| MLVC-S | encoder | `1e817c4314f26d2b08f31006f05b45c5d7b08de96d9ce7307d51451b8445efdc` |
+| MLVC-S | decoder | `f4e78cc506b554f048dfdf370a787365dbb82d98b101cc32d218f2c85492d2fd` |
 
-### 4.1 编码器（98.4 ms/帧 = 10.2 fps）
+## 3. 测量方法
 
-| 阶段               | 耗时 (ms) | 占比      | 说明                 |
-| ------------------ | --------- | --------- | -------------------- |
-| YUV→fp16 NHWC 转换 | 11.1      | 11.3%     | `__fp16` 单条 `fcvt` |
-| 写入 NPU 输入      | 0.8       | 0.8%      | 零拷贝 `set_io_mem`  |
-| **NPU rknn_run**   | **82.1**  | **83.5%** | 纯推理（管线内）     |
-| NC1HWC2→NCHW 转换  | 1.3       | 1.4%      |                      |
-| extract_scales     | 0.3       | 0.3%      |                      |
-| rANS 熵编码        | 2.4       | 2.5%      |                      |
-| 码流封装           | 0.3       | 0.3%      |                      |
-| **合计**           | **98.4**  | **100%**  | 行和 = 表头 ✓        |
+- 输入是同一个 640×368、YUV420、60 fps 的 3 帧验证片段循环到 70 帧；两种变体均使用 QP 21。
+- 使用 Release 构建（`-O3 -DNDEBUG`），并以 `taskset -c 4-7` 固定在大核簇，避免单线程 CPU 阶段在大小核之间迁移。
+- 每个变体的 encoder 和 decoder 各启动 3 个独立进程。每轮先预热 10 帧，再对后 60 帧做节点内分阶段聚合。
+- 表中 `±` 是三轮“每轮均值”的样本标准差，而不是 180 个单帧样本混算后的标准差。
+- 码流和解码 YUV 写入 `/dev/shm`。整程墙钟包含模型初始化、输入解析和文件 I/O；节点计时不包含这些项目。
+- encoder 使用标准 host I/O，输出是逻辑 NCHW；decoder 保持 native NC1HWC2 零拷贝 I/O。
+- 质量值是 70 帧 Y 通道 5-scale MS-SSIM。输入由 3 帧循环得到，适合回归与性能复测，不应当作为自然视频 RD 曲线结论。
 
-> §3 纯推理（88.0ms）在独立实例测得，§4 的 `run` 阶段（82.1ms）在管线内测得，两者差 ~7% 属跨实例/时序的正常方差。关系成立：纯推理 < 端到端 ✓。
+节点内 profile 默认关闭。启用后只增加分段时间戳，并在节点关闭时打印聚合值：
 
-### 4.2 解码器（188.4 ms/帧 = 5.3 fps）
+```bash
+export RKVC_MLVC_PROFILE=1
+export RKVC_MLVC_PROFILE_WARMUP=10
+```
 
-| 阶段                   | 耗时 (ms) | 占比      | 说明             |
-| ---------------------- | --------- | --------- | ---------------- |
-| rANS 熵解码            | 6.2       | 3.3%      |                  |
-| NCHW→NC1HWC2 fp16 转换 | 0.9       | 0.5%      |                  |
-| 写入 NPU 输入          | 0.5       | 0.3%      | 4 个 tensor      |
-| **NPU rknn_run**       | **161.0** | **85.5%** | 纯推理（管线内） |
-| NC1HWC2 fp16→NV12 转换 | 19.2      | 10.2%     |                  |
-| feature 输出拷贝       | 0.5       | 0.3%      |                  |
-| **合计**               | **188.4** | **100%**  | 行和 = 表头 ✓    |
+`RKVC_MLVC_PROFILE_WARMUP` 缺省为 10；设为 0 可统计所有帧。以标准 MLVC 为例：
 
-## 5. 算子级 Profile（PERF_DETAIL）
+```bash
+RKVC_BIN=.build/release/rkvc_transcode
+MLVC_DIR=models/mlvc
+INPUT_70F=/path/to/640x368-70f.y4m
 
-> **占比为相对值**（perf 采集有 +15%/+28% 开销，见 §3.1），用于定位算子间瓶颈分布，不代表生产延迟。
+taskset -c 4-7 "$RKVC_BIN" -i "$INPUT_70F" -o /dev/shm/profile.mlvc -c mlvc \
+  --mlvc-enc "$MLVC_DIR/MLVCEncoder_rk3576.rknn" \
+  --mlvc-gaussian-pmf "$MLVC_DIR/gaussian.bin" \
+  --mlvc-bitest-pmf "$MLVC_DIR/bitest.bin" --mlvc-qp 21
 
-### 5.1 编码器 — CPU fallback 算子占 36.5%
+taskset -c 4-7 "$RKVC_BIN" -i /dev/shm/profile.mlvc -o /dev/shm/profile.yuv \
+  --mlvc-dec "$MLVC_DIR/MLVCDecoder_rk3576.rknn" \
+  --mlvc-gaussian-pmf "$MLVC_DIR/gaussian.bin" \
+  --mlvc-bitest-pmf "$MLVC_DIR/bitest.bin"
+```
 
-| 算子                         | 设备    | 次数 | 占比                      | 说明                                        |
-| ---------------------------- | ------- | ---- | ------------------------- | ------------------------------------------- |
-| **SpaceToDepth**             | **CPU** | 1    | **18.2%**                 | (1,3,368,640)→(1,192,46,80) pixel-unshuffle |
-| ConvAdd                      | NPU     | 28   | 15.9%                     |                                             |
-| Conv                         | NPU     | 29   | 11.7%                     |                                             |
-| ConvMul                      | NPU     | 14   | 9.6%                      |                                             |
-| **Max**                      | **CPU** | 1    | **8.1%**                  | `Clip_as_max`，NPU 不支持                   |
-| **Div**                      | **CPU** | 1    | **7.1%**                  | `Reciprocal`，NPU 不支持                    |
-| ConvClip                     | NPU     | 14   | 7.0%                      |                                             |
-| ConvLeakyRelu                | NPU     | 14   | 5.2%                      |                                             |
-| ConvTranspose                | NPU     | 3    | 5.0%                      |                                             |
-| Round+Floor                  | **CPU** | 6    | 3.0%                      | 量化取整（小张量）                          |
-| 其余 (Concat/Mul/Split/Add…) | NPU     | —    | ~9%                       |                                             |
-| **合计**                     |         |      | **CPU 36.5% / NPU 63.5%** |                                             |
+复测 MLVC-S 时只把 `MLVC_DIR` 改成 `models/mlvc-s`，不能跨 bundle 混用模型、PMF 或 QP patch。
 
-**关键发现**：4 类算子回退 CPU（SpaceToDepth / Max / Div / Round+Floor），占算子总时间 **36.5%**。其中 SpaceToDepth（18.2%）、Max（8.1%）、Div（7.1%）是主要损失。
+## 4. Encoder 分阶段
 
-### 5.2 解码器 — ConvTranspose 是固有硬墙
+| 阶段               | MLVC (ms)   | MLVC 占比 | MLVC-S (ms) | MLVC-S 占比 | 说明                                        |
+| ------------------ | ----------- | --------- | ----------- | ----------- | ------------------------------------------- |
+| YUV→fp16 NHWC      | 0.611       | 0.5%      | 0.613       | 0.9%        | 两种变体输入尺寸相同                        |
+| `rknn_inputs_set`  | 28.026      | 22.3%     | 18.289      | 27.3%       | host copy + runtime layout 处理             |
+| **`rknn_run`**     | **88.014**  | **70.0%** | **44.162**  | **66.0%**   | 模型执行                                    |
+| `rknn_outputs_get` | 1.923       | 1.5%      | 1.258       | 1.9%        | 取逻辑 NCHW 输出                            |
+| 输出后处理         | 5.684       | 4.5%      | 1.965       | 2.9%        | finite 校验、latent 转换、feature NCHW→NHWC |
+| `extract_scales`   | 0.162       | 0.1%      | 0.064       | 0.1%        | 熵模型索引                                  |
+| rANS + packet      | 1.359       | 1.1%      | 0.540       | 0.8%        | 熵编码与帧包分配                            |
+| **合计**           | **125.778** | **100%**  | **66.891**  | **100%**    | 三轮均值；分项显示值有舍入                  |
 
-| 算子                         | 设备    | 次数 | 占比                     | 说明              |
-| ---------------------------- | ------- | ---- | ------------------------ | ----------------- |
-| **ConvTranspose**            | NPU     | 5    | **58.8%**                | 转置卷积上采样    |
-| ConvAdd                      | NPU     | 30   | 10.8%                    |                   |
-| ConvMul                      | NPU     | 15   | 6.2%                     |                   |
-| Conv                         | NPU     | 27   | 5.6%                     |                   |
-| **Max**                      | **CPU** | 1    | **5.3%**                 | 唯一 CPU fallback |
-| ConvClip                     | NPU     | 15   | 4.9%                     |                   |
-| ConvLeakyRelu                | NPU     | 15   | 3.6%                     |                   |
-| 其余 (Split/Mul/Add/Concat…) | NPU     | —    | ~4.9%                    |                   |
-| **合计**                     |         |      | **CPU 5.3% / NPU 94.7%** |                   |
+标准 MLVC 的 `inputs_set + outputs_get + 输出后处理` 为 35.63 ms/帧，已是仅次于 `rknn_run` 的优化目标。后续若重新引入零拷贝，必须显式证明 feature producer layout 到 reference consumer layout 的映射并做至少 70 帧递归一致性测试，不能仅凭 `n_elems` 或 native shape 相同直接 `memcpy`。
 
-**关键发现**：解码器 58.8% 耗时集中在 ConvTranspose（已在 NPU 执行），属模型架构固有结构。唯一的 CPU fallback（Max）仅占 5.3%。
+## 5. Decoder 分阶段
 
-## 6. 已落地优化与效果
+| 阶段                    | MLVC (ms)  | MLVC 占比 | MLVC-S (ms) | MLVC-S 占比 | 说明                        |
+| ----------------------- | ---------- | --------- | ----------- | ----------- | --------------------------- |
+| rANS + `extract_scales` | 2.200      | 2.7%      | 0.862       | 2.1%        | 熵解码                      |
+| NCHW→NC1HWC2 fp16       | 0.247      | 0.3%      | 0.099       | 0.2%        | latent 打包                 |
+| 输入写入 + sync         | 0.716      | 0.9%      | 0.301       | 0.7%        | 4 个 native tensor          |
+| **`rknn_run`**          | **73.692** | **90.7%** | **36.005**  | **89.0%**   | 模型执行                    |
+| x_hat→NV12              | 2.558      | 3.1%      | 2.562       | 6.3%        | CPU DepthToSpace DCR + NV12 |
+| feature sync + copy     | 1.811      | 2.2%      | 0.647       | 1.6%        | 下一帧 native reference     |
+| **合计**                | **81.225** | **100%**  | **40.475**  | **100%**    | 三轮均值；分项显示值有舍入  |
 
-| 优化                       | 层级               | 效果                              | 正确性             |
-| -------------------------- | ------------------ | --------------------------------- | ------------------ |
-| fp16 转换 `__fp16` NEON 化 | `node_mlvc.c`      | YUV→fp16 标量→单条 `fcvt`         | 位等价             |
-| NPU 多核 `core_mask`       | board profile 驱动 | 压榨 NPU 部分（编码器 main gain） | 计算结果不变       |
-| **编码器端到端**           |                    | **8.1 → 10.2 fps（+26%）**        | **码流逐字节一致** |
-| **解码器端到端**           |                    | **5.1 → 5.3 fps（+4%）**          | **解码往返正确**   |
+decoder 的 native feature 输出与下一帧 native reference 已经由当前模型链路验证可直接递归；它与发生问题的 encoder producer/consumer 对不是同一接口契约。标准 decoder 的首要瓶颈仍是模型执行，其次是 CPU 侧 `x_hat→NV12`。
 
-## 7. 瓶颈归因与优化空间
+## 6. 正确性与确定性
 
-### 7.1 软件层已到极限
+| 检查                     | MLVC                                                               | MLVC-S                                                             |
+| ------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 70 帧连续 encode/decode  | 通过                                                               | 通过                                                               |
+| 第二帧及后续 finite 检查 | 通过                                                               | 通过                                                               |
+| 三轮码流逐字节一致       | 通过                                                               | 通过                                                               |
+| 三轮解码 YUV 逐字节一致  | 通过                                                               | 通过                                                               |
+| 码流 SHA-256             | `ff9f19261e028107ca9c2afbe94ac173cdadaf9c8ec40d19f33ba6a6c4ed1196` | `fb6c1710718e000da8fce7f8c5616c643ff7f0e9cf5414e4ff5a4536b0a36dd2` |
+| 解码 YUV SHA-256         | `3b8c4971da0d34f576d8d57aa4162808b3dc745aa8de9cc0f8f02bd528678d0f` | `1fb39dee2c2e36bb520e1b1d0e942ec3d02094499108e11a911dd8175463cb26` |
 
-`node_mlvc.c` 能做的已做尽。剩余瓶颈全部位于 librknnrt 内部或模型结构：
+## 7. 当前优化优先级
 
-| 瓶颈                 | 归属               | 编码器 | 解码器 |
-| -------------------- | ------------------ | ------ | ------ |
-| CPU fallback 算子    | librknnrt 算子支持 | 36.5%  | 5.3%   |
-| ConvTranspose 上采样 | 模型架构           | —      | 58.8%  |
-| Conv 系列卷积        | NPU 计算（已三核） | ~50%   | ~31%   |
+1. **Encoder 标准 I/O（MLVC 28.3%）**：研究显式、可验证的 native layout bridge，或在导出图边界消除 reference 布局歧义。正确性门槛是 ONNX 对照、跨帧 finite、70 帧以上递归和端到端质量同时通过。
+2. **NPU 模型执行（MLVC enc 70.0%，dec 90.7%）**：继续从 ONNX/RKNN 算子分配和网络结构入手；绝对收益上限高于零散 CPU 微优化。
+3. **Decoder x_hat→NV12（MLVC/MLVC-S 均约 2.56 ms）**：两种变体固定成本几乎相同，可继续做 SIMD/并行化，但优先级低于 encoder I/O 和 NPU 模型本体。
 
-### 7.2 下一步空间（模型图编辑，见 `tools/mlvc/`）
+## 附录 A：旧 RK3588 数据（仅作历史参考）
 
-CPU fallback（SpaceToDepth / Max / Div）的根因是 **librknnrt 不支持这些算子的 NPU 执行**，对现成 `.rknn` 再转一遍无法解决。正解是**在 ONNX 计算图层面用 NPU 友好的等价算子替换**，再重新导出 RKNN。本仓已提供该链路：[`docs/mlvc-rknn-export.md`](mlvc-rknn-export.md) / `tools/.venv/bin/python tools/mlvc/export_rknn.py`。
+2026-08-13 的旧报告使用 RK3588、RKNN API 2.4.2a2、三 NPU 核和旧 encoder native I/O。平台、模型产物、运行时和 I/O 路径均与本次不同，不能用来计算本次修复的性能回退比例。
 
-| 图编辑                                   | 目标       | 预期收益            | 风险                      |
-| ---------------------------------------- | ---------- | ------------------- | ------------------------- |
-| SpaceToDepth → Reshape+Transpose+Reshape | 上 NPU     | 编码 -18%           | 需验证数值等价            |
-| Max(x, const) → Clip                     | 上 NPU     | 编码 -8% / 解码 -5% | bit-exact                 |
-| Div → Mul(reciprocal_const)              | 上 NPU     | 编码 -7%            | bit-exact                 |
-| ConvTranspose → Conv+PixelShuffle        | NPU 更友好 | 解码 -30~40%        | 需改 ONNX 源模型重训/微调 |
+| 旧指标               | Encoder | Decoder  |
+| -------------------- | ------- | -------- |
+| 独立 `rknn_run`      | 88.0 ms | 178.2 ms |
+| 旧端到端节点         | 98.4 ms | 188.4 ms |
+| PERF_DETAIL 采集开销 | +15.1%  | +27.9%   |
 
-前三项由导出工具默认执行（bit-exact 或数值等价），无需重训；ConvTranspose 替换仍需改模型结构。四项合计理论上编码器可再降 ~33%、解码器 ~35~45%。重新导出后应在板上用 `RKNN_QUERY_PERF_DETAIL` 确认 SpaceToDepth/Max/Div 不再出现 CPU 行。
+旧 PERF_DETAIL 的相对分布显示 encoder CPU fallback 约 36.5%（主要为 SpaceToDepth、Max、Div），decoder 约 58.8% 的算子时间位于 NPU ConvTranspose。它们只用于解释当时的模型，不代表当前 RK3576 模型的算子分布；当前模型若要作相同结论，必须重新以 `RKNN_QUERY_PERF_DETAIL` 采样。

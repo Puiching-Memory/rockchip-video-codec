@@ -10,7 +10,7 @@
 | 系统包 | libdrm-dev、patchelf（可移植包打包）                                                          |
 | 测试   | CMocka（可选，`RKVC_BUILD_TESTS=ON`）                                                         |
 
-> **说明**：ffmpeg-rockchip、rockchip-mpp、SVT-AV1、librga 均从 `third_party/` 子模块获取（浅克隆）。`librga` 经 `./scripts/install-librga.sh` 安装到 `.build/deps/librga-install/`，**不再依赖**开发板系统预装。可移植包携带 `librga` 与 `librknnrt`；NPU 驱动/固件仍需目标机提供。
+> **说明**：ffmpeg-rockchip、rockchip-mpp、SVT-AV1、librga 均从 `third_party/` 子模块获取（浅克隆）。`librga` 经 `./scripts/install-librga.sh` 安装到 `.build/deps/librga-install/`。`librknnrt` 经 `./scripts/install-rknnrt.sh` 从 [rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2) 下载到 `.build/deps/rknn-install/`。两者都**不再依赖**开发板系统预装。可移植包携带 `librga` 与 `librknnrt`；NPU 驱动/固件仍需目标机提供。
 
 ## 设备权限
 
@@ -42,17 +42,32 @@ git submodule update --init --depth 1
 # librga（airockchip 预编译库 → .build/deps/librga-install）
 ./scripts/install-librga.sh
 
+# librknnrt（从 airockchip/rknn-toolkit2 下载 → .build/deps/rknn-install；
+# 不依赖板卡系统预装，可移植包会打进这份 .so）
+./scripts/install-rknnrt.sh
+
 # ffmpeg-rockchip：H.264/HEVC/AV1 RKMPP 编解码（自动使用上述 librga；
 # 并应用 patches/ffmpeg-rockchip/*.patch）
 ./scripts/rebuild-ffmpeg-rkmpp.sh
 ```
+
+## Python 工具环境
+
+绘图、bench 脚本、MLVC ONNX/RKNN 导出共用仓库根目录 **一个** `.venv`。版本钉在 `pyproject.toml`，由 `uv.lock` 锁定传递依赖。
+
+```bash
+uv sync
+.venv/bin/python tools/mlvc/export_rknn.py --help
+```
+
+不要在 `tools/` 或 `.build/deps/mlvc/` 再创建虚拟环境。
 
 ## 编译 rkvc
 
 构建目录约定见 [build-layout.md](build-layout.md)（全部在 `.build/`，日常用 `.build/release/`）。
 
 ```bash
-# CMake Presets（推荐，并行度默认 -j4）→ 产物在 .build/release/
+# CMake Presets（推荐，固定 -j6）→ 产物在 .build/release/
 cmake --preset default
 cmake --build --preset default
 
@@ -60,8 +75,9 @@ cmake --build --preset default
 cmake --preset debug && cmake --build --preset debug
 
 # 或手动（仍应使用约定目录名；CMake < 3.21 无 preset）
+source scripts/build-common.sh && rkvc_limit_build_jobs  # 默认 round(nproc×80%)
 cmake -B .build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-ninja -C .build/release -j4
+ninja -C .build/release -j"$BUILD_JOBS"
 ```
 
 默认 preset 构建目标：`rkvc_shared`、`rkvc_static`、`rkvc_encode`、`rkvc_decode`、`rkvc_transcode`、`rkvc_info`、`rkvc_bench`、`rkvc_session_upscale`、`rkvc_yuv_upscale`。
@@ -136,7 +152,7 @@ gcc -o myapp myapp.c $(pkg-config --cflags --libs rkvc)
 
 ## MLVC 模型导出
 
-现网推理使用 `models/MLVCEncoder_*.rknn` / `MLVCDecoder_*.rknn` 与 `gaussian.bin` / `bitest.bin`。多 qp 可用基座模型 + `models/qp_patches/*.qppatch`（`--mlvc-qp-patch-dir`）。从 Microsoft MLVC 官方 ONNX 生成这些文件见 [MLVC RKNN 导出](mlvc-rknn-export.md)。
+现网推理按变体使用自包含 bundle：标准版在 `models/mlvc/`，轻量版在 `models/mlvc-s/`。每个目录都独立包含 `MLVCEncoder_*.rknn`、`MLVCDecoder_*.rknn`、`gaussian.bin`、`bitest.bin`、`qp_patches/` 与导出 manifest，不能跨目录混用。从 Microsoft MLVC 官方 ONNX 生成这些文件见 [MLVC RKNN 导出](mlvc-rknn-export.md)。
 
 ## 二次开发
 

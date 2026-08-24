@@ -72,6 +72,17 @@ ENC_SCALE_DENOM=3 UPSCALE_ALGOS=bilinear,rkvc_sr \
 
 Session 字段：`enc_scale_denom`、`post_upscale_algo`。**编码 CLI**（`rkvc_encode`）只做下采样；上采样请用 `rkvc_session_upscale` 或 decode 模板。
 
+## 两种 RD 协议
+
+不要再为单张论文图开子目录。`tools/bench` 里是同一套路径与二进制，两套**扫点协议**：
+
+| | 片源 / 码控 | 指标 / 横轴 | 入口 |
+| --- | --- | --- | --- |
+| **e2e** | 任意视频截 4s；target kbps（校准 CQP/CRF） | ffmpeg PSNR/SSIM；actual kbps | `run_rd_benchmark.sh` + `plot_rd_curve.py` |
+| **hevc-e** | Class E 三序列 96 帧；MPP CQP / MLVC qp | Y 5 尺度 MS-SSIM (dB)；CBR=bpp/8 | `run_hevc_e.py` + `plot_rd_curve.py --preset hevc-e` |
+
+MS-SSIM 实现在 `tools/bench/tools/msssim.py`。参数在 `config.json` → `hevc_e`。
+
 ## 快速开始
 
 ```bash
@@ -79,16 +90,22 @@ Session 字段：`enc_scale_denom`、`post_upscale_algo`。**编码 CLI**（`rkv
 ./scripts/build-svt.sh
 ./scripts/rebuild-ffmpeg-rkmpp.sh
 cmake -B .build/release -DCMAKE_BUILD_TYPE=Release
-cmake --build .build/release -j4
+source scripts/build-common.sh && rkvc_limit_build_jobs
+cmake --build .build/release -j"$BUILD_JOBS"
 
-# 2. Python 工具环境（绘图 + MLVC ONNX/RKNN 导出，共用 tools/.venv）
-(cd tools && uv sync)
+# 2. Python 工具环境（绘图 + MLVC ONNX/RKNN 导出，仓库根目录唯一 .venv）
+uv sync
 
 # 3. 跑基准（默认从源视频中间截取 4s，17 个码率点 25–1000 kbps）
 ./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
 
 # 仅重绘图表
 PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh
+
+# HEVC Class E（MS-SSIM dB × CBR，CQP；与上者共用 ffmpeg / rkvc / config.json）
+.venv/bin/python tools/bench/run_hevc_e.py --codecs h264,h265
+.venv/bin/python tools/bench/plot_rd_curve.py --preset hevc-e \
+  --csv tools/bench/results/hevc_e/rd_data.csv
 ```
 
 ## 输出
@@ -99,6 +116,7 @@ PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh
 | `tools/bench/results/session.meta`     | 本次跑分元数据（码率点、clip、模式等）  |
 | `tools/bench/results/session.codecs`   | 本次 CSV 中的 codec 列表                |
 | `tools/bench/results/rd_curve_e2e.png` | RD 曲线（横轴 log）                     |
+| `tools/bench/results/hevc_e/`          | Class E 协议 CSV 与 MS-SSIM 图          |
 | `tools/bench/results/perf_e2e.png`     | E2E 性能对比                            |
 | `tools/bench/work/`                    | 中间文件（可删）                        |
 
@@ -108,10 +126,10 @@ PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh
 
 ```bash
 # 校验配置与项目 ffmpeg 是否就绪
-tools/.venv/bin/python tools/bench/tools/config.py validate tools/bench/config.json
+.venv/bin/python tools/bench/tools/config.py validate tools/bench/config.json
 
 # 查看将生效的默认值
-tools/.venv/bin/python tools/bench/tools/config.py defaults \
+.venv/bin/python tools/bench/tools/config.py defaults \
   tools/bench/config.json /path/to/rockchip-video-codec
 
 # 单次覆盖（环境变量优先于 config）
@@ -129,6 +147,7 @@ BENCH_CONFIG=tools/bench/my_config.json ./tools/bench/run_rd_benchmark.sh clip.m
 | `paths.ffmpeg` / `ffprobe`                         | 项目 `ffmpeg-rockchip` 构建产物                              |
 | `target_kbps`                                      | RD 扫点码率列表                                              |
 | `calibration.*`                                    | h264/h265/SVT CQP/CRF 校准表                                 |
+| `hevc_e.*`                                         | Class E 协议：序列、CQP 扫点、MS-SSIM 轴（`run_hevc_e.py`）  |
 | `run.codecs` / `enc_scale_denom` / `upscale_algos` | 对比路线（含 `svt-av1-hq`）                                  |
 | `svt.preset` / `svt.hq_preset`                     | 实时档 / 非实时高质量档 SVT preset（默认 11 / 4）            |
 | `svt.superres.enabled`                             | 默认 `false`（需另配 `paths.superres_decode_ffmpeg` 才启用） |
@@ -146,7 +165,7 @@ BENCH_CONFIG=tools/bench/my_config.json ./tools/bench/run_rd_benchmark.sh clip.m
 - `RKVC_SR_MODEL` — `rkvc_sr` 模型路径（默认见 `config.json` → `paths.rkvc_sr_model`）
 - `RKVC_POLICIES` — rkvc 语义档位，默认 `realtime,balanced,quality,offline,neural`
 - `MLVC_ENC_MODEL` / `MLVC_DEC_MODEL` — MLVC 编/解码 RKNN 模型路径（默认 `config.json` → `mlvc.*_model`，`{soc}` 占位符按探测到的 SoC 展开，如 rk3588）
-- `MLVC_GAUSSIAN_PMF` / `MLVC_BITEST_PMF` — MLVC PMF 表路径（默认 `models/gaussian.bin` / `models/bitest.bin`）
+- `MLVC_GAUSSIAN_PMF` / `MLVC_BITEST_PMF` — MLVC PMF 表路径（默认 `models/mlvc/gaussian.bin` / `models/mlvc/bitest.bin`）
 - `MLVC_QP` — MLVC 质量参数（默认 21；`rkvc-neural` 不参与码率扫描，仅用此 qp）
 - `CLIP_SEC` — 截取秒数（默认 `4`）
 - `CLIP_OFFSET` — 截取位置：`middle`（默认，居中）| `start`
@@ -170,9 +189,9 @@ BENCH_CSV_MODE=accumulate ./tools/bench/run_rd_benchmark.sh clip.mp4
 ## 单独绘图
 
 ```bash
-tools/.venv/bin/python tools/bench/plot_rd_curve.py \
+.venv/bin/python tools/bench/plot_rd_curve.py \
   --csv tools/bench/results/rd_data.csv
-tools/.venv/bin/python tools/bench/plot_perf.py \
+.venv/bin/python tools/bench/plot_perf.py \
   --csv tools/bench/results/rd_data.csv --frames 62
 ```
 

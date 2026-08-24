@@ -1,0 +1,57 @@
+[project]
+name = "rkvc"
+version = "0.3.2"
+description = "rkvc 唯一 Python 环境：bench、绘图、MLVC ONNX/RKNN 导出"
+license = "AGPL-3.0-or-later"
+# 与 .python-version 一致。rknn-toolkit2 官方 wheel 覆盖 3.8–3.12。
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "dataclasses-json==0.6.7",
+    "matplotlib==3.11.0",
+    "numpy==1.26.4",
+    "onnx==1.16.1",
+    "onnxconverter-common==1.16.0",
+    "onnxruntime==1.26.0",
+    "onnxscript==0.5.7",
+    "opencv-python==4.11.0.86",
+    "pandas==3.0.5",
+    "protobuf==4.25.4",
+    "pyyaml==6.0.2",
+    "rknn-toolkit2==2.3.2",
+    "scipy==1.11.4",
+    "setuptools==80.10.2",
+    # 本板 A72 上 torch 2.10 会 SIGILL；rknn-toolkit2 2.3.2 要求 torch<=2.4.0。
+    "tabulate==0.10.0",
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+]
+
+[tool.uv]
+package = false
+
+# rknn-toolkit2 2.3.2 的 wheel 元数据声明了 onnxoptimizer==0.3.8（无 aarch64 wheel，转换也不需要）。
+[[tool.uv.dependency-metadata]]
+name = "rknn-toolkit2"
+version = "2.3.2"
+requires-dist = [
+    "protobuf>=3.20.3,<=4.25.4",
+    "psutil>=5.9.0",
+    "ruamel.yaml>=0.17.21",
+    "scipy>=1.9.3",
+    "tqdm>=4.64.1",
+    "opencv-python>=4.5.5.64",
+    "fast-histogram>=0.11",
+    "numpy<=1.26.4",
+    "onnx>=1.16.1",
+    "onnxruntime>=1.16.0",
+    "torch>=1.13.1,<=2.4.0",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

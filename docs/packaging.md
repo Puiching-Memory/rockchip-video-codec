@@ -155,13 +155,14 @@ LD_LIBRARY_PATH=lib ./myapp
 ### 模型与 NPU 运行时来源声明
 
 - **`models/rkvc_sr_x3.crypt.rknn`**：项目自训练的 3× RGB 域超分模型（训练说明见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)），非第三方开源模型衍生，版权归本项目作者。文件以 `.crypt` 加密存储；明文模型与训练细节仅在商业授权范围内提供（见下「双许可」）。
-- **`librknnrt.so`**：Rockchip RKNN NPU 运行时，为 Rockchip 官方 SDK 提供的**专有二进制**，仅授权在 Rockchip 硬件（RK3588 等）上使用；再分发须遵守 Rockchip SDK 许可条款。项目不修改该库，仅动态链接。商业分发前请向 Rockchip 确认条款。
+- **`librknnrt.so`**：Rockchip RKNN NPU 运行时，为 Rockchip 官方 SDK 提供的**专有二进制**，仅授权在 Rockchip 硬件上使用；再分发须遵守 Rockchip SDK 许可条款。构建时由 `scripts/install-rknnrt.sh` 从 [rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2) 下载到 `.build/deps/rknn-install/`（默认 tag `v2.3.2`，与 `tools/` 的 rknn-toolkit2 对齐），再打进可移植包。项目不修改该库，仅动态链接。商业分发前请向 Rockchip 确认条款。
 
 ## DEB 包
 
 ```bash
+source scripts/build-common.sh && rkvc_limit_build_jobs
 cmake -B .build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-ninja -C .build/release -j4 package
+ninja -C .build/release -j"$BUILD_JOBS" package
 sudo dpkg -i .build/release/packages/rkvc_*_arm64.deb
 ```
 
@@ -172,7 +173,8 @@ sudo dpkg -i .build/release/packages/rkvc_*_arm64.deb
 开发者 SDK 包（不含 ffmpeg 依赖）：
 
 ```bash
-ninja -C .build/release -j4 package
+source scripts/build-common.sh && rkvc_limit_build_jobs
+ninja -C .build/release -j"$BUILD_JOBS" package
 # 产物: .build/release/packages/rkvc-*-Linux.tar.gz
 ```
 

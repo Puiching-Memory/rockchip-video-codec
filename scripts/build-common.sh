@@ -6,7 +6,8 @@
 #   rkvc_limit_build_jobs
 #   ver="$(rkvc_project_version)"
 #
-# 可通过环境变量 BUILD_JOBS 下调（如 2），但不会超过 RKVC_BUILD_JOBS_MAX（默认 6）。
+# 默认并行度 = round(nproc × 80%)（至少 1，且不超过 nproc）。
+# BUILD_JOBS 已设置则尊重；RKVC_BUILD_JOBS_MAX 若设置则封顶；RKVC_BUILD_JOBS_PCT 可改百分比。
 #
 # 构建目录约定（唯一权威：CMakePresets.json / docs/build-layout.md）:
 #   .build/release/     default Release
@@ -46,19 +47,60 @@ rkvc_portable_pkg_dir() {
     printf 'rkvc-%s-linux-%s-portable\n' "$ver" "$arch"
 }
 
-rkvc_limit_build_jobs() {
-    local max_jobs="${RKVC_BUILD_JOBS_MAX:-6}"
-    local jobs="${BUILD_JOBS:-6}"
+rkvc_nproc() {
+    local n
+    n="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
+    if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -lt 1 ]; then
+        n=1
+    fi
+    printf '%s\n' "$n"
+}
 
-    if ! [[ "$jobs" =~ ^[0-9]+$ ]] || [ "$jobs" -lt 1 ]; then
+# round(nproc × pct / 100)，默认 80%；结果落在 [1, nproc]。
+rkvc_default_build_jobs() {
+    local ncpus pct jobs
+    ncpus="$(rkvc_nproc)"
+    pct="${RKVC_BUILD_JOBS_PCT:-80}"
+    if ! [[ "$pct" =~ ^[0-9]+$ ]] || [ "$pct" -lt 1 ]; then
+        pct=80
+    fi
+    if [ "$pct" -gt 100 ]; then
+        pct=100
+    fi
+    jobs=$(( (ncpus * pct + 50) / 100 ))
+    if [ "$jobs" -lt 1 ]; then
         jobs=1
     fi
-    if [ "$jobs" -gt "$max_jobs" ]; then
-        jobs="$max_jobs"
+    if [ "$jobs" -gt "$ncpus" ]; then
+        jobs="$ncpus"
+    fi
+    printf '%s\n' "$jobs"
+}
+
+rkvc_limit_build_jobs() {
+    local ncpus jobs explicit=0
+    ncpus="$(rkvc_nproc)"
+
+    if [[ "${BUILD_JOBS:-}" =~ ^[1-9][0-9]*$ ]]; then
+        jobs="$BUILD_JOBS"
+        explicit=1
+    else
+        jobs="$(rkvc_default_build_jobs)"
+    fi
+
+    if [[ "${RKVC_BUILD_JOBS_MAX:-}" =~ ^[1-9][0-9]*$ ]] && [ "$jobs" -gt "$RKVC_BUILD_JOBS_MAX" ]; then
+        jobs="$RKVC_BUILD_JOBS_MAX"
     fi
 
     BUILD_JOBS="$jobs"
     export BUILD_JOBS
+    export CMAKE_BUILD_PARALLEL_LEVEL="$BUILD_JOBS"
+
+    if [ "$explicit" -eq 1 ]; then
+        echo "--- BUILD_JOBS=$BUILD_JOBS (explicit, nproc=$ncpus) ---"
+    else
+        echo "--- BUILD_JOBS=$BUILD_JOBS (nproc=$ncpus × ${RKVC_BUILD_JOBS_PCT:-80}%) ---"
+    fi
 }
 
 # 可移植包内 ffmpeg 动态库清单（rkvc 实际依赖；libswscale 用于软像素格式转换）。
@@ -94,7 +136,8 @@ rkvc_dep_library_path() {
         "$root/.build/deps/mpp-install/lib" \
         "$root/.build/deps/mpp-build/mpp" \
         "$root/.build/deps/svt-av1-install/lib" \
-        "$root/.build/deps/librga-install/lib"; do
+        "$root/.build/deps/librga-install/lib" \
+        "$root/.build/deps/rknn-install/lib"; do
         [[ -d "$dir" ]] && dirs+=("$dir")
     done
 

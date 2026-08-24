@@ -2,9 +2,9 @@
 
 把 [Microsoft MLVC](https://github.com/microsoft/mlvc) 的固定分辨率 ONNX 与 PMF JSON，转成 `rkvc` 运行时（`lib/node_mlvc.c`）使用的 `.rknn` + `PMF1` 二进制表。
 
-本仓库**不 vendoring** 上游训练/转换代码。`tools/.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 会浅克隆官方仓、下载公开 checkpoint、跑 `convert.py export --target-device generic`，再做图处理与 RKNN 转换。
+本仓库**不 vendoring** 上游训练/转换代码。`.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 会浅克隆官方仓、下载公开 checkpoint、跑 `convert.py export --target-device generic`，再做图处理与 RKNN 转换。
 
-本仓的 bench 与 MLVC ONNX/RKNN 工具共用 `tools/.venv`。微软上游 `convert.py` 仍使用 clone 目录内的独立 Python 3.12 venv：上游固定 `torch==2.10.0`，而 rknn-toolkit2 要求 `torch<=2.4.0`，两者无法可靠地装进同一个环境。两套环境均强制使用 PyTorch CPU wheel，不会下载 CUDA/NVIDIA 包。
+全仓库只有一个 Python 环境：仓库根目录 `.venv`（`pyproject.toml` + `uv.lock` **固定版本号**）。`convert.py` 与 rknn-toolkit2 共用该环境。官方 MLVC 声明 `torch==2.10.0`，但 rknn-toolkit2 2.3.2 要求 `torch<=2.4.0`，且本板 A72 上 2.10 会 SIGILL，因此锁在 **torch==2.2.2**（CPU wheel）+ **scipy==1.11.4**（与 numpy 1.26.4 兼容）。不要在 `tools/` 或 `.build/deps/mlvc/` 再 `uv sync`。
 
 ## 运行时 I/O 约定
 
@@ -15,6 +15,13 @@ C 侧不向 NPU 喂 qp（qp 只用于 rANS：`z_idx = qp * ZC + c`）。因此�
 | 编码器 | 按名字：图像（`x` / `New_input_x`）、`ref_feature`   | 按名字：`feature` / `z_raw` / `y_raw_0` / `y_raw_1` |
 | 解码器 | 按名字：`z_raw`、`y_raw_0`、`y_raw_1`、`ref_feature` | 按名字：`x_hat`、`feature`                          |
 
+编码器必须成对使用 `rknn_inputs_set()` / `rknn_outputs_get()`：输入按 NHWC
+交给 runtime，输出按逻辑 NCHW 读取，再把 `feature` 转成下一帧 NHWC reference。
+不要把 native feature 输出直接复制到下一帧 native `ref_feature` 输入：即使查询
+到的元素数与 NC1HWC2 维度相同，这个图的 producer/consumer native layout 也不具备
+可直接互换的契约；标准 MLVC 的 256 通道 reference 会在第二帧被错误解释并产生
+NaN/Inf。解码器的四输入/两输出 native 布局已单独验证，可继续使用零拷贝路径。
+
 默认把解码器尾部 `DepthToSpace(mode=DCR)+Clip(0,1)` 拆出图外（`--no-extract-tail` 关闭）。此时 RKNN 的 `x_hat` 是 shuffle 前的 head conv（640×368 时为 `[1,192,46,80]`），`node_mlvc.c` 按 native 通道数自动做 CPU DCR + clip；旧的整图 `x_hat=[1,3,H,W]` 模型不用改。
 
 官方 split `dmc61sbr_e1d1` / `dmc61sr_e1d1` 的 ONNX 还带 `q_index_shifted`（编码器 3 入、解码器 5 入）。折叠后才是上表的 2 / 4 输入。
@@ -24,11 +31,10 @@ C 侧不向 NPU 喂 qp（qp 只用于 rANS：`z_idx = qp * ZC + c`）。因此�
 图处理需要 `onnx`（及 numpy）。RKNN 转换需要 [rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2)（PyPI 提供 x86_64 / aarch64 manylinux wheel，Python 3.8–3.12）。
 
 ```bash
-cd tools
-uv sync          # Python 3.10–3.12；创建共享 .venv
+uv sync          # 仓库根目录；Python 3.12，版本见 pyproject.toml
 ```
 
-请使用 `tools/pyproject.toml` + `tools/uv.lock` 安装，不要直接 `pip install rknn-toolkit2`。共享配置已去掉无 ARM wheel、且转换不需要的 `onnxoptimizer`，并把 torch 绑定到 PyTorch CPU-only index。
+请使用仓库根目录 `pyproject.toml` + `uv.lock` 安装，不要直接 `pip install rknn-toolkit2`。配置已去掉无 ARM wheel、且转换不需要的 `onnxoptimizer`，并把 torch / torchvision 绑定到 PyTorch CPU-only index。
 
 `do_quantization=False`，`float_dtype=float16`。不要套 YOLO 那套 `mean/std=255` 图像预处理。
 
@@ -37,10 +43,10 @@ uv sync          # Python 3.10–3.12；创建共享 .venv
 一条命令走通（浅克隆 [microsoft/mlvc](https://github.com/microsoft/mlvc) 到 `.build/deps/mlvc`，下载公开 checkpoint，跑 `convert.py export --target-device generic`）：
 
 ```bash
-(cd tools && uv sync)
-tools/.venv/bin/python tools/mlvc/export_rknn.py \
-  --from-mlvc --out-dir models --platform rk3588 --qp 21
-# 只要 ONNX：tools/.venv/bin/python tools/mlvc/export_onnx.py
+uv sync
+.venv/bin/python tools/mlvc/export_rknn.py \
+  --from-mlvc --out-dir models/mlvc --platform rk3588 --qp 21
+# 只要 ONNX：.venv/bin/python tools/mlvc/export_onnx.py
 ```
 
 或在已有 microsoft/mlvc 仓库里自行导出后再喂给本工具：
@@ -50,6 +56,37 @@ tools/.venv/bin/python tools/mlvc/export_rknn.py \
 python convert.py export --model-version dmc61sbr_reglu --model-type onnx \
     --target-device generic --model-width 640 --model-height 368
 ```
+
+MLVC-S 使用单独的 checkpoint，工具不会拿普通 MLVC 权重代替。导出时必须显式指定：
+
+```bash
+.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc \
+  --model-version dmc61sbr_reglu_s \
+  --weights-path /path/to/mlvc-s-psnr-v1.ckpt \
+  --out-dir models/mlvc-s --platform rk3576
+```
+
+两种变体使用平行、互不混用的 bundle 目录：
+
+```text
+models/
+├── mlvc/
+│   ├── MLVCEncoder_<soc>.rknn
+│   ├── MLVCDecoder_<soc>.rknn
+│   ├── gaussian.bin
+│   ├── bitest.bin
+│   ├── qp_patches/
+│   └── mlvc_rknn_export_manifest.json
+└── mlvc-s/
+    ├── MLVCEncoder_<soc>.rknn
+    ├── MLVCDecoder_<soc>.rknn
+    ├── gaussian.bin
+    ├── bitest.bin
+    ├── qp_patches/
+    └── mlvc_rknn_export_manifest.json
+```
+
+省略 `--out-dir` 时，工具会按 `--model-version` 自动选择 `models/mlvc/` 或 `models/mlvc-s/`。
 
 产物目录形如：
 
@@ -69,9 +106,9 @@ python convert.py export --model-version dmc61sbr_reglu --model-type onnx \
 ## 本仓库转换
 
 ```bash
-tools/.venv/bin/python tools/mlvc/export_rknn.py \
+.venv/bin/python tools/mlvc/export_rknn.py \
     --onnx-dir /path/to/onnx-generic/640x368 \
-    --out-dir models \
+    --out-dir models/mlvc \
     --platform rk3588 \
     --qp 21
 ```
@@ -81,7 +118,7 @@ tools/.venv/bin/python tools/mlvc/export_rknn.py \
 | 选项                            | 说明                                                                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `--qp 21`                       | 折进图的 `q_index`（默认 21，与 `node_mlvc` 一致）                                                           |
-| `--qp-list 10,21,30,40`         | 每个 qp 一份模型，写入 `models/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 `models/` 根目录作默认 |
+| `--qp-list 10,21,30,40`         | 每个 qp 一份模型，写入 `{out-dir}/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 bundle 根目录作默认 |
 | `--skip-rknn`                   | 只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用）                                                     |
 | `--pmf-only`                    | 只把 JSON 写成 `gaussian.bin` / `bitest.bin`                                                                 |
 | `--inspect`                     | 只打印 ONNX I/O                                                                                              |
@@ -119,10 +156,10 @@ JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_length
 
 ```bash
 ./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/MLVCEncoder_rk3588.rknn \
-  --mlvc-dec models/MLVCDecoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/gaussian.bin \
-  --mlvc-bitest-pmf models/bitest.bin \
+  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
+  --mlvc-dec models/mlvc/MLVCDecoder_rk3588.rknn \
+  --mlvc-gaussian-pmf models/mlvc/gaussian.bin \
+  --mlvc-bitest-pmf models/mlvc/bitest.bin \
   --mlvc-qp 21
 ```
 
@@ -130,27 +167,27 @@ JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_length
 
 ## 多 QP 单模型（QPP1）
 
-各 qp 折叠进图后，RKNN 权重局部不同、文件大小相同。不必在运行时切换整份 `.rknn`：保留一份基座（默认 `MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`），打开时按 qp 打一次二进制补丁。
+各 qp 折叠进图后，RKNN 权重局部不同、文件大小相同。不必在运行时切换整份 `.rknn`：在对应 bundle 内保留一份基座（默认 `MLVCEncoder_rk3588.rknn` / `MLVCDecoder_rk3588.rknn`），打开时按 qp 打一次二进制补丁。
 
 ```bash
-tools/.venv/bin/python tools/mlvc/export_rknn.py \
+.venv/bin/python tools/mlvc/export_rknn.py \
     --onnx-dir /path/to/onnx-generic/640x368 \
-    --out-dir models --platform rk3588 \
+    --out-dir models/mlvc --platform rk3588 \
     --qp 21 --qp-list 10,21,30,40
 
 # 或对已有 qpXX/*.rknn 目录单独生成：
-tools/.venv/bin/python tools/mlvc/make_qp_patches.py \
-    --models-dir models/rk3588_qp_models --base-qp 21 --out-dir models/qp_patches
+.venv/bin/python tools/mlvc/make_qp_patches.py \
+    --models-dir models/mlvc/rk3588_qp_models --base-qp 21 --out-dir models/mlvc/qp_patches
 ```
 
-产物：`models/qp_patches/{enc|dec}_qp{N}.qppatch`（含基座 qp 的空补丁）。格式为 48 字节小端头 `QPP1` + 合并后的 `(offset, length)` 区间 + payload；头里带基座 / payload CRC32。缺补丁或 CRC 不对会打开失败，不会静默用错权重。
+产物：`models/mlvc/qp_patches/{enc|dec}_qp{N}.qppatch`（含基座 qp 的空补丁）。格式为 48 字节小端头 `QPP1` + 合并后的 `(offset, length)` 区间 + payload；头里带基座 / payload CRC32。缺补丁或 CRC 不对会打开失败，不会静默用错权重。
 
 ```bash
 ./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/MLVCEncoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/gaussian.bin \
-  --mlvc-bitest-pmf models/bitest.bin \
-  --mlvc-qp-patch-dir models/qp_patches \
+  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
+  --mlvc-gaussian-pmf models/mlvc/gaussian.bin \
+  --mlvc-bitest-pmf models/mlvc/bitest.bin \
+  --mlvc-qp-patch-dir models/mlvc/qp_patches \
   --mlvc-qp 30
 ```
 

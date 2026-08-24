@@ -15,7 +15,7 @@
 | `.build/coverage/` | `coverage`                | gcov 覆盖率                                                           |
 | `.build/portable/` | `portable`                | 可移植包**编译树**                                                    |
 | `.build/dist/`     | （`package-portable.sh`） | 可移植包**成品**                                                      |
-| `.build/deps/`     | （脚本）                  | MPP / SVT / FFmpeg / librga；MLVC 源码与权重（`mlvc/`、`mlvc-data/`） |
+| `.build/deps/`     | （脚本）                  | MPP / SVT / FFmpeg / librga / librknnrt；MLVC 源码与权重（`mlvc/`、`mlvc-data/`） |
 
 ## 产物落点（勿混用）
 
@@ -24,7 +24,7 @@
 | 日常二进制 / `librkvc` | `.build/release/`                                  |
 | CTest / `test_*`       | `.build/tests/`（或 asan / coverage）              |
 | 可移植包成品           | `.build/dist/rkvc-<ver>-linux-<arch>-portable/`    |
-| 依赖安装前缀           | `.build/deps/{mpp,svt-av1,ffmpeg,librga}-install/` |
+| 依赖安装前缀           | `.build/deps/{mpp,svt-av1,ffmpeg,librga,rknn}-install/` |
 
 同名二进制出现在多个子目录是**预期行为**（配置不同）。文档与日常开发一律用 `.build/release/`；测试用对应 preset 目录；打可移植包用 `./scripts/package-portable.sh`。
 
@@ -36,8 +36,9 @@ cmake --preset debug   && cmake --build --preset debug
 cmake --preset tests   && cmake --build --preset tests
 
 # CMake < 3.21（无 preset）时手写 -B，目录名须与上表一致：
+source scripts/build-common.sh && rkvc_limit_build_jobs
 cmake -B .build/release -G Ninja -DCMAKE_BUILD_TYPE=Release
-ninja -C .build/release -j4
+ninja -C .build/release -j"$BUILD_JOBS"
 ```
 
 环境变量：`RKVC_BUILD` / `RKVC_BUILD_DIR` 默认指向 `.build/release/`。

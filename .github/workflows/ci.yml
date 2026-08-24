@@ -84,7 +84,9 @@ jobs:
           cmake -B /tmp/mpp-build -S third_party/mpp \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/tmp/mpp-install
-          cmake --build /tmp/mpp-build -j$(nproc)
+          source scripts/build-common.sh
+          rkvc_limit_build_jobs
+          cmake --build /tmp/mpp-build -j"$BUILD_JOBS"
           cmake --install /tmp/mpp-build
 
       - name: Build SVT-AV1 submodule
@@ -108,7 +110,10 @@ jobs:
             -DRKVC_ENABLE_MLVC=OFF
 
       - name: Build
-        run: ninja -C .build/release
+        run: |
+          source scripts/build-common.sh
+          rkvc_limit_build_jobs
+          ninja -C .build/release -j"$BUILD_JOBS"
 
       - name: Test
         env:
@@ -148,7 +153,9 @@ jobs:
           cmake -B /tmp/mpp-build -S third_party/mpp \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/tmp/mpp-install
-          cmake --build /tmp/mpp-build -j$(nproc)
+          source scripts/build-common.sh
+          rkvc_limit_build_jobs
+          cmake --build /tmp/mpp-build -j"$BUILD_JOBS"
           cmake --install /tmp/mpp-build
 
       - name: Build SVT-AV1 submodule
@@ -164,13 +171,15 @@ jobs:
       - name: Build and package
         run: |
           # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
+          source scripts/build-common.sh
+          rkvc_limit_build_jobs
           cmake -B .build/release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DMPP_BUILD_DIR=/tmp/mpp-build \
             -DRKVC_ENABLE_LICENSE=OFF \
             -DRKVC_ENABLE_RKNN=OFF \
             -DRKVC_ENABLE_MLVC=OFF
-          ninja -C .build/release package
+          ninja -C .build/release -j"$BUILD_JOBS" package
 
       - name: Build portable package
         # 标准版（不加 --license）；授权版仅本地/发码流程使用

@@ -152,7 +152,7 @@ int rkvc_rans_coder_init(rkvc_rans_coder *coder, rkvc_rans_variant variant,
     if (!coder || !pmf_lengths || !pmf_offsets || !pmf_table)
         return RKVC_RANS_ERR_PARAMS;
     if (num_lengths != num_offsets)
-        return RKVC_RANS_ERR_PMF;
+        return RKVC_RANS_ERR_PARAMS;
 
     size_t max_scale = (variant == RKVC_RANS_BYTE)
                         ? RANS_BYTE_MAX_SCALE : RANS_64_MAX_SCALE;

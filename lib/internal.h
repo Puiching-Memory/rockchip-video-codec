@@ -293,7 +293,7 @@ typedef struct {
     const char *enc_model_path;     /**< 编码器 RKNN 模型（基座或完整模型） */
     const char *gaussian_pmf_path;  /**< 高斯熵编码 PMF 表（gaussian.bin） */
     const char *bitest_pmf_path;    /**< 比特估计器 PMF 表（bitest.bin） */
-    int         qp;                 /**< 质量参数，默认 21 */
+    int         qp;                 /**< 质量参数，0–63；负值时默认 21 */
     const char *qp_patch_path;      /**< 可选：QPP1 补丁，打开时打到基座上 */
 } rkvc_mlvc_enc_config;
 
@@ -301,7 +301,7 @@ typedef struct {
     const char *dec_model_path;     /**< 解码器 RKNN 模型（基座或完整模型） */
     const char *gaussian_pmf_path;  /**< 高斯熵编码 PMF 表 */
     const char *bitest_pmf_path;    /**< 比特估计器 PMF 表 */
-    int         qp;                 /**< 质量参数（从容器头读取，≤0 时默认 21） */
+    int         qp;                 /**< 质量参数（从容器头读取，负值时默认 21） */
     const char *qp_patch_path;      /**< 可选：QPP1 补丁 */
 } rkvc_mlvc_dec_config;
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""绘制端到端编解码 RD 曲线（按 actual_kbps 自适应横轴）。"""
+"""绘制端到端编解码 RD 曲线。
+
+默认协议：actual_kbps × PSNR-Y / SSIM（``run_rd_benchmark.sh``）。
+``--preset hevc-e``：CBR×10⁻³ × MS-SSIM(dB)（``run_hevc_e.py``）。
+"""
 
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (c) 2026 梦归云帆
@@ -15,7 +19,14 @@ from pathlib import Path
 
 import math
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, FixedLocator, NullFormatter, ScalarFormatter
+from matplotlib import font_manager
+from matplotlib.ticker import (
+    FuncFormatter,
+    FixedLocator,
+    MultipleLocator,
+    NullFormatter,
+    ScalarFormatter,
+)
 
 # post-upscale 基线 codec 单一来源（shell 侧为 POST_UPSCALE_BASE_LIST）
 UPSCALE_BASES = ("h264", "h265", "svt-av1", "svt-av1-hq")
@@ -45,6 +56,8 @@ CODEC_LABELS = {
     "rkvc-quality": "rkvc quality (AV1)",
     "rkvc-offline": "rkvc offline (AV1 HQ)",
     "rkvc-neural": "rkvc neural (MLVC)",
+    "mlvc": "MLVC (Y 5-scale MS-SSIM)",
+    "mlvc-s": "MLVC-S (Y 5-scale MS-SSIM)",
     "rkvc": "rkvc (Session)",
 }
 
@@ -615,11 +628,126 @@ def plot_rd(
     plt.close(fig)
 
 
+HEVC_E_CODEC_STYLE = {
+    "mlvc": dict(label="MLVC (Y 5-scale MS-SSIM)", color="#d62728", marker="*", markersize=9),
+    "mlvc-s": dict(label="MLVC-S (Y 5-scale MS-SSIM)", color="#2ca02c", marker="^", markersize=8),
+    "h264": dict(label="H.264 RKMPP (无信道编码)", color="#1f77b4", marker="o", markersize=7),
+    "h265": dict(label="H.265 RKMPP (无信道编码)", color="#c45c00", marker="s", markersize=7),
+}
+
+CJK_FONT = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+
+
+def _setup_cjk_font() -> None:
+    if Path(CJK_FONT).is_file():
+        font_manager.fontManager.addfont(CJK_FONT)
+        plt.rcParams["font.family"] = "Noto Sans CJK SC"
+    plt.rcParams["axes.unicode_minus"] = False
+    plt.rcParams["figure.dpi"] = 150
+
+
+def average_hevc_e_by_codec(rows: list[dict]) -> dict[str, list[tuple[float, float]]]:
+    """同一 codec+qp 对序列取平均，返回 codec → [(cbr_milli, msssim_db), ...] 按码率排序。"""
+    from tools.msssim import cbr_milli, msssim_db
+
+    buckets: dict[str, dict[str, list[tuple[float, float]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    for row in rows:
+        codec = row["codec"]
+        qp = row["qp"]
+        bpp = float(row["bpp"])
+        d = float(row["msssim"])
+        buckets[codec][qp].append((cbr_milli(bpp), msssim_db(d)))
+    out: dict[str, list[tuple[float, float]]] = {}
+    for codec, by_qp in buckets.items():
+        pts = []
+        for _qp, vals in by_qp.items():
+            xs = [v[0] for v in vals]
+            ys = [v[1] for v in vals]
+            pts.append((sum(xs) / len(xs), sum(ys) / len(ys)))
+        pts.sort(key=lambda p: p[0])
+        out[codec] = pts
+    return out
+
+
+def plot_msssim_cbr(
+    rows: list[dict],
+    out: Path,
+    *,
+    title: str,
+    footnote: str,
+    width: int = 1280,
+    height: int = 720,
+) -> None:
+    """HEVC Class E：横轴 CBR×10⁻³，纵轴 MS-SSIM (dB)。"""
+    del width, height  # 仅用于脚注/标题由调用方填入
+    _setup_cjk_font()
+    data = average_hevc_e_by_codec(rows)
+    fig, ax = plt.subplots(figsize=(8.2, 5.6))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    for codec in ("mlvc", "mlvc-s", "h264", "h265"):
+        if codec not in data:
+            continue
+        xs = [p[0] for p in data[codec]]
+        ys = [p[1] for p in data[codec]]
+        st = HEVC_E_CODEC_STYLE[codec]
+        ax.plot(
+            xs,
+            ys,
+            color=st["color"],
+            marker=st["marker"],
+            markersize=st["markersize"],
+            linewidth=1.8,
+            markeredgecolor="white",
+            markeredgewidth=0.4,
+            label=st["label"],
+            zorder=4,
+        )
+
+    ax.set_xlabel(r"CBR ($\times 10^{-3}$)　　CBR = bpp/8")
+    ax.set_ylabel("MS-SSIM (dB)")
+    ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
+    ax.grid(True, linestyle="--", color="#b0b0b0", linewidth=0.7, alpha=0.85)
+    ax.set_axisbelow(True)
+    for spine in ax.spines.values():
+        spine.set_color("black")
+        spine.set_linewidth(0.8)
+
+    xs_all = [p[0] for pts in data.values() for p in pts]
+    ys_all = [p[1] for pts in data.values() for p in pts]
+    if xs_all:
+        ax.set_xlim(0, max(12.0, max(xs_all) * 1.05))
+        y_lo = max(8.0, min(ys_all) - 1.0)
+        y_hi = max(24.0, max(ys_all) + 1.0)
+        ax.set_ylim(y_lo, y_hi)
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.yaxis.set_major_locator(MultipleLocator(2))
+
+    ax.legend(loc="lower right", framealpha=0.95, fontsize=8.5, edgecolor="black")
+    fig.text(0.5, 0.02, footnote, ha="center", va="bottom", fontsize=7.5, color="#333333")
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.2)
+    fig.savefig(out.with_suffix(".pdf"), bbox_inches="tight", pad_inches=0.2)
+    print(f"Saved: {out}")
+    plt.close(fig)
+
+
 def main() -> None:
     bench_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="绘制 RD 曲线")
     parser.add_argument("--csv", type=Path, default=bench_root / "results" / "rd_data.csv")
     parser.add_argument("--out", type=Path, default=bench_root / "results" / "rd_curve_e2e")
+    parser.add_argument(
+        "--preset",
+        choices=("e2e", "hevc-e"),
+        default="e2e",
+        help="e2e: kbps×PSNR/SSIM；hevc-e: CBR×MS-SSIM(dB)",
+    )
+    parser.add_argument("--footnote", default="", help="hevc-e 预设的图注")
     parser.add_argument(
         "--title",
         default="E2E RD Curve (RK3588, baselines + rkvc realtime/balanced/quality/offline/neural)",
@@ -657,6 +785,33 @@ def main() -> None:
 
     if not args.csv.exists():
         raise SystemExit(f"找不到数据文件: {args.csv}")
+
+    if args.preset == "hevc-e":
+        with args.csv.open(newline="") as f:
+            rows = list(csv.DictReader(f))
+        if not rows:
+            raise SystemExit(f"CSV 无数据: {args.csv}")
+        dims = {
+            (int(r.get("width") or 1280), int(r.get("height") or 720))
+            for r in rows
+        }
+        if len(dims) != 1:
+            raise SystemExit(f"CSV 混有不同评价分辨率，不能绘制同一 RD 曲线: {sorted(dims)}")
+        w, h = next(iter(dims))
+        out = args.out
+        if out.name == "rd_curve_e2e":
+            out = args.csv.parent / "hevc_e_msssim.png"
+        elif out.suffix == "":
+            out = out.with_suffix(".png")
+        title = args.title
+        if title == parser.get_default("title"):
+            title = f"HEVC Class E {w}x{h} MS-SSIM: MLVC / MLVC-S / MPP H.264 / MPP H.265"
+        footnote = args.footnote or (
+            f"HEVC-E 三序列均值 · {w}×{h} · 无信道编码 · "
+            "纵轴 MS-SSIM (dB) = -10 log10(1-d)，Y 通道 5 尺度 · 横轴按像素码率对齐"
+        )
+        plot_msssim_cbr(rows, out, title=title, footnote=footnote, width=w, height=h)
+        return
 
     data = load_csv(args.csv, max_kbps=args.max_kbps)
     session_path = args.session_codecs

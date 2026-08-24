@@ -12,10 +12,10 @@
 #   FFMPEG（默认项目 ffmpeg；测质解码路径需 av1_rkmpp）
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-PY="$ROOT/tools/.venv/bin/python"
+PY="$ROOT/.venv/bin/python"
 if [[ ! -x "$PY" ]]; then
   echo "[error] 共享 Python 环境不存在: $PY" >&2
-  echo "请先运行: cd $ROOT/tools && uv sync" >&2
+  echo "请先在仓库根目录运行: uv sync" >&2
   exit 1
 fi
 TOOLS="$ROOT/tools/bench/tools"; RAM=/dev/shm/rkvc-ab

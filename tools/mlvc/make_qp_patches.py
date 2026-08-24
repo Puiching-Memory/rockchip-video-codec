@@ -4,7 +4,7 @@
 """从多 QP 的 .rknn 目录生成 QPP1 补丁（自检：应用后与目标 diff=0）。
 
     python3 tools/mlvc/make_qp_patches.py \\
-        --models-dir models/rk3588_qp_models --base-qp 21 --out-dir models/qp_patches
+        --models-dir models/mlvc/rk3588_qp_models --base-qp 21 --out-dir models/mlvc/qp_patches
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import qppatch  # noqa: E402
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="从 qpXX/*.rknn 生成 enc_qpN.qppatch / dec_qpN.qppatch")
     p.add_argument("--models-dir", type=Path, required=True, help="含 qp13/ qp21/ … 子目录的模型树")
-    p.add_argument("--out-dir", type=Path, default=Path("models/qp_patches"))
+    p.add_argument("--out-dir", type=Path, default=Path("models/mlvc/qp_patches"))
     p.add_argument("--base-qp", type=int, default=21)
     p.add_argument("--coalesce-gap", type=int, default=qppatch.DEFAULT_COALESCE_GAP,
                    help="相邻差异区间之间小于等于该字节数则合并（默认 64）")

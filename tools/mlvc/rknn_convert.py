@@ -32,14 +32,14 @@ def require_rknn() -> Any:
         machine = platform.machine().lower()
         hint = (
             "需要 rknn-toolkit2（from rknn.api import RKNN）。\n"
-            "安装：cd tools && uv sync\n"
-            "运行：tools/.venv/bin/python tools/mlvc/export_rknn.py ...\n"
-            "PyPI 有 x86_64 / aarch64 manylinux wheel（共享环境使用 Python 3.10–3.12）。"
+            "安装：在仓库根目录运行 uv sync（pyproject.toml 固定版本）\n"
+            "运行：.venv/bin/python tools/mlvc/export_rknn.py ...\n"
+            "PyPI 有 x86_64 / aarch64 manylinux wheel（Python 3.12）。"
         )
         if "aarch64" in machine or "arm" in machine:
             hint += (
-                "\n当前是 ARM：请用匹配的 CPython 3.10–3.12（例如 uv sync --python 3.11），"
-                "再在 tools/ 下执行 uv sync。"
+                "\n当前是 ARM：请用 CPython 3.12（见仓库根目录 .python-version），"
+                "再在仓库根目录执行 uv sync。"
             )
         raise RknnConvertError(hint) from exc
     return RKNN

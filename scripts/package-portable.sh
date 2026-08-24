@@ -11,9 +11,10 @@
 # 流程:
 #   1. 从 third_party/mpp 子模块编译 rockchip-mpp
 #   2. 从 third_party/librga 子模块安装预编译 librga
-#   3. 从 third_party/ffmpeg-rockchip 子模块编译 ffmpeg
-#   4. 用编译的 ffmpeg / MPP / librga 构建 rkvc
-#   5. bundle 动态库（含 librga）+ RPATH 打包
+#   3. 从 airockchip/rknn-toolkit2 下载 librknnrt（scripts/install-rknnrt.sh）
+#   4. 从 third_party/ffmpeg-rockchip 子模块编译 ffmpeg
+#   5. 用编译的 ffmpeg / MPP / librga / librknnrt 构建 rkvc
+#   6. bundle 动态库（含 librga、librknnrt）+ RPATH 打包
 #
 # 前置依赖: gcc, g++, cmake, make, pkg-config, patchelf, libdrm-dev
 # 可选依赖: ninja (若已有 ninja 构建目录则自动使用)
@@ -34,6 +35,7 @@ FFMPEG_PREFIX="$PROJECT_DIR/.build/deps/ffmpeg-install"
 MPP_BUILD="$PROJECT_DIR/.build/deps/mpp-build"
 MPP_PREFIX="$PROJECT_DIR/.build/deps/mpp-install"
 RGA_PREFIX="$PROJECT_DIR/.build/deps/librga-install"
+RKNN_PREFIX="$PROJECT_DIR/.build/deps/rknn-install"
 LIBSODIUM_PREFIX="$PROJECT_DIR/.build/deps/libsodium-install"
 RKVC_BUILD="$PROJECT_DIR/.build/portable"
 OUT_DIR="$PROJECT_DIR/.build/dist"
@@ -165,6 +167,14 @@ install_rga() {
     PREFIX="$RGA_PREFIX" "$SCRIPT_DIR/install-librga.sh"
 }
 
+install_rknnrt() {
+    echo "=== 安装 librknnrt (rknn-toolkit2 → $RKNN_PREFIX) ==="
+    if [[ $CLEAN -eq 1 ]]; then
+        rm -rf "$RKNN_PREFIX"
+    fi
+    PREFIX="$RKNN_PREFIX" "$SCRIPT_DIR/install-rknnrt.sh"
+}
+
 build_libsodium() {
     [[ $LICENSE -eq 1 ]] || return 0
     echo "=== 构建 libsodium (submodule -> $LIBSODIUM_PREFIX) ==="
@@ -250,13 +260,9 @@ build_rkvc() {
         cmake_license_args+=(-DRKVC_LICENSE_PUBKEY_FILE="$PROJECT_DIR/tools/keys/public.key")
     fi
 
-    # 无 librknnrt 时关闭 NPU 模块，避免 CMake 配置失败（与 CMakeLists.txt 检测一致）
-    # pipefail 下 grep -q 提前关闭管道会使 ldconfig 收到 SIGPIPE(141) 而误判，
-    # 故先缓存完整输出再 grep
+    # 无本仓 librknnrt 时关闭 NPU 模块（不查系统 ldconfig，避免链到 /usr 破坏可移植性）
     local cmake_npu_args=()
-    local rknn_cache
-    rknn_cache="$(ldconfig -p 2>/dev/null || true)"
-    if ! grep -q "librknnrt.so" <<< "$rknn_cache"; then
+    if [[ ! -f "$RKNN_PREFIX/lib/librknnrt.so" ]]; then
         cmake_npu_args+=(-DRKVC_ENABLE_RKNN=OFF)
         cmake_npu_args+=(-DRKVC_ENABLE_MLVC=OFF)
     fi
@@ -267,6 +273,7 @@ build_rkvc() {
         -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
         -DMPP_BUILD_DIR="$MPP_BUILD" \
         -DRGA_PREFIX="$RGA_PREFIX" \
+        -DRKNN_PREFIX="$RKNN_PREFIX" \
         "${cmake_license_args[@]+"${cmake_license_args[@]}"}" \
         "${cmake_npu_args[@]+"${cmake_npu_args[@]}"}" \
         "$PROJECT_DIR"
@@ -370,10 +377,8 @@ package() {
     if [[ -f "$rkvc_for_rknn" ]] && readelf -d "$rkvc_for_rknn" 2>/dev/null | grep -q 'NEEDED.*\[librknnrt\.so\]'; then
         local rknnrt=""
         for cand in \
-            /usr/lib/aarch64-linux-gnu/librknnrt.so \
-            /lib/aarch64-linux-gnu/librknnrt.so \
-            /usr/lib/librknnrt.so \
-            /usr/local/lib/librknnrt.so; do
+            "$RKNN_PREFIX/lib/librknnrt.so" \
+            "$PROJECT_DIR/.build/deps/rknn-install/lib/librknnrt.so"; do
             if [[ -f "$cand" ]]; then
                 rknnrt="$(readlink -f "$cand")"
                 break
@@ -595,6 +600,7 @@ main() {
     build_mpp
     build_svt
     install_rga
+    install_rknnrt
     build_libsodium
     prepare_license_keys
     build_ffmpeg
