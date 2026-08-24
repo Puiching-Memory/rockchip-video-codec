@@ -95,7 +95,14 @@ rkvc-*-linux-aarch64-portable/
 │   ├── librknnrt.so         # RKNN NPU runtime（rkvc_sr）
 │   └── ...
 ├── models/
-│   └── rkvc_sr_x3.crypt.rknn  # 约定 3× AI 超分模型（随 librknnrt 一并打包）
+│   ├── rkvc_sr_x3.crypt.rknn  # 约定 3× AI 超分模型（随 librknnrt 一并打包）
+│   ├── mlvc/                  # 标准 MLVC 神经视频编解码 bundle
+│   │   ├── MLVCEncoder_<soc>.rknn
+│   │   ├── MLVCDecoder_<soc>.rknn
+│   │   ├── gaussian.bin / bitest.bin
+│   │   ├── qp_patches/
+│   │   └── mlvc_rknn_export_manifest.json
+│   └── mlvc-s/                # 轻量版 MLVC bundle（结构与 mlvc/ 相同，用 MLVC_DIR 选择）
 ├── include/rkvc/            # 头文件
 ├── share/pkgconfig/rkvc.pc
 ├── licenses/                # AGPLv3 与各第三方组件许可证（再分发义务）
@@ -150,11 +157,12 @@ LD_LIBRARY_PATH=lib ./myapp
 
 包内自测确认关键库解析到包内 `lib/`，避免串入系统旧版本。
 
-**系统依赖（不进包）**：NPU 驱动/固件不随包分发；`librga`、`librknnrt` 与约定模型 `models/rkvc_sr_x3.crypt.rknn` 在启用对应功能时随包携带。目标机仍需 `/dev/rga` 等设备节点。
+**系统依赖（不进包）**：NPU 驱动/固件不随包分发；`librga`、`librknnrt` 与约定模型 `models/rkvc_sr_x3.crypt.rknn` 及 MLVC bundle（`models/mlvc/`、`models/mlvc-s/`）在启用对应功能时随包携带。目标机仍需 `/dev/rga` 等设备节点。
 
 ### 模型与 NPU 运行时来源声明
 
 - **`models/rkvc_sr_x3.crypt.rknn`**：项目自训练的 3× RGB 域超分模型（训练说明见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)），非第三方开源模型衍生，版权归本项目作者。文件以 `.crypt` 加密存储；明文模型与训练细节仅在商业授权范围内提供（见下「双许可」）。
+- **MLVC bundle（`models/mlvc/` 与 `models/mlvc-s/`）**：由 Microsoft MLVC 官方 ONNX 经 `tools/mlvc/export_rknn.py` 转换生成的神经网络编解码模型，各变体独立持有 RKNN（`MLVC{Encoder,Decoder}_<soc>.rknn`）、PMF（`gaussian.bin`/`bitest.bin`）、QP 补丁与导出 manifest，不能跨变体混用。生成流程见 [mlvc-rknn-export.md](mlvc-rknn-export.md)；随 `librknnrt` 一并打进可移植包。
 - **`librknnrt.so`**：Rockchip RKNN NPU 运行时，为 Rockchip 官方 SDK 提供的**专有二进制**，仅授权在 Rockchip 硬件上使用；再分发须遵守 Rockchip SDK 许可条款。构建时由 `scripts/install-rknnrt.sh` 从 [rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2) 下载到 `.build/deps/rknn-install/`（默认 tag `v2.3.2`，与 `tools/` 的 rknn-toolkit2 对齐），再打进可移植包。项目不修改该库，仅动态链接。商业分发前请向 Rockchip 确认条款。
 
 ## DEB 包

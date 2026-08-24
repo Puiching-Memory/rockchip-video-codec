@@ -4,10 +4,13 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-24
+
 ### 变更
 
 - **唯一 Python 环境**：`pyproject.toml` / `uv.lock` 挪到仓库根目录，`uv sync` 生成 `.venv`。依赖全部 `==` 钉死（Python 3.12、torch 2.2.2 CPU、rknn-toolkit2 2.3.2、onnx 1.16.1、numpy 1.26.4、scipy 1.11.4）。不再维护 `tools/.venv`，也不再给 microsoft/mlvc clone 单独 `uv sync`；`convert.py` 用根目录 `.venv`。`onnx` 锁 1.16.1 是因为 rknn-toolkit2 2.3.2 仍使用已删除的 `onnx.mapping`。
 - **模型 bundle 并列化**：标准 MLVC 从 `models/` 根目录迁入 `models/mlvc/`，与 `models/mlvc-s/` 对称；每个变体独立持有 RKNN、PMF、QP 补丁和导出 manifest，工具默认路径与文档统一，避免跨变体误配。
+- **可移植包随包附带 MLVC bundle**：`scripts/package-portable.sh` 在启用 RKNN 时，除 `models/rkvc_sr_x3.crypt.rknn` 外，还自动把 `models/mlvc/` 与 `models/mlvc-s/` 整体复制进包内 `models/`（含 `MLVC{Encoder,Decoder}_<soc>.rknn`、`gaussian.bin`/`bitest.bin`、`qp_patches/` 与导出 manifest），避免客户机缺少模型而无法使用 MLVC 编解码；`scripts/test-portable.sh` 新增对两变体完整性的校验。
 
 ### 性能（MLVC CPU 热路径）
 

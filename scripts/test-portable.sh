@@ -241,6 +241,18 @@ if [ -f "$PKG_DIR/lib/librknnrt.so" ]; then
     else
         fail "已打包 librknnrt 但缺失: models/rkvc_sr_x3.crypt.rknn"
     fi
+    # MLVC bundle 需整包随分发（RKNN + PMF + QP 补丁 + manifest）
+    for variant in mlvc mlvc-s; do
+        if ls "$PKG_DIR/models/$variant"/MLVCEncoder_*.rknn >/dev/null 2>&1 \
+           && ls "$PKG_DIR/models/$variant"/MLVCDecoder_*.rknn >/dev/null 2>&1 \
+           && [ -f "$PKG_DIR/models/$variant/gaussian.bin" ] \
+           && [ -f "$PKG_DIR/models/$variant/bitest.bin" ] \
+           && [ -f "$PKG_DIR/models/$variant/mlvc_rknn_export_manifest.json" ]; then
+            pass "存在: models/$variant/ (MLVC bundle)"
+        else
+            fail "已打包 librknnrt 但缺失 MLVC bundle: models/$variant/"
+        fi
+    done
 else
     warn "未打包 librknnrt.so（本构建可能未启用 RKNN）"
 fi

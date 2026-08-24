@@ -397,7 +397,7 @@ package() {
             return 1
         fi
 
-        echo "--- 复制 RKNN 超分模型 (models/) ---"
+        echo "--- 复制 RKNN 模型 (models/) ---"
         local sr_model="$PROJECT_DIR/models/rkvc_sr_x3.crypt.rknn"
         if [[ -f "$sr_model" ]]; then
             cp "$sr_model" "$OUT_DIR/$PKG_NAME/models/rkvc_sr_x3.crypt.rknn"
@@ -406,6 +406,18 @@ package() {
             echo "  错误: 已打包 librknnrt，但缺少约定模型: $sr_model"
             return 1
         fi
+        # MLVC 神经视频编解码 bundle：按变体并列（mlvc/ 与 mlvc-s/），各含
+        # RKNN + PMF + QP 补丁 + 导出 manifest，须整包随分发，不能跨变体混用。
+        local variant variant_dir
+        for variant in mlvc mlvc-s; do
+            variant_dir="$PROJECT_DIR/models/$variant"
+            if [[ -d "$variant_dir" ]]; then
+                cp -a "$variant_dir" "$OUT_DIR/$PKG_NAME/models/"
+                echo "  models/$variant/  (MLVC $variant bundle)"
+            else
+                echo "  警告: 未找到 MLVC bundle，跳过: $variant_dir"
+            fi
+        done
     else
         echo "  跳过 (本构建未启用 RKNN / librkvc 未链接 librknnrt)"
         echo "--- 跳过 RKNN 超分模型 (未链接 librknnrt) ---"
