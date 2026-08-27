@@ -1,62 +1,210 @@
-# YUV-native 超分模型规格（设计稿）
+# Phase-RLFN 超分模型：ONNX → RKNN → bundle
 
-> **状态**：设计稿，尚未有现网模型。当前 `rkvc_sr` 使用 **RGB 域**训练的 RKNN 模型，推理路径含 NV12↔RGB CSC 开销（见 `lib/node_rkvc_sr.c`）。
+RKVC 的 `rkvc_sr` 仅支持开源项目
+[Puiching-Memory/rknn-super-resolution](https://github.com/Puiching-Memory/rknn-super-resolution)
+的 3×、单输入 fallback 部署 core。旧 RGB 端到端 RKNN 与 codec-aware 双输入模型均不兼容。
 
-## 目标
+## 固定运行时契约
 
-下一代 RKVC 超分模型在 **YUV 域**完成训练与推理，消除 RGB 色彩空间转换，降低延迟与带宽，并与 Session 后处理节点 `node_post_upscale` / `RKVC_UPSCALE_AI_SR` 对齐。
+| 项目 | 约定 |
+| --- | --- |
+| 颜色空间 | MLVC BT.709 full-range YCbCr444 `[0,255]` |
+| 输入 | `phases`: uint8 **NHWC** 字节流 `1×180×320×12`（逻辑 `1×12×180×320`，640×360 经 PixelUnshuffle(2)） |
+| 输出 | `phase_residual`: **NCHW** 平面字节流 `1×108×180×320`（PixelShuffle(6) 后为 1920×1080） |
+| 倍率 | 固定 3× |
+| codec context | 关闭；必须导出 `--no-codec-context` 的单输入 fallback core |
+| RKNN target | 默认 `rk3588` |
 
-## 与现网 `rkvc_sr` 的差异
+运行时流程：
 
-| 维度     | 现网（RGB）                                                  | YUV-native（目标）        |
-| -------- | ------------------------------------------------------------ | ------------------------- |
-| 训练域   | RGB24 NHWC                                                   | NV12 / YUV420P 平面       |
-| 推理输入 | RGA CSC → RGB → int8 NCHW                                    | 直接 Y/UV 量化            |
-| 推理输出 | int8 NCHW → RGB → RGA CSC → NV12                             | 直接 Y/UV 反量化          |
-| CSC 开销 | 每帧 2 次 RGA 色彩转换                                       | 无（或仅下采样 RGA）      |
-| API      | `post_upscale_algo=rkvc_sr` + `post_upscale_rkvc_model_path` | 相同字段，新 `.rknn` 模型 |
+```text
+NV12 640×360
+  ├─ Y/UV → YCbCr444 → PixelUnshuffle(2) → RKNN Phase-RLFN core ─┐
+  └─ RGA bicubic → NV12 1920×1080                              │
+                                                               ↓
+                PixelShuffle(6) residual → Y 逐点相加 / UV 2×2 平均 → NV12
+```
 
-## 模型 I/O 约定（草案）
+实现位于 `lib/node_rkvc_sr.c` 与 `lib/rkvc_sr_phase.c`。创建上下文时会检查模型
+恰好为单输入/单输出、`12→108` 通道契约；宿主输入属性被工具链记为 NHWC
+（dims `1×180×320×12`，rknn-toolkit2 对 NCHW 图的常见记法）时同样接受。旧 3 通道模型或双输入模型直接失败。
 
-### 输入
+> **布局契约（实机测定，勿凭直觉修改）**：rknn 驱动直接按属性 `dims` 解释宿主
+> 缓冲的线性字节序，**不做自动转置**，且输入/输出属性不对称：输入记为 NHWC
+> （`1×H×W×12`）、输出记为 NCHW（`1×108×H×W`）。因此 `rkvc_sr_phase_pack_nv12`
+> 必须逐像素交错打包，而 `rkvc_sr_phase_add_residual_nv12` 必须按平面主序读取。
+> 用恒等模型（`out = x * 1.0`，输入值编码线性索引）+ x86 模拟器可交叉验证：
+> 错误字节序会使 NPU 输出与 ONNX 参考差到 rms≈10 的量级，看起来像“FP16 精度
+> 不足”，实为布局问题。
 
-- **低分辨率 NV12**（与 `enc_scale_denom` 下采样后的解码帧一致）
-- 形状：`1 × (H/2 + H/2) × W` 打包 Y/UV，或双输入 `Y: 1×H×W`、`UV: 1×H/2×W`（导出时二选一，须在模型元数据中声明）
-- 量化：int8，scale/zero-point 写入 RKNN 自定义 metadata 或固定头
+### RGA 基座与训练假设的一致性（实测）
 
-### 输出
+训练基座为 `F.interpolate(bicubic, align_corners=False)`（见上游 `PhaseRLFNSR.bicubic_base`）；
+运行时基座为 RGA 硬件 `imresize INTER_CUBIC`（NV12 3×，同一 `node_rga.c` 路径）。
+RK3576 实机实测（librga 1.10.6_[3]，Johnny 640×360→1920×1080）：
 
-- **全分辨率 NV12**（与 Session `width`/`height` 一致）
-- 与输入相同的平面布局约定
+| 平面 | MAE | MAX | PSNR |
+| --- | --- | --- | --- |
+| Y | 0.82 | 38 | 41.2dB |
+| U | 0.34 | 29 | 48.1dB |
+| V | 0.29 | 15 | 49.8dB |
 
-### 倍数
+1px 细线合成帧线能量比 0.98（无细节丢失）。差异来自两种 bicubic 实现的
+系数精度/裁剪差异，属预期范围；模型残差学习对此鲁棒。
+注意：RGA 的 RGB→YUV420 CSC 存在色度下采样取 2×2 块左上角而非均值的已知问题
+（[librga#122](https://github.com/airockchip/librga/issues/122)，1.10.6_[3] 实测复现，
+细线场景色度严重失真）；本项目管线全 NV12 域、无 RGB→YUV420 CSC 调用，
+不受影响；若未来新增该方向转换，勿用 RGA 硬件 CSC 处理含细线/文字内容。
 
-- 首版支持 **2× / 3×**（与 bench `ENC_SCALE_DENOM` 及 `rkvc_session_upscale --enc-scale-denom` 对齐）
-- 模型文件名或 metadata 须标明 `scale=2` 或 `scale=3`
+### FP16 与 INT8（KL 校准）实机对照
 
-## RKNN 导出要求
+均在上述**正确宿主字节序**下重测（早期所有“INT8 误差大于信号”的结论
+均因输入被转置而失效）：
 
-1. 目标平台：**RK3588 NPU**（`librknnrt`）
-2. 支持明文 `.rknn` 与项目已有的加密 `.rknn` 加载路径（见 `node_rkvc_sr.c`）
-3. 双 slot 异步推理：输入/输出 buffer 尺寸固定，避免动态 shape
-4. 与 `rkvc_sr_neon.c` 量化接口兼容，或提供 YUV 专用 NEON 例程并在 CMake 中切换
+| 配置 | 模型体积 | Y-PSNR | SSIM Y | NPU 侧 ms/帧（inputs_set+run+outputs_get） | 30 帧端到端 |
+| --- | --- | --- | --- | --- | --- |
+| RGA bicubic 基线 | — | 25.33 | 0.857 | — | 1.4s |
+| FP16（`--no-quantize`） | 601KB | 26.30 | 0.879 | 9.4+20.7+19.5 = 49.6 | 3.9s |
+| INT8 + KL 校准 | 375KB | 26.25 | 0.878 | 6.8+11.1+15.2 = 33.1 | 3.3s |
 
-## RKVC 集成检查清单
+测试条件：RK3576，Johnny 640×360→1920×1080，30 帧，rknnrt 2.3.2 / NPU 驱动 0.9.8。
+INT8 相对 FP16 仅 −0.05dB / −0.001 SSIM，但 NPU 侧快约 1.5×、体积小 38%；
+`export_model.py` 默认即导出 INT8，FP16 仅用于排查量化回归。
 
-- [ ] `RKVC_UPSCALE_AI_SR` 路径识别 YUV-native 模型（metadata 或文件名后缀 `_yuv`）
-- [ ] 跳过 NV12↔RGB CSC，仅保留必要的 RGA 下采样预处理
-- [ ] `rkvc_session_upscale --post-upscale rkvc_sr --rkvc-sr-model PATH` 无需改 CLI
-- [ ] bench `post-upscale` 路线增加 `{codec}+up{N}x-rkvc_sr_yuv` 实验名（可选）
-- [ ] 硬件回归：`test_session_encode_decode_upscale_3x_ai_sr`（已覆盖现网 RGB `rkvc_sr`；YUV-native 模型上线后复用同用例）
+其他实测要点：
 
-## 训练数据建议
+- 融合阶段（`rkvc_sr_phase_add_residual_nv12`）是单线程 CPU 热路径，对大小核
+  敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 按 `docs/mlvc-npu-profile.md` 的
+  约定用 `taskset -c 4-7` 固定到大核簇。
+- `rknn_outputs_get(want_float=1)` 的 FP32 转换要占 15–20ms/帧（输出 6.2M 元素）；
+  改为 `want_float=0` 取回原生布局可再省 7ms（FP16）/11ms（INT8），但需融合
+  路径自行反量化，尚未实现。
+- ONNX float32 参考（x86，onnxruntime）与板端 FP16 输出在正确布局下一致到
+  rms 0.004 / max 0.09，与理想融合（ONNX 残差 + 管线 RGA 基座）的一致性 73.5dB，
+  即可认为 NPU 路径无额外损失。
 
-- 源：1080p 监控/自然场景 NV12 序列
-- 退化：与产品路径一致 — 全分辨率 REF → RGA `1/N` 下采样 → 编码 → 解码 → 作为 LR 输入，REF 作为 HR 标签
-- 损失：Y/UV 加权 L1 或 Charbonnier；可选 SSIM on Y 平面
+## 1. 准备项目 Python 环境
 
-## 参考实现
+```bash
+uv sync
+```
 
-- 现网 RGB 路径：`lib/node_rkvc_sr.c`、`lib/rkvc_sr_neon.c`
-- RGA 传统上采样：`lib/node_rga.c`、`lib/node_post_upscale.c`
-- Bench 评估：`tools/bench/README.md` post-upscale 路线
+本仓将上游源码固定到 `tools/sr/export_model.py` 中的 commit，并默认浅克隆到
+`.build/deps/rknn-super-resolution/`。上游训练环境绑定 Python 3.13/CUDA，RKNN
+Toolkit 与其 Torch 版本冲突；本适配器只导入上游模型定义，在本仓 Python 3.12
+环境中完成静态 ONNX 导出和 RKNN 转换。
+
+## 2. 准备 checkpoint
+
+传入上游训练生成的 `best_ema.pth`（默认按 codec-aware QAT checkpoint 读取）：
+
+```text
+/path/to/checkpoints/phase-rlfn-codec-v1/best_ema.pth
+```
+
+官方 QAT checkpoint 已托管在 HuggingFace
+[Sail2Dream/phase-rlfn-codec-v1](https://huggingface.co/Sail2Dream/phase-rlfn-codec-v1)（`best_ema.pth`，
+SHA-256 `0cf78cee...c84070`）。打包时 `scripts/build-models.sh` 会自动下载该权重；
+手动导出也可直接下载后传给 `--weight`。若使用 float checkpoint（仓内 `float/best.pth`），
+导出时加 `--no-from-qat`。
+
+QAT checkpoint 除可学习权重外还包含 observer/fake-quant 状态；这些训练算子不能由
+本仓固定的 Torch 2.2 legacy ONNX exporter 导出。适配器会按名称和 shape 严格提取
+deploy graph 的全部可学习参数，拒绝缺失/错形状，然后导出不含训练观测器的干净
+单输入 core。未传 `codec_feature`，其 adapter 分支不会进入 ONNX。
+
+## 3. 生成 RKNN 校准集
+
+从代表实际低分辨率解码分布的图片生成单输入 `.npy`。工具会先模拟 NV12
+4:2:0 色度采样，再使用与 C 运行时相同的双线性 4:4:4 扩展和 PixelUnshuffle：
+
+```bash
+.venv/bin/python tools/sr/build_calibration.py /path/to/lr-images \
+  --output-dir .build/sr-calibration/tensors \
+  --output-list .build/sr-calibration/calibration.txt \
+  --width 640 --height 360 --limit 100
+```
+
+生产转换应优先使用真实“编码→解码”后的 LR 帧。上游自带的
+`rknn-super-resolution-build-rknn-calibration` 也可生成 MLVC 重建分布；本项目
+只消费其单输入 calibration list，不消费 `codec_feature` 第二列。
+
+## 4. 一键导出 ONNX、RKNN 和 bundle
+
+```bash
+.venv/bin/python tools/sr/export_model.py \
+  --weight /path/to/best_ema.pth \
+  --calibration-list .build/sr-calibration/calibration.txt \
+  --target rk3588 \
+  --output-dir models/rkvc-sr
+```
+
+默认执行：静态单输入 ONNX → 契约校验 → INT8 RKNN → SHA-256 manifest →
+上游 MIT LICENSE/SOURCE 信息。`--encrypt` 可额外生成加密 RKNN，但要求当前主机的
+rknn-toolkit2 包含 `rknn_crypt_tool`（aarch64 wheel 通常不带）。常用变体：
+
+```bash
+# 只导出并检查 ONNX
+.venv/bin/python tools/sr/export_model.py --weight /path/to/best_ema.pth --onnx-only
+
+# 从 HF QAT checkpoint 免校准导出（打包自动流程同款，不做 PTQ，无需校准集）
+.venv/bin/python tools/sr/export_model.py \
+  --weight /path/to/best_ema.pth --no-quantize --target rk3576
+
+# 从已审核 ONNX 开始转换
+.venv/bin/python tools/sr/export_model.py \
+  --onnx /path/to/phase_rlfn_sr_x3.onnx \
+  --calibration-list .build/sr-calibration/calibration.txt
+
+# FP16 调试模型，不量化
+.venv/bin/python tools/sr/export_model.py \
+  --weight /path/to/float.pth --no-from-qat --no-quantize
+```
+
+> 打包集成：`scripts/build-models.sh --platform <soc>`（由 `package-portable.sh` 自动调用）
+> 自动下载 HF QAT checkpoint 并用 `--no-quantize` 转换，无需校准集；手动 INT8 校准变体（§3）
+> 仍可用，用于需要自定义校准分布的场景。
+
+完整 bundle：
+
+```text
+models/rkvc-sr/
+├── phase_rlfn_sr_x3.onnx
+├── phase_rlfn_sr_x3.rknn
+├── phase_rlfn_sr_x3.crypt.rknn       # 可选 --encrypt
+├── sr_export_manifest.json
+├── LICENSE.rknn-super-resolution-MIT
+└── SOURCE.md
+```
+
+模型产物默认被 Git 忽略，manifest、LICENSE 与 SOURCE 由每次导出刷新。不要混用
+不同 checkpoint、ONNX、RKNN 或 manifest。
+
+可单独校验 bundle；portable 打包会自动执行同一大小/SHA-256 门禁，并拒绝
+manifest 未登记的陈旧模型文件：
+
+```bash
+python3 tools/sr/verify_bundle.py models/rkvc-sr
+```
+
+## 5. 构建、打包与实机门禁
+
+`scripts/package-portable.sh` 在 `librkvc` 链接 RKNN 时强制要求完整 bundle，并把
+`models/rkvc-sr/` 原样装进 portable tarball：
+
+```bash
+./scripts/package-portable.sh
+./scripts/test-npu-sr.sh
+```
+
+手工运行：
+
+```bash
+./.build/release/rkvc_session_upscale \
+  -i stream.mp4 -o out.nv12 \
+  --width 1920 --height 1080 --enc-scale-denom 3 \
+  --post-upscale rkvc_sr \
+  --rkvc-sr-model models/rkvc-sr/phase_rlfn_sr_x3.rknn
+```
+
+实机必须同时具备 RKNN NPU 与 RGA；`rkvc_sr` 不提供 CPU/RGB 模型回退。

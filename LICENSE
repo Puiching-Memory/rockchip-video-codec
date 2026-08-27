@@ -5,8 +5,8 @@ rkvc (RK3588 AI Video Codec) — Copyright (c) 2026 梦归云帆
 本源码树按 GNU Affero General Public License v3（见下文）提供：任何人可依据
 AGPLv3 自由使用、修改、再分发；通过网络向用户提供服务时须遵守 AGPLv3 第 13 条。
 
-若需在不开源修改的封闭商业场景中使用本库（含强制授权功能 RKVC_ENABLE_LICENSE、
-加密模型 models/rkvc_sr_x3.crypt.rknn 等），请另行取得商业授权。商业授权与
+若需在不开源修改的封闭商业场景中使用本库（含强制授权功能 RKVC_ENABLE_LICENSE），
+请另行取得商业授权。商业授权与
 AGPLv3 相互独立：获得商业授权的被许可方不受 AGPLv3 开源义务约束。
 
 依据 AGPLv3 构建的默认版本（RKVC_ENABLE_LICENSE=OFF）不含附加限制；

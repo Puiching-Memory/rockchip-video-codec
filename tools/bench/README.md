@@ -50,7 +50,8 @@ SVT_SUPERRES_FFMPEG=/path/to/ffmpeg-with-libaom   # 须在 config.json paths.sup
 # AI 超分（需模型文件）
 .build/release/rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 \
-  --post-upscale rkvc_sr --rkvc-sr-model models/rkvc_sr_x3.crypt.rknn --print-timing
+  --post-upscale rkvc_sr \
+  --rkvc-sr-model models/rkvc-sr/phase_rlfn_sr_x3.rknn --print-timing
 ```
 
 下采样参考帧仍用 `rkvc_yuv_upscale`（仅 prep 阶段）。

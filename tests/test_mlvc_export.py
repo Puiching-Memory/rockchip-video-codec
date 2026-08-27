@@ -471,14 +471,44 @@ class TestOnnxExport(unittest.TestCase):
             export_onnx.write_dummy_yuv420(path, 640, 360, frames=2)
             self.assertEqual(path.stat().st_size, 640 * 360 * 3 // 2 * 2)
 
-    def test_mlvc_s_requires_explicit_checkpoint(self) -> None:
+    def test_mlvc_s_checkpoint_auto_download(self) -> None:
         import export_onnx
 
+        # 已就绪的本地副本（SHA-256 命中）直接复用，不触发下载
         with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(export_onnx.OnnxExportError, "--weights-path"):
-                export_onnx.ensure_checkpoint(
-                    Path(tmp), None, export_onnx.DEFAULT_S_MODEL_VERSION
+            data_dir = Path(tmp)
+            dest = data_dir / "pretrained" / "mlvc-s-psnr-v1.ckpt"
+            dest.parent.mkdir(parents=True)
+            dest.write_bytes(b"mlvc-s-weights")
+            real_sha = export_onnx.CKPT_S_SHA256
+            real_dl = export_onnx.download_file
+            export_onnx.CKPT_S_SHA256 = export_onnx.sha256_file(dest)
+            export_onnx.download_file = lambda *a, **k: self.fail("不应下载")
+            try:
+                got = export_onnx.ensure_checkpoint(
+                    data_dir, None, export_onnx.DEFAULT_S_MODEL_VERSION
                 )
+            finally:
+                export_onnx.CKPT_S_SHA256 = real_sha
+                export_onnx.download_file = real_dl
+            self.assertEqual(got, dest)
+
+        # 下载失败时报错并提示手动放置 / --weights-path
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = Path(tmp)
+
+            def boom(*args, **kwargs):
+                raise OSError("network down")
+
+            real_dl = export_onnx.download_file
+            export_onnx.download_file = boom
+            try:
+                with self.assertRaisesRegex(export_onnx.OnnxExportError, "--weights-path"):
+                    export_onnx.ensure_checkpoint(
+                        data_dir, None, export_onnx.DEFAULT_S_MODEL_VERSION
+                    )
+            finally:
+                export_onnx.download_file = real_dl
 
     def test_find_exported_onnx(self) -> None:
         import export_onnx

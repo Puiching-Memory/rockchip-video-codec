@@ -62,10 +62,11 @@ rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --width 1920 --height 1080 \
   --enc-scale-denom 2 --post-upscale bilinear
 
-# RKNN 超分（需模型与 RKVC_ENABLE_RKNN 构建）
+# Phase-RLFN RKNN 超分（只接受单输入 12→108 phase core）
 rkvc_session_upscale -i stream.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 \
-  --post-upscale rkvc_sr --rkvc-sr-model /path/to/model.rknn
+  --post-upscale rkvc_sr \
+  --rkvc-sr-model models/rkvc-sr/phase_rlfn_sr_x3.rknn
 ```
 
 ### rkvc_yuv_upscale

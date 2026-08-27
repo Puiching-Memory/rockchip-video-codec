@@ -7,7 +7,7 @@
     "mpp_lib": ".build/deps/mpp-install/lib",
     "ffmpeg_src": "third_party/ffmpeg-rockchip",
     "svt_prefix": ".build/deps/svt-av1-install",
-    "rkvc_sr_model": "models/rkvc_sr_x3.crypt.rknn",
+    "rkvc_sr_model": "models/rkvc-sr/phase_rlfn_sr_x3.rknn",
     "superres_decode_ffmpeg": null
   },
   "clip": {

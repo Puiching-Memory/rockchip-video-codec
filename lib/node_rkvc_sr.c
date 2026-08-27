@@ -3,12 +3,19 @@
 
 /**
  * @file node_rkvc_sr.c
- * @brief RKNN NPU 超分辨率（明文/加密模型、RGA CSC + NEON + 双缓冲异步推理）。
+ * @brief Phase-RLFN RKNN 超分（NV12 + RGA bicubic + phase residual）。
+ *
+ * 仅支持 Puiching-Memory/rknn-super-resolution 的单输入 fallback core：
+ * uint8 phase tensor 12x(H/2)x(W/2) -> 108x(H/2)x(W/2)。宿主字节序不对称：
+ * 输入属性为 NHWC（dims 1xHxWx12，按像素通道交错打包），输出属性为
+ * NCHW（dims 1x108xHxW，按平面主序读取）——rknn 驱动直接按属性 dims
+ * 解释宿主缓冲，不做自动转置。codec-aware
+ * 双输入模型和旧 3 通道 RGB 端到端模型均明确拒绝。
  */
 
 #include "internal.h"
 #include "platform.h"
-#include "rkvc_sr_neon.h"
+#include "rkvc_sr_phase.h"
 
 #ifdef RKVC_ENABLE_RKNN
 
@@ -18,35 +25,29 @@
 #include "rknn_util.h"
 
 #define RKVC_SR_SLOTS 2
-
-/** RKNN-Toolkit2 export_encrypted_rknn_model 文件头；crypt_level 0 表示明文 .rknn */
 #define RKVC_RKNN_CRYPT_MAGIC     "CYPTRKNN"
 #define RKVC_RKNN_CRYPT_MAGIC_LEN  8
 #define RKVC_RKNN_CRYPT_HDR_SIZE   16
+/** 自研加密层模型 magic（见 lib/model_crypt_layout.h，拒绝检测不依赖选项） */
+#define RKVC_MODEL_ENC_MAGIC_STR  "RKVCENC1"
 
 typedef struct rkvc_sr_slot {
-    rknn_tensor_mem *input_mem;
-    rknn_tensor_mem *output_mem;
-    uint8_t         *rgb_in;
-    int              rgb_in_stride;
-    uint8_t         *rgb_out;
-    int              rgb_out_stride;
-    rkvc_buffer     *nv12_out;
-    int64_t          pts;
-    uint64_t         frame_id;
+    uint8_t     *phase_input;
+    size_t       phase_input_size;
+    rkvc_buffer *nv12_base;
+    int64_t      pts;
 } rkvc_sr_slot;
 
 struct rkvc_rknn_sr_ctx {
     rknn_context      ctx;
-    rkvc_buffer_pool *pool;
-    int               in_w;
-    int               in_h;
-    int               out_w;
-    int               out_h;
+    int               core_w;
+    int               core_h;
+    int               frame_in_w;
+    int               frame_in_h;
+    int               frame_out_w;
+    int               frame_out_h;
     rknn_tensor_attr  in_attr;
     rknn_tensor_attr  out_attr;
-    rknn_tensor_attr  in_attr_native;
-    rknn_tensor_attr  out_attr_native;
     rkvc_sr_slot      slots[RKVC_SR_SLOTS];
     int               run_slot;
     int               busy;
@@ -57,182 +58,134 @@ static int rknn_model_crypt_level(const void *model, size_t size)
 {
     if (!model || size < RKVC_RKNN_CRYPT_HDR_SIZE)
         return 0;
-    const uint8_t *p = (const uint8_t *)model;
+    const uint8_t *p = model;
     if (memcmp(p, RKVC_RKNN_CRYPT_MAGIC, RKVC_RKNN_CRYPT_MAGIC_LEN) != 0)
         return 0;
-    const uint32_t level = (uint32_t)p[8] | ((uint32_t)p[9] << 8) |
-                           ((uint32_t)p[10] << 16) | ((uint32_t)p[11] << 24);
-    if (level < 1 || level > 3)
+    /* rknn-toolkit2 2.3.x 加密格式：+0 magic，+8 version(u64)，
+     * +0x10 crypt_level(u32)，+0x18 明文长度。旧代码误读 +8 的
+     * version 字段（恰为 1 而碰巧可用），此处改为正确偏移。 */
+    if (size < 20)
         return 0;
-    return (int)level;
+    const uint32_t level = (uint32_t)p[16] | ((uint32_t)p[17] << 8) |
+                           ((uint32_t)p[18] << 16) | ((uint32_t)p[19] << 24);
+    return level >= 1 && level <= 3 ? (int)level : 0;
 }
 
 static rkvc_err rknn_load_model(const char *model_path, rknn_context *out)
 {
+    void *model;
+    size_t fsize;
+#ifdef RKVC_ENABLE_MODEL_CRYPT
+    /* 自研加密层：加密模型需每机 model.key 解密，明文模型原样透传 */
+    const rkvc_err ferr = rkvc_model_crypt_load_file(model_path, &model,
+                                                     &fsize);
+    if (ferr != RKVC_OK)
+        return ferr;
+#else
     FILE *fp = fopen(model_path, "rb");
     if (!fp)
         return RKVC_ERR_NOT_FOUND;
-
     if (fseek(fp, 0, SEEK_END) != 0) {
         fclose(fp);
         return RKVC_ERR_IO;
     }
-    const long fsize = ftell(fp);
-    if (fsize <= 0) {
+    const long sz = ftell(fp);
+    if (sz <= 0 || fseek(fp, 0, SEEK_SET) != 0) {
         fclose(fp);
         return RKVC_ERR_IO;
     }
-    if (fseek(fp, 0, SEEK_SET) != 0) {
-        fclose(fp);
-        return RKVC_ERR_IO;
-    }
-
-    void *model = rkvc_malloc((size_t)fsize);
+    model = rkvc_malloc((size_t)sz);
     if (!model) {
         fclose(fp);
-        return RKVC_ERR_IO;
+        return RKVC_ERR_NOMEM;
     }
-    if (fread(model, 1, (size_t)fsize, fp) != (size_t)fsize) {
+    if (fread(model, 1, (size_t)sz, fp) != (size_t)sz) {
         rkvc_free(model);
         fclose(fp);
         return RKVC_ERR_IO;
     }
     fclose(fp);
-
-    const int crypt_level = rknn_model_crypt_level(model, (size_t)fsize);
-    RKVC_LOG("rknn model crypt_level=%d", crypt_level);
-
-    {
-        char sha256[65];
-        if (rkvc_hash_buffer("sha256", (const uint8_t *)model, (size_t)fsize,
-                             sha256, sizeof(sha256)) == RKVC_OK) {
-            RKVC_LOG("rknn model sha256=%s path=%s", sha256, model_path);
-        }
+    fsize = (size_t)sz;
+    if (fsize >= 8 && memcmp(model, RKVC_MODEL_ENC_MAGIC_STR, 8) == 0) {
+        rkvc_free(model);
+        RKVC_LOG("rknn sr model %s is rkvc-encrypted but built "
+                 "without RKVC_ENABLE_MODEL_CRYPT", model_path);
+        return RKVC_ERR_FORMAT;
     }
+#endif
 
-    /* 分发构建：在 rknn_init 前强制 librknnrt 静默，避免 RKNN_LOG_LEVEL
-     * 泄露已解密模型的网络结构（见 rkvc_rknn_quiet_runtime 说明）。 */
+    const int crypt_level = rknn_model_crypt_level(model, fsize);
+    char sha256[65];
+    if (rkvc_hash_buffer("sha256", model, fsize,
+                         sha256, sizeof(sha256)) == RKVC_OK)
+        RKVC_LOG("rknn sr model sha256=%s path=%s", sha256, model_path);
     rkvc_rknn_quiet_runtime();
     const int ret = rknn_init(out, model, (uint32_t)fsize, 0, NULL);
-    rkvc_free(model);
+    rkvc_secure_zero_free(model, fsize);
     if (ret != RKNN_SUCC) {
-        RKVC_LOG("rknn_init failed: %d (crypt_level=%d, check NPU driver / rknnrt)",
-                 ret, crypt_level);
+        RKVC_LOG("rknn_init failed: %d (crypt_level=%d)", ret, crypt_level);
         return RKVC_ERR_HW;
     }
     return RKVC_OK;
 }
 
-static int rknn_dims_wh(const rknn_tensor_attr *attr, int *w, int *h)
+static int tensor_chw(const rknn_tensor_attr *attr, int *c, int *h, int *w)
 {
-    if (!attr || attr->n_dims < 4 || !w || !h)
+    if (!attr || attr->n_dims != 4 || !c || !h || !w)
         return 0;
     if (attr->fmt == RKNN_TENSOR_NCHW || attr->fmt == RKNN_TENSOR_UNDEFINED) {
+        *c = (int)attr->dims[1];
         *h = (int)attr->dims[2];
         *w = (int)attr->dims[3];
-        return (*w > 0 && *h > 0);
-    }
-    if (attr->fmt == RKNN_TENSOR_NHWC) {
+    } else if (attr->fmt == RKNN_TENSOR_NHWC) {
+        /* rknn-toolkit2 把 NCHW ONNX 图的宿主输入属性记为 NHWC
+         * （dims 1xHxWxC）；驱动直接按该 dims 解释宿主缓冲，因此
+         * 输入必须按 NHWC 交错打包，输出属性若为 NCHW 则按平面读取。 */
         *h = (int)attr->dims[1];
         *w = (int)attr->dims[2];
-        return (*w > 0 && *h > 0);
+        *c = (int)attr->dims[3];
+    } else {
+        return 0;
     }
-    return 0;
+    return *c > 0 && *h > 0 && *w > 0;
 }
 
-static rkvc_err sr_slot_alloc_io(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot)
+static rkvc_err sr_slot_alloc(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot)
 {
-    slot->input_mem = rknn_create_mem2(ctx->ctx,
-                                       ctx->in_attr_native.size_with_stride,
-                                       RKNN_FLAG_MEMORY_CACHEABLE);
-    slot->output_mem = rknn_create_mem2(ctx->ctx,
-                                        ctx->out_attr_native.size_with_stride,
-                                        RKNN_FLAG_MEMORY_CACHEABLE);
-    if (!slot->input_mem || !slot->output_mem)
-        return RKVC_ERR_NOMEM;
-
-    slot->rgb_in_stride = rkvc_rga_rgb888_stride(ctx->in_w);
-    slot->rgb_out_stride = rkvc_rga_rgb888_stride(ctx->out_w);
-
-    const size_t in_rgb = (size_t)rkvc_rga_rgb888_row_bytes(ctx->in_w) *
-                          (size_t)ctx->in_h;
-    const size_t out_rgb = (size_t)rkvc_rga_rgb888_row_bytes(ctx->out_w) *
-                           (size_t)ctx->out_h;
-
-    slot->rgb_in = rkvc_malloc(in_rgb);
-    slot->rgb_out = rkvc_malloc(out_rgb);
-    if (!slot->rgb_in || !slot->rgb_out)
-        return RKVC_ERR_NOMEM;
-
-    rkvc_err err = rkvc_buffer_pool_alloc_video(ctx->pool, &slot->nv12_out,
-                                                ctx->out_w, ctx->out_h,
-                                                RKVC_PIX_FMT_NV12,
-                                                RKVC_MEM_DMABUF);
-    if (err != RKVC_OK) {
-        err = rkvc_buffer_alloc_video_host(&slot->nv12_out,
-                                           ctx->out_w, ctx->out_h,
-                                           RKVC_PIX_FMT_NV12);
-        if (err != RKVC_OK)
-            return err;
-    }
-
-    return RKVC_OK;
+    slot->phase_input_size = (size_t)ctx->in_attr.n_elems;
+    slot->phase_input = rkvc_malloc(slot->phase_input_size);
+    return slot->phase_input ? RKVC_OK : RKVC_ERR_NOMEM;
 }
 
-static void sr_slot_free_io(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot)
+static void sr_slot_free(rkvc_sr_slot *slot)
 {
     if (!slot)
         return;
-    if (ctx && ctx->ctx) {
-        if (slot->input_mem) {
-            rknn_destroy_mem(ctx->ctx, slot->input_mem);
-            slot->input_mem = NULL;
-        }
-        if (slot->output_mem) {
-            rknn_destroy_mem(ctx->ctx, slot->output_mem);
-            slot->output_mem = NULL;
-        }
-    }
-    rkvc_buffer_unref(slot->nv12_out);
-    slot->nv12_out = NULL;
-    rkvc_free(slot->rgb_in);
-    slot->rgb_in = NULL;
-    rkvc_free(slot->rgb_out);
-    slot->rgb_out = NULL;
+    rkvc_free(slot->phase_input);
+    rkvc_buffer_unref(slot->nv12_base);
+    memset(slot, 0, sizeof(*slot));
 }
 
-static rkvc_err sr_bind_slot_io(rkvc_rknn_sr_ctx *ctx, int slot_idx)
+static rkvc_err sr_resize_input(rkvc_rknn_sr_ctx *ctx,
+                                const rkvc_buffer *src,
+                                const rkvc_buffer **feed)
 {
-    rkvc_sr_slot *slot = &ctx->slots[slot_idx];
-
-    ctx->in_attr_native.pass_through = 1;
-    if (rknn_set_io_mem(ctx->ctx, slot->input_mem,
-                        &ctx->in_attr_native) != RKNN_SUCC)
-        return RKVC_ERR_HW;
-    if (rknn_set_io_mem(ctx->ctx, slot->output_mem,
-                        &ctx->out_attr_native) != RKNN_SUCC)
-        return RKVC_ERR_HW;
-    return RKVC_OK;
-}
-
-static rkvc_err sr_ensure_resize_buf(rkvc_rknn_sr_ctx *ctx, int w, int h)
-{
-    if (ctx->resize_buf &&
-        (int)ctx->resize_buf->width == w &&
-        (int)ctx->resize_buf->height == h)
+    *feed = src;
+    if (src->av_frame->width == ctx->frame_in_w &&
+        src->av_frame->height == ctx->frame_in_h)
         return RKVC_OK;
 
+    rkvc_buffer *resized = NULL;
+    rkvc_err err = rkvc_rga_scale_buffer(src, &resized,
+                                         ctx->frame_in_w, ctx->frame_in_h,
+                                         RKVC_PIX_FMT_NV12,
+                                         RKVC_UPSCALE_BILINEAR);
+    if (err != RKVC_OK)
+        return err;
     rkvc_buffer_unref(ctx->resize_buf);
-    ctx->resize_buf = NULL;
-
-    rkvc_err err = rkvc_buffer_pool_alloc_video(ctx->pool, &ctx->resize_buf,
-                                                w, h, RKVC_PIX_FMT_NV12,
-                                                RKVC_MEM_DMABUF);
-    if (err != RKVC_OK) {
-        err = rkvc_buffer_alloc_video_host(&ctx->resize_buf, w, h,
-                                           RKVC_PIX_FMT_NV12);
-    }
-    return err;
+    ctx->resize_buf = resized;
+    *feed = ctx->resize_buf;
+    return RKVC_OK;
 }
 
 static rkvc_err sr_prepare_input(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot,
@@ -240,203 +193,154 @@ static rkvc_err sr_prepare_input(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot,
 {
     if (!src->av_frame || src->format != RKVC_PIX_FMT_NV12)
         return RKVC_ERR_FORMAT;
-
-    const int sw = src->av_frame->width;
-    const int sh = src->av_frame->height;
-    const rkvc_buffer *feed = src;
-
-    if (sw != ctx->in_w || sh != ctx->in_h) {
-        rkvc_err err = sr_ensure_resize_buf(ctx, ctx->in_w, ctx->in_h);
-        if (err != RKVC_OK)
-            return err;
-        err = rkvc_rga_scale_buffer(src, &ctx->resize_buf,
-                                      ctx->in_w, ctx->in_h,
-                                      RKVC_PIX_FMT_NV12,
-                                      RKVC_UPSCALE_BILINEAR);
-        if (err != RKVC_OK)
-            return err;
-        feed = ctx->resize_buf;
-    }
-
-    rkvc_err err;
-    if (rkvc_rga_available()) {
-        err = rkvc_rga_csc_nv12_to_rgb888(feed, slot->rgb_in,
-                                          ctx->in_w, ctx->in_h,
-                                          slot->rgb_in_stride);
-    } else {
-        struct SwsContext *sws = sws_getContext(ctx->in_w, ctx->in_h,
-                                               AV_PIX_FMT_NV12,
-                                               ctx->in_w, ctx->in_h,
-                                               AV_PIX_FMT_RGB24,
-                                               SWS_BILINEAR, NULL, NULL, NULL);
-        if (!sws)
-            return RKVC_ERR_NOMEM;
-        uint8_t *dst_data[1] = { slot->rgb_in };
-        int dst_linesize[1] = { rkvc_rga_rgb888_row_bytes(ctx->in_w) };
-        sws_scale(sws,
-                  (const uint8_t *const *)feed->av_frame->data,
-                  feed->av_frame->linesize,
-                  0, ctx->in_h, dst_data, dst_linesize);
-        sws_freeContext(sws);
-        err = RKVC_OK;
-    }
+    const rkvc_buffer *feed = NULL;
+    rkvc_err err = sr_resize_input(ctx, src, &feed);
     if (err != RKVC_OK)
         return err;
+    if (rkvc_sr_phase_pack_nv12(feed->av_frame->data[0],
+                                feed->av_frame->linesize[0],
+                                feed->av_frame->data[1],
+                                feed->av_frame->linesize[1],
+                                ctx->frame_in_w, ctx->frame_in_h,
+                                slot->phase_input, slot->phase_input_size) != 0)
+        return RKVC_ERR_FORMAT;
 
-    const size_t row_bytes = (size_t)ctx->in_w * 3;
-    int8_t *out_base = (int8_t *)slot->input_mem->virt_addr;
-    for (int y = 0; y < ctx->in_h; y++) {
-        rkvc_sr_quant_rgb24_nhwc_to_int8(
-            slot->rgb_in + y * rkvc_rga_rgb888_row_bytes(ctx->in_w),
-            out_base + y * row_bytes,
-            row_bytes,
-            ctx->in_attr.zp, ctx->in_attr.scale);
-    }
+    rkvc_buffer_unref(slot->nv12_base);
+    slot->nv12_base = NULL;
+    /* 基座缓冲由 CPU 逐像素融合残差，必须用缓存 DMA 堆（cached 变体） */
+    err = rkvc_rga_scale_buffer_cached(feed, &slot->nv12_base,
+                                       ctx->frame_out_w, ctx->frame_out_h,
+                                       RKVC_PIX_FMT_NV12, RKVC_UPSCALE_BICUBIC);
+    if (err != RKVC_OK)
+        return err;
     slot->pts = src->pts;
     return RKVC_OK;
 }
 
 static rkvc_err sr_postprocess_output(rkvc_rknn_sr_ctx *ctx,
-                                        rkvc_sr_slot *slot,
-                                        rkvc_buffer **out)
+                                      rkvc_sr_slot *slot,
+                                      rkvc_buffer **out)
 {
-    rkvc_sr_dequant_nchw_int8_to_rgb24(
-        (const int8_t *)slot->output_mem->virt_addr,
-        ctx->out_w, ctx->out_h,
-        ctx->out_attr.zp, ctx->out_attr.scale,
-        slot->rgb_out, rkvc_rga_rgb888_row_bytes(ctx->out_w));
+    rknn_output output;
+    memset(&output, 0, sizeof(output));
+    output.index = 0;
+    output.want_float = 1;
+    if (rknn_outputs_get(ctx->ctx, 1, &output, NULL) != RKNN_SUCC)
+        return RKVC_ERR_HW;
 
-    rkvc_err err;
-    if (rkvc_rga_available()) {
-        err = rkvc_rga_csc_rgb888_to_nv12(slot->rgb_out,
-                                          ctx->out_w, ctx->out_h,
-                                          slot->rgb_out_stride,
-                                          slot->nv12_out);
-    } else {
-        struct SwsContext *sws = sws_getContext(ctx->out_w, ctx->out_h,
-                                                AV_PIX_FMT_RGB24,
-                                                ctx->out_w, ctx->out_h,
-                                                AV_PIX_FMT_NV12,
-                                                SWS_BILINEAR, NULL, NULL, NULL);
-        if (!sws)
-            return RKVC_ERR_NOMEM;
-        const uint8_t *src_rgb[1] = { slot->rgb_out };
-        int src_stride[1] = { rkvc_rga_rgb888_row_bytes(ctx->out_w) };
-        sws_scale(sws, src_rgb, src_stride, 0, ctx->out_h,
-                  slot->nv12_out->av_frame->data,
-                  slot->nv12_out->av_frame->linesize);
-        sws_freeContext(sws);
-        err = RKVC_OK;
-    }
-    if (err != RKVC_OK) {
-        RKVC_LOG("rknn sr postprocess csc failed: %d", (int)err);
+    const size_t required = (size_t)ctx->out_attr.n_elems * sizeof(float);
+    rkvc_err err = RKVC_OK;
+    if (!output.buf || output.size < required || !slot->nv12_base ||
+        rkvc_sr_phase_add_residual_nv12(
+            output.buf, ctx->core_w, ctx->core_h,
+            slot->nv12_base->av_frame->data[0],
+            slot->nv12_base->av_frame->linesize[0],
+            slot->nv12_base->av_frame->data[1],
+            slot->nv12_base->av_frame->linesize[1],
+            ctx->frame_out_w, ctx->frame_out_h) != 0)
+        err = RKVC_ERR_HW;
+    rknn_outputs_release(ctx->ctx, 1, &output);
+    if (err != RKVC_OK)
         return err;
-    }
-
-    slot->nv12_out->pts = slot->pts;
-    *out = rkvc_buffer_ref(slot->nv12_out);
+    slot->nv12_base->pts = slot->pts;
+    *out = rkvc_buffer_ref(slot->nv12_base);
     return RKVC_OK;
 }
 
-static rkvc_err sr_wait_slot(rkvc_rknn_sr_ctx *ctx, int block)
+static void sr_discard_output(rkvc_rknn_sr_ctx *ctx)
 {
-    (void)block;
-    rkvc_sr_slot *slot = &ctx->slots[ctx->run_slot];
-
-    if (rknn_mem_sync(ctx->ctx, slot->output_mem,
-                      RKNN_MEMORY_SYNC_FROM_DEVICE) != RKNN_SUCC) {
-        RKVC_LOG("rknn mem sync from device failed");
-        return RKVC_ERR_HW;
-    }
-
+    if (!ctx || !ctx->busy)
+        return;
+    rknn_output output;
+    memset(&output, 0, sizeof(output));
+    output.index = 0;
+    if (rknn_outputs_get(ctx->ctx, 1, &output, NULL) == RKNN_SUCC)
+        rknn_outputs_release(ctx->ctx, 1, &output);
     ctx->busy = 0;
-    return RKVC_OK;
 }
 
 int rkvc_rknn_sr_available(void)
 {
     const rkvc_platform_info *pi = rkvc_platform_probe();
-    if (!pi->has_npu)
-        return 0;
-    return rkvc_npu_accessible();
+    return pi->has_npu && rkvc_npu_accessible() && rkvc_rga_available();
 }
 
 rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
                                           int expect_out_w, int expect_out_h,
                                           rkvc_buffer_pool *pool)
 {
-    if (!model_path || !model_path[0] || expect_out_w <= 0 || expect_out_h <= 0)
+    if (!model_path || !model_path[0] || expect_out_w <= 0 || expect_out_h <= 0 ||
+        !rkvc_rga_available())
         return NULL;
-
+    (void)pool;
     rkvc_rknn_sr_ctx *ctx = rkvc_calloc(1, sizeof(*ctx));
     if (!ctx)
         return NULL;
-    ctx->pool = pool;
     ctx->run_slot = -1;
-
     if (rknn_load_model(model_path, &ctx->ctx) != RKVC_OK)
         goto fail;
 
-    {
-        rknn_sdk_version ver;
-        memset(&ver, 0, sizeof(ver));
-        if (rknn_query(ctx->ctx, RKNN_QUERY_SDK_VERSION, &ver, sizeof(ver)) ==
-            RKNN_SUCC) {
-            RKVC_LOG("rknnrt api=%s drv=%s", ver.api_version, ver.drv_version);
-        } else {
-            RKVC_LOG("rknn_query SDK_VERSION failed");
-        }
-    }
-
-    {
-        const rkvc_platform_info *pi = rkvc_platform_probe();
-        if (pi->has_npu && pi->npu_cores > 1)
-            rkvc_rknn_apply_npu_cores(ctx->ctx, pi->npu_cores);
-    }
+    rknn_sdk_version ver;
+    memset(&ver, 0, sizeof(ver));
+    if (rknn_query(ctx->ctx, RKNN_QUERY_SDK_VERSION, &ver, sizeof(ver)) == RKNN_SUCC)
+        RKVC_LOG("rknnrt api=%s drv=%s", ver.api_version, ver.drv_version);
+    const rkvc_platform_info *pi = rkvc_platform_probe();
+    if (pi->npu_cores > 1)
+        rkvc_rknn_apply_npu_cores(ctx->ctx, pi->npu_cores);
 
     rknn_input_output_num io_num;
     if (rknn_query(ctx->ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num)) !=
         RKNN_SUCC)
         goto fail;
+    if (io_num.n_input != 1 || io_num.n_output != 1) {
+        RKVC_LOG("Phase-RLFN requires one input/output, got %u/%u; "
+                 "export with --no-codec-context", io_num.n_input, io_num.n_output);
+        goto fail;
+    }
 
     ctx->in_attr.index = 0;
-    if (rknn_query(ctx->ctx, RKNN_QUERY_INPUT_ATTR, &ctx->in_attr,
-                   sizeof(ctx->in_attr)) != RKNN_SUCC)
-        goto fail;
     ctx->out_attr.index = 0;
-    if (rknn_query(ctx->ctx, RKNN_QUERY_OUTPUT_ATTR, &ctx->out_attr,
+    if (rknn_query(ctx->ctx, RKNN_QUERY_INPUT_ATTR, &ctx->in_attr,
+                   sizeof(ctx->in_attr)) != RKNN_SUCC ||
+        rknn_query(ctx->ctx, RKNN_QUERY_OUTPUT_ATTR, &ctx->out_attr,
                    sizeof(ctx->out_attr)) != RKNN_SUCC)
         goto fail;
 
-    ctx->in_attr_native.index = 0;
-    if (rknn_query(ctx->ctx, RKNN_QUERY_NATIVE_INPUT_ATTR,
-                   &ctx->in_attr_native,
-                   sizeof(ctx->in_attr_native)) != RKNN_SUCC)
-        goto fail;
-    ctx->out_attr_native.index = 0;
-    if (rknn_query(ctx->ctx, RKNN_QUERY_NATIVE_OUTPUT_ATTR,
-                   &ctx->out_attr_native,
-                   sizeof(ctx->out_attr_native)) != RKNN_SUCC)
-        goto fail;
-
-    if (!rknn_dims_wh(&ctx->in_attr, &ctx->in_w, &ctx->in_h) ||
-        !rknn_dims_wh(&ctx->out_attr, &ctx->out_w, &ctx->out_h))
-        goto fail;
-
-    if (ctx->out_w != expect_out_w || ctx->out_h != expect_out_h) {
-        RKVC_LOG("rknn model output %dx%d != expected %dx%d",
-                 ctx->out_w, ctx->out_h, expect_out_w, expect_out_h);
+    int in_c = 0, in_h = 0, in_w = 0;
+    int out_c = 0, out_h = 0, out_w = 0;
+    if (!tensor_chw(&ctx->in_attr, &in_c, &in_h, &in_w) ||
+        !tensor_chw(&ctx->out_attr, &out_c, &out_h, &out_w) ||
+        in_c != RKVC_SR_PHASE_INPUT_CHANNELS ||
+        out_c != RKVC_SR_PHASE_OUTPUT_CHANNELS ||
+        in_w != out_w || in_h != out_h) {
+        RKVC_LOG("unsupported SR contract: in=%dx%dx%d fmt=%d "
+                 "out=%dx%dx%d fmt=%d (required 12->108)",
+                 in_c, in_h, in_w, (int)ctx->in_attr.fmt,
+                 out_c, out_h, out_w, (int)ctx->out_attr.fmt);
         goto fail;
     }
 
+    ctx->core_w = in_w;
+    ctx->core_h = in_h;
+    ctx->frame_in_w = in_w * RKVC_SR_PHASE_INPUT_FACTOR;
+    ctx->frame_in_h = in_h * RKVC_SR_PHASE_INPUT_FACTOR;
+    ctx->frame_out_w = out_w * RKVC_SR_PHASE_OUTPUT_FACTOR;
+    ctx->frame_out_h = out_h * RKVC_SR_PHASE_OUTPUT_FACTOR;
+    if (ctx->frame_out_w != expect_out_w || ctx->frame_out_h != expect_out_h) {
+        RKVC_LOG("Phase-RLFN output %dx%d != expected %dx%d",
+                 ctx->frame_out_w, ctx->frame_out_h,
+                 expect_out_w, expect_out_h);
+        goto fail;
+    }
     for (int i = 0; i < RKVC_SR_SLOTS; i++) {
-        if (sr_slot_alloc_io(ctx, &ctx->slots[i]) != RKVC_OK)
+        if (sr_slot_alloc(ctx, &ctx->slots[i]) != RKVC_OK)
             goto fail;
     }
-
-    RKVC_LOG("rknn sr %s: in %dx%d -> out %dx%d (slots=%d rga=%d)",
-             model_path, ctx->in_w, ctx->in_h, ctx->out_w, ctx->out_h,
-             RKVC_SR_SLOTS, rkvc_rga_available());
+    RKVC_LOG("Phase-RLFN SR %s: frame %dx%d -> %dx%d "
+             "(core 12x%dx%d -> 108x%dx%d)",
+             model_path, ctx->frame_in_w, ctx->frame_in_h,
+             ctx->frame_out_w, ctx->frame_out_h,
+             ctx->core_h, ctx->core_w, ctx->core_h, ctx->core_w);
     return ctx;
 
 fail:
@@ -448,18 +352,12 @@ void rkvc_rknn_sr_ctx_destroy(rkvc_rknn_sr_ctx *ctx)
 {
     if (!ctx)
         return;
-
-    if (ctx->busy)
-        sr_wait_slot(ctx, 1);
-
+    sr_discard_output(ctx);
     for (int i = 0; i < RKVC_SR_SLOTS; i++)
-        sr_slot_free_io(ctx, &ctx->slots[i]);
-
+        sr_slot_free(&ctx->slots[i]);
     rkvc_buffer_unref(ctx->resize_buf);
-
     if (ctx->ctx)
         rknn_destroy(ctx->ctx);
-
     rkvc_free(ctx);
 }
 
@@ -470,9 +368,7 @@ int rkvc_rknn_sr_ctx_busy(const rkvc_rknn_sr_ctx *ctx)
 
 void rkvc_rknn_sr_ctx_drain(rkvc_rknn_sr_ctx *ctx)
 {
-    if (!ctx || !ctx->busy)
-        return;
-    sr_wait_slot(ctx, 1);
+    sr_discard_output(ctx);
 }
 
 rkvc_err rkvc_rknn_sr_ctx_submit(rkvc_rknn_sr_ctx *ctx,
@@ -487,32 +383,32 @@ rkvc_err rkvc_rknn_sr_ctx_submit(rkvc_rknn_sr_ctx *ctx,
 
     const int slot_idx = ctx->run_slot < 0 ? 0 : (ctx->run_slot ^ 1);
     rkvc_sr_slot *slot = &ctx->slots[slot_idx];
-
     rkvc_err err = sr_prepare_input(ctx, slot, src);
-    if (err != RKVC_OK) {
-        RKVC_LOG("rknn sr prepare input failed: %d", (int)err);
+    if (err != RKVC_OK)
         return err;
-    }
 
-    err = sr_bind_slot_io(ctx, slot_idx);
-    if (err != RKVC_OK) {
-        RKVC_LOG("rknn sr bind io failed: %d", (int)err);
-        return err;
-    }
-
-    int ret = rknn_mem_sync(ctx->ctx, slot->input_mem,
-                            RKNN_MEMORY_SYNC_TO_DEVICE);
+    rknn_input input;
+    memset(&input, 0, sizeof(input));
+    input.index = 0;
+    input.buf = slot->phase_input;
+    input.size = (uint32_t)slot->phase_input_size;
+    input.type = RKNN_TENSOR_UINT8;
+    /* 声明与模型属性一致的 fmt：rknn-toolkit2 把 NCHW ONNX 图的宿主
+     * 输入属性记为 NHWC（dims 1xHxWxC），且驱动直接按该 dims 解释宿主
+     * 缓冲字节序（不自动转置，恒等模型实测）；phase 打包因此按 NHWC
+     * 交错，而输出属性仍是 NCHW，残差按平面主序读取。 */
+    input.fmt = ctx->in_attr.fmt == RKNN_TENSOR_NHWC ? RKNN_TENSOR_NHWC
+                                                     : RKNN_TENSOR_NCHW;
+    int ret = rknn_inputs_set(ctx->ctx, 1, &input);
     if (ret != RKNN_SUCC) {
-        RKVC_LOG("rknn mem sync to device failed: %d", ret);
+        RKVC_LOG("Phase-RLFN input set failed: %d", ret);
         return RKVC_ERR_HW;
     }
-
     ret = rknn_run(ctx->ctx, NULL);
     if (ret != RKNN_SUCC) {
-        RKVC_LOG("rknn_run failed: %d", ret);
+        RKVC_LOG("Phase-RLFN rknn_run failed: %d", ret);
         return RKVC_ERR_HW;
     }
-
     ctx->run_slot = slot_idx;
     ctx->busy = 1;
     return RKVC_OK;
@@ -521,17 +417,13 @@ rkvc_err rkvc_rknn_sr_ctx_submit(rkvc_rknn_sr_ctx *ctx,
 rkvc_err rkvc_rknn_sr_ctx_collect(rkvc_rknn_sr_ctx *ctx,
                                   rkvc_buffer **out, int block)
 {
+    (void)block;
     if (!ctx || !out)
         return RKVC_ERR_INVALID;
-
     *out = NULL;
     if (!ctx->busy)
         return RKVC_ERR_AGAIN;
-
-    rkvc_err err = sr_wait_slot(ctx, block);
-    if (err != RKVC_OK)
-        return err;
-
+    ctx->busy = 0;
     return sr_postprocess_output(ctx, &ctx->slots[ctx->run_slot], out);
 }
 
@@ -548,88 +440,36 @@ rkvc_err rkvc_rknn_sr_ctx_process(rkvc_rknn_sr_ctx *ctx,
 rkvc_err rkvc_rknn_sr_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                              int dst_w, int dst_h, const char *model_path)
 {
-    if (!src || !dst || dst_w <= 0 || dst_h <= 0)
+    if (!src || !dst || dst_w <= 0 || dst_h <= 0 ||
+        !model_path || !model_path[0])
         return RKVC_ERR_INVALID;
-    if (!model_path || !model_path[0])
-        return RKVC_ERR_INVALID;
-
     rkvc_rknn_sr_ctx *ctx = rkvc_rknn_sr_ctx_create(model_path, dst_w, dst_h,
                                                     NULL);
     if (!ctx)
         return RKVC_ERR_HW;
-
     rkvc_err err = rkvc_rknn_sr_ctx_process(ctx, src, dst);
     rkvc_rknn_sr_ctx_destroy(ctx);
     return err;
 }
 
-#else /* !RKVC_ENABLE_RKNN */
+#else
 
 int rkvc_rknn_sr_available(void) { return 0; }
-
-rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
-                                          int expect_out_w, int expect_out_h,
+rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *p, int w, int h,
                                           rkvc_buffer_pool *pool)
-{
-    (void)model_path;
-    (void)expect_out_w;
-    (void)expect_out_h;
-    (void)pool;
-    return NULL;
-}
-
-void rkvc_rknn_sr_ctx_destroy(rkvc_rknn_sr_ctx *ctx)
-{
-    (void)ctx;
-}
-
-int rkvc_rknn_sr_ctx_busy(const rkvc_rknn_sr_ctx *ctx)
-{
-    (void)ctx;
-    return 0;
-}
-
-void rkvc_rknn_sr_ctx_drain(rkvc_rknn_sr_ctx *ctx)
-{
-    (void)ctx;
-}
-
-rkvc_err rkvc_rknn_sr_ctx_submit(rkvc_rknn_sr_ctx *ctx,
-                                 const rkvc_buffer *src)
-{
-    (void)ctx;
-    (void)src;
-    return RKVC_ERR_HW;
-}
-
-rkvc_err rkvc_rknn_sr_ctx_collect(rkvc_rknn_sr_ctx *ctx,
-                                  rkvc_buffer **out, int block)
-{
-    (void)ctx;
-    (void)out;
-    (void)block;
-    return RKVC_ERR_HW;
-}
-
-rkvc_err rkvc_rknn_sr_ctx_process(rkvc_rknn_sr_ctx *ctx,
-                                  const rkvc_buffer *src,
+{ (void)p; (void)w; (void)h; (void)pool; return NULL; }
+void rkvc_rknn_sr_ctx_destroy(rkvc_rknn_sr_ctx *ctx) { (void)ctx; }
+int rkvc_rknn_sr_ctx_busy(const rkvc_rknn_sr_ctx *ctx) { (void)ctx; return 0; }
+void rkvc_rknn_sr_ctx_drain(rkvc_rknn_sr_ctx *ctx) { (void)ctx; }
+rkvc_err rkvc_rknn_sr_ctx_submit(rkvc_rknn_sr_ctx *ctx, const rkvc_buffer *src)
+{ (void)ctx; (void)src; return RKVC_ERR_HW; }
+rkvc_err rkvc_rknn_sr_ctx_collect(rkvc_rknn_sr_ctx *ctx, rkvc_buffer **out, int block)
+{ (void)ctx; (void)out; (void)block; return RKVC_ERR_HW; }
+rkvc_err rkvc_rknn_sr_ctx_process(rkvc_rknn_sr_ctx *ctx, const rkvc_buffer *src,
                                   rkvc_buffer **out)
-{
-    (void)ctx;
-    (void)src;
-    (void)out;
-    return RKVC_ERR_HW;
-}
-
+{ (void)ctx; (void)src; (void)out; return RKVC_ERR_HW; }
 rkvc_err rkvc_rknn_sr_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
-                             int dst_w, int dst_h, const char *model_path)
-{
-    (void)src;
-    (void)dst;
-    (void)dst_w;
-    (void)dst_h;
-    (void)model_path;
-    return RKVC_ERR_HW;
-}
+                             int w, int h, const char *p)
+{ (void)src; (void)dst; (void)w; (void)h; (void)p; return RKVC_ERR_HW; }
 
-#endif /* RKVC_ENABLE_RKNN */
+#endif

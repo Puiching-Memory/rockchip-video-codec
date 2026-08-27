@@ -236,23 +236,44 @@ else
 fi
 if [ -f "$PKG_DIR/lib/librknnrt.so" ]; then
     pass "存在: lib/librknnrt.so"
-    if [ -f "$PKG_DIR/models/rkvc_sr_x3.crypt.rknn" ]; then
-        pass "存在: models/rkvc_sr_x3.crypt.rknn"
+    if [ -f "$PKG_DIR/models/rkvc-sr/phase_rlfn_sr_x3.rknn" ] && \
+       [ -f "$PKG_DIR/models/rkvc-sr/sr_export_manifest.json" ] && \
+       [ -f "$PKG_DIR/models/rkvc-sr/LICENSE.rknn-super-resolution-MIT" ]; then
+        pass "存在: models/rkvc-sr/ Phase-RLFN bundle"
     else
-        fail "已打包 librknnrt 但缺失: models/rkvc_sr_x3.crypt.rknn"
+        fail "已打包 librknnrt 但缺失 Phase-RLFN bundle"
     fi
-    # MLVC bundle 需整包随分发（RKNN + PMF + QP 补丁 + manifest）
+    # MLVC bundle 需整包随分发（RKNN + PMF + QP 补丁 + manifest）；
+    # 每平台一包：从包目录名 rkvc-<ver>-linux-<platform>-portable 解析平台，
+    # 精确匹配该平台的基座模型；旧式包（aarch64 命名）回退通配。
+    pkg_base="$(basename "$PKG_DIR")"
+    pkg_platform="$(printf '%s' "$pkg_base" | sed 's/-licensed$//' | cut -d- -f4)"
+    case "$pkg_platform" in
+        rk3588|rk3576|rk3568|rk3566|rv1126b) enc_glob="MLVCEncoder_${pkg_platform}.rknn"; dec_glob="MLVCDecoder_${pkg_platform}.rknn" ;;
+        *) enc_glob="MLVCEncoder_*.rknn"; dec_glob="MLVCDecoder_*.rknn" ;;
+    esac
+    mlvc_bundles=0
     for variant in mlvc mlvc-s; do
-        if ls "$PKG_DIR/models/$variant"/MLVCEncoder_*.rknn >/dev/null 2>&1 \
-           && ls "$PKG_DIR/models/$variant"/MLVCDecoder_*.rknn >/dev/null 2>&1 \
+        if ls "$PKG_DIR/models/$variant"/$enc_glob >/dev/null 2>&1 \
+           && ls "$PKG_DIR/models/$variant"/$dec_glob >/dev/null 2>&1 \
            && [ -f "$PKG_DIR/models/$variant/gaussian.bin" ] \
            && [ -f "$PKG_DIR/models/$variant/bitest.bin" ] \
            && [ -f "$PKG_DIR/models/$variant/mlvc_rknn_export_manifest.json" ]; then
-            pass "存在: models/$variant/ (MLVC bundle)"
+            pass "存在: models/$variant/ (MLVC bundle, $enc_glob)"
+            mlvc_bundles=$((mlvc_bundles+1))
         else
-            fail "已打包 librknnrt 但缺失 MLVC bundle: models/$variant/"
+            warn "未携带 MLVC bundle: models/$variant/ (可能未选该变体，见 --mlvc-variants)"
         fi
     done
+    if [ "$mlvc_bundles" -eq 0 ]; then
+        fail "已打包 librknnrt 但缺失全部 MLVC bundle (mlvc / mlvc-s)"
+    fi
+    # 逐 QP 中间模型只应用于推导 qp_patches，不得入包（曾使包体 92M→403M）。
+    if find "$PKG_DIR/models" -type d -name '*_qp_models' -print -quit 2>/dev/null | grep -q .; then
+        fail "包内含逐 QP 中间模型目录 (*_qp_models/)，应由 build-models.sh 清理暂存产物"
+    else
+        pass "无逐 QP 中间模型 (*_qp_models/)"
+    fi
 else
     warn "未打包 librknnrt.so（本构建可能未启用 RKNN）"
 fi
@@ -500,7 +521,7 @@ if [ -x "$PKG_DIR/bin/rkvc_session_upscale" ] && [ -f "$TMPDIR/test.mp4" ]; then
 fi
 
 # NPU / rkvc_sr smoke（需包内模型 + NPU；无 NPU 时默认 skip）
-SR_MODEL="$PKG_DIR/models/rkvc_sr_x3.crypt.rknn"
+SR_MODEL="$PKG_DIR/models/rkvc-sr/phase_rlfn_sr_x3.rknn"
 if [ ! -f "$PKG_DIR/lib/librknnrt.so" ] || [ ! -f "$SR_MODEL" ]; then
     warn "跳过 rkvc_sr NPU 冒烟 (包内无 librknnrt 或 models/)"
 elif portable_skip_npu_tests; then

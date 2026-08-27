@@ -10,7 +10,7 @@
 - **硬件加速** — RKMPP 硬编硬解，支持 8K
 - **SVT-AV1** — QUALITY 策略软件编码 + av1_rkmpp 硬解
 - **Session API** — 统一文件/流式编解码接口
-- **RGA / AI 上采样** — 解码路径后处理（`rkvc_session_upscale`；含 `rkvc_sr`）
+- **RGA / AI 上采样** — 解码路径后处理；`rkvc_sr` 使用包内单输入 Phase-RLFN bundle
 
 性能数字见包内 `USAGE.md` 或源码树 `docs/benchmark.md`（1080p E2E：REALTIME ~36 / BALANCED ~27 / QUALITY ~24 fps）。
 
@@ -23,6 +23,18 @@
 
 运行前需要设置设备权限。权限不足时程序返回 `RKVC_ERR_PERMISSION`。
 
+## 模型授权（model.key）
+
+包内 `models/` 下的 `.rknn`（AI 超分 `rkvc_sr` 与 MLVC 神经编解码）默认经加密层保护，
+须放置**本机**专属的 `model.key` 才能加载；常规硬编解码（H.264 / HEVC / AV1）不受影响。
+
+1. 向供应商提供本机机器码（由供应商提供的采集工具获取，绑定硬件指纹）；
+2. 供应商签发与该机器码绑定的 `model.key`；
+3. 放置到 `~/.config/rkvc/model.key`，或设置环境变量 `RKVC_MODEL_KEY_FILE=<路径>`。
+
+错误语义：未放置 `model.key` → `RKVC_ERR_UNLICENSED`；机器码不符或文件被篡改 → `RKVC_ERR_LICENSE`。
+`model.key` 不可跨机拷贝；放置后方可运行 `./test.sh`（否则 NPU 相关项会报未授权）。
+
 ## 快速使用
 
 ### 一键自测
@@ -31,7 +43,7 @@
 ./test.sh
 ```
 
-自测 99 项：二进制完整性、RPATH、`rkvc_info` JSON、NV12 编码→解码→转码、`rkvc_bench` 三策略短测、`rkvc_session_upscale` 后处理上采样、pkg-config 编译、负向包检查。
+自测 100+ 项：二进制完整性、RPATH、`rkvc_info` JSON、NV12 编码→解码→转码、`rkvc_bench` 三策略短测、`rkvc_session_upscale` 后处理上采样、pkg-config 编译、负向包检查。
 
 ### 网络冒烟测试
 

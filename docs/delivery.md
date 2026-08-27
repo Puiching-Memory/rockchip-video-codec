@@ -63,7 +63,7 @@ gantt
     左右对比演示视频                      :done, v21b, 2026-07-02, 2026-07-02
     portable 打包 librknnrt               :done, v22, 2026-07-09, 2026-07-09
   section 规划中
-    YUV-native 超分模型                   :active, yuv, 2026-07-03, 2026-09-30
+    Phase-RLFN 开源模型管道               :done, yuv, 2026-08-24, 2026-08-24
     LIVE_CAPTURE / V4L2                   :crit, v4l2, 2026-07-03, 2026-10-31
     完整 UDP/RTP 在线回环                 :crit, net, 2026-07-03, 2026-10-31
 ```
@@ -77,7 +77,7 @@ gantt
 | **P4** RKNN AI 超分          | `rkvc_sr` 节点、双缓冲异步推理             | ✅ 已交付   | **2026-07-02**（v0.2.1）                                |
 | **P5** RD 基准与演示         | `tools/bench/config.json`、对比演示 MP4    | ✅ 已交付   | 2026-07-02                                              |
 | **P5b** portable 自包含 RKNN | 可移植包携带 `librknnrt.so` + `models/`    | ✅ 已交付   | **2026-07-09**（v0.2.3）                                |
-| **P6** YUV-native 模型       | 消除 NV12↔RGB CSC，降延迟                  | 📋 设计稿   | 待定（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
+| **P6** Phase-RLFN 开源模型   | NV12 phase core + ONNX/RKNN/bundle 管道     | ✅ 已集成   | 2026-08-24（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)） |
 | **P7** 在线采集/组网         | V4L2、ROI/配额、UDP/RTP 原语               | ✅ 原语完成 | 2026-07-10                                              |
 
 ---
@@ -92,7 +92,7 @@ gantt
 | 打包与可移植包            | [packaging.md](packaging.md)                 |
 | 测试与质量门禁            | [testing.md](testing.md)                     |
 | 性能与 RD 基准            | [benchmark.md](benchmark.md)                 |
-| YUV-native 超分（设计稿） | [sr-model-yuv-spec.md](sr-model-yuv-spec.md) |
+| Phase-RLFN 超分导出       | [sr-model-yuv-spec.md](sr-model-yuv-spec.md) |
 | 发布包用户文档            | [release/README.md](release/README.md)       |
 
 ---
@@ -135,14 +135,14 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 - [ ] `tests` preset：**19** 个 CTest 目标（9 单元 + 8 硬件子用例 + `test_cli_args`、`test_bench_permission_failure`）
 - [ ] RK3588 实机硬件用例通过（夹具自生成，无需 `tests/fixtures/`）
-- [ ] NPU 门禁：`./scripts/test-npu-sr.sh`（需 `models/rkvc_sr_x3.crypt.rknn`）
+- [ ] NPU 门禁：`./scripts/test-npu-sr.sh`（需 `models/rkvc-sr/` 完整 bundle）
 
 ### 设备与环境
 
 - [ ] SoC：RK3588 / RK3588S，BSP 内核 5.10 或 6.1
 - [ ] 设备权限：`/dev/mpp_service`、`/dev/dma_heap/*`、`/dev/rga`、`/dev/dri/*`、NPU（`/sys/kernel/debug/rknpu/version` 或 `*npu-render*`）（见 [getting-started.md](getting-started.md)）
 - [ ] 依赖脚本已执行：`build-svt.sh`、`install-librga.sh`、`rebuild-ffmpeg-rkmpp.sh`
-- [ ] AI 超分模型：`models/rkvc_sr_x3.crypt.rknn`（gitignore；打包时自动拷贝）
+- [ ] AI 超分 bundle：`models/rkvc-sr/`（ONNX/RKNN/manifest/MIT LICENSE/SOURCE）
 
 ---
 
@@ -161,7 +161,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 
 ## AI 超分与 RK3588 性能（`rkvc_sr`）
 
-> 评测条件：**RK3588** · **1920×1080** · 测试片段默认 **4 s / ~122 帧 @ 30 fps**（`tools/bench/config.json` `clip.sec=4`）· 模型 **`rkvc_sr_x3.crypt.rknn`（3× 超分）**
+> 下述数字来自已移除的旧 RGB 模型，仅保留为历史基线，不能代表当前 Phase-RLFN。新模型须按 [导出管道](sr-model-yuv-spec.md) 生成后重新完成 RK3588 实测。
 
 ### 管线说明
 
@@ -169,40 +169,36 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 全分辨率 1080p REF
   → RGA 1/3 下采样（360p）→ 编码（SVT-AV1 / RKMPP）
   → 硬解（av1_rkmpp / h264_rkmpp）
-  → RKNN 3× 超分 + RGA CSC（NV12↔RGB）
+  → Phase-RLFN 3× residual + RGA bicubic（无 RGB CSC）
   → 输出 1080p NV12
 ```
 
-现网模型在 **RGB 域**训练，每帧含 2 次 RGA 色彩转换；下一代 **YUV-native** 模型可去掉 CSC（见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)）。
+当前模型走 YCbCr phase residual，不再执行旧模型的 NV12↔RGB CSC；运行时只接受单输入 `12→108` core。
 
-### 单帧耗时（1080p，3× 路线，RD 基准实测）
+### 单帧耗时（待 Phase-RLFN 实机回归）
 
-| 阶段                     | 耗时/帧（约）            | 硬件            | 说明                                                   |
-| ------------------------ | ------------------------ | --------------- | ------------------------------------------------------ |
-| 硬解码                   | **< 0.2 ms**             | VPU（RKMPP）    | `decode_sec` ≈ 0.02 s / 122 帧                         |
-| AI 超分推理 + CSC        | **~14 ms**               | NPU + RGA       | `postproc_sec` ≈ 1.7 s / 122 帧（含 RKNN 与 NV12↔RGB） |
-| NEON 量化/反量化         | 含于 postproc            | CPU（A76）      | `rkvc_sr_neon.c`                                       |
-| **解码 + AI 还原合计**   | **~14 ms/帧（~70 fps）** | VPU + NPU       | 仅解码侧；不含编码                                     |
-| 全链路 E2E（含 3× 编码） | **~73 ms/帧**            | VPU + NPU + CPU | 含 SVT-AV1 软编 + 硬解 + AI 还原（500 kbps 测点）      |
+旧 RGB 模型的约 14 ms/帧数据不再适用，不能作为当前交付指标。生成正式 bundle 后须记录
+checkpoint/RKNN SHA-256、RKNN Toolkit/driver 版本，并重新跑 `--print-timing` 与 RD 套件。
 
 ### CPU / NPU / 硬编支持
 
 | 资源         | 在线（`REALTIME`）                            | 离线（`QUALITY` + AI 还原）                         |
 | ------------ | --------------------------------------------- | --------------------------------------------------- |
-| **CPU**      | 低（硬编 H.264，调度为主）                    | 高（SVT-AV1 软编占满多核；AI 路径 NEON 量化）       |
+| **CPU**      | 低（硬编 H.264，调度为主）                    | 高（SVT-AV1 软编；AI 路径做 phase 打包/残差融合）   |
 | **NPU**      | 解码后处理时占用（`rkvc_sr`）                 | 同左；`rknn_set_core_mask` 使用三核                 |
 | **VPU 硬编** | ✅ H.264 / HEVC（`h264_rkmpp` / `hevc_rkmpp`） | ✅ 同左                                              |
 | **VPU 硬解** | ✅ H.264 / HEVC / AV1（`av1_rkmpp`）           | ✅ 同左                                              |
 | **AV1 编码** | —                                             | ❌ 无硬编；SVT-AV1 **软件编码**（`libSvtAv1Enc.so`） |
 
-> **结论**：AI 超分是**解码后处理**，不替代编码器；低码率优势来自「360p 编码 + 3× AI 还原」。在线场景若需 AI 还原，需保证 NPU 预算 ~15 ms/帧（1080p 输出）。
+> **结论**：AI 超分是**解码后处理**，不替代编码器；低码率收益与实时预算须以当前 Phase-RLFN bundle 的实机数据为准。
 
 复现计时：
 
 ```bash
 .build/release/rkvc_session_upscale -i clip.mp4 -o out.nv12 \
   --width 1920 --height 1080 --enc-scale-denom 3 \
-  --post-upscale rkvc_sr --rkvc-sr-model rkvc_sr_x3.crypt.rknn --print-timing
+  --post-upscale rkvc_sr \
+  --rkvc-sr-model models/rkvc-sr/phase_rlfn_sr_x3.rknn --print-timing
 ```
 
 ---
@@ -248,7 +244,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 | 3× 下采样 + **双线性**上采样 | 1494 kbps | 27.0 dB     | 0.775     | 带宽相近，画质 **-5.4 dB**                             |
 | 3× 下采样 + **`rkvc_sr` AI** | 1494 kbps | **29.0 dB** | **0.821** | 比双线性 **+2.0 dB / +0.046 SSIM**，仍低于全分辨率基线 |
 
-**解读**：在相近码率下，AI 超分显著优于传统插值（边缘更锐利、纹理更少涂抹），但尚不能完全追平全分辨率编码；适合**带宽敏感**且可接受轻微画质损失的场景。YUV-native 模型上线后预期进一步缩小与基线的差距。
+**解读**：本节图表若仍引用旧 RGB bundle，只能作为历史对照；Phase-RLFN 的结论必须用 manifest 中记录的当前模型重新生成。
 
 复现 RD 数据：
 
@@ -320,7 +316,7 @@ CLI 快速验证解码端：
 - `rkvc_encode -i` 仅接受原始 NV12；`--enc-scale-denom` 只做编码前下采样
 - **后处理上采样**（RGA / `rkvc_sr`）仅 `rkvc_session_upscale` / `FILE_DECODE`；编码路径请用 `rkvc_encode --enc-scale-denom`
 - `QUALITY` 依赖 SVT-AV1 软件编码，CPU 占用高于硬编
-- 现网 `rkvc_sr` 模型为 RGB 域；YUV-native 规格见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)
+- `rkvc_sr` 只支持 Phase-RLFN 单输入 `12→108` core；旧 RGB/双输入模型不兼容
 
 ---
 

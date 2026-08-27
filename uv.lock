@@ -525,7 +525,7 @@ wheels = [
 
 [[package]]
 name = "rkvc"
-version = "0.3.3"
+version = "0.3.4"
 source = { virtual = "." }
 dependencies = [
     { name = "dataclasses-json" },

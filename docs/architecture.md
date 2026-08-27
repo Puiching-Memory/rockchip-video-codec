@@ -187,7 +187,7 @@ graph TD
 
 **注意**：编码模板（`FILE_ENCODE` / `FILE_TRANSCODE`）只应用下采样；上采样仅在解码模板与 `rkvc_session_upscale` 中执行。
 
-`rkvc_sr` 走 RKVC 神经网络超分（`lib/node_rkvc_sr.c`）。现网模型在 RGB 域训练，推理含 NV12↔RGB CSC；下一代 **YUV-native** 模型规格见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
+`rkvc_sr` 走开源 Phase-RLFN 单输入 residual core（`lib/node_rkvc_sr.c` / `lib/rkvc_sr_phase.c`）：NV12 直接 PixelUnshuffle 打包，RGA 生成 bicubic 基线，NPU 输出经 PixelShuffle 后叠加回 NV12。只接受 NCHW `12→108` 契约，旧 RGB 与 codec-aware 双输入模型不兼容。导出与 bundle 见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
 
 ## 辅助模块
 

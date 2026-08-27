@@ -182,8 +182,11 @@ jobs:
           ninja -C .build/release -j"$BUILD_JOBS" package
 
       - name: Build portable package
-        # 标准版（不加 --license）；授权版仅本地/发码流程使用
-        run: ./scripts/package-portable.sh
+        # 标准版（不加 --license）；授权版仅本地/发码流程使用。
+        # runner 无模型生产环境（.venv/rknn-toolkit2），用 --no-rknn 产不含 NPU 的通用包；
+        # 带模型的分发包在板端跑 ./scripts/package-portable.sh --platforms ...（模型自动生产）。
+        # --no-test: 打包后自动自测由下方独立 Test 步骤承担（且 runner 非 rk 板，自动自测本会跳过）。
+        run: ./scripts/package-portable.sh --no-rknn --no-test --platforms rk3588
 
       - name: Check version literals
         run: ./scripts/check-version-literals.sh
@@ -192,7 +195,7 @@ jobs:
         run: |
           # shellcheck source=scripts/build-common.sh
           source scripts/build-common.sh
-          ./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir)"
+          ./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir rk3588)"
 
       - name: Upload packages
         uses: actions/upload-artifact@v7

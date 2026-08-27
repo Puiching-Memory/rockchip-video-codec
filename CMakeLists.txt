@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rkvc
-    VERSION 0.3.3
+    VERSION 0.3.4
     DESCRIPTION "Rockchip multi-SoC multi-codec pipeline library"
     LANGUAGES C
 )
@@ -34,6 +34,7 @@ option(RKVC_ENABLE_RKNN    "Enable RKNN NPU super-resolution" ON)
 option(RKVC_ENABLE_MLVC    "Enable MLVC neural video codec (RKNN NPU + pure-C rANS)" ON)
 option(RKVC_RKNN_ALLOW_DEBUG_LOG "Respect RKNN_LOG_LEVEL / RKVC_DEBUG_RKNN_LOG at runtime for internal diagnostics (leaks model topology to end users; keep OFF for distribution)" OFF)
 option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
+option(RKVC_ENABLE_MODEL_CRYPT "Encrypt RKNN models with rkvc's own layer (XChaCha20-Poly1305 + per-machine model.key, libsodium)" OFF)
 
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库（禁止系统 FFmpeg，否则破坏可移植包）。
@@ -128,7 +129,7 @@ set(RKVC_SOURCES
     lib/node_rga.c
     lib/node_post_upscale.c
     lib/node_dma_to_host.c
-    lib/rkvc_sr_neon.c
+    lib/rkvc_sr_phase.c
     lib/node_rkvc_sr.c
     lib/qppatch.c
 )
@@ -240,6 +241,88 @@ if(RKVC_ENABLE_LICENSE)
             "RKVC_ENABLE_LICENSE=ON but RKVC_LICENSE_PUBKEY_FILE not set;\n"
             "  using DEMO public key from lib/license_pubkey.c — NOT for production")
     endif()
+endif()
+
+# ── 模型自研加密层（RKVC_ENABLE_MODEL_CRYPT） ────────────────────
+# 模型体用 XChaCha20-Poly1305(data_key) 加密；data_key 经内嵌 master_key 密封在
+# 每机一份的 model.key 中（含机器码），运行时校验后解密。格式见
+# lib/model_crypt_layout.h；打包工具见 tools/rkvc_model_crypt.c。
+#
+# 主密钥来源（二选一）:
+#   RKVC_MODEL_MASTERKEY_FILE=<path>  指向 32 字节主密钥二进制文件（生产，推荐）
+#   未设置                             使用 lib/model_key.c 演示密钥（仅开发）
+if(RKVC_ENABLE_MODEL_CRYPT)
+    if(NOT DEFINED RKVC_LICENSE_LIBS)
+        # LICENSE 未开启时独立准备 libsodium（同一安装前缀）
+        set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
+            CACHE PATH "libsodium install prefix (see scripts/install-libsodium.sh)")
+        if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
+            message(FATAL_ERROR
+                "libsodium not found at ${LIBSODIUM_PREFIX}/lib/libsodium.a\n"
+                "  Run: git submodule update --init third_party/libsodium\n"
+                "       ./scripts/install-libsodium.sh")
+        endif()
+        find_package(Threads REQUIRED)
+        set(RKVC_LICENSE_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
+        set(RKVC_LICENSE_INCLUDES ${LIBSODIUM_PREFIX}/include)
+    endif()
+    list(APPEND RKVC_SOURCES lib/model_crypt.c)
+    if(NOT RKVC_ENABLE_LICENSE)
+        # 机器码指纹采集（与 1机1码 同一实现）
+        list(APPEND RKVC_SOURCES lib/license_machine.c)
+    endif()
+    set(RKVC_MODEL_CRYPT_DEFS RKVC_ENABLE_MODEL_CRYPT=1)
+
+    if(RKVC_MODEL_MASTERKEY_FILE AND EXISTS "${RKVC_MODEL_MASTERKEY_FILE}")
+        # 从 32 字节主密钥二进制生成 XOR 混淆后的 C 源（与 license pubkey 同模式），
+        # 运行时解密在 lib/model_crypt.c。
+        file(READ "${RKVC_MODEL_MASTERKEY_FILE}" _mk_hex HEX)
+        string(LENGTH "${_mk_hex}" _hex_len)
+        math(EXPR _mk_bytes "${_hex_len} / 2")
+        if(NOT _mk_bytes EQUAL 32)
+            message(FATAL_ERROR
+                "RKVC_MODEL_MASTERKEY_FILE: expected 32 bytes, got ${_mk_bytes}")
+        endif()
+        # 混淆参数须与 lib/model_crypt.c 中的解密逻辑一致：key_i = 0xA5 ^ (i * 7)
+        set(_MK_K 165)  # 0xA5
+        set(_MK_C1 7)
+        set(_mk_enc_arr "")
+        set(_i 0)
+        while(_i LESS 64)
+            string(SUBSTRING "${_mk_hex}" ${_i} 2 _byte)
+            math(EXPR _b "0x${_byte}")
+            math(EXPR _idx "${_i} / 2")
+            math(EXPR _ki "(${_MK_K} ^ (${_idx} * ${_MK_C1})) & 0xFF")
+            math(EXPR _eb "(((${_b} ^ ${_ki}) + 0x100) & 0xFF)" OUTPUT_FORMAT HEXADECIMAL)
+            string(APPEND _mk_enc_arr "${_eb},")
+            math(EXPR _next_i "${_i} + 2")
+            math(EXPR _col "(${_next_i} / 2) % 12")
+            if(_col EQUAL 0 AND _next_i LESS 64)
+                string(APPEND _mk_enc_arr "\n  ")
+            endif()
+            set(_i ${_next_i})
+        endwhile()
+        set(RKVC_MODEL_KEY_C "${CMAKE_BINARY_DIR}/generated/model_key.c")
+        file(WRITE "${RKVC_MODEL_KEY_C}"
+            "/* 由 CMake 从 RKVC_MODEL_MASTERKEY_FILE 自动生成，勿手动编辑。 */\n"
+            "#include <stdint.h>\n\n"
+            "const uint8_t rkvc_model_masterkey_enc[32] = {\n  ${_mk_enc_arr}\n};\n\n"
+            "const unsigned rkvc_model_masterkey_len = 32;\n")
+        list(APPEND RKVC_SOURCES "${RKVC_MODEL_KEY_C}")
+        message(STATUS "Model crypt: ON, masterkey=${RKVC_MODEL_MASTERKEY_FILE}")
+    else()
+        list(APPEND RKVC_SOURCES lib/model_key.c)
+        message(WARNING
+            "RKVC_ENABLE_MODEL_CRYPT=ON but RKVC_MODEL_MASTERKEY_FILE not set;\n"
+            "  using DEMO master key from lib/model_key.c — NOT for production")
+    endif()
+
+    # 打包方加密/签发工具（独立于 librkvc，不随可移植包分发）
+    add_executable(rkvc_model_crypt tools/rkvc_model_crypt.c lib/license_machine.c)
+    target_include_directories(rkvc_model_crypt PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${RKVC_LICENSE_INCLUDES})
+    target_link_libraries(rkvc_model_crypt PRIVATE ${RKVC_LICENSE_LIBS})
 endif()
 
 if(RKVC_ENABLE_ASAN OR RKVC_ENABLE_UBSAN OR RKVC_ENABLE_COVERAGE)
@@ -362,7 +445,7 @@ function(rkvc_configure_target tgt)
         target_compile_definitions(${tgt} PRIVATE RKVC_ENABLE_MLVC=1)
     endif()
     # 版本号由 project(VERSION) 注入，init.c 不再硬编码
-    target_compile_definitions(${tgt} PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS})
+    target_compile_definitions(${tgt} PRIVATE ${RKVC_VERSION_COMPILE_DEFS} ${RKVC_LICENSE_DEFS} ${RKVC_MODEL_CRYPT_DEFS})
 endfunction()
 
 if(RKVC_BUILD_SHARED)
@@ -576,6 +659,7 @@ if(RKVC_BUILD_TESTS)
         tests/test_hardware.c
         tests/test_scale.c
         tests/test_post_upscale.c
+        tests/test_sr_phase.c
         tests/test_roi_runtime.c
         tests/test_reconfig.c
         tests/test_v4l2.c
@@ -590,6 +674,10 @@ if(RKVC_BUILD_TESTS)
             tests/test_rans.c
             tests/test_mlvc_pixel.c
         )
+    endif()
+
+    if(RKVC_ENABLE_MODEL_CRYPT)
+        list(APPEND RKVC_TEST_SOURCES tests/test_model_crypt.c)
     endif()
 
     if(RKVC_ENABLE_FAULT_INJECTION)
@@ -626,6 +714,9 @@ if(RKVC_BUILD_TESTS)
                 ${CMOCKA_INCLUDE_DIRS}
                 ${AVCODEC_INCLUDE_DIRS}
         )
+        if(TEST_NAME STREQUAL "test_model_crypt")
+            target_include_directories(${TEST_NAME} PRIVATE ${RKVC_LICENSE_INCLUDES})
+        endif()
         target_link_directories(${TEST_NAME}
             PRIVATE
                 ${RKVC_DEP_LIB_DIRS}
@@ -714,6 +805,15 @@ if(RKVC_BUILD_TESTS)
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_mlvc_export.sh
     )
     set_tests_properties(test_mlvc_export PROPERTIES
+        LABELS unit
+        ENVIRONMENT "${RKVC_TEST_ENVIRONMENT}"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+
+    add_test(NAME test_sr_export
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_sr_export.sh
+    )
+    set_tests_properties(test_sr_export PROPERTIES
         LABELS unit
         ENVIRONMENT "${RKVC_TEST_ENVIRONMENT}"
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

@@ -4,6 +4,36 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-08-27
+
+### 新增
+
+- **模型自研加密层（可移植包默认开启）**：包内 `.rknn` 在打包收尾阶段原地加密，运行时由 `librkvc` 自动解密，不再依赖 Rockchip `rknn_crypt_tool`（aarch64 wheel 不附带该工具，且官方加密已被证实可完全还原：密钥内嵌 `librknnrt` + 时间戳可预测种子）。机制：模型体用随机数据密钥 `data.key` 做 XChaCha20-Poly1305（libsodium `crypto_secretbox`），`data.key` 不随包分发，而是用编译期内嵌（XOR 混淆）的主密钥 `master.key` 把 `data.key + 目标机机器码` 密封成每机一份的 `model.key`；运行时先解 `model.key`、按 1机1码 同一指纹校验本机机器码，通过才解密模型体。新增 `lib/model_crypt.c` + `lib/model_crypt_layout.h`（加密端/解密端共用的线格式单一来源）、打包工具 `tools/rkvc_model_crypt.c`（`genkey` / `issue` / `verify-key` / `encrypt` / `decrypt` / `machine-id`）、`tests/test_model_crypt.c`；CMake 选项 `RKVC_ENABLE_MODEL_CRYPT` + `RKVC_MODEL_MASTERKEY_FILE`。密钥落在 `tools/keys/{master.key,data.key}`（首次打包自动生成，已 gitignore）。错误语义：无 `model.key` → `RKVC_ERR_UNLICENSED`；机器码不符或文件被篡改 → `RKVC_ERR_LICENSE`；密钥查找顺序 `RKVC_MODEL_KEY_FILE` → `~/.config/rkvc/model.key`。`package-portable.sh` 默认启用（`--no-encrypt-models` 关闭），并为打包机自动签发本机自测用 `model.key`（不随包分发）。
+- **打包后自动包内自测**：`package-portable.sh` 每个平台包产出后自动运行包内 `test.sh`（仅对平台与本机 SoC 匹配的包，非匹配包提示到目标板手动跑；日志落盘 `.build/dist/<pkg>.test.log`），自测失败则打包以错误退出；`--no-test` 可跳过（CI 打包步骤改用该选项，测试由独立 step 承担）。
+
+### 变更
+
+- **可移植包默认仅携带 MLVC-S**：`package-portable.sh` / `build-models.sh` 新增变体选择（`--mlvc-variants mlvc|mlvc-s|all`，默认 `mlvc-s`），标准版不再随包分发，包体减小约 85MB；需要两变体时传 `--mlvc-variants all`。包内自测改为要求至少一个完整 MLVC bundle。
+- **打包时自动生产模型与多目标板分包**：`scripts/package-portable.sh` 新增 `--platforms rk3576,rk3588,rv1126b`（逗号分隔，缺省探测本机 SoC），每平台产一个独立包 `rkvc-<ver>-linux-<platform>-portable`；启用 RKNN 时先调用新脚本 `scripts/build-models.sh` 自动生产模型（暂存 `.build/models/<platform>/`，幂等缓存）：MLVC 与 MLVC-S 权重自动从 `mlvideopub` 公开容器下载（SHA-256 钉住；新增 MLVC-S 自动下载，`--weights-path` 仍可覆盖），SR 权重自动从 HuggingFace `Sail2Dream/phase-rlfn-codec-v1` 下载 `best_ema.pth`（`--sr-weight` 可覆盖，`RKVC_SR_WEIGHT_URL`/`RKVC_SR_WEIGHT_SHA256` 可换源），QAT checkpoint 免校准（`--no-quantize`）。新增 `--allow-skip-sr`（SR 不可得时降级）与 `--no-rknn`（不下载 librknnrt/不启用 NPU，CI 用）；QP 补丁按 `qp_patches/<platform>/` 分目录，运行时对应 `--mlvc-qp-patch-dir models/mlvc/qp_patches/<soc>`。
+
+### 修复
+
+- **`rkvc_model_crypt machine-id` 恒报“无可用硬件指纹”**：输出缓冲按 `RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN`（64，字符数）声明，而 `lic_machine_id_hex()` 要求容量 ≥ `LIC_MACHINE_ID_HEX_LEN`（65，含 NUL），容量检查直接返回 -1，打包在“签发本机自测 model.key”一步中止（同一问题也是一个被容量检查挡住的 1 字节栈溢出）。改用 `LIC_MACHINE_ID_HEX_LEN` 并加 `_Static_assert` 钉住两个常量的关系；`lib/model_crypt_layout.h` 原注释“与 `LIC_MACHINE_ID_HEX_LEN` 一致”与实际相差 1，一并纠正。修复后与 `rkvc_lic machine-id` 得出同一指纹。
+- **逐 QP 中间模型被打进可移植包**：`export_rknn.py --qp-list` 把 4 个 QP 的全量模型写进暂存 bundle 目录内（`<platform>_qp_models/`，单变体约 311MB），`package-portable.sh` 整目录 `cp -a` 后一并打进包：实测 rk3588 包体 92M→403M、加密模型 3→11 个，目标机拿到的是无用的中间件（运行时只需基座模型 + `qp_patches/`）。现由 `build-models.sh` 在 bundle 就绪校验前后清理暂存目录，并在 `test-portable.sh` 增加“包内不得含 `*_qp_models/`”的回归检查。
+- **打包缓存被静默失效的历史 bug**：`package-portable.sh` 中 `${CLEAN:+--clean}` 在 `CLEAN=0` 时因“非空字符串”仍展开为 `--clean`，导致每次打包都全量重编 SVT-AV1 与 ffmpeg（并抹掉 ffmpeg 安装前缀）。改为数组条件传参；热缓存重复打包从 ~7 分钟降到 ~20 秒。
+- **打包缓存加固**：`rebuild-ffmpeg-rkmpp.sh` 新增指纹缓存（子模块 commit + 补丁哈希 + configure 选项 + 依赖前缀 → `.rkvc-ffmpeg.stamp`，命中即跳过，未命中打印失效原因）；MPP/SVT 的跳过检查追加 `.rkvc-complete` 完成标记，防磁盘满等中断留下的半成品被误判为已构建；`--license` 改用平行构建目录 `.build/portable-licensed`，与标准包交替打包不再互相触发全量重编。
+- **Phase-RLFN SR 宿主字节序（画质致命 bug）**：rknn 驱动直接按张量属性 `dims` 解释宿主缓冲、**不做自动转置**，且本模型输入/输出属性不对称：输入被工具链记为 NHWC（`1×180×320×12`）、输出保持 NCHW（`1×108×180×320`）。原实现两端均按平面 NCHW 读写，导致喂入被整体转置，NPU 输出与 ONNX 参考差到 rms≈10（大于残差信号自身的 rms≈2.9），实测画质反而劣于 bicubic 基座。现 `rkvc_sr_phase_pack_nv12` 逐像素交错打包、`rkvc_sr_phase_add_residual_nv12` 按平面主序读取，契约检查仍同时接受两种 fmt 记法。定位手段：恒等探测模型（`out = x*1.0`，输入值编码线性索引）+ x86 模拟器对照，证明图转换与 NPU 数值均无误。RK3576 实测（Johnny 640×360→1920×1080，30 帧）：Y-PSNR 25.33→26.30dB、SSIM Y 0.857→0.879，与「ONNX 残差 + RGA 基座」的理想融合一致性达 73.5dB。新增 `test_add_residual_is_plane_major`（2×1 core 使平面主序与像素交错的偏移不再重合）锁死该契约；`docs/sr-model-yuv-spec.md` 与 `tools/sr/export_model.py` 的布局注释同步纠正（`load_onnx` 的 `input_size_list` 并不能改变工具链的 NHWC 记法）。旧条目中“输入与模型属性同 fmt 透传、与 `node_mlvc.c` 一致”的说法作废。
+- **Phase-RLFN SR 后处理 CPU 热路径**：残差融合循环序改为 `cx` 最内层（单流顺序读，散写落在 L1 常驻的当前 core 行 6×1920=11.5KB 内），避开 36+72 条平面流打爆硬件预取与 L1 dTLB，A72 上 65ms/帧→22ms/帧（A53 上 178ms→70ms）；基座 NV12 缓冲新增 cached DMA heap 变体（`rkvc_buffer_pool_alloc_video_cached` / `rkvc_rga_scale_buffer_cached`），不再走 CPU 逐像素仅约 3MB/s 的 `system-uncached` 堆。两项合计使后处理从 1045ms/帧降到约 25ms/帧；30 帧端到端 4.8s（FP16）/ 3.3s（INT8），对比纯 bicubic 1.4s。
+
+### 变更（破坏性）
+
+- **超分模型开源集成**：`rkvc_sr` 切换到 Puiching-Memory/rknn-super-resolution 的单输入 Phase-RLFN residual core；运行时严格接受 `12→108` phase 契约（NCHW 图；宿主属性被工具链记为 NHWC 时同样接受），删除旧 RGB CSC/NEON 路径，旧 3 通道 RGB RKNN 与 codec-aware 双输入模型不再兼容。
+- **完整模型产物管道**：新增 `tools/sr/build_calibration.py` 与 `tools/sr/export_model.py`，串联代表性 LR 校准集、QAT/float checkpoint、静态 ONNX、RKNN INT8、可选加密、SHA-256 manifest、MIT LICENSE/SOURCE bundle。portable 包改为强制携带完整 `models/rkvc-sr/`。
+
+### 测试
+
+- 新增 Phase PixelUnshuffle/PixelShuffle、NV12 色度平均纯 C 单测与 ONNX 单输入契约/bundle manifest Python 单测；NPU 门禁默认模型更新为 `models/rkvc-sr/phase_rlfn_sr_x3.rknn`。
+
 ## [0.3.3] - 2026-08-24
 
 ### 变更

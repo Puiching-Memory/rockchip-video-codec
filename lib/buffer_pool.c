@@ -56,13 +56,28 @@ void rkvc_buffer_pool_destroy(rkvc_buffer_pool *pool)
     rkvc_free(pool);
 }
 
-static int dma_heap_open(void)
+static int dma_heap_alloc_ex(int size, int cached);
+static rkvc_err buffer_pool_alloc_video_impl(rkvc_buffer_pool *pool,
+                                             rkvc_buffer **out,
+                                             int width, int height,
+                                             rkvc_pix_fmt format,
+                                             rkvc_mem_type mem_type,
+                                             int cached);
+
+static int dma_heap_open(int cached)
 {
-    static const char *const heaps[] = {
+    /* rkvc_sr 等需要 CPU 逐像素读写的路径必须用缓存堆：
+     * system-uncached 的 CPU 访问不走缓存，实测带宽仅约 3 MB/s。 */
+    static const char *const heaps_uncached[] = {
         "/dev/dma_heap/system-uncached",
         "/dev/dma_heap/system",
         NULL
     };
+    static const char *const heaps_cached[] = {
+        "/dev/dma_heap/system",
+        NULL
+    };
+    const char *const *heaps = cached ? heaps_cached : heaps_uncached;
 
     for (int i = 0; heaps[i]; i++) {
         int fd = open(heaps[i], O_RDONLY | O_CLOEXEC);
@@ -74,7 +89,12 @@ static int dma_heap_open(void)
 
 static int dma_heap_alloc(int size)
 {
-    int heap_fd = dma_heap_open();
+    return dma_heap_alloc_ex(size, 0);
+}
+
+static int dma_heap_alloc_ex(int size, int cached)
+{
+    int heap_fd = dma_heap_open(cached);
     if (heap_fd < 0)
         return -1;
 
@@ -182,6 +202,26 @@ rkvc_err rkvc_buffer_pool_alloc_video(rkvc_buffer_pool *pool,
                                       rkvc_pix_fmt format,
                                       rkvc_mem_type mem_type)
 {
+    return buffer_pool_alloc_video_impl(pool, out, width, height, format,
+                                        mem_type, 0);
+}
+
+rkvc_err rkvc_buffer_pool_alloc_video_cached(rkvc_buffer_pool *pool,
+                                             rkvc_buffer **out,
+                                             int width, int height,
+                                             rkvc_pix_fmt format)
+{
+    return buffer_pool_alloc_video_impl(pool, out, width, height, format,
+                                        RKVC_MEM_DMABUF, 1);
+}
+
+static rkvc_err buffer_pool_alloc_video_impl(rkvc_buffer_pool *pool,
+                                             rkvc_buffer **out,
+                                             int width, int height,
+                                             rkvc_pix_fmt format,
+                                             rkvc_mem_type mem_type,
+                                             int cached)
+{
     (void)pool;
 
     if (mem_type == RKVC_MEM_DMABUF) {
@@ -190,7 +230,7 @@ rkvc_err rkvc_buffer_pool_alloc_video(rkvc_buffer_pool *pool,
         if (size < 0)
             return rkvc_from_averror(size);
 
-        int fd = dma_heap_alloc(size);
+        int fd = dma_heap_alloc_ex(size, cached);
         if (fd < 0)
             return rkvc_buffer_alloc_video_host(out, width, height, format);
 

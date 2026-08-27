@@ -218,7 +218,8 @@ static void rknn_model_cleanup(mlvc_rknn_model *m)
     for (uint32_t i = 0; i < no; i++)
         if (m->out_mem[i]) rknn_destroy_mem(m->ctx, m->out_mem[i]);
     if (m->ctx) rknn_destroy(m->ctx);
-    rkvc_free(m->model_buf);
+    /* 模型可能经自研加密层解密而来，清零释放避免明文残留 */
+    rkvc_secure_zero_free(m->model_buf, m->model_size);
     memset(m, 0, sizeof(*m));
 }
 
@@ -227,6 +228,15 @@ static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path,
 {
     memset(m, 0, sizeof(*m));
 
+    size_t sz;
+#ifdef RKVC_ENABLE_MODEL_CRYPT
+    /* 自研加密层：加密模型需每机 model.key 解密，明文模型原样透传 */
+    void *plain = NULL;
+    const rkvc_err ferr = rkvc_model_crypt_load_file(path, &plain, &sz);
+    if (ferr != RKVC_OK)
+        return ferr;
+    m->model_buf = plain;
+#else
     FILE *fp = fopen(path, "rb");
     if (!fp)
         return RKVC_ERR_IO;
@@ -234,8 +244,8 @@ static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path,
         fclose(fp);
         return RKVC_ERR_IO;
     }
-    long sz = ftell(fp);
-    if (sz <= 0 || (size_t)sz > MLVC_MAX_MODEL_BYTES) {
+    long fsz = ftell(fp);
+    if (fsz <= 0 || (size_t)fsz > MLVC_MAX_MODEL_BYTES) {
         fclose(fp);
         return RKVC_ERR_IO;
     }
@@ -243,18 +253,26 @@ static rkvc_err rknn_model_init(mlvc_rknn_model *m, const char *path,
         fclose(fp);
         return RKVC_ERR_IO;
     }
-    m->model_buf = rkvc_malloc((size_t)sz);
+    m->model_buf = rkvc_malloc((size_t)fsz);
     if (!m->model_buf) {
         fclose(fp);
         return RKVC_ERR_NOMEM;
     }
-    if (fread(m->model_buf, 1, (size_t)sz, fp) != (size_t)sz) {
+    if (fread(m->model_buf, 1, (size_t)fsz, fp) != (size_t)fsz) {
         fclose(fp);
         rknn_model_cleanup(m);
         return RKVC_ERR_IO;
     }
     fclose(fp);
-    m->model_size = (size_t)sz;
+    sz = (size_t)fsz;
+    if (sz >= 8 && memcmp(m->model_buf, "RKVCENC1", 8) == 0) {
+        RKVC_LOG("MLVC model %s is rkvc-encrypted but built "
+                 "without RKVC_ENABLE_MODEL_CRYPT", path);
+        rknn_model_cleanup(m);
+        return RKVC_ERR_FORMAT;
+    }
+#endif
+    m->model_size = sz;
 
     if (patch_path && patch_path[0]) {
         rkvc_err perr = rkvc_qppatch_apply_file((uint8_t *)m->model_buf,

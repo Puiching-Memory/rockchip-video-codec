@@ -79,7 +79,7 @@ SVT_ENC="${SVT_ENC:-$SVT_PREFIX/bin/SvtAv1EncApp}"
 RKVC_TRANS="$RKVC_BUILD/rkvc_transcode"
 RKVC_YUV_UPSCALE="$RKVC_BUILD/rkvc_yuv_upscale"
 RKVC_SESSION_UPSCALE="$RKVC_BUILD/rkvc_session_upscale"
-RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/models/rkvc_sr_x3.crypt.rknn}"
+RKVC_SR_MODEL="${RKVC_SR_MODEL:-$PROJECT_ROOT/models/rkvc-sr/phase_rlfn_sr_x3.rknn}"
 export RKVC_SR_MODEL
 RKVC_ENC="$RKVC_BUILD/rkvc_encode"
 

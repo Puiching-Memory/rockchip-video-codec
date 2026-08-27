@@ -1,6 +1,6 @@
 [project]
 name = "rkvc"
-version = "0.3.3"
+version = "0.3.4"
 description = "rkvc 唯一 Python 环境：bench、绘图、MLVC ONNX/RKNN 导出"
 license = "AGPL-3.0-or-later"
 # 与 .python-version 一致。rknn-toolkit2 官方 wheel 覆盖 3.8–3.12。

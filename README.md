@@ -127,7 +127,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 
 - Rockchip BSP、`third_party/` 子模块：MPP、ffmpeg-rockchip、SVT-AV1、[librga](https://github.com/airockchip/librga)
 - libdrm；`librknnrt`（`rkvc_sr` 超分与 MLVC）：`./scripts/install-rknnrt.sh` 下载到 `.build/deps/rknn-install/`，可移植包自带
-- MLVC 与 MLVC-S 各自使用自包含 bundle：`models/mlvc/`、`models/mlvc-s/`，目录内包含 RKNN、PMF、QP 补丁和 manifest。可用 `.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 从 [microsoft/mlvc](https://github.com/microsoft/mlvc) 导出（见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)）；SR 模型 `models/rkvc_sr_x3.crypt.rknn` 为商业授权加密模型
+- MLVC 与 MLVC-S 使用 `models/mlvc/`、`models/mlvc-s/` 自包含 bundle。SR 使用 [Puiching-Memory/rknn-super-resolution](https://github.com/Puiching-Memory/rknn-super-resolution) 的单输入 Phase-RLFN core，导出为 `models/rkvc-sr/`；完整 checkpoint → ONNX → RKNN → bundle 管道见 [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md)
 
 ## 许可证
 
@@ -136,7 +136,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 - **开源（默认，AGPLv3）**：源码树按 GNU Affero General Public License v3 提供。
   - 允许商用、修改、再分发，但**衍生/合并作品须以 AGPLv3 开源**；通过网络提供本程序服务的（含 SaaS）须向用户提供对应源码
   - AGPL 版（`RKVC_ENABLE_LICENSE=OFF`，默认）无任何附加授权限制
-- **商业授权**：闭源商业使用需另行取得商业授权，授权范围含强制授权机制（`RKVC_ENABLE_LICENSE`）与加密模型（`models/rkvc_sr_x3.crypt.rknn`，明文模型与训练细节仅在商业授权内提供）
+- **商业授权**：闭源商业使用需另行取得商业授权，授权范围含强制授权机制（`RKVC_ENABLE_LICENSE`）。Phase-RLFN 上游源码及随 bundle 附带部分按其 MIT License 分发
 - `third_party/` 内各组件（ffmpeg-rockchip、SVT-AV1、mpp、librga、libsodium）版权归其各自所有者，适用各自许可证；分发包随附全部许可证文本、SVT-AV1 专利许可及对 ffmpeg-rockchip 的修改补丁（见 [docs/packaging.md](docs/packaging.md)）
 
 ## 文档
@@ -154,7 +154,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 | [docs/delivery.md](docs/delivery.md)                   | 客户交付清单                     |
 | [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)   | MLVC ONNX/PMF → RKNN 导出        |
 | [docs/mlvc-npu-profile.md](docs/mlvc-npu-profile.md)   | MLVC NPU 算子级 profile          |
-| [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | YUV-native SR 设计稿             |
+| [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | Phase-RLFN ONNX/RKNN/bundle 管道 |
 | [docs/release/](docs/release/)                         | 发布包用户文档                   |
 | [CHANGELOG.md](CHANGELOG.md)                           | 版本变更记录                     |
 

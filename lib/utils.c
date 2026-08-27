@@ -72,6 +72,17 @@ void rkvc_free(void *ptr)
     free(ptr);
 }
 
+void rkvc_secure_zero_free(void *ptr, size_t size)
+{
+    if (!ptr)
+        return;
+    /* volatile 指针防止编译器把清零优化掉（解密后的明文模型/密钥缓冲） */
+    volatile uint8_t *p = (volatile uint8_t *)ptr;
+    for (size_t i = 0; i < size; i++)
+        p[i] = 0;
+    free(ptr);
+}
+
 /* ── Input format sniffing ─────────────────────────────────────────── */
 
 static int annexb_start_code_at(const uint8_t *data, size_t size,

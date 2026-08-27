@@ -48,6 +48,7 @@ bench_results/
 # RKNN 超分模型 / MLVC PMF 表（本地放置，不入库）
 *.rknn
 *.qppatch
+/models/rkvc-sr/
 /models/**/*.bin
 /models/**/mlvc_rknn_export_manifest.json
 /models/**/*_qp_models/
@@ -94,5 +95,8 @@ nohup.out
 *.lic
 tools/keys/*secret*
 tools/keys/*.pem
+# 模型自研加密密钥（master.key 内嵌进 lib，data.key 随 model.key 签发）- 切勿提交
+tools/keys/master.key
+tools/keys/data.key
 # genkey 产出的中间文件（CMake 从 public.key 自动生成 license_pubkey.c，无需此头文件）
 tools/keys/public_key.h

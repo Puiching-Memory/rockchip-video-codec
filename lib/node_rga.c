@@ -17,6 +17,10 @@
 static int g_rga_available = -1;
 static pthread_once_t g_rga_once = PTHREAD_ONCE_INIT;
 
+static rkvc_err rga_scale_buffer_impl(const rkvc_buffer *src, rkvc_buffer **dst,
+                                      int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
+                                      rkvc_upscale_algo algo, int cached);
+
 static void detect_rga(void)
 {
     struct stat st;
@@ -233,6 +237,12 @@ done:
 }
 
 static rkvc_err rga_scale_nv12_buffers(const rkvc_buffer *src, rkvc_buffer *dst,
+                                       IM_SCALE_MODE mode);
+static rkvc_err rga_scale_buffer_impl(const rkvc_buffer *src, rkvc_buffer **dst,
+                                      int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
+                                      rkvc_upscale_algo algo, int cached);
+
+static rkvc_err rga_scale_nv12_buffers(const rkvc_buffer *src, rkvc_buffer *dst,
                                        IM_SCALE_MODE mode)
 {
     const AVFrame *sf = src->av_frame;
@@ -274,6 +284,22 @@ done:
 rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
                                rkvc_upscale_algo algo)
+{
+    return rga_scale_buffer_impl(src, dst, dst_w, dst_h, dst_fmt, algo, 0);
+}
+
+rkvc_err rkvc_rga_scale_buffer_cached(const rkvc_buffer *src, rkvc_buffer **dst,
+                                      int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
+                                      rkvc_upscale_algo algo)
+{
+    /* 目标缓冲供 CPU 逐像素读写（如 rkvc_sr 残差融合）：
+     * 必须用缓存 DMA 堆，否则 CPU 带宽降至约 3 MB/s。 */
+    return rga_scale_buffer_impl(src, dst, dst_w, dst_h, dst_fmt, algo, 1);
+}
+
+static rkvc_err rga_scale_buffer_impl(const rkvc_buffer *src, rkvc_buffer **dst,
+                                      int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
+                                      rkvc_upscale_algo algo, int cached)
 {
     if (!src || !dst || dst_w <= 0 || dst_h <= 0)
         return RKVC_ERR_INVALID;
@@ -319,9 +345,12 @@ rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
     }
 
     rkvc_buffer *out = NULL;
-    rkvc_err err = rkvc_buffer_pool_alloc_video(NULL, &out, dst_w, dst_h,
-                                                RKVC_PIX_FMT_NV12,
-                                                RKVC_MEM_DMABUF);
+    rkvc_err err = cached
+        ? rkvc_buffer_pool_alloc_video_cached(NULL, &out, dst_w, dst_h,
+                                              RKVC_PIX_FMT_NV12)
+        : rkvc_buffer_pool_alloc_video(NULL, &out, dst_w, dst_h,
+                                       RKVC_PIX_FMT_NV12,
+                                       RKVC_MEM_DMABUF);
     if (err != RKVC_OK) {
         err = rkvc_buffer_alloc_video_host(&out, dst_w, dst_h,
                                            RKVC_PIX_FMT_NV12);
@@ -329,6 +358,7 @@ rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
             rkvc_buffer_unref(work);
             return err;
         }
+        cached = 0; /* 回退到宿主内存后无需 dma-buf 同步 */
     }
 
     err = rga_scale_nv12_buffers(rga_src, out, rkvc_upscale_to_rga_mode(algo));
@@ -337,6 +367,15 @@ rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
     if (err != RKVC_OK) {
         rkvc_buffer_unref(out);
         return err;
+    }
+
+    /* RGA DMA 写入后 CPU 首次读取前，作废缓存行（仅缓存堆需要） */
+    if (cached) {
+        err = rkvc_buffer_dmabuf_begin_cpu_read(out);
+        if (err != RKVC_OK) {
+            rkvc_buffer_unref(out);
+            return err;
+        }
     }
 
     out->pts = src->pts;

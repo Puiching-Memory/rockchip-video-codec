@@ -60,6 +60,8 @@ rkvc_err rkvc_from_averror(int av_err);
 void *rkvc_malloc(size_t size);
 void *rkvc_calloc(size_t nmemb, size_t size);
 void rkvc_free(void *ptr);
+/** 先清零再释放（解密后的明文模型/密钥等敏感缓冲） */
+void rkvc_secure_zero_free(void *ptr, size_t size);
 
 #ifdef RKVC_ENABLE_FAULT_INJECTION
 void rkvc_test_fail_alloc_after(long countdown);
@@ -129,6 +131,11 @@ rkvc_err rkvc_buffer_pool_alloc_video(rkvc_buffer_pool *pool,
                                       int width, int height,
                                       rkvc_pix_fmt format,
                                       rkvc_mem_type mem_type);
+/** 缓存 DMA 堆分配：目标缓冲供 CPU 逐像素读写（如 rkvc_sr 残差融合） */
+rkvc_err rkvc_buffer_pool_alloc_video_cached(rkvc_buffer_pool *pool,
+                                             rkvc_buffer **out,
+                                             int width, int height,
+                                             rkvc_pix_fmt format);
 
 /* ── Port queue ───────────────────────────────────────────────────── */
 
@@ -353,6 +360,9 @@ void rkvc_v4l2_get_size(const rkvc_v4l2_cap *c, int *w, int *h);
 rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
                                rkvc_upscale_algo algo);
+rkvc_err rkvc_rga_scale_buffer_cached(const rkvc_buffer *src, rkvc_buffer **dst,
+                                      int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
+                                      rkvc_upscale_algo algo);
 rkvc_err rkvc_post_upscale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                   int dst_w, int dst_h,
                                   rkvc_upscale_algo algo,
@@ -397,6 +407,22 @@ static inline void rkvc_rknn_quiet_runtime(void)
     setenv("RKNN_LOG_LEVEL", "0", 1);
 }
 #endif /* RKVC_ENABLE_RKNN */
+
+/* ── 模型自研加密层（lib/model_crypt.c，RKVC_ENABLE_MODEL_CRYPT）─────── */
+
+#ifdef RKVC_ENABLE_MODEL_CRYPT
+/** buf 是否为本层加密模型（RKVCENC1 magic）。 */
+int rkvc_model_crypt_is_encrypted(const void *buf, size_t size);
+
+/**
+ * 读取模型文件；若为加密模型则用每机 model.key 解密（含机器码校验），
+ * 返回明文缓冲（调用方用完后应 rkvc_secure_zero_free）；未加密则原样透传。
+ * 错误：RKVC_ERR_UNLICENSED（无 model.key）/ RKVC_ERR_LICENSE（机器码不符
+ * 或 MAC 失败）/ RKVC_ERR_FORMAT（头部不支持或截断）。
+ */
+rkvc_err rkvc_model_crypt_load_file(const char *path, void **out_buf,
+                                    size_t *out_size);
+#endif /* RKVC_ENABLE_MODEL_CRYPT */
 
 int rkvc_npu_accessible(void);
 int rkvc_rknn_sr_available(void);

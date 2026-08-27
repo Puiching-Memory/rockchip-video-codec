@@ -22,6 +22,10 @@ from typing import Sequence
 MLVC_GIT = "https://github.com/microsoft/mlvc.git"
 CKPT_URL = "https://mlvideopub.blob.core.windows.net/mlvc/models/mlvc-psnr-v1.ckpt"
 CKPT_SHA256 = "834adaab680837c4106a9bb62e5778b3f13729b4fe6f751797e0747214f5cca1"
+# MLVC-S 权重与标准版同在 mlvideopub 公开容器（匿名可读）；属上游非承诺资源，
+# 失效时可手动放置该文件或改用 --weights-path。
+CKPT_S_URL = "https://mlvideopub.blob.core.windows.net/mlvc/models/mlvc-s-psnr-v1.ckpt"
+CKPT_S_SHA256 = "1b86b757ddb115342293efb57719d6216c6ee2e459ae796ec41723b5c05ca896"
 DEFAULT_MODEL_VERSION = "dmc61sbr_reglu"
 DEFAULT_S_MODEL_VERSION = "dmc61sbr_reglu_s"
 DEFAULT_WEIGHTS_VERSION = "mlvc-psnr-v1"
@@ -365,10 +369,23 @@ def ensure_checkpoint(
             raise OnnxExportError(f"权重不存在: {weights_path}")
         return weights_path
     if model_version == DEFAULT_S_MODEL_VERSION:
-        raise OnnxExportError(
-            "MLVC-S 没有可校验的公开 checkpoint 下载地址；"
-            "请用 --weights-path 指定 mlvc-s-psnr-v1.ckpt"
-        )
+        dest = data_dir / "pretrained" / "mlvc-s-psnr-v1.ckpt"
+        if dest.is_file() and sha256_file(dest) == CKPT_S_SHA256:
+            print(f"权重已就绪: {dest}")
+            return dest
+        try:
+            download_file(CKPT_S_URL, dest)
+        except Exception as exc:
+            raise OnnxExportError(
+                f"MLVC-S 权重下载失败: {exc}\n"
+                f"该地址（{CKPT_S_URL}）为上游非承诺公开资源；\n"
+                f"可手动放置 {dest} 或用 --weights-path 指定 mlvc-s-psnr-v1.ckpt"
+            ) from exc
+        digest = sha256_file(dest)
+        if digest != CKPT_S_SHA256:
+            dest.unlink(missing_ok=True)
+            raise OnnxExportError(f"MLVC-S 权重 SHA-256 不符: {digest}")
+        return dest
     dest = data_dir / "pretrained" / "mlvc-psnr-v1.ckpt"
     if dest.is_file() and sha256_file(dest) == CKPT_SHA256:
         print(f"权重已就绪: {dest}")

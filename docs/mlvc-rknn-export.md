@@ -66,12 +66,13 @@ python convert.py export --model-version dmc61sbr_reglu --model-type onnx \
     --target-device generic --model-width 640 --model-height 368
 ```
 
-MLVC-S 使用单独的 checkpoint，工具不会拿普通 MLVC 权重代替。导出时必须显式指定：
+MLVC-S 使用单独的 checkpoint，工具不会拿普通 MLVC 权重代替。权重与标准版同在
+`mlvideopub` 公开容器（匿名可读），缺省时自动下载并校验 SHA-256；该地址属上游非承诺资源，失效时可手动放置
+`.build/deps/mlvc-data/pretrained/mlvc-s-psnr-v1.ckpt` 或用 `--weights-path` 显式指定：
 
 ```bash
 .venv/bin/python tools/mlvc/export_rknn.py --from-mlvc \
   --model-version dmc61sbr_reglu_s \
-  --weights-path /path/to/mlvc-s-psnr-v1.ckpt \
   --out-dir models/mlvc-s --platform rk3576
 ```
 
@@ -96,6 +97,12 @@ models/
 ```
 
 省略 `--out-dir` 时，工具会按 `--model-version` 自动选择 `models/mlvc/` 或 `models/mlvc-s/`。
+
+多目标板：每次调用只转换一个 `--platform`；基座文件名带平台后缀
+（`MLVC{Encoder,Decoder}_<soc>.rknn`），多个平台的模型可在同一 bundle 内并存，
+ONNX 导出只需一次，后续用 `--onnx-dir` 复用。多平台打包由 `scripts/build-models.sh`
+自动完成（见 [packaging.md](packaging.md)），其 QP 补丁按 `qp_patches/<platform>/` 分目录，
+运行时对应传 `--mlvc-qp-patch-dir models/mlvc/qp_patches/<soc>`。
 
 产物目录形如：
 

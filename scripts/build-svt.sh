@@ -24,7 +24,8 @@ fi
 
 if [[ $CLEAN -eq 0 ]] && \
    { [[ -f "$SVT_PREFIX/lib/libSvtAv1Enc.so" ]] || [[ -f "$SVT_PREFIX/lib/libSvtAv1Enc.a" ]]; } && \
-   [[ -x "$SVT_PREFIX/bin/SvtAv1EncApp" ]]; then
+   [[ -x "$SVT_PREFIX/bin/SvtAv1EncApp" ]] && \
+   [[ -f "$SVT_PREFIX/.rkvc-complete" ]]; then
     echo "--- SVT-AV1 已构建: $SVT_PREFIX (用 --clean 重建) ---"
     exit 0
 fi
@@ -48,4 +49,6 @@ cmake -S "$SVT_SRC" -B "$SVT_BUILD" \
 
 cmake --build "$SVT_BUILD" -j"$BUILD_JOBS"
 cmake --install "$SVT_BUILD"
+# 完成标记：防止磁盘满等中断留下的截断产物被误判为已构建
+touch "$SVT_PREFIX/.rkvc-complete"
 echo "--- 完成: $SVT_PREFIX ---"

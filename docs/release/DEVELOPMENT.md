@@ -213,7 +213,7 @@ d.post_upscale_algo = RKVC_UPSCALE_BILINEAR;
 d.post_upscale_rkvc_model_path = NULL;  /* RKVC_UPSCALE_AI_SR 时必填 */
 ```
 
-AI 超分：`post_upscale_algo = RKVC_UPSCALE_AI_SR` + `post_upscale_rkvc_model_path`；或 CLI `rkvc_session_upscale --post-upscale rkvc_sr`。`rkvc_encode` 的编码路径**不会**应用 `post_upscale_algo`。YUV-native 模型规格见项目 `docs/sr-model-yuv-spec.md`。
+AI 超分：`post_upscale_algo = RKVC_UPSCALE_AI_SR` + `post_upscale_rkvc_model_path`；或 CLI `rkvc_session_upscale --post-upscale rkvc_sr`。模型必须是包内 `models/rkvc-sr/` 的单输入 Phase-RLFN `12→108` core，旧 RGB/双输入模型不兼容。`rkvc_encode` 的编码路径**不会**应用 `post_upscale_algo`。
 
 ## 能力查询
 

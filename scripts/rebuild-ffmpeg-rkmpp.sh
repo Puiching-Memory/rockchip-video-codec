@@ -5,7 +5,11 @@
 # 编码: h264_rkmpp, hevc_rkmpp, libsvtav1 (SVT-AV1)
 # 滤镜: scale, hwdownload, scale_rkrga, psnr, ssim
 # 构建前自动应用 patches/ffmpeg-rockchip/*.patch（ROI / 运行时 RC 等）
-# 修改 configure 选项后请使用 --clean 重编
+# 修改 configure 选项后请使用 --clean 重编；升级 MPP/RGA/SVT 依赖后同样建议 --clean。
+#
+# 缓存：构建成功后在 $FFMPEG_PREFIX/.rkvc-ffmpeg.stamp 写入指纹（子模块 commit +
+# 补丁哈希 + configure 选项 + 依赖前缀路径），下次运行指纹命中则直接跳过；
+# 构建中断不会写 stamp，下次自动重建。
 #
 # 用法:
 #   ./scripts/rebuild-ffmpeg-rkmpp.sh [--clean] [--prefix DIR]
@@ -33,6 +37,53 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+STAMP_NAME=".rkvc-ffmpeg.stamp"
+
+# 固定 configure 选项：同时参与指纹与构建，增删选项会自动触发重建。
+FFMPEG_CONFIGURE_FLAGS=(
+    --enable-version3
+    --enable-rkmpp --enable-libdrm --enable-rkrga
+    --enable-libsvtav1
+    --enable-pic
+    --disable-doc --enable-ffmpeg --enable-ffprobe --disable-network
+    --enable-swscale --disable-swresample
+    --disable-x86asm
+    --disable-everything
+    --enable-decoder=h264_rkmpp --enable-decoder=hevc_rkmpp
+    --enable-decoder=av1_rkmpp
+    --enable-decoder=h264 --enable-decoder=hevc
+    --enable-decoder=rawvideo
+    --enable-encoder=h264_rkmpp --enable-encoder=hevc_rkmpp
+    --enable-encoder=libsvtav1
+    --enable-encoder=rawvideo --enable-encoder=wrapped_avframe
+    --enable-parser=h264 --enable-parser=hevc --enable-parser=av1
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb
+    --enable-muxer=mp4 --enable-muxer=matroska --enable-muxer=mpegts --enable-muxer=ivf
+    --enable-muxer=yuv4mpegpipe --enable-muxer=rawvideo --enable-muxer=null
+    --enable-demuxer=mov --enable-demuxer=matroska --enable-demuxer=mpegts --enable-demuxer=ivf
+    --enable-demuxer=yuv4mpegpipe --enable-demuxer=rawvideo --enable-demuxer=h264 --enable-demuxer=hevc
+    --enable-protocol=file --enable-protocol=pipe
+    --enable-filter=psnr --enable-filter=ssim --enable-filter=format --enable-filter=scale
+    --enable-filter=hwdownload --enable-filter=hwupload --enable-filter=setsar
+    --enable-filter=scale_rkrga
+)
+
+# 影响产物的全部输入拼接后取 SHA-256：子模块 commit、补丁内容、configure 选项、依赖前缀。
+ffmpeg_fingerprint() {
+    local commit p
+    commit="$(git -C "$FFMPEG_SRC" rev-parse HEAD 2>/dev/null || echo unknown)"
+    {
+        printf 'commit=%s\n' "$commit"
+        printf 'prefix=%s\nmpp=%s\nrga=%s\nsvt=%s\n' \
+            "$FFMPEG_PREFIX" "$MPP_PREFIX" "$RGA_PREFIX" "$SVT_PREFIX"
+        printf 'flags=%s\n' "${FFMPEG_CONFIGURE_FLAGS[*]}"
+        for p in "$PROJECT_DIR"/patches/ffmpeg-rockchip/*.patch; do
+            [[ -f "$p" ]] || continue
+            printf 'patch=%s %s\n' "$(basename "$p")" "$(sha256sum "$p" | awk '{print $1}')"
+        done
+    } | sha256sum | awk '{print $1}'
+}
+
 configure_ffmpeg() {
     local extra_configure=(--enable-static --enable-shared)
     if [[ "$FFMPEG_PREFIX" != "$FFMPEG_SRC" ]]; then
@@ -51,31 +102,7 @@ configure_ffmpeg() {
 
     ./configure \
         "${extra_configure[@]}" \
-        --enable-version3 \
-        --enable-rkmpp --enable-libdrm --enable-rkrga \
-        --enable-libsvtav1 \
-        --enable-pic \
-        --disable-doc --enable-ffmpeg --enable-ffprobe --disable-network \
-        --enable-swscale --disable-swresample \
-        --disable-x86asm \
-        --disable-everything \
-        --enable-decoder=h264_rkmpp --enable-decoder=hevc_rkmpp \
-        --enable-decoder=av1_rkmpp \
-        --enable-decoder=h264 --enable-decoder=hevc \
-        --enable-decoder=rawvideo \
-        --enable-encoder=h264_rkmpp --enable-encoder=hevc_rkmpp \
-        --enable-encoder=libsvtav1 \
-        --enable-encoder=rawvideo --enable-encoder=wrapped_avframe \
-        --enable-parser=h264 --enable-parser=hevc --enable-parser=av1 \
-        --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb \
-        --enable-muxer=mp4 --enable-muxer=matroska --enable-muxer=mpegts --enable-muxer=ivf \
-        --enable-muxer=yuv4mpegpipe --enable-muxer=rawvideo --enable-muxer=null \
-        --enable-demuxer=mov --enable-demuxer=matroska --enable-demuxer=mpegts --enable-demuxer=ivf \
-        --enable-demuxer=yuv4mpegpipe --enable-demuxer=rawvideo --enable-demuxer=h264 --enable-demuxer=hevc \
-        --enable-protocol=file --enable-protocol=pipe \
-        --enable-filter=psnr --enable-filter=ssim --enable-filter=format --enable-filter=scale \
-        --enable-filter=hwdownload --enable-filter=hwupload --enable-filter=setsar \
-        --enable-filter=scale_rkrga
+        "${FFMPEG_CONFIGURE_FLAGS[@]}"
 
     make -j"$BUILD_JOBS"
     if [[ "$FFMPEG_PREFIX" != "$FFMPEG_SRC" ]]; then
@@ -86,6 +113,22 @@ configure_ffmpeg() {
 
 main() {
     echo "=== rebuild-ffmpeg-rkmpp (prefix=$FFMPEG_PREFIX) ==="
+    local stamp="$FFMPEG_PREFIX/$STAMP_NAME"
+    if [[ $CLEAN -eq 1 ]]; then
+        rm -f "$stamp"
+    fi
+    local fingerprint
+    fingerprint="$(ffmpeg_fingerprint)"
+    # 指纹命中且产物存在 → 直接跳过（不打补丁、不碰源码树）；
+    # 构建中断不会写 stamp，故半成品必然重建。
+    if [[ $CLEAN -eq 0 && -f "$stamp" && "$(cat "$stamp")" == "$fingerprint" ]] \
+       && ls "$FFMPEG_PREFIX/lib"/libavcodec.so.* >/dev/null 2>&1; then
+        echo "--- ffmpeg 已构建，跳过: $FFMPEG_PREFIX (用 --clean 重建) ---"
+        exit 0
+    fi
+    if [[ $CLEAN -eq 0 ]]; then
+        echo "--- ffmpeg 缓存未命中: stamp=$(cat "$stamp" 2>/dev/null || echo '<无>') fp=$fingerprint ---"
+    fi
     if [[ ! -f "$MPP_PREFIX/lib/librockchip_mpp.so" ]]; then
         echo "错误: 请先构建 MPP (.build/deps/mpp-install 或 package-portable.sh)"
         exit 1
@@ -111,6 +154,8 @@ main() {
     fi
     rkvc_apply_ffmpeg_patches "$FFMPEG_SRC"
     configure_ffmpeg
+    printf '%s\n' "$fingerprint" > "$stamp"
+    echo "--- 缓存指纹已写入: $stamp ---"
 }
 
 main

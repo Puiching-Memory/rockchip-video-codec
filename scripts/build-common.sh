@@ -41,9 +41,15 @@ rkvc_project_version() {
 
 # 可移植包目录名: rkvc-<ver>-linux-<arch>-portable
 rkvc_portable_pkg_dir() {
+    # 可选平台参数：传平台名（如 rk3588）时输出按平台的包目录名，
+    # 不传保留旧行为（按 uname -m 架构）。
     local ver arch
     ver="$(rkvc_project_version)" || return 1
-    arch="$(uname -m)"
+    if [[ -n "${1:-}" ]]; then
+        arch="$1"
+    else
+        arch="$(uname -m)"
+    fi
     printf 'rkvc-%s-linux-%s-portable\n' "$ver" "$arch"
 }
 

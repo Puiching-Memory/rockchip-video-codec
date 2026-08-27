@@ -56,7 +56,7 @@ static const char *fixture_h264(void)
     return gen;
 }
 
-/** 约定模型：RKVC_SR_MODEL 覆盖，否则 $RKVC_SOURCE_ROOT/models/rkvc_sr_x3.crypt.rknn */
+/** 约定模型：RKVC_SR_MODEL 覆盖，否则 Phase-RLFN bundle 内 RKNN。 */
 static const char *resolve_sr_model_path(char *buf, size_t buf_sz)
 {
     const char *env = getenv("RKVC_SR_MODEL");
@@ -71,7 +71,8 @@ static const char *resolve_sr_model_path(char *buf, size_t buf_sz)
     if (!root || !root[0])
         return NULL;
 
-    snprintf(buf, buf_sz, "%s/models/rkvc_sr_x3.crypt.rknn", root);
+    snprintf(buf, buf_sz,
+             "%s/models/rkvc-sr/phase_rlfn_sr_x3.rknn", root);
     {
         struct stat st;
         if (stat(buf, &st) == 0 && S_ISREG(st.st_mode))

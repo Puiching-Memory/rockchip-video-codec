@@ -2,11 +2,22 @@
 # scripts/package-portable.sh — 从源码构建可移植二进制包
 #
 # 用法:
-#   ./scripts/package-portable.sh [--clean] [--license]
+#   ./scripts/package-portable.sh [--clean] [--license] \
+#       [--platforms rk3576,rk3588,rv1126b] [--sr-weight PATH] [--allow-skip-sr]
 #
 # 选项:
 #   --clean             清理所有中间产物后全量重建
 #   --license           开启 1机1码强制授权 (RKVC_ENABLE_LICENSE=ON, 运行时校验)
+#   --platforms LIST    逗号分隔目标板列表（如 rk3576,rk3588,rv1126b），每平台产一个包；
+#                       默认探测本机 SoC (/proc/device-tree/compatible)
+#   --sr-weight PATH    本地 SR 权重 best_ema.pth（缺省自动从 HuggingFace 下载）
+#   --mlvc-variants L   MLVC 变体列表: mlvc / mlvc-s / all（默认 mlvc-s，只带轻量版）
+#   --allow-skip-sr     SR 权重不可得/导出失败时警告跳过（默认报错）
+#   --no-encrypt-models 关闭模型自研加密（默认开启：包内 .rknn 用 rkvc_model_crypt
+#                       加密，目标机须持每机签发的 model.key 才能解密运行）
+#   --no-rknn           不下载 librknnrt、不启用 NPU 模块、不生产/打包模型（CI 用）
+#   --no-test           打包后不自动运行包内自测（默认每个平台包产出后自动跑 test.sh，
+#                       仅对平台与本机 SoC 匹配的包执行；失败则打包以错误退出）
 #
 # 流程:
 #   1. 从 third_party/mpp 子模块编译 rockchip-mpp
@@ -14,7 +25,10 @@
 #   3. 从 airockchip/rknn-toolkit2 下载 librknnrt（scripts/install-rknnrt.sh）
 #   4. 从 third_party/ffmpeg-rockchip 子模块编译 ffmpeg
 #   5. 用编译的 ffmpeg / MPP / librga / librknnrt 构建 rkvc
-#   6. bundle 动态库（含 librga、librknnrt）+ RPATH 打包
+#   6. 按平台生产模型（scripts/build-models.sh，权重自动下载）
+#   7. 每平台一个包: bundle 动态库（含 librga、librknnrt）+ 模型 + RPATH 打包；
+#      模型默认经 rkvc_model_crypt 加密（需 --no-encrypt-models 关闭）
+#   8. 自动运行包内自测 test.sh（平台与本机匹配时；--no-test 跳过）
 #
 # 前置依赖: gcc, g++, cmake, make, pkg-config, patchelf, libdrm-dev
 # 可选依赖: ninja (若已有 ninja 构建目录则自动使用)
@@ -37,29 +51,89 @@ MPP_PREFIX="$PROJECT_DIR/.build/deps/mpp-install"
 RGA_PREFIX="$PROJECT_DIR/.build/deps/librga-install"
 RKNN_PREFIX="$PROJECT_DIR/.build/deps/rknn-install"
 LIBSODIUM_PREFIX="$PROJECT_DIR/.build/deps/libsodium-install"
-RKVC_BUILD="$PROJECT_DIR/.build/portable"
 OUT_DIR="$PROJECT_DIR/.build/dist"
 
 VERSION="$(rkvc_project_version)"
 ARCH="$(uname -m)"
-PKG_NAME="$(rkvc_portable_pkg_dir)"
 
 # 授权构建模式: 标准 / 强制授权
 CLEAN=0
 LICENSE=0
+PLATFORMS=""
+SR_WEIGHT=""
+MLVC_VARIANTS="mlvc-s"
+ALLOW_SKIP_SR=0
+NO_RKNN=0
+ENCRYPT_MODELS=1
+RUN_TEST=1
+PKG_SUFFIXES=()
+# 本机自测用 model.key 路径（加密模型时由 prepare_model_crypt_keys 签发）
+MODEL_KEY_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --clean)   CLEAN=1 ;;
-        --license) LICENSE=1 ;;
+        --clean)          CLEAN=1; shift ;;
+        --license)        LICENSE=1; shift ;;
+        --platforms)      PLATFORMS="$2"; shift 2 ;;
+        --sr-weight)      SR_WEIGHT="$2"; shift 2 ;;
+        --mlvc-variants)  MLVC_VARIANTS="$2"; shift 2 ;;
+        --allow-skip-sr)  ALLOW_SKIP_SR=1; shift ;;
+        --no-encrypt-models) ENCRYPT_MODELS=0; shift ;;
+        --no-rknn)        NO_RKNN=1; shift ;;
+        --no-test)        RUN_TEST=0; shift ;;
         *) echo "错误: 未知参数 '$1'"; exit 2 ;;
     esac
-    shift
 done
 
-if [[ $LICENSE -eq 1 ]]; then
-    PKG_NAME="${PKG_NAME}-licensed"
-fi
+# 展开 MLVC 变体列表（all → mlvc mlvc-s；非法名报错）
+mlvc_variant_list() {
+    local v out=()
+    local parts
+    IFS=',' read -r -a parts <<< "$MLVC_VARIANTS"
+    for v in "${parts[@]}"; do
+        v="${v// /}"
+        if [[ "$v" == all ]]; then
+            echo "mlvc mlvc-s"
+            return 0
+        fi
+        if [[ "$v" != mlvc && "$v" != mlvc-s ]]; then
+            echo "错误: 不支持的 --mlvc-variants 取值 '$v'（可选: mlvc / mlvc-s / all）" >&2
+            return 1
+        fi
+        out+=("$v")
+    done
+    [[ ${#out[@]} -gt 0 ]] || { echo "错误: --mlvc-variants 为空" >&2; return 1; }
+    echo "${out[*]}"
+}
+VARIANTS_EXPANDED="$(mlvc_variant_list)" || exit 2
+
+# 授权/标准构建目录隔离：--license 与标准包交替打包时避免 CMake 选项翻转触发全量重编。
+# 目录与 CMakePresets.json「portable」一致（授权版为其平行目录）；手写 -B 兼容 CMake < 3.21。
+RKVC_BUILD="$PROJECT_DIR/.build/portable"
+[[ $LICENSE -eq 1 ]] && RKVC_BUILD="$PROJECT_DIR/.build/portable-licensed"
+
+# 与 tools/mlvc/rknn_convert.DEFAULT_PLATFORMS、tools/sr/export_model.py --target 对齐；
+# 注：SR 导出的 --target 仅支持 rk3588/rk3576/rv1126b，rk3568/rk3566 只能出 MLVC 模型。
+VALID_PLATFORMS="rk3588 rk3576 rk3568 rk3566 rv1126b"
+
+validate_platform() {
+    case " $VALID_PLATFORMS " in
+        *" $1 "*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+detect_local_soc() {
+    local compat soc
+    compat="$(tr -d '\0' < /proc/device-tree/compatible 2>/dev/null || true)"
+    for soc in rk3588 rk3576 rk3568 rk3566 rv1126b; do
+        if [[ "$compat" == *"$soc"* ]]; then
+            echo "$soc"
+            return 0
+        fi
+    done
+    return 1
+}
 
 # 自动检测 CMake 生成器: 若系统有 ninja 且 build 目录用 Ninja 则使用 Ninja，否则 Unix Makefiles
 detect_generator() {
@@ -86,7 +160,7 @@ detect_build_cmd() {
 
 check_deps() {
     local missing=()
-    for cmd in gcc g++ cmake make pkg-config patchelf; do
+    for cmd in gcc g++ cmake make pkg-config patchelf python3; do
         command -v "$cmd" &>/dev/null || missing+=("$cmd")
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
@@ -128,7 +202,8 @@ build_mpp() {
         rm -rf "$MPP_BUILD" "$MPP_PREFIX"
     fi
 
-    if [[ -f "$MPP_BUILD/mpp/librockchip_mpp.so" && -f "$MPP_PREFIX/lib/librockchip_mpp.so" ]]; then
+    if [[ -f "$MPP_BUILD/mpp/librockchip_mpp.so" && -f "$MPP_PREFIX/lib/librockchip_mpp.so" \
+          && -f "$MPP_PREFIX/.rkvc-complete" ]]; then
         echo "--- rockchip-mpp 已构建，跳过 (用 --clean 重建) ---"
         return
     fi
@@ -147,12 +222,18 @@ build_mpp() {
     build_cmd="$(detect_build_cmd "$MPP_BUILD")"
     $build_cmd -C "$MPP_BUILD" -j"$BUILD_JOBS"
     $build_cmd -C "$MPP_BUILD" install
+    # 完成标记：防止磁盘满等中断留下的半成品被误判为已构建
+    touch "$MPP_PREFIX/.rkvc-complete"
 
     echo "--- rockchip-mpp 构建完成 ---"
 }
 
 build_svt() {
-    "$SCRIPT_DIR/build-svt.sh" ${CLEAN:+--clean}
+    # 注意：不能用 ${CLEAN:+--clean}——CLEAN=0 也是非空字符串，会无条件传 --clean，
+    # 导致每次打包全量重编（历史 bug，曾使打包缓存全部失效）。
+    local args=()
+    [[ $CLEAN -eq 1 ]] && args+=(--clean)
+    "$SCRIPT_DIR/build-svt.sh" "${args[@]+"${args[@]}"}"
 }
 
 install_rga() {
@@ -168,6 +249,10 @@ install_rga() {
 }
 
 install_rknnrt() {
+    if [[ $NO_RKNN -eq 1 ]]; then
+        echo "=== 跳过 librknnrt (--no-rknn，包内不含 NPU 功能) ==="
+        return 0
+    fi
     echo "=== 安装 librknnrt (rknn-toolkit2 → $RKNN_PREFIX) ==="
     if [[ $CLEAN -eq 1 ]]; then
         rm -rf "$RKNN_PREFIX"
@@ -176,7 +261,7 @@ install_rknnrt() {
 }
 
 build_libsodium() {
-    [[ $LICENSE -eq 1 ]] || return 0
+    [[ $LICENSE -eq 1 || ($ENCRYPT_MODELS -eq 1 && $NO_RKNN -eq 0) ]] || return 0
     echo "=== 构建 libsodium (submodule -> $LIBSODIUM_PREFIX) ==="
     if [[ $CLEAN -eq 1 ]]; then
         rm -rf "$LIBSODIUM_PREFIX"
@@ -191,6 +276,7 @@ build_libsodium() {
 prepare_license_keys() {
     [[ $LICENSE -eq 1 ]] || return 0
     echo "=== 准备授权密钥 ==="
+    local pkg_name="${1:-licensed}"
 
     local keys_dir="$PROJECT_DIR/tools/keys"
     local secret_key="$keys_dir/secret.key"
@@ -225,7 +311,7 @@ prepare_license_keys() {
     local machine_id
     machine_id="$("$rkvc_lic" machine-id)"
     mkdir -p "$OUT_DIR"
-    RKVC_LICENSE_FILE="$OUT_DIR/${PKG_NAME}.lic"
+    RKVC_LICENSE_FILE="$OUT_DIR/${pkg_name}.lic"
     "$rkvc_lic" issue -m "$machine_id" -k "$secret_key" -o "$RKVC_LICENSE_FILE"
     echo "  license: $RKVC_LICENSE_FILE (本机自测用, 不随包分发)"
 
@@ -238,10 +324,77 @@ prepare_license_keys() {
     fi
 }
 
+# 模型自研加密：编译工具、准备/生成密钥、签发本机自测 model.key。
+# master.key 构建时经 -DRKVC_MODEL_MASTERKEY_FILE 混淆内嵌进 librkvc；
+# data.key 用于加密模型并随 model.key 每机签发；两者均不随包分发。
+prepare_model_crypt_keys() {
+    [[ $ENCRYPT_MODELS -eq 1 && $NO_RKNN -eq 0 ]] || return 0
+    echo "=== 准备模型加密密钥 ==="
+    local pkg_name="${1:-portable}"
+
+    local keys_dir="$PROJECT_DIR/tools/keys"
+    local tool="$PROJECT_DIR/.build/deps/rkvc_model_crypt"
+
+    # 编译临时工具（仅依赖 libsodium + 机器码指纹，不走完整 CMake）。
+    # 须与 CMakeLists.txt 中 rkvc_model_crypt 目标同源。
+    echo "--- 编译 rkvc_model_crypt (host) ---"
+    mkdir -p "$(dirname "$tool")"
+    cc -O2 -o "$tool" \
+        "$PROJECT_DIR/tools/rkvc_model_crypt.c" \
+        "$PROJECT_DIR/lib/license_machine.c" \
+        -I"$PROJECT_DIR/lib" \
+        -I"$LIBSODIUM_PREFIX/include" \
+        "$LIBSODIUM_PREFIX/lib/libsodium.a" \
+        -lpthread
+
+    mkdir -p "$keys_dir"
+    if [[ ! -f "$keys_dir/master.key" || ! -f "$keys_dir/data.key" ]]; then
+        echo "--- 生成模型加密密钥对 (master.key + data.key) ---"
+        # genkey 拒绝覆盖已存在文件：两者任一缺失时先清理再生成，保证成对一致
+        rm -f "$keys_dir/master.key" "$keys_dir/data.key"
+        "$tool" genkey -o "$keys_dir"
+        echo "⚠ 密钥位于 $keys_dir/ (已 gitignore, 切勿提交/随包分发)"
+    else
+        echo "--- 模型加密密钥已存在，复用 ---"
+    fi
+
+    # 签发本机自测 model.key（绑定打包机机器码，不随包分发）
+    echo "--- 签发本机自测 model.key ---"
+    local machine_id
+    machine_id="$("$tool" machine-id)"
+    mkdir -p "$OUT_DIR"
+    MODEL_KEY_FILE="$OUT_DIR/${pkg_name}.model.key"
+    "$tool" issue -d "$keys_dir/data.key" -m "$keys_dir/master.key" \
+        -M "$machine_id" -o "$MODEL_KEY_FILE"
+    echo "  model.key: $MODEL_KEY_FILE (本机自测用, 不随包分发)"
+}
+
+# 包内 .rknn 原地加密（复制进包后执行，不污染生产缓存）
+encrypt_package_models() {
+    local pkg_dir="$OUT_DIR/$1"
+    [[ $ENCRYPT_MODELS -eq 1 && $NO_RKNN -eq 0 ]] || return 0
+    local tool="$PROJECT_DIR/.build/deps/rkvc_model_crypt"
+    local data_key="$PROJECT_DIR/tools/keys/data.key"
+    [[ -x "$tool" && -f "$data_key" ]] || {
+        echo "  错误: 模型加密工具/密钥缺失 ($tool / $data_key)"
+        return 1
+    }
+    echo "--- 加密包内模型 (rkvc_model_crypt) ---"
+    local m count=0
+    while IFS= read -r -d '' m; do
+        "$tool" encrypt -d "$data_key" -i "$m" >/dev/null
+        echo "  ${m#"$pkg_dir/"}"
+        count=$((count + 1))
+    done < <(find "$pkg_dir/models" -name '*.rknn' -type f -print0)
+    echo "  共加密 $count 个 .rknn（目标机须持 model.key 解密）"
+}
+
 build_ffmpeg() {
     echo "=== 构建 ffmpeg-rockchip (AV1 硬解) ==="
+    local args=()
+    [[ $CLEAN -eq 1 ]] && args+=(--clean)   # 同 build_svt：不能用 ${CLEAN:+--clean}
     RGA_PREFIX="$RGA_PREFIX" MPP_PREFIX="$MPP_PREFIX" \
-        "$SCRIPT_DIR/rebuild-ffmpeg-rkmpp.sh" ${CLEAN:+--clean} --prefix "$FFMPEG_PREFIX"
+        "$SCRIPT_DIR/rebuild-ffmpeg-rkmpp.sh" "${args[@]+"${args[@]}"}" --prefix "$FFMPEG_PREFIX"
 }
 
 build_rkvc() {
@@ -259,10 +412,14 @@ build_rkvc() {
         cmake_license_args+=(-DRKVC_ENABLE_LICENSE=ON)
         cmake_license_args+=(-DRKVC_LICENSE_PUBKEY_FILE="$PROJECT_DIR/tools/keys/public.key")
     fi
+    if [[ $ENCRYPT_MODELS -eq 1 && $NO_RKNN -eq 0 ]]; then
+        cmake_license_args+=(-DRKVC_ENABLE_MODEL_CRYPT=ON)
+        cmake_license_args+=(-DRKVC_MODEL_MASTERKEY_FILE="$PROJECT_DIR/tools/keys/master.key")
+    fi
 
-    # 无本仓 librknnrt 时关闭 NPU 模块（不查系统 ldconfig，避免链到 /usr 破坏可移植性）
+    # 无本仓 librknnrt（或 --no-rknn）时关闭 NPU 模块（不查系统 ldconfig，避免链到 /usr 破坏可移植性）
     local cmake_npu_args=()
-    if [[ ! -f "$RKNN_PREFIX/lib/librknnrt.so" ]]; then
+    if [[ $NO_RKNN -eq 1 || ! -f "$RKNN_PREFIX/lib/librknnrt.so" ]]; then
         cmake_npu_args+=(-DRKVC_ENABLE_RKNN=OFF)
         cmake_npu_args+=(-DRKVC_ENABLE_MLVC=OFF)
     fi
@@ -284,7 +441,12 @@ build_rkvc() {
     echo "--- rkvc 构建完成 ---"
 }
 
-package() {
+package_one() {
+    local platform="$1"
+    local models_root="$PROJECT_DIR/.build/models/$platform"
+    PKG_NAME="$(rkvc_portable_pkg_dir "$platform")"
+    [[ $LICENSE -eq 1 ]] && PKG_NAME="${PKG_NAME}-licensed"
+    PKG_SUFFIXES+=("$PKG_NAME")
     echo ""
     echo "=== 打包 $PKG_NAME ==="
 
@@ -397,30 +559,39 @@ package() {
             return 1
         fi
 
-        echo "--- 复制 RKNN 模型 (models/) ---"
-        local sr_model="$PROJECT_DIR/models/rkvc_sr_x3.crypt.rknn"
-        if [[ -f "$sr_model" ]]; then
-            cp "$sr_model" "$OUT_DIR/$PKG_NAME/models/rkvc_sr_x3.crypt.rknn"
-            echo "  models/rkvc_sr_x3.crypt.rknn  (from $sr_model)"
+        echo "--- 复制 Phase-RLFN SR bundle (models/rkvc-sr/) ---"
+        local sr_bundle="$models_root/rkvc-sr"
+        local sr_model="$sr_bundle/phase_rlfn_sr_x3.rknn"
+        if [[ -f "$sr_model" && -f "$sr_bundle/sr_export_manifest.json" && \
+              -f "$sr_bundle/LICENSE.rknn-super-resolution-MIT" ]] && \
+           python3 "$PROJECT_DIR/tools/sr/verify_bundle.py" "$sr_bundle"; then
+            cp -a "$sr_bundle" "$OUT_DIR/$PKG_NAME/models/"
+            echo "  models/rkvc-sr/  (Phase-RLFN ONNX/RKNN bundle)"
+        elif [[ $ALLOW_SKIP_SR -eq 1 ]]; then
+            echo "  警告: Phase-RLFN bundle 不完整，跳过: $sr_bundle (--allow-skip-sr)"
         else
-            echo "  错误: 已打包 librknnrt，但缺少约定模型: $sr_model"
+            echo "  错误: 已打包 librknnrt，但 Phase-RLFN bundle 不完整: $sr_bundle"
+            echo "  可传 --allow-skip-sr 跳过，或用 --sr-weight 提供本地权重"
             return 1
         fi
-        # MLVC 神经视频编解码 bundle：按变体并列（mlvc/ 与 mlvc-s/），各含
+        # MLVC 神经视频编解码 bundle：按 --mlvc-variants 选择（默认仅 mlvc-s），各含
         # RKNN + PMF + QP 补丁 + 导出 manifest，须整包随分发，不能跨变体混用。
         local variant variant_dir
-        for variant in mlvc mlvc-s; do
-            variant_dir="$PROJECT_DIR/models/$variant"
+        for variant in $VARIANTS_EXPANDED; do
+            variant_dir="$models_root/$variant"
             if [[ -d "$variant_dir" ]]; then
                 cp -a "$variant_dir" "$OUT_DIR/$PKG_NAME/models/"
                 echo "  models/$variant/  (MLVC $variant bundle)"
             else
-                echo "  警告: 未找到 MLVC bundle，跳过: $variant_dir"
+                echo "  错误: 未找到 MLVC bundle: $variant_dir（运行 ./scripts/build-models.sh --platform $platform --variants $variant）"
+                return 1
             fi
         done
+
+        encrypt_package_models "$PKG_NAME"
     else
         echo "  跳过 (本构建未启用 RKNN / librkvc 未链接 librknnrt)"
-        echo "--- 跳过 RKNN 超分模型 (未链接 librknnrt) ---"
+        echo "--- 跳过 Phase-RLFN SR bundle (未链接 librknnrt) ---"
     fi
 
     cd "$OUT_DIR/$PKG_NAME/lib"
@@ -598,28 +769,109 @@ EOF
 
     echo "--- 目标板前置依赖 (须由系统包管理器提供) ---"
     echo "  libdrm2           (DRM 渲染)"
-    echo "  NPU 驱动/固件     (rkvc_sr AI 超分; librknnrt + models/ 已随包携带)"
+    echo "  NPU 驱动/固件     (Phase-RLFN 超分; librknnrt + models/rkvc-sr/ 已随包携带)"
     echo "  /dev/rga          (RGA 设备节点; librga 已随包携带)"
     echo ""
     echo "  安装示例: sudo apt install libdrm-dev"
+}
+
+# 打包后自动运行包内自测。仅对平台与本机 SoC 匹配的包执行：
+# 非匹配平台上硬件项（NPU 冒烟/编解码）会假失败，须到目标板手动跑。
+test_package() {
+    local platform="$1" pkg_name="$2"
+    [[ $RUN_TEST -eq 1 ]] || return 0
+
+    local local_soc
+    local_soc="$(detect_local_soc || true)"
+    if [[ "$platform" != "$local_soc" ]]; then
+        echo ""
+        echo "=== 跳过自动自测: 包平台 $platform 与本机 SoC '${local_soc:-未知}' 不匹配 ==="
+        echo "  请到目标板解包 $OUT_DIR/$pkg_name.tar.gz 后运行 ./test.sh"
+        return 0
+    fi
+
+    echo ""
+    echo "=== 自动自测: $pkg_name/test.sh ==="
+    local log="$OUT_DIR/$pkg_name.test.log"
+    local status=0
+    # 加密模型包：注入本机自测 model.key（绑定打包机机器码）
+    local test_env=()
+    [[ -n "$MODEL_KEY_FILE" && -f "$MODEL_KEY_FILE" ]] &&
+        test_env+=(RKVC_MODEL_KEY_FILE="$MODEL_KEY_FILE")
+    env "${test_env[@]+"${test_env[@]}"}" "$OUT_DIR/$pkg_name/test.sh" 2>&1 | tee "$log" || status=$?
+    if [[ $status -ne 0 ]]; then
+        echo ""
+        echo "错误: 包内自测失败 (完整日志: $log)"
+        return 1
+    fi
+    echo "--- 包内自测通过 (日志: $log) ---"
 }
 
 main() {
     local mode="标准版"
     [[ $LICENSE -eq 1 ]] && mode="强制授权版 (运行时校验)"
     echo "=== 可移植包构建 (rkvc $VERSION, $ARCH, $mode) ==="
+
+    # 解析目标平台列表：显式 --platforms 优先，否则探测本机 SoC
+    local platforms=()
+    if [[ -n "$PLATFORMS" ]]; then
+        IFS=',' read -r -a platforms <<< "$PLATFORMS"
+        local p
+        for p in "${platforms[@]}"; do
+            p="${p// /}"
+            if ! validate_platform "$p"; then
+                echo "错误: 不支持的平台 '$p'（可选: $VALID_PLATFORMS）"
+                exit 2
+            fi
+        done
+    else
+        local soc
+        if soc="$(detect_local_soc)"; then
+            platforms=("$soc")
+            echo "--- 探测本机 SoC: $soc（可用 --platforms rk3576,rk3588,rv1126b 覆盖）---"
+        else
+            echo "错误: 无法探测本机 SoC，请用 --platforms 显式指定（可选: $VALID_PLATFORMS）"
+            exit 2
+        fi
+    fi
+
     check_deps
     build_mpp
     build_svt
     install_rga
     install_rknnrt
     build_libsodium
-    prepare_license_keys
+    local lic_pkg_name
+    lic_pkg_name="$(rkvc_portable_pkg_dir "${platforms[0]}")"
+    [[ $LICENSE -eq 1 ]] && lic_pkg_name="${lic_pkg_name}-licensed"
+    prepare_license_keys "$lic_pkg_name"
+    prepare_model_crypt_keys "$lic_pkg_name"
     build_ffmpeg
     build_rkvc
-    package
+
+    local plat
+    for plat in "${platforms[@]}"; do
+        plat="${plat// /}"
+        [[ -n "$plat" ]] || continue
+        if [[ $NO_RKNN -eq 0 && -f "$RKNN_PREFIX/lib/librknnrt.so" ]]; then
+            local bm_args=(--platform "$plat" --variants "$MLVC_VARIANTS")
+            [[ -n "$SR_WEIGHT" ]] && bm_args+=(--sr-weight "$SR_WEIGHT")
+            [[ $ALLOW_SKIP_SR -eq 1 ]] && bm_args+=(--allow-skip-sr)
+            [[ $CLEAN -eq 1 ]] && bm_args+=(--clean)
+            "$SCRIPT_DIR/build-models.sh" "${bm_args[@]}"
+        else
+            echo "--- 跳过模型生产 (未安装 librknnrt，构建不含 RKNN) ---"
+        fi
+        package_one "$plat"
+        test_package "$plat" "$PKG_NAME"
+    done
+
     echo ""
-    echo "=== 完成: $OUT_DIR/$PKG_NAME.tar.gz ==="
+    echo "=== 完成: ${#PKG_SUFFIXES[@]} 个可移植包 ==="
+    local suffix
+    for suffix in "${PKG_SUFFIXES[@]}"; do
+        echo "  $OUT_DIR/$suffix.tar.gz"
+    done
     if [[ $LICENSE -eq 1 ]]; then
         echo ""
         echo "⚠ 强制授权版: 目标机须放置有效 license 文件后方可运行"
@@ -630,6 +882,19 @@ main() {
         echo "    1. 客户机运行: rkvc_lic machine-id"
         echo "    2. 打包方签发: rkvc_lic issue -m <客户机器码> -k tools/keys/secret.key -o customer.lic"
         echo "    3. 客户放置:   ~/.config/rkvc/license.lic 或设置 RKVC_LICENSE_FILE"
+    fi
+    if [[ $ENCRYPT_MODELS -eq 1 && $NO_RKNN -eq 0 ]]; then
+        echo ""
+        echo "⚠ 模型已加密: 目标机须持每机签发的 model.key 才能加载模型"
+        if [[ -n "$MODEL_KEY_FILE" ]]; then
+            echo "  本机自测: RKVC_MODEL_KEY_FILE=\"$MODEL_KEY_FILE\" ./test.sh"
+        fi
+        echo ""
+        echo "  客户签发流程:"
+        echo "    1. 客户机运行: rkvc_model_crypt machine-id（或由打包方提供采集工具）"
+        echo "    2. 打包方签发: rkvc_model_crypt issue -d tools/keys/data.key \\"
+        echo "                    -m tools/keys/master.key -M <客户机器码> -o model.key"
+        echo "    3. 客户放置:   ~/.config/rkvc/model.key 或设置 RKVC_MODEL_KEY_FILE"
     fi
 }
 
