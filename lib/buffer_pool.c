@@ -87,11 +87,6 @@ static int dma_heap_open(int cached)
     return -1;
 }
 
-static int dma_heap_alloc(int size)
-{
-    return dma_heap_alloc_ex(size, 0);
-}
-
 static int dma_heap_alloc_ex(int size, int cached)
 {
     int heap_fd = dma_heap_open(cached);
@@ -253,6 +248,7 @@ static rkvc_err buffer_pool_alloc_video_impl(rkvc_buffer_pool *pool,
         b->fd         = fd;
         b->mmap_base  = map;
         b->mmap_size  = (size_t)size;
+        b->cpu_cached = cached;
         b->width    = (uint32_t)width;
         b->height   = (uint32_t)height;
         b->format   = format;
@@ -563,7 +559,7 @@ rkvc_err rkvc_buffer_dmabuf_begin_cpu_read(const rkvc_buffer *buf)
 {
     if (!buf || buf->kind != RKVC_BUF_VIDEO)
         return RKVC_ERR_INVALID;
-    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0)
+    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0 || !buf->cpu_cached)
         return RKVC_OK;
 #ifdef __linux__
     struct dma_buf_sync sync = {
@@ -579,7 +575,7 @@ rkvc_err rkvc_buffer_dmabuf_end_cpu_read(const rkvc_buffer *buf)
 {
     if (!buf || buf->kind != RKVC_BUF_VIDEO)
         return RKVC_ERR_INVALID;
-    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0)
+    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0 || !buf->cpu_cached)
         return RKVC_OK;
 #ifdef __linux__
     struct dma_buf_sync sync = {
@@ -591,15 +587,15 @@ rkvc_err rkvc_buffer_dmabuf_end_cpu_read(const rkvc_buffer *buf)
     return RKVC_OK;
 }
 
-rkvc_err rkvc_buffer_dmabuf_begin_device_write(const rkvc_buffer *buf)
+rkvc_err rkvc_buffer_dmabuf_begin_cpu_rw(const rkvc_buffer *buf)
 {
     if (!buf || buf->kind != RKVC_BUF_VIDEO)
         return RKVC_ERR_INVALID;
-    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0)
+    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0 || !buf->cpu_cached)
         return RKVC_OK;
 #ifdef __linux__
     struct dma_buf_sync sync = {
-        .flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_WRITE,
+        .flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_RW,
     };
     if (ioctl(buf->fd, DMA_BUF_IOCTL_SYNC, &sync) < 0)
         return RKVC_ERR_IO;
@@ -607,15 +603,15 @@ rkvc_err rkvc_buffer_dmabuf_begin_device_write(const rkvc_buffer *buf)
     return RKVC_OK;
 }
 
-rkvc_err rkvc_buffer_dmabuf_end_device_write(const rkvc_buffer *buf)
+rkvc_err rkvc_buffer_dmabuf_end_cpu_rw(const rkvc_buffer *buf)
 {
     if (!buf || buf->kind != RKVC_BUF_VIDEO)
         return RKVC_ERR_INVALID;
-    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0)
+    if (buf->mem_type != RKVC_MEM_DMABUF || buf->fd < 0 || !buf->cpu_cached)
         return RKVC_OK;
 #ifdef __linux__
     struct dma_buf_sync sync = {
-        .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_WRITE,
+        .flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_RW,
     };
     if (ioctl(buf->fd, DMA_BUF_IOCTL_SYNC, &sync) < 0)
         return RKVC_ERR_IO;

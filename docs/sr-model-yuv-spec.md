@@ -69,7 +69,7 @@ RK3576 实机实测（librga 1.10.6_[3]，Johnny 640×360→1920×1080）：
 
 测试条件：RK3576，Johnny 640×360→1920×1080，30 帧，rknnrt 2.3.2 / NPU 驱动 0.9.8。
 INT8 相对 FP16 仅 −0.05dB / −0.001 SSIM，但 NPU 侧快约 1.5×、体积小 38%；
-`export_model.py` 默认即导出 INT8，FP16 仅用于排查量化回归。
+`export_model.py` 单独运行时默认导出 INT8，FP16 可用于排查量化回归。自动打包路径当前固定传入 `--no-quantize`，因此可移植包默认携带 FP16 模型，避免在没有代表性校准集时生成误导性的 PTQ 产物；交付 INT8 前应准备校准集并显式导出到 `.build/models/<platform>/rkvc-sr/`。
 
 其他实测要点：
 
@@ -189,8 +189,7 @@ python3 tools/sr/verify_bundle.py models/rkvc-sr
 
 ## 5. 构建、打包与实机门禁
 
-`scripts/package-portable.sh` 在 `librkvc` 链接 RKNN 时强制要求完整 bundle，并把
-`models/rkvc-sr/` 原样装进 portable tarball：
+`scripts/package-portable.sh` 在 `librkvc` 链接 RKNN 时先校验生产缓存中的完整 bundle；复制后删除含明文权重的 ONNX，只把 runtime 文件装进 portable tarball，并在 `.rknn` 加密后刷新 manifest 摘要：
 
 ```bash
 ./scripts/package-portable.sh

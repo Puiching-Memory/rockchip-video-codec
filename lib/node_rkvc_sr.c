@@ -52,6 +52,7 @@ struct rkvc_rknn_sr_ctx {
     int               run_slot;
     int               busy;
     rkvc_buffer      *resize_buf;
+    rkvc_buffer_pool *pool;
 };
 
 static int rknn_model_crypt_level(const void *model, size_t size)
@@ -154,7 +155,12 @@ static rkvc_err sr_slot_alloc(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot)
 {
     slot->phase_input_size = (size_t)ctx->in_attr.n_elems;
     slot->phase_input = rkvc_malloc(slot->phase_input_size);
-    return slot->phase_input ? RKVC_OK : RKVC_ERR_NOMEM;
+    if (!slot->phase_input)
+        return RKVC_ERR_NOMEM;
+    rkvc_err err = rkvc_buffer_pool_alloc_video_cached(
+        ctx->pool, &slot->nv12_base, ctx->frame_out_w, ctx->frame_out_h,
+        RKVC_PIX_FMT_NV12);
+    return err;
 }
 
 static void sr_slot_free(rkvc_sr_slot *slot)
@@ -166,6 +172,25 @@ static void sr_slot_free(rkvc_sr_slot *slot)
     memset(slot, 0, sizeof(*slot));
 }
 
+static rkvc_err sr_slot_ensure_writable_base(rkvc_rknn_sr_ctx *ctx,
+                                             rkvc_sr_slot *slot)
+{
+    int exclusively_owned = 0;
+    if (slot->nv12_base) {
+        pthread_mutex_lock(&slot->nv12_base->lock);
+        exclusively_owned = slot->nv12_base->ref_count == 1;
+        pthread_mutex_unlock(&slot->nv12_base->lock);
+    }
+    if (exclusively_owned)
+        return RKVC_OK;
+
+    rkvc_buffer_unref(slot->nv12_base);
+    slot->nv12_base = NULL;
+    return rkvc_buffer_pool_alloc_video_cached(
+        ctx->pool, &slot->nv12_base, ctx->frame_out_w, ctx->frame_out_h,
+        RKVC_PIX_FMT_NV12);
+}
+
 static rkvc_err sr_resize_input(rkvc_rknn_sr_ctx *ctx,
                                 const rkvc_buffer *src,
                                 const rkvc_buffer **feed)
@@ -175,15 +200,18 @@ static rkvc_err sr_resize_input(rkvc_rknn_sr_ctx *ctx,
         src->av_frame->height == ctx->frame_in_h)
         return RKVC_OK;
 
-    rkvc_buffer *resized = NULL;
-    rkvc_err err = rkvc_rga_scale_buffer(src, &resized,
-                                         ctx->frame_in_w, ctx->frame_in_h,
-                                         RKVC_PIX_FMT_NV12,
+    rkvc_err err;
+    if (!ctx->resize_buf) {
+        err = rkvc_rga_scale_buffer_cached(src, &ctx->resize_buf,
+                                           ctx->frame_in_w, ctx->frame_in_h,
+                                           RKVC_PIX_FMT_NV12,
+                                           RKVC_UPSCALE_BILINEAR);
+    } else {
+        err = rkvc_rga_scale_buffer_into(src, ctx->resize_buf,
                                          RKVC_UPSCALE_BILINEAR);
+    }
     if (err != RKVC_OK)
         return err;
-    rkvc_buffer_unref(ctx->resize_buf);
-    ctx->resize_buf = resized;
     *feed = ctx->resize_buf;
     return RKVC_OK;
 }
@@ -197,20 +225,27 @@ static rkvc_err sr_prepare_input(rkvc_rknn_sr_ctx *ctx, rkvc_sr_slot *slot,
     rkvc_err err = sr_resize_input(ctx, src, &feed);
     if (err != RKVC_OK)
         return err;
-    if (rkvc_sr_phase_pack_nv12(feed->av_frame->data[0],
+    err = rkvc_buffer_dmabuf_begin_cpu_read(feed);
+    if (err != RKVC_OK)
+        return err;
+    const int pack_rc = rkvc_sr_phase_pack_nv12(feed->av_frame->data[0],
                                 feed->av_frame->linesize[0],
                                 feed->av_frame->data[1],
                                 feed->av_frame->linesize[1],
                                 ctx->frame_in_w, ctx->frame_in_h,
-                                slot->phase_input, slot->phase_input_size) != 0)
+                                slot->phase_input, slot->phase_input_size);
+    const rkvc_err sync_err = rkvc_buffer_dmabuf_end_cpu_read(feed);
+    if (pack_rc != 0)
         return RKVC_ERR_FORMAT;
+    if (sync_err != RKVC_OK)
+        return sync_err;
 
-    rkvc_buffer_unref(slot->nv12_base);
-    slot->nv12_base = NULL;
-    /* 基座缓冲由 CPU 逐像素融合残差，必须用缓存 DMA 堆（cached 变体） */
-    err = rkvc_rga_scale_buffer_cached(feed, &slot->nv12_base,
-                                       ctx->frame_out_w, ctx->frame_out_h,
-                                       RKVC_PIX_FMT_NV12, RKVC_UPSCALE_BICUBIC);
+    /* 正常流水线复用双 slot；下游仍持有旧输出时分配替代缓冲，避免覆写。 */
+    err = sr_slot_ensure_writable_base(ctx, slot);
+    if (err != RKVC_OK)
+        return err;
+    err = rkvc_rga_scale_buffer_into(feed, slot->nv12_base,
+                                     RKVC_UPSCALE_BICUBIC);
     if (err != RKVC_OK)
         return err;
     slot->pts = src->pts;
@@ -230,15 +265,25 @@ static rkvc_err sr_postprocess_output(rkvc_rknn_sr_ctx *ctx,
 
     const size_t required = (size_t)ctx->out_attr.n_elems * sizeof(float);
     rkvc_err err = RKVC_OK;
-    if (!output.buf || output.size < required || !slot->nv12_base ||
-        rkvc_sr_phase_add_residual_nv12(
-            output.buf, ctx->core_w, ctx->core_h,
-            slot->nv12_base->av_frame->data[0],
-            slot->nv12_base->av_frame->linesize[0],
-            slot->nv12_base->av_frame->data[1],
-            slot->nv12_base->av_frame->linesize[1],
-            ctx->frame_out_w, ctx->frame_out_h) != 0)
+    if (!output.buf || output.size < required || !slot->nv12_base) {
         err = RKVC_ERR_HW;
+    } else {
+        err = rkvc_buffer_dmabuf_begin_cpu_rw(slot->nv12_base);
+        if (err == RKVC_OK) {
+            if (rkvc_sr_phase_add_residual_nv12(
+                output.buf, ctx->core_w, ctx->core_h,
+                slot->nv12_base->av_frame->data[0],
+                slot->nv12_base->av_frame->linesize[0],
+                slot->nv12_base->av_frame->data[1],
+                slot->nv12_base->av_frame->linesize[1],
+                ctx->frame_out_w, ctx->frame_out_h) != 0)
+                err = RKVC_ERR_HW;
+            const rkvc_err end_err =
+                rkvc_buffer_dmabuf_end_cpu_rw(slot->nv12_base);
+            if (err == RKVC_OK)
+                err = end_err;
+        }
+    }
     rknn_outputs_release(ctx->ctx, 1, &output);
     if (err != RKVC_OK)
         return err;
@@ -272,11 +317,11 @@ rkvc_rknn_sr_ctx *rkvc_rknn_sr_ctx_create(const char *model_path,
     if (!model_path || !model_path[0] || expect_out_w <= 0 || expect_out_h <= 0 ||
         !rkvc_rga_available())
         return NULL;
-    (void)pool;
     rkvc_rknn_sr_ctx *ctx = rkvc_calloc(1, sizeof(*ctx));
     if (!ctx)
         return NULL;
     ctx->run_slot = -1;
+    ctx->pool = pool;
     if (rknn_load_model(model_path, &ctx->ctx) != RKVC_OK)
         goto fail;
 

@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 HOST_ARCH="$(uname -m)"
-ARCH="${RKNNRT_ARCH:-$HOST_ARCH}"
+ARCH="${RKNNRT_ARCH:-${RKVC_TARGET_ARCH:-$HOST_ARCH}}"
 case "$ARCH" in
     aarch64|arm64) ARCH_DIR=aarch64 ;;
     armv7l|armhf)  ARCH_DIR=armhf ;;

@@ -135,7 +135,7 @@ RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' -
 
 - **开源（默认，AGPLv3）**：源码树按 GNU Affero General Public License v3 提供。
   - 允许商用、修改、再分发，但**衍生/合并作品须以 AGPLv3 开源**；通过网络提供本程序服务的（含 SaaS）须向用户提供对应源码
-  - AGPL 版（`RKVC_ENABLE_LICENSE=OFF`，默认）无任何附加授权限制
+  - 默认 CMake 构建关闭产品授权与模型访问校验；可移植包脚本默认开启可选的 NPU 模型访问控制，可用 `--no-encrypt-models` 关闭，不改变 AGPLv3 权利
 - **商业授权**：闭源商业使用需另行取得商业授权，授权范围含强制授权机制（`RKVC_ENABLE_LICENSE`）。Phase-RLFN 上游源码及随 bundle 附带部分按其 MIT License 分发
 - `third_party/` 内各组件（ffmpeg-rockchip、SVT-AV1、mpp、librga、libsodium）版权归其各自所有者，适用各自许可证；分发包随附全部许可证文本、SVT-AV1 专利许可及对 ffmpeg-rockchip 的修改补丁（见 [docs/packaging.md](docs/packaging.md)）
 

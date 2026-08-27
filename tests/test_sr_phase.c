@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -137,6 +138,23 @@ static void test_add_residual_is_plane_major(void **state)
     assert_int_equal(uv[0], 100);
 }
 
+static void test_add_nan_residual_is_deterministic(void **state)
+{
+    (void)state;
+    uint8_t y[36];
+    uint8_t uv[18];
+    float residual[108] = {0};
+    memset(y, 100, sizeof(y));
+    memset(uv, 100, sizeof(uv));
+    residual[0] = NAN;
+    residual[36] = NAN;
+
+    assert_int_equal(rkvc_sr_phase_add_residual_nv12(residual, 1, 1,
+                                                     y, 6, uv, 6, 6, 6), 0);
+    assert_int_equal(y[0], 0);
+    assert_int_equal(uv[0], 0);
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -145,6 +163,7 @@ int main(void)
         cmocka_unit_test(test_add_zero_residual_keeps_base),
         cmocka_unit_test(test_add_pixel_shuffle_and_chroma_average),
         cmocka_unit_test(test_add_residual_is_plane_major),
+        cmocka_unit_test(test_add_nan_residual_is_deterministic),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

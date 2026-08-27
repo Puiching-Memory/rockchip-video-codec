@@ -146,6 +146,30 @@ class TestBundle(unittest.TestCase):
             with self.assertRaises(verify_bundle.BundleError):
                 verify_bundle.verify(bundle)
 
+    def test_finalize_portable_drops_onnx_and_refreshes_encrypted_rknn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            bundle = root / "bundle"
+            source.mkdir()
+            bundle.mkdir()
+            (source / "LICENSE").write_text("MIT\n", encoding="utf-8")
+            onnx_path = bundle / "phase_rlfn_sr_x3.onnx"
+            rknn_path = bundle / "phase_rlfn_sr_x3.rknn"
+            onnx_path.write_bytes(b"onnx weights")
+            rknn_path.write_bytes(b"plain rknn")
+            export_model.write_bundle(
+                source, bundle, source_commit="c" * 40, weight=None,
+                input_w=640, input_h=360, target="rk3588", quantize=False,
+                artifact_paths=[onnx_path, rknn_path],
+            )
+            onnx_path.unlink()
+            rknn_path.write_bytes(b"RKVCENC1 encrypted rknn")
+            manifest = verify_bundle.finalize_portable(bundle, encrypted=True)
+            self.assertNotIn(onnx_path.name, manifest["artifacts"])
+            self.assertTrue(manifest["distribution"]["encrypted"])
+            verify_bundle.verify(bundle)
+
     def test_verify_rejects_malformed_model_shape(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             bundle = Path(tmp)

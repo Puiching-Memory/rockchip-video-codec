@@ -25,7 +25,18 @@ source "$SCRIPT_DIR/portable-test-helpers.sh"
 
 TESTS_DIR="${RKVC_BUILD_DIR:-$ROOT_DIR/.build/tests}"
 RELEASE_DIR="$ROOT_DIR/.build/release"
-MODEL="${RKVC_SR_MODEL:-$ROOT_DIR/models/rkvc-sr/phase_rlfn_sr_x3.rknn}"
+MODEL="${RKVC_SR_MODEL:-}"
+if [[ -z "$MODEL" ]]; then
+    compat="$(tr -d '\0' </proc/device-tree/compatible 2>/dev/null || true)"
+    for soc in rk3588 rk3576 rv1126b; do
+        if [[ "$compat" == *"$soc"* &&
+              -f "$ROOT_DIR/.build/models/$soc/rkvc-sr/phase_rlfn_sr_x3.rknn" ]]; then
+            MODEL="$ROOT_DIR/.build/models/$soc/rkvc-sr/phase_rlfn_sr_x3.rknn"
+            break
+        fi
+    done
+    [[ -n "$MODEL" ]] || MODEL="$ROOT_DIR/models/rkvc-sr/phase_rlfn_sr_x3.rknn"
+fi
 
 if ! portable_npu_accessible; then
     echo "[error] NPU 不可访问（需 /sys/kernel/debug/rknpu/version 或 /dev/dri/by-path/*npu-render*）" >&2
@@ -34,7 +45,7 @@ fi
 
 if [[ ! -f "$MODEL" ]]; then
     echo "[error] 超分模型不存在: $MODEL" >&2
-    echo "  运行 tools/sr/export_model.py 生成 bundle，或设置 RKVC_SR_MODEL" >&2
+    echo "  运行 scripts/build-models.sh --platform <soc>，或设置 RKVC_SR_MODEL" >&2
     exit 1
 fi
 

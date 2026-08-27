@@ -297,6 +297,41 @@ rkvc_err rkvc_rga_scale_buffer_cached(const rkvc_buffer *src, rkvc_buffer **dst,
     return rga_scale_buffer_impl(src, dst, dst_w, dst_h, dst_fmt, algo, 1);
 }
 
+rkvc_err rkvc_rga_scale_buffer_into(const rkvc_buffer *src, rkvc_buffer *dst,
+                                    rkvc_upscale_algo algo)
+{
+    if (!src || !dst || !src->av_frame || !dst->av_frame)
+        return RKVC_ERR_INVALID;
+    if (!rkvc_rga_available())
+        return RKVC_ERR_HW;
+    if (src->kind != RKVC_BUF_VIDEO || dst->kind != RKVC_BUF_VIDEO ||
+        src->format != RKVC_PIX_FMT_NV12 || dst->format != RKVC_PIX_FMT_NV12)
+        return RKVC_ERR_FORMAT;
+
+    int src_ws = 0, src_hs = 0, dst_ws = 0, dst_hs = 0;
+    if (!buffer_nv12_rga_stride(src, &src_ws, &src_hs) ||
+        !buffer_nv12_rga_stride(dst, &dst_ws, &dst_hs) ||
+        !rga_nv12_stride_ok(src_ws, src_hs) ||
+        !rga_nv12_stride_ok(dst_ws, dst_hs))
+        return RKVC_ERR_FORMAT;
+
+    rkvc_buffer *work = NULL;
+    const rkvc_buffer *rga_src = src;
+    if (src->mem_type != RKVC_MEM_DMABUF && !frame_contiguous(src->av_frame)) {
+        rkvc_err err = nv12_copy_contiguous(src, &work);
+        if (err != RKVC_OK)
+            return err;
+        rga_src = work;
+    }
+
+    rkvc_err err = rga_scale_nv12_buffers(
+        rga_src, dst, rkvc_upscale_to_rga_mode(algo));
+    rkvc_buffer_unref(work);
+    if (err == RKVC_OK)
+        dst->pts = src->pts;
+    return err;
+}
+
 static rkvc_err rga_scale_buffer_impl(const rkvc_buffer *src, rkvc_buffer **dst,
                                       int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
                                       rkvc_upscale_algo algo, int cached)
@@ -358,7 +393,6 @@ static rkvc_err rga_scale_buffer_impl(const rkvc_buffer *src, rkvc_buffer **dst,
             rkvc_buffer_unref(work);
             return err;
         }
-        cached = 0; /* 回退到宿主内存后无需 dma-buf 同步 */
     }
 
     err = rga_scale_nv12_buffers(rga_src, out, rkvc_upscale_to_rga_mode(algo));
@@ -367,15 +401,6 @@ static rkvc_err rga_scale_buffer_impl(const rkvc_buffer *src, rkvc_buffer **dst,
     if (err != RKVC_OK) {
         rkvc_buffer_unref(out);
         return err;
-    }
-
-    /* RGA DMA 写入后 CPU 首次读取前，作废缓存行（仅缓存堆需要） */
-    if (cached) {
-        err = rkvc_buffer_dmabuf_begin_cpu_read(out);
-        if (err != RKVC_OK) {
-            rkvc_buffer_unref(out);
-            return err;
-        }
     }
 
     out->pts = src->pts;
@@ -776,21 +801,10 @@ rkvc_err rkvc_rga_scale_ctx_process(rkvc_rga_scale_ctx *ctx,
         return err;
     }
 
-    err = rkvc_buffer_dmabuf_begin_device_write(ctx->dst);
-    if (err != RKVC_OK) {
-        rga_import_release(&src_imp);
-        rkvc_buffer_unref(work);
-        return err;
-    }
-
     err = rga_resize_checked(&rga_src_buf, &ctx->rga_dst, ctx->mode);
     rga_import_release(&src_imp);
     rkvc_buffer_unref(work);
 
-    if (err != RKVC_OK)
-        return err;
-
-    err = rkvc_buffer_dmabuf_end_device_write(ctx->dst);
     if (err != RKVC_OK)
         return err;
 
@@ -941,14 +955,8 @@ rkvc_err rkvc_rga_csc_rgb888_to_nv12(const uint8_t *rgb, int w, int h,
     if (err != RKVC_OK)
         goto done;
 
-    err = rkvc_buffer_dmabuf_begin_device_write(dst);
-    if (err != RKVC_OK)
-        goto done;
-
     err = rga_cvtcolor_checked(&rga_src, &rga_dst,
                                RK_FORMAT_RGB_888, RK_FORMAT_YCbCr_420_SP);
-    if (err == RKVC_OK)
-        err = rkvc_buffer_dmabuf_end_device_write(dst);
 
 done:
     rga_import_release(&src_imp);

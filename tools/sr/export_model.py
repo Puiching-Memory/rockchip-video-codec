@@ -70,6 +70,17 @@ def ensure_upstream(source_dir: Path, revision: str) -> str:
         capture_output=True, text=True, check=False,
     )
     commit = proc.stdout.strip() if proc.returncode == 0 else "unknown"
+    default_source = (Path(__file__).resolve().parents[2] /
+                      ".build/deps/rknn-super-resolution").resolve()
+    if revision and commit != revision and source_dir == default_source:
+        _run(["git", "fetch", "--depth", "1", "origin", revision],
+             cwd=source_dir)
+        _run(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=source_dir)
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=source_dir,
+            capture_output=True, text=True, check=False,
+        )
+        commit = proc.stdout.strip() if proc.returncode == 0 else "unknown"
     if revision and commit != revision:
         raise ExportError(
             f"上游源码 commit={commit}，期望 {revision}。"

@@ -16,6 +16,8 @@
 | `.build/portable/` | `portable`                | 可移植包**编译树**                                                    |
 | `.build/dist/`     | （`package-portable.sh`） | 可移植包**成品**                                                      |
 | `.build/deps/`     | （脚本）                  | MPP / SVT / FFmpeg / librga / librknnrt；MLVC 源码与权重（`mlvc/`、`mlvc-data/`） |
+| `.build/host/`     | （交叉打包脚本）          | x86_64 宿主工具依赖（如模型/许可证工具使用的 libsodium）              |
+| `.build/cross/<arch>/` | （交叉打包脚本）      | 目标架构的依赖、rkvc 编译树与可移植包成品                             |
 
 ## 产物落点（勿混用）
 
@@ -25,6 +27,8 @@
 | CTest / `test_*`       | `.build/tests/`（或 asan / coverage）              |
 | 可移植包成品           | `.build/dist/rkvc-<ver>-linux-<arch>-portable/`    |
 | 依赖安装前缀           | `.build/deps/{mpp,svt-av1,ffmpeg,librga,rknn}-install/` |
+| AArch64 可移植包       | `.build/cross/aarch64/dist/rkvc-<ver>-linux-<platform>-portable*/` |
+| AArch64 依赖安装前缀   | `.build/cross/aarch64/deps/*-install/`                 |
 
 同名二进制出现在多个子目录是**预期行为**（配置不同）。文档与日常开发一律用 `.build/release/`；测试用对应 preset 目录；打可移植包用 `./scripts/package-portable.sh`。
 
@@ -34,6 +38,10 @@
 cmake --preset default && cmake --build --preset default
 cmake --preset debug   && cmake --build --preset debug
 cmake --preset tests   && cmake --build --preset tests
+
+# x86_64 → AArch64 交叉打包并运行 QEMU 用户态冒烟测试
+./scripts/package-portable.sh --target-arch aarch64 \
+  --platforms rk3588 --no-rknn --qemu-test
 
 # CMake < 3.21（无 preset）时手写 -B，目录名须与上表一致：
 source scripts/build-common.sh && rkvc_limit_build_jobs

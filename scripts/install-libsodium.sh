@@ -10,6 +10,7 @@
 #   ./scripts/install-libsodium.sh
 #   PREFIX=/usr/local ./scripts/install-libsodium.sh   # 装到系统前缀（需写权限）
 #   BUILD_JOBS=8 ./scripts/install-libsodium.sh         # 指定并行编译任务数
+#   RKVC_TARGET_ARCH=aarch64 BUILD_DIR=... PREFIX=... ./scripts/install-libsodium.sh
 
 set -euo pipefail
 
@@ -22,7 +23,12 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PREFIX="${PREFIX:-$PROJECT_DIR/.build/deps/libsodium-install}"
 SRC_DIR="${SRC_DIR:-$PROJECT_DIR/third_party/libsodium}"
+BUILD_DIR="${BUILD_DIR:-$PROJECT_DIR/.build/deps/libsodium-build}"
 NPROCS="${NPROCS:-$BUILD_JOBS}"
+AUTOTOOLS_HOST="${RKVC_AUTOTOOLS_HOST:-}"
+if [[ -z "$AUTOTOOLS_HOST" ]] && rkvc_cross_enabled; then
+    AUTOTOOLS_HOST="$(rkvc_target_triplet)"
+fi
 
 if [[ ! -f "$SRC_DIR/configure.ac" ]]; then
     echo "错误: libsodium 子模块未初始化或不完整: $SRC_DIR"
@@ -39,24 +45,29 @@ for tool in autoreconf automake autoconf libtoolize; do
 done
 
 echo "==> 构建 libsodium（源码: $SRC_DIR）"
+echo "==> 构建目录: $BUILD_DIR"
 echo "==> 安装前缀: $PREFIX"
-
-cd "$SRC_DIR"
+[[ -n "$AUTOTOOLS_HOST" ]] && echo "==> 目标 triplet: $AUTOTOOLS_HOST"
 
 # 生成 configure（仅首次或 configure.ac 变更时需要）
-if [[ ! -f configure ]]; then
+if [[ ! -f "$SRC_DIR/configure" ]]; then
     echo "==> autoreconf -i"
-    autoreconf -i
+    (cd "$SRC_DIR" && autoreconf -i)
 fi
 
-# 静态库优先（授权模块静态链接，部署无需额外 .so）
-echo "==> ./configure --prefix=$PREFIX --disable-shared --enable-static"
-./configure \
+# 在源码树外构建，避免 Makefile/.libs/*.o 污染子模块，也允许不同前缀重配。
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+echo "==> configure --prefix=$PREFIX --disable-shared --enable-static"
+configure_args=()
+[[ -n "$AUTOTOOLS_HOST" ]] && configure_args+=(--host="$AUTOTOOLS_HOST")
+"$SRC_DIR/configure" \
     --prefix="$PREFIX" \
     --disable-shared \
     --enable-static \
     --with-pic \
-    --disable-dependency-tracking
+    --disable-dependency-tracking \
+    "${configure_args[@]+"${configure_args[@]}"}"
 
 echo "==> make -j${NPROCS}"
 make -j"$NPROCS"

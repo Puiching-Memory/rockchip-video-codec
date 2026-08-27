@@ -272,18 +272,23 @@ static int cmd_issue(const char *data_key_path, const char *master_key_path,
                         "-M <machine_id_hex> -o model.key\n");
         return 2;
     }
-    uint8_t data_key[KEY_FILE_LEN], master[KEY_FILE_LEN];
+    int ret = 1;
+    uint8_t data_key[KEY_FILE_LEN] = {0};
+    uint8_t master[KEY_FILE_LEN] = {0};
+    uint8_t plain[RKVC_MODEL_KEY_PLAIN_LEN] = {0};
     if (read_key_file(data_key_path, data_key) != 0 ||
         read_key_file(master_key_path, master) != 0)
-        return 1;
+        goto cleanup;
 
-    uint8_t plain[RKVC_MODEL_KEY_PLAIN_LEN];
     memcpy(plain, data_key, 32);
     sodium_memzero(data_key, sizeof(data_key));
-    if (strlen(machine_hex) != RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN) {
-        fprintf(stderr, "error: 机器码须为 %u 位十六进制（得到 %zu 字符）\n",
-                RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN, strlen(machine_hex));
-        return 2;
+    if (strlen(machine_hex) != RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN ||
+        strspn(machine_hex, "0123456789abcdef") !=
+            RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN) {
+        fprintf(stderr, "error: 机器码须为 %u 位小写十六进制\n",
+                RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN);
+        ret = 2;
+        goto cleanup;
     }
     memcpy(plain + 32, machine_hex, RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN);
 
@@ -294,14 +299,17 @@ static int cmd_issue(const char *data_key_path, const char *master_key_path,
     randombytes_buf(nonce, RKVC_MODEL_ENC_NONCE_LEN);
     crypto_secretbox_easy(out + 12 + RKVC_MODEL_ENC_NONCE_LEN, plain,
                           sizeof(plain), nonce, master);
-    sodium_memzero(master, sizeof(master));
-    sodium_memzero(plain, sizeof(plain));
-
     if (write_file(out_path, out, sizeof(out)) != 0)
-        return 1;
+        goto cleanup;
     printf("已签发: %s (绑定机器码 %.8s…，%zu 字节)\n", out_path,
            machine_hex, sizeof(out));
-    return 0;
+    ret = 0;
+
+cleanup:
+    sodium_memzero(data_key, sizeof(data_key));
+    sodium_memzero(master, sizeof(master));
+    sodium_memzero(plain, sizeof(plain));
+    return ret;
 }
 
 static int cmd_verify_key(const char *master_key_path, const char *key_path)
@@ -365,7 +373,7 @@ int main(int argc, char **argv)
         return 2;
     }
     const char *cmd = argv[1];
-    const char *dir = NULL, *in = NULL, *out = NULL, *data_key = NULL,
+    const char *in = NULL, *out = NULL, *data_key = NULL,
                *master_key = NULL, *machine = NULL, *file = NULL;
     for (int i = 2; i < argc; i++) {
         if (!strcmp(argv[i], "-o") && i + 1 < argc) out = argv[++i];

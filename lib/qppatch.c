@@ -3,6 +3,7 @@
 
 #include "qppatch.h"
 #include "internal.h"
+#include "platform.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -57,6 +58,21 @@ rkvc_err rkvc_qppatch_resolve(const char *dir, const char *part, int qp,
     *out_path = NULL;
     if (!dir || !dir[0])
         return RKVC_OK;
+    const rkvc_platform_info *platform = rkvc_platform_probe();
+    if (platform->soc[0] != '\0') {
+        size_t n = strlen(dir);
+        while (n > 0 && (dir[n - 1] == '/' || dir[n - 1] == '\\'))
+            n--;
+        int wr = snprintf(buf, cap, "%.*s/%s/%s_qp%d.qppatch",
+                          (int)n, dir, platform->soc, part, qp);
+        if (wr < 0 || (size_t)wr >= cap)
+            return RKVC_ERR_INVALID;
+        if (access(buf, R_OK) == 0) {
+            *out_path = buf;
+            return RKVC_OK;
+        }
+    }
+    /* 兼容旧平铺目录，也允许调用方直接传 qp_patches/<soc>。 */
     rkvc_err err = rkvc_qppatch_build_path(buf, cap, dir, part, qp);
     if (err)
         return err;
@@ -105,8 +121,11 @@ rkvc_err rkvc_qppatch_apply(uint8_t *base, size_t base_size,
         return RKVC_ERR_FORMAT;
     }
 
-    if (num_ranges > (SIZE_MAX - RKVC_QPPATCH_HEADER_SIZE) / RKVC_QPPATCH_RANGE_SIZE)
+#if SIZE_MAX < UINT64_MAX
+    if (num_ranges >
+        (SIZE_MAX - RKVC_QPPATCH_HEADER_SIZE) / RKVC_QPPATCH_RANGE_SIZE)
         return RKVC_ERR_FORMAT;
+#endif
     size_t ranges_bytes = (size_t)num_ranges * RKVC_QPPATCH_RANGE_SIZE;
     if (patch_size < RKVC_QPPATCH_HEADER_SIZE + ranges_bytes)
         return RKVC_ERR_FORMAT;

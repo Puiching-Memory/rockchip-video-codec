@@ -35,8 +35,8 @@ typedef enum {
     RKVC_ERR_INTERNAL    = -9,  /**< 内部 FFmpeg 错误 */
     RKVC_ERR_PERMISSION  = -10, /**< 设备节点权限不足 */
     RKVC_ERR_FORMAT      = -11, /**< 输入数据格式不匹配 */
-    RKVC_ERR_LICENSE     = -12, /**< 授权校验失败（1机1码） */
-    RKVC_ERR_UNLICENSED  = -13, /**< 未找到授权 */
+    RKVC_ERR_LICENSE     = -12, /**< 产品授权或 model.key 校验失败 */
+    RKVC_ERR_UNLICENSED  = -13, /**< 未找到产品授权或 model.key */
 } rkvc_err;
 
 /* ── 像素格式 ─────────────────────────────────────────────────────── */

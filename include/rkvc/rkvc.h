@@ -111,9 +111,9 @@ typedef struct {
     int has_h264_dec;   /**< `h264_rkmpp` 解码可用 */
     int has_hevc_dec;   /**< `hevc_rkmpp` 解码可用 */
     int has_av1_dec;    /**< `av1_rkmpp` 解码可用 */
-    int has_dma_heap;   /**< `/dev/dma_heap/*` 可访问 */
+    int has_dma_heap;   /**< `/dev/dma_heap/` 下存在可访问节点 */
     int has_rga;        /**< `/dev/rga` 可访问 */
-    int has_rknn;       /**< RKNN 已编译、平台有 NPU、且驱动节点可访问（`rkvc_sr`） */
+    int has_rknn;       /**< RKNN 已编译、NPU/驱动节点可访问，且 RGA 可用（`rkvc_sr`） */
 } rkvc_caps;
 
 /**

@@ -119,7 +119,7 @@ source scripts/build-common.sh
 ./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir)"
 ```
 
-- [ ] 产物：`rkvc-*-linux-aarch64-portable.tar.gz`（约 7–8 MB，含 `librga` + `librknnrt` + `models/`）
+- [ ] 产物：`rkvc-*-linux-<platform>-portable.tar.gz`（含 `librga` + `librknnrt` + 对应平台 `models/`）
 - [ ] 包内 `./test.sh` 全过（含可选 `rkvc_sr` NPU 冒烟）
 - [ ] 包内 `./network-e2e-test.sh` 冒烟通过（UDP/RTP 本机回环）
 
@@ -142,7 +142,7 @@ ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
 - [ ] SoC：RK3588 / RK3588S，BSP 内核 5.10 或 6.1
 - [ ] 设备权限：`/dev/mpp_service`、`/dev/dma_heap/*`、`/dev/rga`、`/dev/dri/*`、NPU（`/sys/kernel/debug/rknpu/version` 或 `*npu-render*`）（见 [getting-started.md](getting-started.md)）
 - [ ] 依赖脚本已执行：`build-svt.sh`、`install-librga.sh`、`rebuild-ffmpeg-rkmpp.sh`
-- [ ] AI 超分 bundle：`models/rkvc-sr/`（ONNX/RKNN/manifest/MIT LICENSE/SOURCE）
+- [ ] AI 超分生产 bundle：`.build/models/<platform>/rkvc-sr/`（ONNX/RKNN/manifest/MIT LICENSE/SOURCE）；portable 包只保留 runtime 所需文件
 
 ---
 
@@ -284,8 +284,8 @@ librockchip_mpp · ffmpeg-rockchip · librga · librknnrt（AI 路径）
 
 | 架构 / 平台                             | 支持情况         | 说明                                                                                                              |
 | --------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Linux aarch64**（RK3588 / RK3588S）   | ✅ **官方支持**   | 可移植包 `rkvc-*-linux-aarch64-portable.tar.gz` 须在目标机构建                                                    |
-| **Linux aarch64**（RK3568 / RK3566 等） | ❌ **未支持**     | MPP/VPU 版本不同、NPU 算力弱（RK3568 NPU ≈ 1 TOPS vs RK3588 ≈ 6 TOPS），**未做兼容测试**                          |
+| **Linux aarch64**（RK3588 / RK3576 / RV1126B） | ✅ **官方支持** | 可移植包 `rkvc-*-linux-<platform>-portable.tar.gz` 按目标 SoC 生成                                               |
+| **Linux aarch64**（RK3568 / RK3566）   | ⚠️ **MLVC-only** | 可生成 MLVC bundle；Phase-RLFN exporter 无对应 target，打包时明确跳过 SR，仍需目标板验证                         |
 | **Android**（aarch64）                  | ⚠️ **未官方交付** | 代码依赖 Linux 设备节点与 BSP 用户态库；理论上可用 Rockchip Android BSP + NDK 移植，**当前无 APK/AAR 与 CI 验证** |
 | **x86_64 / 其他**                       | ❌ 不支持         | RKMPP / RGA / RKNN 均为 Rockchip 专有硬件栈                                                                       |
 

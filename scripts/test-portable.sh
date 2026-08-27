@@ -3,6 +3,7 @@
 #
 # 用法:
 #   ./scripts/test-portable.sh <portable-package-dir>
+#   ./scripts/test-portable.sh --inspect-only --target aarch64 [--sysroot DIR] <dir>
 #   ./test.sh                         # 在可移植包目录内一键自测
 #
 # 测试项目:
@@ -168,8 +169,30 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=portable-test-helpers.sh
 source "$SCRIPT_DIR/portable-test-helpers.sh"
 
-if [[ $# -gt 0 ]]; then
-    PKG_DIR="$1"
+INSPECT_ONLY=0
+TEST_TARGET="native"
+TEST_SYSROOT=""
+PACKAGE_ARG=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --inspect-only) INSPECT_ONLY=1; shift ;;
+        --target) TEST_TARGET="$2"; shift 2 ;;
+        --sysroot) TEST_SYSROOT="$2"; shift 2 ;;
+        -h|--help)
+            sed -n '2,16p' "$0"
+            exit 0
+            ;;
+        --*) echo "未知参数: $1" >&2; exit 2 ;;
+        *)
+            [[ -z "$PACKAGE_ARG" ]] || { echo "只能指定一个 package-dir" >&2; exit 2; }
+            PACKAGE_ARG="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -n "$PACKAGE_ARG" ]]; then
+    PKG_DIR="$PACKAGE_ARG"
 elif [[ -x "$SCRIPT_DIR/bin/rkvc_info" && -d "$SCRIPT_DIR/lib" ]]; then
     PKG_DIR="$SCRIPT_DIR"
 else
@@ -181,7 +204,7 @@ fi
 PKG_DIR="$(cd "$PKG_DIR" && pwd)"
 
 # licensed 包默认 license 探测失败但同级自测 license 有效时，功能测试统一改用之
-if [[ "$PKG_DIR" == *-licensed && -z "${RKVC_LICENSE_FILE:-}" && -f "${PKG_DIR}.lic" ]] \
+if [[ $INSPECT_ONLY -eq 0 && "$PKG_DIR" == *-licensed && -z "${RKVC_LICENSE_FILE:-}" && -f "${PKG_DIR}.lic" ]] \
    && ! "$PKG_DIR/bin/rkvc_info" --version >/dev/null 2>&1 \
    && env RKVC_LICENSE_FILE="${PKG_DIR}.lic" "$PKG_DIR/bin/rkvc_info" --version >/dev/null 2>&1; then
     export RKVC_LICENSE_FILE="${PKG_DIR}.lic"
@@ -235,13 +258,35 @@ else
     fail "缺失或不可执行: network-e2e-test.sh"
 fi
 if [ -f "$PKG_DIR/lib/librknnrt.so" ]; then
+    if find "$PKG_DIR/models" -type f -name '*.onnx' -print -quit | grep -q .; then
+        fail "runtime 包不得携带明文 ONNX"
+    else
+        pass "runtime 包未携带明文 ONNX"
+    fi
     pass "存在: lib/librknnrt.so"
     if [ -f "$PKG_DIR/models/rkvc-sr/phase_rlfn_sr_x3.rknn" ] && \
        [ -f "$PKG_DIR/models/rkvc-sr/sr_export_manifest.json" ] && \
        [ -f "$PKG_DIR/models/rkvc-sr/LICENSE.rknn-super-resolution-MIT" ]; then
         pass "存在: models/rkvc-sr/ Phase-RLFN bundle"
+        if command -v python3 >/dev/null 2>&1 && \
+           [ -f "$PKG_DIR/share/rkvc/verify_sr_bundle.py" ] && \
+           python3 "$PKG_DIR/share/rkvc/verify_sr_bundle.py" \
+               "$PKG_DIR/models/rkvc-sr" >/dev/null; then
+            pass "Phase-RLFN manifest 与包内产物一致"
+        else
+            fail "Phase-RLFN manifest 校验失败"
+        fi
     else
-        fail "已打包 librknnrt 但缺失 Phase-RLFN bundle"
+        pkg_base="$(basename "$PKG_DIR")"
+        pkg_platform="$(printf '%s' "$pkg_base" | sed 's/-licensed$//' | cut -d- -f4)"
+        case "$pkg_platform" in
+            rk3568|rk3566)
+                pass "$pkg_platform 不支持 Phase-RLFN SR target，按设计未携带 bundle"
+                ;;
+            *)
+                fail "已打包 librknnrt 但缺失 Phase-RLFN bundle"
+                ;;
+        esac
     fi
     # MLVC bundle 需整包随分发（RKNN + PMF + QP 补丁 + manifest）；
     # 每平台一包：从包目录名 rkvc-<ver>-linux-<platform>-portable 解析平台，
@@ -267,6 +312,27 @@ if [ -f "$PKG_DIR/lib/librknnrt.so" ]; then
     done
     if [ "$mlvc_bundles" -eq 0 ]; then
         fail "已打包 librknnrt 但缺失全部 MLVC bundle (mlvc / mlvc-s)"
+    fi
+
+    encrypted_models=0
+    plaintext_models=0
+    while IFS= read -r model; do
+        magic="$(od -An -tx1 -N8 "$model" | tr -d '[:space:]')"
+        if [ "$magic" = "524b5643454e4331" ]; then
+            encrypted_models=$((encrypted_models+1))
+        else
+            plaintext_models=$((plaintext_models+1))
+        fi
+    done < <(find "$PKG_DIR/models" -type f -name '*.rknn' -print)
+    if [ "$encrypted_models" -gt 0 ] && [ "$plaintext_models" -gt 0 ]; then
+        fail "包内 RKNN 加密状态不一致（encrypted=$encrypted_models plaintext=$plaintext_models）"
+    elif [ "$encrypted_models" -gt 0 ]; then
+        pass "全部 $encrypted_models 个 RKNN 均带 RKVCENC1 加密头"
+        if [ -x "$PKG_DIR/bin/rkvc_model_id" ]; then
+            pass "存在: bin/rkvc_model_id（客户机器码采集）"
+        else
+            fail "加密模型包缺少 bin/rkvc_model_id"
+        fi
     fi
     # 逐 QP 中间模型只应用于推导 qp_patches，不得入包（曾使包体 92M→403M）。
     if find "$PKG_DIR/models" -type d -name '*_qp_models' -print -quit 2>/dev/null | grep -q .; then
@@ -316,14 +382,25 @@ check_binary_deps() {
     check_bundled_libs "$bin" "$name" "$ldd_output"
 }
 
-for bin in "$PKG_DIR/bin/"*; do
-    [ -f "$bin" ] || continue
-    check_binary_deps "$bin"
-done
-for bin in "$PKG_DIR/examples/bin/"*; do
-    [ -f "$bin" ] || continue
-    check_binary_deps "$bin"
-done
+if [[ $INSPECT_ONLY -eq 1 && "$TEST_TARGET" != native ]]; then
+    checker="$PKG_DIR/share/rkvc/check_elf_deps.py"
+    checker_args=("$PKG_DIR" --target "$TEST_TARGET")
+    [[ -n "$TEST_SYSROOT" ]] && checker_args+=(--sysroot "$TEST_SYSROOT")
+    if [[ -f "$checker" ]] && python3 "$checker" "${checker_args[@]}"; then
+        pass "$TEST_TARGET ELF 架构与依赖闭包"
+    else
+        fail "$TEST_TARGET ELF 架构或依赖闭包"
+    fi
+else
+    for bin in "$PKG_DIR/bin/"*; do
+        [ -f "$bin" ] || continue
+        check_binary_deps "$bin"
+    done
+    for bin in "$PKG_DIR/examples/bin/"*; do
+        [ -f "$bin" ] || continue
+        check_binary_deps "$bin"
+    done
+fi
 echo ""
 
 # 3. RPATH / RUNPATH
@@ -358,6 +435,13 @@ for lib in "$PKG_DIR/lib/"*.so.*; do
 done
 fi
 echo ""
+
+if [[ $INSPECT_ONLY -eq 1 ]]; then
+    echo "========================================="
+    echo -e "结构检查通过: ${GREEN}${PASS}${NC}  失败: ${RED}${FAIL}${NC}"
+    [[ $FAIL -eq 0 ]]
+    exit $?
+fi
 
 # 4. 功能测试
 echo "--- 功能测试 ---"

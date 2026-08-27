@@ -55,14 +55,14 @@ typedef struct {
     char soc[32];       // 探测到的 SoC 名（如 "rk3588"），未知为空串
     int has_h264_enc, has_hevc_enc, has_av1_enc;   // has_av1_enc = SVT-AV1
     int has_h264_dec, has_hevc_dec, has_av1_dec;
-    int has_dma_heap, has_rga, has_rknn;  // has_rknn：RKNN 已编译且 NPU 可访问
+    int has_dma_heap, has_rga, has_rknn;  // has_rknn：RKNN 已编译、NPU 可访问且 RGA 可用
 } rkvc_caps;
 
 rkvc_err rkvc_query_caps(rkvc_caps *caps);
 rkvc_err rkvc_check_hw_permissions(void);  // → RKVC_ERR_PERMISSION
 ```
 
-所有能力均为运行时探测：硬件编解码 = FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 内核能力位上报的 VPU 支持，平台无预设表。`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`has_rknn` 需 `RKVC_ENABLE_RKNN` 构建且 NPU 可访问（`/sys/kernel/debug/rknpu/version` 或 `/dev/dri/by-path/*npu-render*`）。`rkvc_info --json` 字段与此结构对应（含 `soc`、`rknn`）。
+所有能力均为运行时探测：硬件编解码 = FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 内核能力位上报的 VPU 支持，平台无预设表。`rkvc_query_caps` 在设备权限不足时将对应 `has_*_enc/dec` 置 0。`has_rknn` 需 `RKVC_ENABLE_RKNN` 构建、NPU 可访问（`/sys/kernel/debug/rknpu/version` 或 `/dev/dri/by-path/*npu-render*`）且 RGA 可用，因为 Phase-RLFN 的缩放基座依赖 RGA。`rkvc_info --json` 字段与此结构对应（含 `soc`、`rknn`）。
 
 `rkvc_check_hw_permissions` 检查 `/dev/mpp_service`、DMA heap（`/dev/dma_heap/system-uncached`）或 DRM/Ion 分配器。
 
@@ -102,8 +102,8 @@ rkvc_input_format_probe rkvc_probe_input_format(const uint8_t *data, size_t size
 | `RKVC_ERR_INTERNAL`   | -9  | 内部 FFmpeg 错误            |
 | `RKVC_ERR_PERMISSION` | -10 | 设备节点权限不足            |
 | `RKVC_ERR_FORMAT`     | -11 | 输入数据格式不匹配          |
-| `RKVC_ERR_LICENSE`    | -12 | 授权校验失败（1机1码）      |
-| `RKVC_ERR_UNLICENSED` | -13 | 未找到授权                  |
+| `RKVC_ERR_LICENSE`    | -12 | 产品授权或 `model.key` 校验失败 |
+| `RKVC_ERR_UNLICENSED` | -13 | 未找到产品授权或 `model.key`    |
 
 ---
 

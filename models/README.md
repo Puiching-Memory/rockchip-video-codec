@@ -29,3 +29,7 @@ RKNN、PMF、QP 补丁和 manifest 必须来自同一次、同一变体的导出
 `rkvc-sr/` 来自开源 Phase-RLFN 的单输入 fallback core，与旧 3 通道 RGB 模型不
 兼容。ONNX、RKNN、manifest 与许可证的完整生成命令见
 [Phase-RLFN 超分模型](../docs/sr-model-yuv-spec.md)。模型二进制默认被 Git 忽略。
+
+`models/rkvc-sr/` 仅用于手工导出和本地试验。标准自动生产路径写入
+`.build/models/<platform>/rkvc-sr/`，打包和 `scripts/test-npu-sr.sh` 会按本机 SoC
+读取该目录；不要把手工目录误认为发布输入。

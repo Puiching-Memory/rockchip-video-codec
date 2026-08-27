@@ -7,7 +7,7 @@
  *
  * 与 Rockchip rknn_crypt_tool（密钥内嵌公开 runtime，仅防小白拷贝）不同，
  * 本层密钥完全自主：
- *  1. 模型体 = XChaCha20-Poly1305(data_key)，文件头见 model_crypt_layout.h；
+ *  1. 模型体 = XSalsa20-Poly1305(data_key)，文件头见 model_crypt_layout.h；
  *  2. data_key 不随包分发，而是密封在每机一份的 model.key 里
  *     （内嵌 master_key 加密，明文含目标机机器码）；
  *  3. 运行时先解 model.key、校验本机机器码（复用 1机1码 指纹），
@@ -30,8 +30,7 @@
 #include "model_crypt_layout.h"
 
 /** 由 lib/model_key.c（演示）或 CMake 生成文件（生产）提供 */
-extern const uint8_t rkvc_model_masterkey_enc[32];
-extern const unsigned rkvc_model_masterkey_len;
+extern const uint8_t model_masterkey_obfuscated[32];
 
 /** 模型文件大小上限（与 MLVC_MAX_MODEL_BYTES 对齐，防误读巨型文件） */
 #define MODEL_CRYPT_MAX_BYTES ((size_t)256 * 1024 * 1024)
@@ -47,7 +46,7 @@ static void master_key_deobf(uint8_t out[32])
 {
     /* 与 license pubkey 相同的混淆参数：key_i = 0xA5 ^ (i * 7)（截 8 位） */
     for (unsigned i = 0; i < 32; i++)
-        out[i] = rkvc_model_masterkey_enc[i] ^ (uint8_t)(0xA5 ^ (i * 7));
+        out[i] = model_masterkey_obfuscated[i] ^ (uint8_t)(0xA5 ^ (i * 7));
 }
 
 static rkvc_err read_whole_file(const char *path, size_t max_bytes,
@@ -159,15 +158,18 @@ static rkvc_err model_key_load(uint8_t data_key_out[32])
     }
 
     /* 机器码校验：与 1机1码 同一指纹算法 */
-    char local_hex[LIC_MACHINE_ID_HEX_LEN];
-    if (lic_machine_id_hex(local_hex, sizeof(local_hex)) != 0) {
+    lic_fp_info fp_info;
+    if (lic_machine_id_collect(&fp_info) != 0) {
         sodium_memzero(plain, sizeof(plain));
-        RKVC_LOG("model.key: machine id unavailable");
+        RKVC_LOG("model.key: machine id unavailable (dt=%s otp=%s mac=%s)",
+                 fp_info.note_dt, fp_info.note_otp, fp_info.note_mac);
         return RKVC_ERR_LICENSE;
     }
-    if (memcmp(plain + 32, local_hex, RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN) != 0) {
+    if (memcmp(plain + 32, fp_info.machine_id,
+               RKVC_MODEL_CRYPT_MACHINE_ID_HEX_LEN) != 0) {
         sodium_memzero(plain, sizeof(plain));
-        RKVC_LOG("model.key machine id mismatch (bound to another machine)");
+        RKVC_LOG("model.key machine id mismatch (local source=%s path=%s)",
+                 fp_info.tag, fp_info.path);
         return RKVC_ERR_LICENSE;
     }
 
@@ -182,6 +184,11 @@ rkvc_err rkvc_model_crypt_load_file(const char *path, void **out_buf,
     if (!path || !out_buf || !out_size)
         return RKVC_ERR_INVALID;
 
+    if (sodium_init() < 0) {
+        RKVC_LOG("libsodium initialization failed");
+        return RKVC_ERR_INTERNAL;
+    }
+
     void *buf = NULL;
     size_t size = 0;
     const rkvc_err rerr = read_whole_file(path, MODEL_CRYPT_MAX_BYTES,
@@ -194,6 +201,12 @@ rkvc_err rkvc_model_crypt_load_file(const char *path, void **out_buf,
         *out_buf = buf;
         *out_size = size;
         return RKVC_OK;
+    }
+
+    if (size < RKVC_MODEL_ENC_HDR_LEN) {
+        rkvc_free(buf);
+        RKVC_LOG("encrypted model %s: incomplete header (%zu bytes)", path, size);
+        return RKVC_ERR_FORMAT;
     }
 
     const uint8_t *hdr = buf;

@@ -27,14 +27,14 @@
 #include "model_crypt_layout.h"
 
 /** lib/model_key.c（演示）或 CMake 生成文件提供 */
-extern const uint8_t rkvc_model_masterkey_enc[32];
+extern const uint8_t model_masterkey_obfuscated[32];
 
 static char tmpdir[256];
 
 static void master_key_deobf(uint8_t out[32])
 {
     for (unsigned i = 0; i < 32; i++)
-        out[i] = rkvc_model_masterkey_enc[i] ^ (uint8_t)(0xA5 ^ (i * 7));
+        out[i] = model_masterkey_obfuscated[i] ^ (uint8_t)(0xA5 ^ (i * 7));
 }
 
 static void wr_u32le(uint8_t *p, uint32_t v)
@@ -296,6 +296,26 @@ static void test_truncated_file(void **state)
                      RKVC_ERR_FORMAT);
 }
 
+static void test_incomplete_header(void **state)
+{
+    (void)state;
+    uint8_t header[RKVC_MODEL_ENC_HDR_LEN];
+    memset(header, 0, sizeof(header));
+    memcpy(header, RKVC_MODEL_ENC_MAGIC, RKVC_MODEL_ENC_MAGIC_LEN);
+
+    char path[320];
+    snprintf(path, sizeof(path), "%s/short-header.rknn", tmpdir);
+    for (size_t len = RKVC_MODEL_ENC_MAGIC_LEN;
+         len < RKVC_MODEL_ENC_HDR_LEN; len++) {
+        write_file(path, header, len);
+        void *buf = NULL;
+        size_t size = 0;
+        assert_int_equal(rkvc_model_crypt_load_file(path, &buf, &size),
+                         RKVC_ERR_FORMAT);
+        assert_null(buf);
+    }
+}
+
 static void test_bad_header(void **state)
 {
     (void)state;
@@ -361,6 +381,7 @@ int main(void)
         cmocka_unit_test(test_machine_mismatch),
         cmocka_unit_test(test_wrong_data_key),
         cmocka_unit_test(test_tampered_ciphertext),
+        cmocka_unit_test(test_incomplete_header),
         cmocka_unit_test(test_truncated_file),
         cmocka_unit_test(test_bad_header),
     };

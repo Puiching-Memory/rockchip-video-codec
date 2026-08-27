@@ -7,6 +7,7 @@
 # 用法:
 #   ./scripts/install-librga.sh
 #   PREFIX=/usr/local ./scripts/install-librga.sh   # 可选：装到系统前缀（需写权限）
+#   RKVC_TARGET_ARCH=aarch64 ./scripts/install-librga.sh  # x86 交叉打包
 
 set -euo pipefail
 
@@ -16,7 +17,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PREFIX="${PREFIX:-$PROJECT_DIR/.build/deps/librga-install}"
 SRC_DIR="${SRC_DIR:-$PROJECT_DIR/third_party/librga}"
 
-ARCH="$(uname -m)"
+ARCH="${RKVC_TARGET_ARCH:-$(uname -m)}"
 case "$ARCH" in
     aarch64|arm64) LIB_SUBDIR=gcc-aarch64 ;;
     armv7l|armhf)  LIB_SUBDIR=gcc-armhf ;;

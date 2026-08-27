@@ -9,8 +9,10 @@ AGPLv3 自由使用、修改、再分发；通过网络向用户提供服务时�
 请另行取得商业授权。商业授权与
 AGPLv3 相互独立：获得商业授权的被许可方不受 AGPLv3 开源义务约束。
 
-依据 AGPLv3 构建的默认版本（RKVC_ENABLE_LICENSE=OFF）不含附加限制；
-强制授权校验仅存在于商业授权构建中。
+源码的默认 CMake 构建（RKVC_ENABLE_LICENSE=OFF、RKVC_ENABLE_MODEL_CRYPT=OFF）
+不启用运行时授权或模型访问校验；强制产品授权校验仅存在于商业授权构建中。
+官方可移植包脚本会默认开启可选的 NPU 模型访问控制，可通过
+--no-encrypt-models 关闭。该技术选项不改变接收者依据 AGPLv3 取得的权利。
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published

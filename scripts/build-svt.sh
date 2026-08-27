@@ -11,9 +11,9 @@ source "$SCRIPT_DIR/build-common.sh"
 rkvc_limit_build_jobs
 
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SVT_SRC="$PROJECT_DIR/third_party/SVT-AV1"
-SVT_BUILD="$PROJECT_DIR/.build/deps/svt-av1-build"
-SVT_PREFIX="$PROJECT_DIR/.build/deps/svt-av1-install"
+SVT_SRC="${SVT_SRC:-$PROJECT_DIR/third_party/SVT-AV1}"
+SVT_BUILD="${SVT_BUILD:-$PROJECT_DIR/.build/deps/svt-av1-build}"
+SVT_PREFIX="${SVT_PREFIX:-$PROJECT_DIR/.build/deps/svt-av1-install}"
 
 CLEAN=0
 [[ "${1:-}" == "--clean" ]] && CLEAN=1
@@ -39,13 +39,21 @@ fi
 echo "=== 构建 SVT-AV1 (submodule) ==="
 # SVT_AV1_LTO 默认 ON(GCC>=9)：-flto 不带并行参数，LTO 链接单线程跑两遍
 # (shared lib + EncApp)，在 ARM 开发机上占打包耗时大头，且对编码速度收益很小
+cmake_cross_args=()
+if rkvc_cross_enabled; then
+    rkvc_require_cross_tools
+    cmake_cross_args+=(
+        -DCMAKE_TOOLCHAIN_FILE="$PROJECT_DIR/cmake/toolchains/aarch64-linux-gnu.cmake"
+    )
+fi
 cmake -S "$SVT_SRC" -B "$SVT_BUILD" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$SVT_PREFIX" \
     -DCMAKE_BUILD_PARALLEL_LEVEL="$BUILD_JOBS" \
     -DBUILD_TESTING=OFF \
     -DBUILD_APPS=ON \
-    -DSVT_AV1_LTO=OFF
+    -DSVT_AV1_LTO=OFF \
+    "${cmake_cross_args[@]+"${cmake_cross_args[@]}"}"
 
 cmake --build "$SVT_BUILD" -j"$BUILD_JOBS"
 cmake --install "$SVT_BUILD"

@@ -74,7 +74,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake ninja-build libcmocka-dev libdrm-dev
+          sudo apt-get install -y -qq cmake ninja-build libcmocka-dev libdrm-dev autoconf automake libtool python3-venv ripgrep binutils
+
+      - name: Install ONNX test dependency
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install onnx==1.16.1
+
+      - name: Build libsodium
+        run: ./scripts/install-libsodium.sh
 
       - name: Install librga (from submodule)
         run: ./scripts/install-librga.sh
@@ -107,7 +115,8 @@ jobs:
             -DRKVC_BUILD_TESTS=ON \
             -DMPP_BUILD_DIR=/tmp/mpp-build \
             -DRKVC_ENABLE_RKNN=OFF \
-            -DRKVC_ENABLE_MLVC=OFF
+            -DRKVC_ENABLE_MLVC=OFF \
+            -DRKVC_ENABLE_MODEL_CRYPT=ON
 
       - name: Build
         run: |
@@ -119,6 +128,9 @@ jobs:
         env:
           RKVC_VALGRIND_HARDWARE: "0"
         run: cd .build/release && ctest --output-on-failure --output-junit results.xml
+
+      - name: Check exported symbols
+        run: ./scripts/check-exported-symbols.sh .build/release/librkvc.so
 
       - name: Upload test results
         if: always()
@@ -195,7 +207,7 @@ jobs:
         run: |
           # shellcheck source=scripts/build-common.sh
           source scripts/build-common.sh
-          ./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir rk3588)"
+          ./scripts/test-portable.sh ".build/dist/$(rkvc_portable_pkg_dir rk3588)-no-npu"
 
       - name: Upload packages
         uses: actions/upload-artifact@v7
@@ -204,3 +216,55 @@ jobs:
           path: |
             .build/release/packages/*.tar.gz
             .build/dist/*.tar.gz
+
+  cross-package:
+    name: Full cross package (x86_64 → AArch64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Init submodules (shallow)
+        run: git submodule update --init --depth 1 --recursive
+
+      - name: Enable Ubuntu arm64 multiarch packages
+        run: |
+          sudo dpkg --add-architecture arm64
+          if ! grep -q '^Architectures:' /etc/apt/sources.list.d/ubuntu.sources; then
+            sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+          fi
+          . /etc/os-release
+          printf '%s\n' \
+            'Types: deb' \
+            'URIs: http://ports.ubuntu.com/ubuntu-ports/' \
+            "Suites: $VERSION_CODENAME $VERSION_CODENAME-updates $VERSION_CODENAME-backports $VERSION_CODENAME-security" \
+            'Components: main universe restricted multiverse' \
+            'Architectures: arm64' \
+            'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' | \
+            sudo tee /etc/apt/sources.list.d/ubuntu-ports-arm64.sources >/dev/null
+
+      - name: Install host, cross and QEMU dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            autoconf automake binutils cmake curl gcc g++ git libtool make ninja-build \
+            patchelf pkg-config python3 python3-venv qemu-user \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross \
+            libdrm-dev:arm64 zlib1g-dev:arm64
+
+      - name: Cross-build, package and run QEMU smoke tests
+        run: |
+          # CI 不持久化生产密钥，故产出未加密模型的测试包；生产打包默认加密。
+          BUILD_JOBS=6 ./scripts/package-portable.sh \
+            --target-arch aarch64 \
+            --platforms rk3588 \
+            --no-encrypt-models \
+            --qemu-test
+
+      - name: Upload AArch64 portable package
+        uses: actions/upload-artifact@v7
+        with:
+          name: aarch64-portable-ci-package
+          path: .build/cross/aarch64/dist/*.tar.gz

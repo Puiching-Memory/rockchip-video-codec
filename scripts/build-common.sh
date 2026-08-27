@@ -53,6 +53,61 @@ rkvc_portable_pkg_dir() {
     printf 'rkvc-%s-linux-%s-portable\n' "$ver" "$arch"
 }
 
+# Normalize the target CPU name used by cross-build scripts.  Empty/native
+# keeps the historical host build; arm64 is accepted as an alias for aarch64.
+rkvc_normalize_target_arch() {
+    case "${1:-native}" in
+        native|"") printf 'native\n' ;;
+        aarch64|arm64) printf 'aarch64\n' ;;
+        armhf|armv7l) printf 'armhf\n' ;;
+        *)
+            echo "错误: 不支持的目标架构 '$1'（可选: native / aarch64 / armhf）" >&2
+            return 1
+            ;;
+    esac
+}
+
+rkvc_cross_enabled() {
+    [[ -n "${RKVC_TARGET_ARCH:-}" && "${RKVC_TARGET_ARCH}" != native && \
+       "${RKVC_TARGET_ARCH}" != "$(uname -m)" ]]
+}
+
+rkvc_target_triplet() {
+    case "${RKVC_TARGET_ARCH:-native}" in
+        aarch64|arm64) printf 'aarch64-linux-gnu\n' ;;
+        armhf|armv7l) printf 'arm-linux-gnueabihf\n' ;;
+        native) printf '%s\n' "$(uname -m)-linux-gnu" ;;
+        *) return 1 ;;
+    esac
+}
+
+# Colon-separated pkg-config roots for the target sysroot. Project-local
+# dependency prefixes should be prepended by each caller.
+rkvc_target_pkg_config_libdir() {
+    local triplet sysroot
+    triplet="$(rkvc_target_triplet)" || return 1
+    sysroot="${RKVC_SYSROOT:-}"
+    if [[ -n "$sysroot" ]]; then
+        printf '%s\n' \
+            "$sysroot/usr/lib/$triplet/pkgconfig:$sysroot/usr/lib/pkgconfig:$sysroot/usr/share/pkgconfig"
+    else
+        printf '%s\n' \
+            "/usr/lib/$triplet/pkgconfig:/usr/$triplet/lib/pkgconfig:/usr/share/pkgconfig"
+    fi
+}
+
+rkvc_require_cross_tools() {
+    rkvc_cross_enabled || return 0
+    local prefix="${RKVC_CROSS_PREFIX:-$(rkvc_target_triplet)-}" tool missing=()
+    for tool in gcc g++ ar ranlib strip; do
+        command -v "${prefix}${tool}" >/dev/null 2>&1 || missing+=("${prefix}${tool}")
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "错误: 缺少交叉工具: ${missing[*]}" >&2
+        return 1
+    fi
+}
+
 rkvc_nproc() {
     local n
     n="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"

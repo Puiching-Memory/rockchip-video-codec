@@ -34,17 +34,24 @@ option(RKVC_ENABLE_RKNN    "Enable RKNN NPU super-resolution" ON)
 option(RKVC_ENABLE_MLVC    "Enable MLVC neural video codec (RKNN NPU + pure-C rANS)" ON)
 option(RKVC_RKNN_ALLOW_DEBUG_LOG "Respect RKNN_LOG_LEVEL / RKVC_DEBUG_RKNN_LOG at runtime for internal diagnostics (leaks model topology to end users; keep OFF for distribution)" OFF)
 option(RKVC_ENABLE_LICENSE "Build 1-machine-1-code license support and enforce it in rkvc_init() (libsodium Ed25519)" OFF)
-option(RKVC_ENABLE_MODEL_CRYPT "Encrypt RKNN models with rkvc's own layer (XChaCha20-Poly1305 + per-machine model.key, libsodium)" OFF)
+option(RKVC_ENABLE_MODEL_CRYPT "Encrypt RKNN models with rkvc's own layer (XSalsa20-Poly1305 + per-machine model.key, libsodium)" OFF)
 
 # ── FFmpeg (ffmpeg-rockchip) ──────────────────────────────────────────
-# 始终使用 third_party/ 源码树构建的静态库（禁止系统 FFmpeg，否则破坏可移植包）。
-set(AVCODEC_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip")
-set(AVCODEC_LIB_DIRS
-    "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavcodec"
-    "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavformat"
-    "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavutil"
-    "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libswscale"
-)
+# 原生开发构建可直接消费子模块源码树中的静态库；交叉/portable 构建通过
+# FFMPEG_PREFIX 指向隔离安装前缀，避免把 x86 与 AArch64 产物写进同一源码树。
+set(FFMPEG_PREFIX "" CACHE PATH "ffmpeg-rockchip install prefix (cross/portable builds)")
+if(FFMPEG_PREFIX)
+    set(AVCODEC_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+    set(AVCODEC_LIB_DIRS "${FFMPEG_PREFIX}/lib")
+else()
+    set(AVCODEC_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip")
+    set(AVCODEC_LIB_DIRS
+        "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavcodec"
+        "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavformat"
+        "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libavutil"
+        "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip/libswscale"
+    )
+endif()
 
 # ── MPP (rockchip mpp) ───────────────────────────────────────────────
 # 始终使用 third_party/ 源码树构建的静态库
@@ -244,7 +251,7 @@ if(RKVC_ENABLE_LICENSE)
 endif()
 
 # ── 模型自研加密层（RKVC_ENABLE_MODEL_CRYPT） ────────────────────
-# 模型体用 XChaCha20-Poly1305(data_key) 加密；data_key 经内嵌 master_key 密封在
+# 模型体用 XSalsa20-Poly1305(data_key) 加密；data_key 经内嵌 master_key 密封在
 # 每机一份的 model.key 中（含机器码），运行时校验后解密。格式见
 # lib/model_crypt_layout.h；打包工具见 tools/rkvc_model_crypt.c。
 #
@@ -306,8 +313,7 @@ if(RKVC_ENABLE_MODEL_CRYPT)
         file(WRITE "${RKVC_MODEL_KEY_C}"
             "/* 由 CMake 从 RKVC_MODEL_MASTERKEY_FILE 自动生成，勿手动编辑。 */\n"
             "#include <stdint.h>\n\n"
-            "const uint8_t rkvc_model_masterkey_enc[32] = {\n  ${_mk_enc_arr}\n};\n\n"
-            "const unsigned rkvc_model_masterkey_len = 32;\n")
+            "const uint8_t model_masterkey_obfuscated[32] = {\n  ${_mk_enc_arr}\n};\n")
         list(APPEND RKVC_SOURCES "${RKVC_MODEL_KEY_C}")
         message(STATUS "Model crypt: ON, masterkey=${RKVC_MODEL_MASTERKEY_FILE}")
     else()
@@ -323,6 +329,13 @@ if(RKVC_ENABLE_MODEL_CRYPT)
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${RKVC_LICENSE_INCLUDES})
     target_link_libraries(rkvc_model_crypt PRIVATE ${RKVC_LICENSE_LIBS})
+
+    # 客户侧只读机器码采集器：不包含 genkey/issue/decrypt 等发码能力。
+    add_executable(rkvc_model_id tools/rkvc_model_id.c lib/license_machine.c)
+    target_include_directories(rkvc_model_id PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${RKVC_LICENSE_INCLUDES})
+    target_link_libraries(rkvc_model_id PRIVATE ${RKVC_LICENSE_LIBS})
 endif()
 
 if(RKVC_ENABLE_ASAN OR RKVC_ENABLE_UBSAN OR RKVC_ENABLE_COVERAGE)
@@ -376,7 +389,7 @@ endif()
 #
 # 启用项：
 #   -O3                        高优化等级，让反编译后的控制流/函数边界更难读
-#   -fvisibility=hidden        默认隐藏所有符号（配合 librkvc.map 精确导出 API）
+#   - version script allowlist 仅导出公共头声明的 API
 #   -fmerge-all-constants      合并重复常量，增加字符串定位难度
 #   -fno-unwind-tables          移除异常展开表，减少元数据
 #   -fno-asynchronous-unwind-tables  同上

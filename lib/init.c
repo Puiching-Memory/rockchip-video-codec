@@ -99,8 +99,8 @@ const char *rkvc_err_str(rkvc_err err)
     case RKVC_ERR_INTERNAL:  return "internal error";
     case RKVC_ERR_PERMISSION: return "device permission denied";
     case RKVC_ERR_FORMAT:    return "input format mismatch";
-    case RKVC_ERR_LICENSE:   return "license verification failed";
-    case RKVC_ERR_UNLICENSED: return "no license found";
+    case RKVC_ERR_LICENSE:   return "license or model key verification failed";
+    case RKVC_ERR_UNLICENSED: return "no license or model key found";
     }
     return "unknown error";
 }

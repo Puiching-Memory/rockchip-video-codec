@@ -98,6 +98,7 @@ struct rkvc_buffer {
     int               fd;
     void             *mmap_base;   /**< dma-heap mmap 基址（仅自分配 DMABUF，buffer_free 负责 munmap） */
     size_t            mmap_size;   /**< mmap 映射字节数 */
+    int               cpu_cached;  /**< 非 0 表示 mmap 需用 DMA_BUF_IOCTL_SYNC 包围 CPU 访问 */
     uint32_t          width;
     uint32_t          height;
     rkvc_pix_fmt      format;
@@ -363,6 +364,8 @@ rkvc_err rkvc_rga_scale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
 rkvc_err rkvc_rga_scale_buffer_cached(const rkvc_buffer *src, rkvc_buffer **dst,
                                       int dst_w, int dst_h, rkvc_pix_fmt dst_fmt,
                                       rkvc_upscale_algo algo);
+rkvc_err rkvc_rga_scale_buffer_into(const rkvc_buffer *src, rkvc_buffer *dst,
+                                    rkvc_upscale_algo algo);
 rkvc_err rkvc_post_upscale_buffer(const rkvc_buffer *src, rkvc_buffer **dst,
                                   int dst_w, int dst_h,
                                   rkvc_upscale_algo algo,
@@ -372,8 +375,8 @@ int rkvc_upscale_algo_from_name(const char *name, rkvc_upscale_algo *out);
 rkvc_err rkvc_dma_to_host(const rkvc_buffer *src, rkvc_buffer **dst);
 rkvc_err rkvc_buffer_dmabuf_begin_cpu_read(const rkvc_buffer *buf);
 rkvc_err rkvc_buffer_dmabuf_end_cpu_read(const rkvc_buffer *buf);
-rkvc_err rkvc_buffer_dmabuf_begin_device_write(const rkvc_buffer *buf);
-rkvc_err rkvc_buffer_dmabuf_end_device_write(const rkvc_buffer *buf);
+rkvc_err rkvc_buffer_dmabuf_begin_cpu_rw(const rkvc_buffer *buf);
+rkvc_err rkvc_buffer_dmabuf_end_cpu_rw(const rkvc_buffer *buf);
 int rkvc_rga_available(void);
 int rkvc_rga_rgb888_stride(int width);
 int rkvc_rga_rgb888_row_bytes(int width);

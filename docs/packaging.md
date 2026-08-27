@@ -6,7 +6,6 @@
 
 ```bash
 git submodule update --init --depth 1
-uv sync    # 模型自动生产需要项目 Python 环境
 
 ./scripts/package-portable.sh                          # 默认：探测本机 SoC，单平台包
 ./scripts/package-portable.sh --platforms rk3576,rk3588,rv1126b   # 多目标板，每平台一个包
@@ -20,6 +19,62 @@ source scripts/build-common.sh
 
 产物：`rkvc-*-linux-<platform>-portable.tar.gz`（每平台一个，含 `librga` + `librknnrt` + 该平台 `models/`）
 
+### 在 x86_64 服务器交叉打包与测试 AArch64 包
+
+无需在 Rockchip 板卡上完成编译。打包脚本可以把本项目、MPP、SVT-AV1、
+ffmpeg-rockchip 和 libsodium 交叉编译为 AArch64；模型转换工具仍作为 x86_64
+宿主程序运行，librga/librknnrt 则选取 AArch64 发行文件。QEMU user-mode 用于
+验证目标 ELF 能否加载及 CLI 基本行为。
+
+Ubuntu 24.04 构建机需要 AArch64 交叉工具链、QEMU，以及目标架构的开发库：
+
+```bash
+sudo dpkg --add-architecture arm64
+# amd64 仓库须限制为 amd64，并为 arm64 配置 ports.ubuntu.com；CI workflow
+# 中的 cross-package job 给出了完整的 deb822 源配置。
+sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+  libc6-dev-arm64-cross libdrm-dev:arm64 zlib1g-dev:arm64 \
+  qemu-user cmake ninja-build make pkg-config patchelf binutils curl git \
+  python3 python3-venv autoconf automake libtool
+
+git submodule update --init --depth 1 --recursive
+BUILD_JOBS=8 ./scripts/package-portable.sh \
+  --target-arch aarch64 \
+  --platforms rk3588 \
+  --qemu-test
+```
+
+上述命令生成含 NPU runtime、MLVC-S 与 Phase-RLFN SR 模型的完整包：
+`.build/cross/aarch64/dist/rkvc-*-linux-rk3588-portable.tar.gz`。打包脚本会自动调用
+`prepare-model-env.sh`，按 `uv.lock` 创建/同步 x86_64 宿主上的 rknn-toolkit2
+模型生产环境；如果机器没有 `uv`，会先把固定版本安装到
+`.build/host/uv-bootstrap/`。模型加密所用的 host/target libsodium 也会分别
+构建，不能混用。
+
+若只需快速验证 C/C++ 交叉工具链，可追加 `--no-rknn`，生成包名带
+`-no-npu` 的精简包并跳过 Python 环境和模型导出。
+
+环境同步显式使用锁文件记录的 PyPI 源，避免构建机全局 `~/.config/uv/uv.toml`
+把仓库锁文件改写成私有镜像地址；确有内部镜像锁文件时可通过
+`RKVC_UV_DEFAULT_INDEX` 覆盖。
+
+可单独复测已有的解包目录：
+
+```bash
+./scripts/test-portable-cross.sh \
+  .build/cross/aarch64/dist/rkvc-*-linux-rk3588-portable \
+  --target aarch64 --qemu qemu-aarch64
+```
+
+测试分为两层：`check-elf-deps.py` 不执行目标程序，检查全部 ELF 架构、
+`DT_NEEDED` 闭包和关键库是否确实随包携带；随后 QEMU 执行 `rkvc_info`
+和 CLI 负向冒烟测试。QEMU user-mode 不模拟 Rockchip MPP/RGA/RKNN 设备和
+ioctl，因此硬件编解码、缩放和 NPU 推理仍必须在对应 SoC 的目标板上完成最终门禁。
+
+高级环境可用 `--cross-prefix PREFIX` 覆盖默认的 `aarch64-linux-gnu-`，或用
+`--sysroot DIR` 指定自备目标 sysroot。宿主工具和目标库分别放入
+`.build/host/` 与 `.build/cross/aarch64/`，避免 x86_64/AArch64 产物串用。
+
 ### 模型自动生产（打包时）
 
 启用 RKNN 时，打包脚本会先对每个目标平台调用 `scripts/build-models.sh` 自动生产
@@ -32,17 +87,18 @@ source scripts/build-common.sh
 | Phase-RLFN SR | `huggingface.co/Sail2Dream/phase-rlfn-codec-v1`（`best_ema.pth`） | QAT checkpoint，免校准（`--no-quantize`）；可用 `--sr-weight` 覆盖、`RKVC_SR_WEIGHT_URL`/`RKVC_SR_WEIGHT_SHA256` 换源 |
 
 打包选项：
-- `--platforms rk3576,rk3588,rv1126b`：逗号分隔目标板列表，每平台产一个包；缺省探测本机 SoC（`/proc/device-tree/compatible`）。
+- `--platforms rk3588,rk3576,rk3568,rk3566,rv1126b`：逗号分隔目标板列表，每平台产一个包；缺省探测本机 SoC（`/proc/device-tree/compatible`）。RK3568/RK3566 只生产 MLVC bundle，因 SR exporter 不支持这两个 target，会明确跳过 SR。
 - `--mlvc-variants mlvc|mlvc-s|all`：随包的 MLVC 变体，默认 `mlvc-s`（只带轻量版，包体减 ~85MB）；`all` 同时携带两个变体。
 - `--sr-weight PATH`：本地 SR 权重，缺省自动从 HuggingFace 下载。
 - `--allow-skip-sr`：SR 权重不可得/导出失败时警告跳过（默认报错）。
 - `--no-encrypt-models`：关闭模型自研加密（默认开启，见下节）。
-- `--no-rknn`：不下载 librknnrt、不启用 NPU、不生产模型（CI 用）。
+- `--no-rknn`：不下载 librknnrt、不启用 NPU、不生产模型（CI 用）；包名追加 `-no-npu`，避免与完整能力包混淆。
+- `--no-model-env-sync`：不自动运行锁文件环境同步；仅用于离线镜像或已经预置 `RKVC_MODEL_PYTHON` 的构建机。
 - `--no-test`：打包后不自动运行包内自测。默认每个平台包产出后自动跑 `test.sh`（仅对平台与本机 SoC 匹配的包；日志落盘 `<pkg>.test.log`），失败则打包以错误退出。
 
 ### 模型自研加密（默认开启）
 
-包内 `.rknn` 模型默认经自研加密层保护（`RKVC_ENABLE_MODEL_CRYPT`，XChaCha20-Poly1305），
+包内 `.rknn` 模型默认经自研加密层保护（`RKVC_ENABLE_MODEL_CRYPT`，libsodium `crypto_secretbox` / XSalsa20-Poly1305），
 不依赖 Rockchip `rknn_crypt_tool`（aarch64 wheel 不附带该工具）：
 
 - 模型体用随机数据密钥 `data.key` 加密，打包时由 `rkvc_model_crypt encrypt` 在包内原地完成；
@@ -51,17 +107,24 @@ source scripts/build-common.sh
 - 运行时加载模型自动解密：先解 `model.key`、校验本机机器码，通过才解密模型体。
   包拷到未签发 `model.key` 的机器上模型不可加载。
 - 密钥位于 `tools/keys/{master.key,data.key}`（首次打包自动生成，已 gitignore）；
-  `--no-encrypt-models` 可关闭。
+  必须成对离线备份。任一文件丢失时打包会终止，不会自动轮换并作废历史模型和 `model.key`；`--no-encrypt-models` 可关闭。
+
+该机制用于阻止未修改客户端上的直接跨机复制，不是硬件级 DRM：对称主密钥和模型明文最终必须在客户进程中可用，有能力逆向或转储进程的攻击者仍可提取。符号隐藏和 XOR 混淆只降低误用与低成本提取，不应作为密钥不可恢复的安全承诺。需要更强保证时应把设备根密钥和解密操作放入 TEE/安全世界或远程密钥服务。
+
+交付包只包含运行所需的 `.rknn`，完整明文权重的 `.onnx` 仅保留在打包机 `.build/models/` 生产缓存。加密后脚本会刷新 `sr_export_manifest.json` 中的密文大小与 SHA-256，并由包内测试重新验证。
 
 客户签发流程（打包结束后脚本会打印同样提示）：
 
-1. 客户机采集机器码（`rkvc_model_crypt machine-id`）；标准包不带该工具（仅 `--license` 版随包分发裁剪版
-   `bin/rkvc_lic`，且 `rkvc_machine_id()` 只在 `RKVC_ENABLE_LICENSE=ON` 时编进 `librkvc`），
-   故需单独向客户提供一个采集二进制，或让客户回传 `dt-serial` / OTP 等原始指纹由打包方换算；
+1. 客户机运行标准包内的 `bin/rkvc_model_id` 采集机器码；该工具只有采集能力，不含密钥生成、签发或解密命令；
 2. 打包方：`rkvc_model_crypt issue -d tools/keys/data.key -m tools/keys/master.key -M <客户机器码> -o model.key`；
 3. 客户放置 `~/.config/rkvc/model.key` 或设置 `RKVC_MODEL_KEY_FILE`。
 
 错误语义：无 `model.key` → `RKVC_ERR_UNLICENSED`；机器码不符/文件被篡改 → `RKVC_ERR_LICENSE`。
+
+容器内默认拒绝使用容易漂移的 MAC 地址兜底。部署时应把宿主的
+`/proc/device-tree/serial-number` 只读挂载进容器，或确保容器能读取 Rockchip OTP；
+诊断时可运行 `rkvc_model_id` 查看每一路指纹失败原因。只有明确接受容器 MAC
+漂移风险时才设置 `RKVC_LICENSE_ALLOW_CONTAINER_MAC=1`。
 
 ### 授权构建（可选）
 
@@ -78,7 +141,7 @@ source scripts/build-common.sh
 ```bash
 # 强制授权版（首次自动生成密钥对）
 ./scripts/package-portable.sh --license
-# 成品包: .build/dist/rkvc-<version>-linux-<arch>-portable-licensed/
+# 成品包: .build/dist/rkvc-<version>-linux-<platform>-portable-licensed/
 # 自测license: .build/dist/rkvc-<version>-linux-<arch>-portable-licensed.lic
 
 # 本机自测（打包机自身）
@@ -119,7 +182,7 @@ export RKVC_LICENSE_FILE=/path/to/customer.lic
 > autotools（`autoconf` / `automake` / `libtool`）。`libsodium` 静态链接，不随包分发 `.so`。
 
 ```
-rkvc-*-linux-aarch64-portable/
+rkvc-*-linux-<platform>-portable/
 ├── bin/
 │   ├── rkvc_encode
 │   ├── rkvc_decode
@@ -127,6 +190,7 @@ rkvc-*-linux-aarch64-portable/
 │   ├── rkvc_session_upscale   # 硬解 + 后处理上采样
 │   ├── rkvc_yuv_upscale
 │   ├── rkvc_info
+│   ├── rkvc_model_id       # model.key 客户机器码采集器
 │   └── rkvc_bench
 ├── lib/
 │   ├── librkvc.so*
@@ -140,8 +204,7 @@ rkvc-*-linux-aarch64-portable/
 │   ├── librknnrt.so         # RKNN NPU runtime（rkvc_sr）
 │   └── ...
 ├── models/
-│   ├── rkvc-sr/                 # Phase-RLFN 完整导出 bundle（.rknn 默认已加密）
-│   │   ├── phase_rlfn_sr_x3.onnx
+│   ├── rkvc-sr/                 # Phase-RLFN runtime bundle（仅支持的 SoC；.rknn 默认已加密）
 │   │   ├── phase_rlfn_sr_x3.rknn（默认经自研加密层加密，需 model.key 解密）
 │   │   ├── sr_export_manifest.json
 │   │   └── LICENSE.rknn-super-resolution-MIT / SOURCE.md
@@ -171,8 +234,8 @@ rkvc-*-linux-aarch64-portable/
 ### 使用
 
 ```bash
-tar xzf rkvc-*-linux-aarch64-portable.tar.gz
-cd rkvc-*-linux-aarch64-portable
+tar xzf rkvc-*-linux-<platform>-portable.tar.gz
+cd rkvc-*-linux-<platform>-portable
 
 ./test.sh
 ./network-e2e-test.sh
@@ -210,7 +273,7 @@ LD_LIBRARY_PATH=lib ./myapp
 
 ### 模型与 NPU 运行时来源声明
 
-- **Phase-RLFN bundle（`models/rkvc-sr/`）**：来自 [Puiching-Memory/rknn-super-resolution](https://github.com/Puiching-Memory/rknn-super-resolution) 的单输入开源 core；含 ONNX、明文/可选加密 RKNN、SHA-256 manifest、MIT LICENSE 与源码 commit。旧 RGB 和 codec-aware 双输入模型不兼容。生成流程见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
+- **Phase-RLFN bundle（`models/rkvc-sr/`）**：来自 [Puiching-Memory/rknn-super-resolution](https://github.com/Puiching-Memory/rknn-super-resolution) 的单输入开源 core；生产缓存含 ONNX，portable runtime bundle 只含明文/可选加密 RKNN、SHA-256 manifest、MIT LICENSE 与源码 commit。旧 RGB 和 codec-aware 双输入模型不兼容。生成流程见 [sr-model-yuv-spec.md](sr-model-yuv-spec.md)。
 - **MLVC bundle（`models/mlvc/` 与 `models/mlvc-s/`）**：由 Microsoft MLVC 官方 ONNX 经 `tools/mlvc/export_rknn.py` 转换生成的神经网络编解码模型，各变体独立持有 RKNN（`MLVC{Encoder,Decoder}_<soc>.rknn`）、PMF（`gaussian.bin`/`bitest.bin`）、QP 补丁与导出 manifest，不能跨变体混用。生成流程见 [mlvc-rknn-export.md](mlvc-rknn-export.md)；随 `librknnrt` 一并打进可移植包。
 - **`librknnrt.so`**：Rockchip RKNN NPU 运行时，为 Rockchip 官方 SDK 提供的**专有二进制**，仅授权在 Rockchip 硬件上使用；再分发须遵守 Rockchip SDK 许可条款。构建时由 `scripts/install-rknnrt.sh` 从 [rknn-toolkit2](https://github.com/airockchip/rknn-toolkit2) 下载到 `.build/deps/rknn-install/`（默认 tag `v2.3.2`，与 `tools/` 的 rknn-toolkit2 对齐），再打进可移植包。项目不修改该库，仅动态链接。商业分发前请向 Rockchip 确认条款。
 
@@ -259,6 +322,7 @@ ninja -C .build/release -j"$BUILD_JOBS" package
 - **ffmpeg**：`rebuild-ffmpeg-rkmpp.sh` 在 `$FFMPEG_PREFIX/.rkvc-ffmpeg.stamp` 写入指纹（子模块 commit + 补丁哈希 + configure 选项 + 依赖前缀），命中则跳过；改选项/换补丁/切子模块自动重建。
 - **rkvc**：`.build/portable`（`--license` 用平行目录 `.build/portable-licensed`，交替打包不互相触发重编）+ Ninja 增量。
 - **模型**：`.build/models/<platform>/` 暂存幂等缓存。
+- 从没有 `.rkvc-complete` 标记的旧版构建目录升级时，首次打包会重建 MPP / SVT-AV1；后续重复打包恢复增量跳过。
 - 升级 MPP/RGA/SVT/ffmpeg 依赖后建议 `--clean` 全量重建；指纹不覆盖依赖库自身的版本变化。
 
 ## 发布文档模板

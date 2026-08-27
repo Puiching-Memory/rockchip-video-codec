@@ -7,7 +7,8 @@
 
 static uint8_t clip_u8(float value)
 {
-    if (value <= 0.0f)
+    /* NaN 的有序比较均为假；用否定比较把 NaN 确定性地钳到 0。 */
+    if (!(value > 0.0f))
         return 0;
     if (value >= 255.0f)
         return 255;

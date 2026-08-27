@@ -28,7 +28,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-PY="$PROJECT_DIR/.venv/bin/python"
+PY="${RKVC_MODEL_PYTHON:-$PROJECT_DIR/.venv/bin/python}"
 STAGING_ROOT="$PROJECT_DIR/.build/models"
 ONNX_CACHE="$STAGING_ROOT/onnx-cache"
 SR_WEIGHT_DIR="$PROJECT_DIR/.build/deps/sr-weights/phase-rlfn-codec-v1"
@@ -89,7 +89,8 @@ done
 [[ ${#VARIANT_LIST[@]} -gt 0 ]] || { echo "错误: --variants 为空" >&2; exit 2; }
 
 if [[ ! -x "$PY" ]]; then
-    echo "错误: 缺少 $PY，请先在仓库根目录运行: uv sync" >&2
+    echo "错误: 缺少模型导出 Python: $PY" >&2
+    echo "  运行 ./scripts/prepare-model-env.sh，或设置 RKVC_MODEL_PYTHON" >&2
     exit 1
 fi
 
@@ -165,12 +166,31 @@ mlvc_variant_dir() {
     [[ "$1" == "mlvc-s" ]] && echo "$MLVC_S_DIR" || echo "$MLVC_DIR"
 }
 
+mlvc_onnx_fingerprint() {
+    local variant="$1" model_version="dmc61sbr_reglu" commit="missing"
+    [[ "$variant" == "mlvc-s" ]] && model_version="dmc61sbr_reglu_s"
+    if [[ -d "$PROJECT_DIR/.build/deps/mlvc/.git" ]]; then
+        commit="$(git -C "$PROJECT_DIR/.build/deps/mlvc" rev-parse HEAD 2>/dev/null || echo unknown)"
+    fi
+    {
+        printf 'variant=%s\nmodel_version=%s\nmlvc_commit=%s\n' \
+            "$variant" "$model_version" "$commit"
+        sha256sum "$PROJECT_DIR/tools/mlvc/export_onnx.py" \
+                  "$PROJECT_DIR/tools/mlvc/export_rknn.py" \
+                  "$PROJECT_DIR/tools/mlvc/onnx_rewrite.py"
+    } | sha256sum | awk '{print $1}'
+}
+
 mlvc_onnx_ready() {
     local variant="$1"
     [[ -f "$ONNX_CACHE/$variant.stamp" ]] || return 1
     local onnx_dir
-    onnx_dir="$(cat "$ONNX_CACHE/$variant.stamp")"
-    [[ -f "$onnx_dir/MLVCEncoder.onnx" && -f "$onnx_dir/MLVCDecoder.onnx" ]]
+    onnx_dir="$(sed -n '1p' "$ONNX_CACHE/$variant.stamp")"
+    local recorded expected
+    recorded="$(sed -n '2p' "$ONNX_CACHE/$variant.stamp")"
+    expected="$(mlvc_onnx_fingerprint "$variant")"
+    [[ "$recorded" == "$expected" &&
+       -f "$onnx_dir/MLVCEncoder.onnx" && -f "$onnx_dir/MLVCDecoder.onnx" ]]
 }
 
 mlvc_export_onnx() {
@@ -194,8 +214,13 @@ mlvc_export_onnx() {
         echo "错误: 未能从导出日志解析 ONNX 目录" >&2
         return 1
     fi
-    printf '%s\n' "$onnx_dir" > "$ONNX_CACHE/$variant.stamp"
-    echo "  $variant ONNX 目录: $onnx_dir"
+    local cached_dir="$ONNX_CACHE/$variant"
+    rm -rf "$cached_dir"
+    mkdir -p "$cached_dir"
+    cp -a "$onnx_dir/." "$cached_dir/"
+    printf '%s\n%s\n' "$cached_dir" "$(mlvc_onnx_fingerprint "$variant")" \
+        > "$ONNX_CACHE/$variant.stamp"
+    echo "  $variant ONNX 缓存: $cached_dir"
 }
 
 mlvc_bundle_ok() {
@@ -238,7 +263,8 @@ mlvc_build_variant() {
         mlvc_export_onnx "$variant" "$out_dir"
     fi
     local onnx_dir
-    onnx_dir="$(cat "$ONNX_CACHE/$variant.stamp")"
+    # stamp 第 1 行是缓存目录，第 2 行是输入指纹；只把目录传给导出器。
+    onnx_dir="$(sed -n '1p' "$ONNX_CACHE/$variant.stamp")"
 
     echo "--- $variant: RKNN 转换 (platform=$PLATFORM qp_list=$MLVC_QP_LIST) ---"
     mkdir -p "$out_dir"
@@ -263,6 +289,13 @@ sr_bundle_ok() {
 }
 
 sr_build() {
+    case "$PLATFORM" in
+        rk3588|rk3576|rv1126b) ;;
+        *)
+            echo "--- rkvc-sr: $PLATFORM 无 SR 导出 target，跳过 ---"
+            return 0
+            ;;
+    esac
     if sr_bundle_ok; then
         echo "--- rkvc-sr: 暂存产物已就绪，跳过 ($SR_DIR) ---"
         return 0

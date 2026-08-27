@@ -9,7 +9,7 @@
  * 避免魔法数 / 区域长度在两处手抄后漂移。
  *
  * 设计（与 Rockchip rknn_crypt_tool 的机制对位，但密钥完全自主可控）：
- *  - 模型体用随机数据密钥 data_key（32B）做 XChaCha20-Poly1305
+ *  - 模型体用随机数据密钥 data_key（32B）做 XSalsa20-Poly1305
  *    （libsodium crypto_secretbox，自带 16B MAC）。
  *  - data_key 不随包分发：打包方用内嵌在 librkvc 的 master_key 把
  *    「data_key + 目标机机器码」密封成每机一份的 model.key 授权文件。
@@ -38,7 +38,7 @@
 
 /** crypto_secretbox MAC 长度（libsodium 常量，此处显式声明便于布局计算） */
 #define RKVC_MODEL_ENC_MAC_LEN   16u
-/** XChaCha20-Poly1305 nonce 长度 */
+/** XSalsa20-Poly1305 nonce 长度（libsodium crypto_secretbox） */
 #define RKVC_MODEL_ENC_NONCE_LEN 24u
 
 /* ── 每机模型授权文件 model.key ─────────────────────────────────── */
@@ -62,5 +62,10 @@
 
 _Static_assert(RKVC_MODEL_KEY_FILE_LEN == 148u,
                "model.key file must be 148 bytes");
+_Static_assert(RKVC_MODEL_ENC_MAGIC_LEN + 4u + 4u + 8u +
+               RKVC_MODEL_ENC_NONCE_LEN == RKVC_MODEL_ENC_HDR_LEN,
+               "encrypted model header layout mismatch");
+_Static_assert(RKVC_MODEL_ENC_HDR_LEN == 48u,
+               "encrypted model wire header must remain 48 bytes");
 
 #endif /* RKVC_MODEL_CRYPT_LAYOUT_H */

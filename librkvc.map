@@ -1,7 +1,7 @@
 /*
  * librkvc.map — 共享库符号导出控制（链接器 version script）。
  *
- * 仅导出公共 API（rkvc_ 前缀）；其余符号（内部实现、license 校验内部函数、
+ * 仅导出公共头中列明的 API；其余符号（内部实现、license 校验内部函数、
  * static 变量等）一律标记为 local，不出现在 .dynsym，外部无法 dlsym/LD_PRELOAD。
  *
  * 配合 -Bsymbolic-functions：库内部对 rkvc_* 函数的调用直接绑定到本 DSO 内
@@ -10,7 +10,71 @@
  */
 RKVC_1.0 {
     global:
-        rkvc_*;
+        rkvc_buffer_alloc_bitstream;
+        rkvc_buffer_alloc_video_host;
+        rkvc_buffer_get_bitstream;
+        rkvc_buffer_get_video_info;
+        rkvc_buffer_get_video_planes;
+        rkvc_buffer_kind_of;
+        rkvc_buffer_ref;
+        rkvc_buffer_set_pts;
+        rkvc_buffer_unref;
+        rkvc_check_hw_permissions;
+        rkvc_codec_name;
+        rkvc_deinit;
+        rkvc_err_str;
+        rkvc_get_log_level;
+        rkvc_init;
+        rkvc_license_check;
+        rkvc_license_default_path;
+        rkvc_license_verify_blob;
+        rkvc_license_verify_file;
+        rkvc_machine_id;
+        rkvc_net_close;
+        rkvc_net_config_defaults;
+        rkvc_net_finish;
+        rkvc_net_get_stats;
+        rkvc_net_open;
+        rkvc_net_recv;
+        rkvc_net_send;
+        rkvc_pipeline_desc_defaults;
+        rkvc_pipeline_from_template;
+        rkvc_policy_name;
+        rkvc_port_pull;
+        rkvc_port_push;
+        rkvc_probe_input_format;
+        rkvc_query_caps;
+        rkvc_route_resolve;
+        rkvc_runtime_get_stats;
+        rkvc_runtime_set_quota;
+        rkvc_session_clear_roi;
+        rkvc_session_create;
+        rkvc_session_destroy;
+        rkvc_session_get_route;
+        rkvc_session_get_stats;
+        rkvc_session_port;
+        rkvc_session_reconfigure;
+        rkvc_session_request_idr;
+        rkvc_session_run_file;
+        rkvc_session_set_bitrate;
+        rkvc_session_set_gop;
+        rkvc_session_set_roi;
+        rkvc_session_start;
+        rkvc_session_stop;
+        rkvc_set_log_level;
+        rkvc_upscale_algo_from_name;
+        rkvc_upscale_algo_name;
+        rkvc_upscale_ctx_create;
+        rkvc_upscale_ctx_destroy;
+        rkvc_upscale_ctx_dst_buf;
+        rkvc_upscale_ctx_dst_bytes;
+        rkvc_upscale_ctx_process;
+        rkvc_upscale_ctx_src_buf;
+        rkvc_upscale_ctx_src_bytes;
+        rkvc_upscale_nv12;
+        rkvc_upscale_yuv420p;
+        rkvc_version;
+        rkvc_version_number;
     local:
         *;
 };
