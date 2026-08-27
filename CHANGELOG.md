@@ -4,24 +4,14 @@
 
 ## [Unreleased]
 
-### 新增
-
-- 新增 x86_64 → AArch64 可移植包流水线：统一 CMake toolchain 与交叉依赖前缀，宿主模型/密钥工具和目标库隔离构建；`check-elf-deps.py` 静态验证目标 ELF 架构及 `DT_NEEDED` 闭包，`test-portable-cross.sh` 通过 QEMU user-mode 执行 CLI 冒烟测试。GitHub Actions 新增 x86_64 cross-package job，覆盖 MPP、SVT-AV1、ffmpeg-rockchip、rkvc、RKNN runtime 与模型自动生产的完整 AArch64 打包；MPP/RGA/RKNN 硬件路径仍由目标板门禁验证。
-- 完整 NPU 打包现在自动准备宿主模型导出环境：`prepare-model-env.sh` 按 `uv.lock` 同步 Python 3.12/rknn-toolkit2，缺少 `uv` 时隔离安装到 `.build/host/uv-bootstrap/`；随后由既有缓存流水线自动下载校验权重、导出 ONNX/RKNN、生成 QP patch、加密模型并打进 AArch64 包。
-
-### 修复
-
-- 修复模型加密短头越界读、缺少 `sodium_init()`、内部主密钥符号被动态导出、加密后 SR manifest 失效、交付包携带明文 ONNX、缺失 libsodium gitlink及 CI 未编译模型加密等发布阻断问题；实际算法名称更正为 XSalsa20-Poly1305。模型访问控制的纯软件威胁边界已在打包文档明确说明。
-- 修复 cached DMA-BUF 的 CPU read-modify-write START/END 配对并恢复 SR 双 slot 缓冲复用；RK3568/RK3566 模型生产明确跳过不支持的 SR target。
-- 旧版 MPP / SVT-AV1 安装前缀没有 `.rkvc-complete` 标记时，升级后的首次打包会重建一次依赖；后续构建继续使用完成标记增量跳过。
-- 修复同一 portable CMake 缓存在 `--no-rknn`/完整包、`--no-encrypt-models`/加密包之间切换时特性开关残留，导致模型已生产但 runtime 未入包，或明文模型误配启用解密逻辑的 `librkvc`；打包脚本现在对 RKNN、MLVC、模型加密和授权选项均显式双向设置 ON/OFF。
-
-## [0.3.4] - 2026-08-27
+## [0.3.4] - 2026-08-28
 
 ### 新增
 
 - **模型自研加密层（可移植包默认开启）**：包内 `.rknn` 在打包收尾阶段原地加密，运行时由 `librkvc` 自动解密，不再依赖 Rockchip `rknn_crypt_tool`（aarch64 wheel 不附带该工具，且官方加密已被证实可完全还原：密钥内嵌 `librknnrt` + 时间戳可预测种子）。机制：模型体用随机数据密钥 `data.key` 做 XSalsa20-Poly1305（libsodium `crypto_secretbox`），`data.key` 不随包分发，而是用编译期内嵌（XOR 混淆）的主密钥 `master.key` 把 `data.key + 目标机机器码` 密封成每机一份的 `model.key`；运行时先解 `model.key`、按 1机1码 同一指纹校验本机机器码，通过才解密模型体。新增 `lib/model_crypt.c` + `lib/model_crypt_layout.h`（加密端/解密端共用的线格式单一来源）、打包工具 `tools/rkvc_model_crypt.c`（`genkey` / `issue` / `verify-key` / `encrypt` / `decrypt` / `machine-id`）、`tests/test_model_crypt.c`；CMake 选项 `RKVC_ENABLE_MODEL_CRYPT` + `RKVC_MODEL_MASTERKEY_FILE`。密钥落在 `tools/keys/{master.key,data.key}`（首次打包自动生成，已 gitignore）。错误语义：无 `model.key` → `RKVC_ERR_UNLICENSED`；机器码不符或文件被篡改 → `RKVC_ERR_LICENSE`；密钥查找顺序 `RKVC_MODEL_KEY_FILE` → `~/.config/rkvc/model.key`。`package-portable.sh` 默认启用（`--no-encrypt-models` 关闭），并为打包机自动签发本机自测用 `model.key`（不随包分发）。
 - **打包后自动包内自测**：`package-portable.sh` 每个平台包产出后自动运行包内 `test.sh`（仅对平台与本机 SoC 匹配的包，非匹配包提示到目标板手动跑；日志落盘 `.build/dist/<pkg>.test.log`），自测失败则打包以错误退出；`--no-test` 可跳过（CI 打包步骤改用该选项，测试由独立 step 承担）。
+- 新增 x86_64 → AArch64 可移植包流水线：统一 CMake toolchain 与交叉依赖前缀，宿主模型/密钥工具和目标库隔离构建；`check-elf-deps.py` 静态验证目标 ELF 架构及 `DT_NEEDED` 闭包，`test-portable-cross.sh` 通过 QEMU user-mode 执行 CLI 冒烟测试。GitHub Actions 新增 x86_64 cross-package job，覆盖 MPP、SVT-AV1、ffmpeg-rockchip、rkvc、RKNN runtime 与模型自动生产的完整 AArch64 打包；MPP/RGA/RKNN 硬件路径仍由目标板门禁验证。
+- 完整 NPU 打包现在自动准备宿主模型导出环境：`prepare-model-env.sh` 按 `uv.lock` 同步 Python 3.12/rknn-toolkit2，缺少 `uv` 时隔离安装到 `.build/host/uv-bootstrap/`；随后由既有缓存流水线自动下载校验权重、导出 ONNX/RKNN、生成 QP patch、加密模型并打进 AArch64 包。
 
 ### 变更
 
@@ -36,6 +26,10 @@
 - **打包缓存加固**：`rebuild-ffmpeg-rkmpp.sh` 新增指纹缓存（子模块 commit + 补丁哈希 + configure 选项 + 依赖前缀 → `.rkvc-ffmpeg.stamp`，命中即跳过，未命中打印失效原因）；MPP/SVT 的跳过检查追加 `.rkvc-complete` 完成标记，防磁盘满等中断留下的半成品被误判为已构建；`--license` 改用平行构建目录 `.build/portable-licensed`，与标准包交替打包不再互相触发全量重编。
 - **Phase-RLFN SR 宿主字节序（画质致命 bug）**：rknn 驱动直接按张量属性 `dims` 解释宿主缓冲、**不做自动转置**，且本模型输入/输出属性不对称：输入被工具链记为 NHWC（`1×180×320×12`）、输出保持 NCHW（`1×108×180×320`）。原实现两端均按平面 NCHW 读写，导致喂入被整体转置，NPU 输出与 ONNX 参考差到 rms≈10（大于残差信号自身的 rms≈2.9），实测画质反而劣于 bicubic 基座。现 `rkvc_sr_phase_pack_nv12` 逐像素交错打包、`rkvc_sr_phase_add_residual_nv12` 按平面主序读取，契约检查仍同时接受两种 fmt 记法。定位手段：恒等探测模型（`out = x*1.0`，输入值编码线性索引）+ x86 模拟器对照，证明图转换与 NPU 数值均无误。RK3576 实测（Johnny 640×360→1920×1080，30 帧）：Y-PSNR 25.33→26.30dB、SSIM Y 0.857→0.879，与「ONNX 残差 + RGA 基座」的理想融合一致性达 73.5dB。新增 `test_add_residual_is_plane_major`（2×1 core 使平面主序与像素交错的偏移不再重合）锁死该契约；`docs/sr-model-yuv-spec.md` 与 `tools/sr/export_model.py` 的布局注释同步纠正（`load_onnx` 的 `input_size_list` 并不能改变工具链的 NHWC 记法）。旧条目中“输入与模型属性同 fmt 透传、与 `node_mlvc.c` 一致”的说法作废。
 - **Phase-RLFN SR 后处理 CPU 热路径**：残差融合循环序改为 `cx` 最内层（单流顺序读，散写落在 L1 常驻的当前 core 行 6×1920=11.5KB 内），避开 36+72 条平面流打爆硬件预取与 L1 dTLB，A72 上 65ms/帧→22ms/帧（A53 上 178ms→70ms）；基座 NV12 缓冲新增 cached DMA heap 变体（`rkvc_buffer_pool_alloc_video_cached` / `rkvc_rga_scale_buffer_cached`），不再走 CPU 逐像素仅约 3MB/s 的 `system-uncached` 堆。两项合计使后处理从 1045ms/帧降到约 25ms/帧；30 帧端到端 4.8s（FP16）/ 3.3s（INT8），对比纯 bicubic 1.4s。
+- 修复模型加密短头越界读、缺少 `sodium_init()`、内部主密钥符号被动态导出、加密后 SR manifest 失效、交付包携带明文 ONNX、缺失 libsodium gitlink及 CI 未编译模型加密等发布阻断问题；实际算法名称更正为 XSalsa20-Poly1305。模型访问控制的纯软件威胁边界已在打包文档明确说明。
+- 修复 cached DMA-BUF 的 CPU read-modify-write START/END 配对并恢复 SR 双 slot 缓冲复用；RK3568/RK3566 模型生产明确跳过不支持的 SR target。
+- 旧版 MPP / SVT-AV1 安装前缀没有 `.rkvc-complete` 标记时，升级后的首次打包会重建一次依赖；后续构建继续使用完成标记增量跳过。
+- 修复同一 portable CMake 缓存在 `--no-rknn`/完整包、`--no-encrypt-models`/加密包之间切换时特性开关残留，导致模型已生产但 runtime 未入包，或明文模型误配启用解密逻辑的 `librkvc`；打包脚本现在对 RKNN、MLVC、模型加密和授权选项均显式双向设置 ON/OFF。
 
 ### 变更（破坏性）
 
