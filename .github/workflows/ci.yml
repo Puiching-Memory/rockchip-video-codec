@@ -11,7 +11,7 @@ concurrency:
 jobs:
   lint:
     name: clang-tidy
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04-arm
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -61,7 +61,7 @@ jobs:
 
   test:
     name: Unit Tests
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04-arm
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -141,7 +141,7 @@ jobs:
 
   package:
     name: Package
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04-arm
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -218,7 +218,7 @@ jobs:
 
   cross-package:
     name: Full cross package (x86_64 → AArch64)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -256,9 +256,10 @@ jobs:
       - name: Cross-build, package and run QEMU smoke tests
         run: |
           # CI 不持久化生产密钥，故产出未加密模型的测试包；生产打包默认加密。
+          # SR 模型支持 rk3588/rk3576/rv1126b（见 package-portable.sh platform_supports_sr）。
           BUILD_JOBS=6 ./scripts/package-portable.sh \
             --target-arch aarch64 \
-            --platforms rk3588 \
+            --platforms rk3588,rk3576,rv1126b \
             --no-encrypt-models \
             --qemu-test
 
