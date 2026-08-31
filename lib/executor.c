@@ -32,7 +32,7 @@ struct rkvc_exec {
     size_t      nthreads;
     atomic_int  canceled;
     atomic_int  failed;
-    int         error_code;
+    atomic_int  error_code;
     rkvc_queue *input_queue;
     rkvc_queue *output_queue;
     rkvc_queue **qlist;   /* 全部队列，用于 cancel 广播唤醒 */

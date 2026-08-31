@@ -180,7 +180,7 @@ jobs:
           chmod +x scripts/rebuild-ffmpeg-av1.sh
           MPP_PREFIX=/tmp/mpp-install scripts/rebuild-ffmpeg-av1.sh
 
-      - name: Build and package
+      - name: Build
         run: |
           # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
           source scripts/build-common.sh
@@ -191,7 +191,7 @@ jobs:
             -DRKVC_ENABLE_LICENSE=OFF \
             -DRKVC_ENABLE_RKNN=OFF \
             -DRKVC_ENABLE_MLVC=OFF
-          ninja -C .build/release -j"$BUILD_JOBS" package
+          ninja -C .build/release -j"$BUILD_JOBS"
 
       - name: Build portable package
         # 标准版（不加 --license）；授权版仅本地/发码流程使用。
@@ -214,7 +214,6 @@ jobs:
         with:
           name: packages
           path: |
-            .build/release/packages/*.tar.gz
             .build/dist/*.tar.gz
 
   cross-package:

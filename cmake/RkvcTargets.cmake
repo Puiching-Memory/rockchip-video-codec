@@ -171,7 +171,7 @@ if(RKVC_BUILD_EXAMPLES AND (RKVC_BUILD_SHARED OR RKVC_BUILD_STATIC))
     endif()
     if(TARGET example_live_transcode_ports)
         target_link_libraries(example_live_transcode_ports
-            PRIVATE avformat avcodec avutil pthread)
+            PRIVATE avformat avcodec avutil SvtAv1Enc pthread)
     endif()
 endif()
 
