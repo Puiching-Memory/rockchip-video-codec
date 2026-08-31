@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import platform
 import re
 import shutil
@@ -50,6 +51,21 @@ def default_mlvc_dir() -> Path:
 
 def default_data_dir() -> Path:
     return repo_root() / ".build" / "deps" / "mlvc-data"
+
+
+def uv_bin() -> Path:
+    """定位 uv：RKVC_UV → PATH → .build/host/uv-bootstrap（与 prepare-model-env.sh 一致）。"""
+    if os.environ.get("RKVC_UV"):
+        return Path(os.environ["RKVC_UV"])
+    found = shutil.which("uv")
+    if found:
+        return Path(found)
+    bootstrap = repo_root() / ".build" / "host" / "uv-bootstrap" / "bin" / "uv"
+    if bootstrap.is_file():
+        return bootstrap
+    raise OnnxExportError(
+        "找不到 uv（PATH 无 uv 且 .build/host/uv-bootstrap/bin/uv 不存在）"
+    )
 
 
 def _run(cmd: Sequence[str], *, cwd: Path | None = None) -> None:
@@ -451,7 +467,7 @@ def ensure_project_venv(mlvc_dir: Path) -> Path:
     if chk.returncode != 0:
         _run(
             [
-                "uv",
+                str(uv_bin()),
                 "pip",
                 "install",
                 "--python",
