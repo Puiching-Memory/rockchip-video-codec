@@ -242,8 +242,14 @@ jobs:
       - name: Enable Ubuntu arm64 multiarch packages
         run: |
           sudo dpkg --add-architecture arm64
-          if ! grep -q '^Architectures:' /etc/apt/sources.list.d/ubuntu.sources; then
-            sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+          if [[ -f /etc/apt/sources.list.d/ubuntu.sources ]]; then
+            # 24.04+：deb822 格式，限制 amd64 架构
+            if ! grep -q '^Architectures:' /etc/apt/sources.list.d/ubuntu.sources; then
+              sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
+            fi
+          else
+            # 22.04-：行式 sources.list，为 URI 行加 [arch=amd64]
+            sudo sed -i -E 's#^deb ([[:space:]]*)(https?|file):#deb \1[arch=amd64] \2:#' /etc/apt/sources.list
           fi
           . /etc/os-release
           printf '%s\n' \
