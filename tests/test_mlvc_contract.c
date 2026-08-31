@@ -8,6 +8,10 @@
  * rkvc_qppatch_apply）加载并核对——任一侧对格式的理解不一致都会在此爆红。
  */
 
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <setjmp.h>
 #include <cmocka.h>
 #include <stdio.h>
 #include <stdlib.h>
