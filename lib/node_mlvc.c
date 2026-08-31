@@ -20,6 +20,7 @@
 #include "platform.h"
 #include "rans.h"
 #include "qppatch.h"
+#include "pmf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,99 +35,7 @@
 /* ── fp16 辅助 ──────────────────────────────────────────────────────
  * fp16 转换与每帧像素/张量转换内核见 lib/mlvc_pixel.{h,c}
  * （NEON 快速路径 + 标量回退，逐位等价）。 */
-/* ── PMF 二进制表加载 ────────────────────────────────────────────── */
-
-typedef struct {
-    int32_t *lengths;
-    int32_t *offsets;
-    int32_t *table;
-    uint32_t num_lengths;
-    uint32_t num_offsets;
-    uint32_t num_table;
-    double scale_min;
-    double scale_max;
-    uint32_t scale_levels;
-    uint32_t index_space;
-    uint32_t qp_num;
-    uint32_t channels;
-} mlvc_pmf;
-
-/* lengths/offsets 上界 1M 项；table 上界 16M 项（约 64MB），挡住计数回绕后的 fread 堆溢出。 */
-#define MLVC_PMF_MAX_LEN  (1u << 20)
-#define MLVC_PMF_MAX_TAB  (16u << 20)
-
-static void free_pmf(mlvc_pmf *p)
-{
-    if (!p)
-        return;
-    rkvc_free(p->lengths);
-    rkvc_free(p->offsets);
-    rkvc_free(p->table);
-    memset(p, 0, sizeof(*p));
-}
-
-static rkvc_err load_pmf(mlvc_pmf *p, const char *path)
-{
-    FILE *f = NULL;
-    rkvc_err err = RKVC_ERR_FORMAT;
-
-    memset(p, 0, sizeof(*p));
-    f = fopen(path, "rb");
-    if (!f)
-        return RKVC_ERR_IO;
-
-    char magic[4];
-    if (fread(magic, 1, 4, f) != 4 || memcmp(magic, "PMF1", 4) != 0)
-        goto fail;
-
-    uint32_t nL, nO, nT;
-    if (fread(&nL, 4, 1, f) != 1 || fread(&nO, 4, 1, f) != 1 ||
-        fread(&nT, 4, 1, f) != 1)
-        goto fail;
-    if (nL == 0 || nL > MLVC_PMF_MAX_LEN ||
-        nO == 0 || nO > MLVC_PMF_MAX_LEN ||
-        nT == 0 || nT > MLVC_PMF_MAX_TAB)
-        goto fail;
-
-    p->num_lengths = nL;
-    p->num_offsets = nO;
-    p->num_table = nT;
-    p->lengths = rkvc_malloc((size_t)nL * 4u);
-    p->offsets = rkvc_malloc((size_t)nO * 4u);
-    p->table   = rkvc_malloc((size_t)nT * 4u);
-    if (!p->lengths || !p->offsets || !p->table) {
-        err = RKVC_ERR_NOMEM;
-        goto fail;
-    }
-    if (fread(p->lengths, 4, nL, f) != nL ||
-        fread(p->offsets, 4, nO, f) != nO ||
-        fread(p->table, 4, nT, f) != nT)
-        goto fail;
-
-    uint32_t tag = 0;
-    if (fread(&tag, 4, 1, f) != 1)
-        goto fail;
-    if (tag == 1) {
-        if (fread(&p->scale_min, 8, 1, f) != 1 ||
-            fread(&p->scale_max, 8, 1, f) != 1 ||
-            fread(&p->scale_levels, 4, 1, f) != 1 ||
-            fread(&p->index_space, 4, 1, f) != 1)
-            goto fail;
-    } else if (tag == 2) {
-        if (fread(&p->qp_num, 4, 1, f) != 1 ||
-            fread(&p->channels, 4, 1, f) != 1)
-            goto fail;
-    } else {
-        goto fail;
-    }
-    fclose(f);
-    return RKVC_OK;
-
-fail:
-    fclose(f);
-    free_pmf(p);
-    return err;
-}
+/* ── PMF 二进制表加载 ── 见 lib/pmf.c（rkvc_pmf_load/rkvc_pmf_free）── */
 
 /* ── RKNN 模型封装（标准 I/O + native 零拷贝 I/O）────────────────── */
 
@@ -786,15 +695,15 @@ rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg
     }
 
     /* PMF 表 */
-    mlvc_pmf gpmf = {0}, bpmf = {0};
-    rkvc_err err = load_pmf(&gpmf, cfg->gaussian_pmf_path);
+    rkvc_pmf gpmf = {0}, bpmf = {0};
+    rkvc_err err = rkvc_pmf_load(&gpmf, cfg->gaussian_pmf_path);
     if (err) { rkvc_free(e); return err; }
-    err = load_pmf(&bpmf, cfg->bitest_pmf_path);
-    if (err) { free_pmf(&gpmf); rkvc_free(e); return err; }
+    err = rkvc_pmf_load(&bpmf, cfg->bitest_pmf_path);
+    if (err) { rkvc_pmf_free(&gpmf); rkvc_free(e); return err; }
 
     if (!gpmf.index_space) {
         RKVC_LOG("gaussian.bin: expect index_space=True");
-        free_pmf(&gpmf); free_pmf(&bpmf); rkvc_free(e);
+        rkvc_pmf_free(&gpmf); rkvc_pmf_free(&bpmf); rkvc_free(e);
         return RKVC_ERR_FORMAT;
     }
 
@@ -803,15 +712,15 @@ rkvc_err rkvc_mlvc_enc_open(rkvc_mlvc_enc **out, const rkvc_mlvc_enc_config *cfg
                                   gpmf.lengths, gpmf.num_lengths,
                                   gpmf.offsets, gpmf.num_offsets,
                                   gpmf.table, gpmf.num_table, 16, 2);
-    if (rc) { free_pmf(&gpmf); free_pmf(&bpmf); rkvc_free(e); return RKVC_ERR_INTERNAL; }
+    if (rc) { rkvc_pmf_free(&gpmf); rkvc_pmf_free(&bpmf); rkvc_free(e); return RKVC_ERR_INTERNAL; }
     rc = rkvc_rans_coder_init(&e->b_coder, RKVC_RANS_BYTE,
                               bpmf.lengths, bpmf.num_lengths,
                               bpmf.offsets, bpmf.num_offsets,
                               bpmf.table, bpmf.num_table, 16, 2);
-    if (rc) { rkvc_rans_coder_free(&e->g_coder); free_pmf(&gpmf); free_pmf(&bpmf); rkvc_free(e); return RKVC_ERR_INTERNAL; }
+    if (rc) { rkvc_rans_coder_free(&e->g_coder); rkvc_pmf_free(&gpmf); rkvc_pmf_free(&bpmf); rkvc_free(e); return RKVC_ERR_INTERNAL; }
 
-    free_pmf(&gpmf);
-    free_pmf(&bpmf);
+    rkvc_pmf_free(&gpmf);
+    rkvc_pmf_free(&bpmf);
 
     /* 模型 */
     err = rknn_model_init(&e->enc_model, cfg->enc_model_path,
@@ -1200,13 +1109,13 @@ rkvc_err rkvc_mlvc_dec_open(rkvc_mlvc_dec **out, const rkvc_mlvc_dec_config *cfg
         return RKVC_ERR_INVALID;
     }
 
-    mlvc_pmf gpmf = {0}, bpmf = {0};
-    rkvc_err err = load_pmf(&gpmf, cfg->gaussian_pmf_path);
+    rkvc_pmf gpmf = {0}, bpmf = {0};
+    rkvc_err err = rkvc_pmf_load(&gpmf, cfg->gaussian_pmf_path);
     if (err) { rkvc_free(d); return err; }
-    err = load_pmf(&bpmf, cfg->bitest_pmf_path);
-    if (err) { free_pmf(&gpmf); rkvc_free(d); return err; }
+    err = rkvc_pmf_load(&bpmf, cfg->bitest_pmf_path);
+    if (err) { rkvc_pmf_free(&gpmf); rkvc_free(d); return err; }
     if (!gpmf.index_space) {
-        free_pmf(&gpmf); free_pmf(&bpmf); rkvc_free(d);
+        rkvc_pmf_free(&gpmf); rkvc_pmf_free(&bpmf); rkvc_free(d);
         return RKVC_ERR_FORMAT;
     }
 
@@ -1214,15 +1123,15 @@ rkvc_err rkvc_mlvc_dec_open(rkvc_mlvc_dec **out, const rkvc_mlvc_dec_config *cfg
                                   gpmf.lengths, gpmf.num_lengths,
                                   gpmf.offsets, gpmf.num_offsets,
                                   gpmf.table, gpmf.num_table, 16, 2);
-    if (rc) { free_pmf(&gpmf); free_pmf(&bpmf); rkvc_free(d); return RKVC_ERR_INTERNAL; }
+    if (rc) { rkvc_pmf_free(&gpmf); rkvc_pmf_free(&bpmf); rkvc_free(d); return RKVC_ERR_INTERNAL; }
     rc = rkvc_rans_coder_init(&d->b_coder, RKVC_RANS_BYTE,
                               bpmf.lengths, bpmf.num_lengths,
                               bpmf.offsets, bpmf.num_offsets,
                               bpmf.table, bpmf.num_table, 16, 2);
-    if (rc) { rkvc_rans_coder_free(&d->g_coder); free_pmf(&gpmf); free_pmf(&bpmf); rkvc_free(d); return RKVC_ERR_INTERNAL; }
+    if (rc) { rkvc_rans_coder_free(&d->g_coder); rkvc_pmf_free(&gpmf); rkvc_pmf_free(&bpmf); rkvc_free(d); return RKVC_ERR_INTERNAL; }
 
-    free_pmf(&gpmf);
-    free_pmf(&bpmf);
+    rkvc_pmf_free(&gpmf);
+    rkvc_pmf_free(&bpmf);
 
     err = rknn_model_init(&d->dec_model, cfg->dec_model_path,
                           cfg->qp_patch_path, d->qp);

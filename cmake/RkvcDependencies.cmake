@@ -144,7 +144,7 @@ if(RKVC_ENABLE_MLVC)
             "  Run: ./scripts/install-rknnrt.sh\n"
             "  Building without MLVC")
     else()
-        set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c lib/mlvc_pixel.c)
+        set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c lib/mlvc_pixel.c lib/pmf.c)
         set(RKVC_MLVC_ENABLED 1)
         message(STATUS "MLVC neural codec: enabled (pure C rANS)")
     endif()

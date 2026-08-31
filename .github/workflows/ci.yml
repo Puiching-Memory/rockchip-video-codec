@@ -81,7 +81,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake ninja-build libcmocka-dev libdrm-dev autoconf automake libtool python3-venv ripgrep binutils
+          sudo apt-get install -y -qq cmake ninja-build libcmocka-dev libdrm-dev autoconf automake libtool python3-venv ripgrep binutils gcc
 
       - name: Install ONNX test dependency
         run: |
@@ -144,6 +144,18 @@ jobs:
         env:
           RKVC_VALGRIND_HARDWARE: "0"
         run: cd .build/release && ctest --output-on-failure --output-junit results.xml
+
+      - name: Run Python toolchain tests
+        # 模型生产/打包校验工具（tools/sr、tools/mlvc、tools/rkvc_build/verify）；
+        # 直接执行单个文件（文件末尾带 unittest.main()）。
+        run: |
+          .venv/bin/python tests/test_mlvc_export.py
+          .venv/bin/python tests/test_sr_export.py
+          python3 tests/test_rkvc_build_verify.py
+
+      - name: Check MLVC cross-language fixtures
+        # 仓库 fixtures 必须与本仓库 Python 工具产物逐字节一致（PMF1/QPP1 契约）
+        run: .venv/bin/python tests/gen_mlvc_fixtures.py --check
 
       - name: Check exported symbols
         run: ./scripts/check-exported-symbols.sh .build/release/librkvc.so

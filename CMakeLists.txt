@@ -57,6 +57,9 @@ if(RKVC_BUILD_TESTS)
             tests/test_rans.c
             tests/test_mlvc_pixel.c
         )
+        # Python 工具（tools/mlvc/pmf.py、qppatch.py）↔ C 消费方二进制契约
+        # fixture 由 tests/gen_mlvc_fixtures.py 生成（见其 --check 模式）
+        list(APPEND RKVC_TEST_SOURCES tests/test_mlvc_contract.c)
     endif()
 
     if(RKVC_ENABLE_MODEL_CRYPT)
