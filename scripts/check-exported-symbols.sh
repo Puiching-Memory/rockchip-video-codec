@@ -15,8 +15,9 @@ fi
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-rg -o --no-filename 'rkvc_[A-Za-z0-9_]+(?=[[:space:]]*\()' \
-    --pcre2 "$PROJECT_DIR/include/rkvc"/*.h | sort -u >"$tmp_dir/allowed"
+# 22.04 runner 的 ripgrep 无 pcre2 特性，用 GNU grep -P（Ubuntu 均支持）
+grep -ohP 'rkvc_[A-Za-z0-9_]+(?=[[:space:]]*\()' \
+    "$PROJECT_DIR"/include/rkvc/*.h | sort -u >"$tmp_dir/allowed"
 rg -o --no-filename '^[[:space:]]*rkvc_[A-Za-z0-9_]+' \
     "$PROJECT_DIR/librkvc.map" | sed 's/^[[:space:]]*//' | sort -u \
     >"$tmp_dir/versioned"

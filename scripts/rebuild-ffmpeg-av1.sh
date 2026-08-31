@@ -45,6 +45,8 @@ configure_ffmpeg() {
         [[ "$FFMPEG_PREFIX" != "$FFMPEG_SRC" ]] && rm -rf "$FFMPEG_PREFIX"
     fi
 
+    # CI（Ubuntu 22.04）镜像自带 libbz2，autodetect 会启用 bzlib，
+    # 静态 libavcodec 因此引用 BZ2_* 符号且不会随库传播，请显式关闭。
     ./configure \
         "${extra_configure[@]}" \
         --enable-version3 \
@@ -52,6 +54,7 @@ configure_ffmpeg() {
         --enable-libsvtav1 \
         --enable-pic \
         --disable-doc --disable-programs --disable-network \
+        --disable-bzlib \
         --enable-swscale --disable-swresample \
         --disable-x86asm \
         --disable-everything \

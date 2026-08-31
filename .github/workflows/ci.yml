@@ -248,8 +248,15 @@ jobs:
               sudo sed -i '/^Types: deb$/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources
             fi
           else
-            # 22.04-：行式 sources.list，为 URI 行加 [arch=amd64]
-            sudo sed -i -E 's#^deb ([[:space:]]*)(https?|file):#deb \1[arch=amd64] \2:#' /etc/apt/sources.list
+            # 22.04-：行式 sources.list。云端镜像常见 mirror+file: 协议（展开后无
+            # 架构限制，apt 会误拉 arm64 导致 404），直接重写为官方行式源并限 amd64。
+            . /etc/os-release
+            sudo tee /etc/apt/sources.list >/dev/null <<EOF
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu $VERSION_CODENAME main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu $VERSION_CODENAME-updates main restricted universe multiverse
+          deb [arch=amd64] http://archive.ubuntu.com/ubuntu $VERSION_CODENAME-backports main restricted universe multiverse
+          deb [arch=amd64] http://security.ubuntu.com/ubuntu $VERSION_CODENAME-security main restricted universe multiverse
+          EOF
           fi
           . /etc/os-release
           printf '%s\n' \
