@@ -170,8 +170,11 @@ if(RKVC_BUILD_EXAMPLES AND (RKVC_BUILD_SHARED OR RKVC_BUILD_STATIC))
         target_link_libraries(example_stream_ports PRIVATE pthread)
     endif()
     if(TARGET example_live_transcode_ports)
+        # 直接使用静态 FFmpeg(libavformat/libavcodec .a)，依赖不传递：
+        # avcodec 的 libsvtav1 编码器需 SvtAv1Enc、av1_rkmpp 解码器需
+        # rockchip_mpp/drm 等，与库自身链接集保持一致。
         target_link_libraries(example_live_transcode_ports
-            PRIVATE avformat avcodec avutil SvtAv1Enc pthread)
+            PRIVATE ${FFMPEG_LIBS} ${EXTRA_LIBS})
     endif()
 endif()
 
