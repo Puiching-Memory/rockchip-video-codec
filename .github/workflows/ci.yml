@@ -3,14 +3,19 @@ name: CI
 on:
   push:
   pull_request:
+  release:
+    types: [published]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # 事件名入组：push tag 与随后的 release 触发不会互相取消
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
   lint:
     name: clang-tidy
+    # release 事件仅用于挂载产物，无需重复跑 lint/test
+    if: github.event_name != 'release'
     runs-on: ubuntu-22.04-arm
     timeout-minutes: 10
     steps:
@@ -61,6 +66,7 @@ jobs:
 
   test:
     name: Unit Tests
+    if: github.event_name != 'release'
     runs-on: ubuntu-22.04-arm
     timeout-minutes: 10
     steps:
@@ -217,9 +223,14 @@ jobs:
             .build/dist/*.tar.gz
 
   cross-package:
-    name: Full cross package (x86_64 → AArch64)
+    # 每个平台独立 job 并行构建/打包；fail-fast=false 保证单平台失败不拖垮其余平台
+    name: Cross package (${{ matrix.platform }})
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [rk3588, rk3576, rv1126b]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -256,15 +267,41 @@ jobs:
       - name: Cross-build, package and run QEMU smoke tests
         run: |
           # CI 不持久化生产密钥，故产出未加密模型的测试包；生产打包默认加密。
-          # SR 模型支持 rk3588/rk3576/rv1126b（见 package-portable.sh platform_supports_sr）。
+          # 每个 matrix job 只打自己的平台（SR 模型支持 rk3588/rk3576/rv1126b）。
           BUILD_JOBS=6 ./scripts/package-portable.sh \
             --target-arch aarch64 \
-            --platforms rk3588,rk3576,rv1126b \
+            --platforms ${{ matrix.platform }} \
             --no-encrypt-models \
             --qemu-test
 
       - name: Upload AArch64 portable package
         uses: actions/upload-artifact@v7
         with:
-          name: aarch64-portable-ci-package
+          name: aarch64-portable-${{ matrix.platform }}
           path: .build/cross/aarch64/dist/*.tar.gz
+
+  # Release 发布后：把本次 run 的 CI 产物（x86 通用包 + 三平台 AArch64 包）挂载到 release。
+  # release 事件触发时 package/cross-package job 会重新并行构建，保证产物对应 tag 源码。
+  attach-release:
+    name: Attach CI artifacts to release
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [package, cross-package]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download run artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: dist
+
+      - name: Upload packages to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mapfile -t FILES < <(find dist -type f -name '*.tar.gz' | sort)
+          [[ ${#FILES[@]} -gt 0 ]] || { echo "没有可上传的 tar.gz 产物"; exit 1; }
+          gh release upload "${{ github.event.release.tag_name }}" "${FILES[@]}" --clobber
+          echo "已上传 ${#FILES[@]} 个产物到 release ${{ github.event.release.tag_name }}"
