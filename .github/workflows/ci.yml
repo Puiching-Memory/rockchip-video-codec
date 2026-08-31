@@ -47,7 +47,8 @@ jobs:
       - name: Create compile_commands.json
         run: |
           # CI 不启用授权模块（与打包一致，无需 libsodium）
-          # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
+          # x86 runner 无官方 x86_64 librknnrt（仅 aarch64/armhf），NPU/MLVC 保持关闭；
+          # MLVC 代码路径由 arm64 test job 按需启用并覆盖。
           cmake -B .build/release \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -DRKVC_ENABLE_LICENSE=OFF \
@@ -113,15 +114,24 @@ jobs:
           chmod +x scripts/rebuild-ffmpeg-av1.sh
           MPP_PREFIX=/tmp/mpp-install scripts/rebuild-ffmpeg-av1.sh
 
+      - name: Install librknnrt (optional, enables MLVC unit tests)
+        run: |
+          # arm64 runner 可下载官方 aarch64 librknnrt；失败不阻断——
+          # CMake 检测不到时自动降级，MLVC 单测（test_rans/test_mlvc_pixel）跳过。
+          if ! ./scripts/install-rknnrt.sh; then
+            echo "::warning::librknnrt 下载失败，MLVC 单测将跳过"
+          fi
+
       - name: Configure
         run: |
-          # runner 无 librknnrt，关闭 NPU 模块避免 CMake 配置失败
+          # RKNN/MLVC 自适应：install-rknnrt.sh 成功则启用并跑 MLVC 单测；
+          # 无 librknnrt 时 CMake 自动降级（WARNING），构建不失败。
           cmake -B .build/release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DRKVC_BUILD_TESTS=ON \
             -DMPP_BUILD_DIR=/tmp/mpp-build \
-            -DRKVC_ENABLE_RKNN=OFF \
-            -DRKVC_ENABLE_MLVC=OFF \
+            -DRKVC_ENABLE_RKNN=ON \
+            -DRKVC_ENABLE_MLVC=ON \
             -DRKVC_ENABLE_MODEL_CRYPT=ON
 
       - name: Build

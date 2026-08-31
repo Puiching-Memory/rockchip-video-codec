@@ -135,15 +135,19 @@ endif()
 # 依赖 RKVC_ENABLE_RKNN（NPU 模型推理）。
 # 熵编解码器为纯 C 实现（lib/rans.c），完整移植自 msrtc_rans，
 # 不再依赖 third_party/mlvc 子模块或 C++17。
+# 缺 librknnrt 时自动降级（与 RKVC_ENABLE_RKNN 一致）：有 NPU 环境自动启用，
+# 无 NPU 环境（CI/release）构建不失败、跳过 MLVC。
 if(RKVC_ENABLE_MLVC)
     if(NOT RKVC_RKNN_ENABLED)
-        message(FATAL_ERROR
-            "RKVC_ENABLE_MLVC=ON requires librknnrt (RKVC_ENABLE_RKNN).\n"
-            "  Run: ./scripts/install-rknnrt.sh")
+        message(WARNING
+            "RKVC_ENABLE_MLVC=ON but librknnrt not available (RKNN disabled)\n"
+            "  Run: ./scripts/install-rknnrt.sh\n"
+            "  Building without MLVC")
+    else()
+        set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c lib/mlvc_pixel.c)
+        set(RKVC_MLVC_ENABLED 1)
+        message(STATUS "MLVC neural codec: enabled (pure C rANS)")
     endif()
-    set(RKVC_MLVC_SRC  lib/node_mlvc.c lib/rans.c lib/mlvc_pixel.c)
-    set(RKVC_MLVC_ENABLED 1)
-    message(STATUS "MLVC neural codec: enabled (pure C rANS)")
 endif()
 if(RKVC_MLVC_ENABLED)
     list(APPEND RKVC_SOURCES ${RKVC_MLVC_SRC})

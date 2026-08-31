@@ -9,38 +9,38 @@
 
 ## 当前测试矩阵
 
-| 层级                 | 目标                           | 说明                                                                             |
-| -------------------- | ------------------------------ | -------------------------------------------------------------------------------- |
-| 类型与默认           | `tests/test_types.c`           | 版本、pipeline 默认值、init 幂等                                                 |
-| Codec Router         | `tests/test_router.c`          | policy → H.264/HEVC/AV1 路由                                                     |
-| Buffer               | `tests/test_buffer.c`          | 视频/码流分配、引用计数                                                          |
-| 公共契约             | `tests/test_contracts.c`       | caps、端口名、模板                                                               |
-| 内部一致性           | `tests/test_internal.c`        | FFmpeg 错误映射、像素格式、端口队列                                              |
-| 后处理上采样         | `tests/test_post_upscale.c`    | 算法名、pipeline 默认值                                                          |
-| 权限门控             | `tests/test_permissions.c`     | fake `/dev` 权限回归（fault injection preset）                                   |
-| 异常注入             | `tests/test_fault_injection.c` | 确定性 OOM 模拟                                                                  |
-| 硬件集成             | `tests/test_hardware.c`        | **默认跳过**；`RKVC_RUN_HARDWARE_TESTS=1` 时执行（含 RGA 3× 与 `rkvc_sr` AI 3×） |
-| RGA 缩放             | `tests/test_scale.c`           | 参数/布局始终运行；RGA 用例需硬件标志                                            |
-| V4L2 mock            | `tests/test_v4l2.c`            | `capture_device=mock` 合成 NV12；Session 短录需 `RKVC_RUN_HARDWARE_TESTS=1`      |
-| RGA 推广门禁         | `scripts/test-rga.sh`          | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga`                        |
-| NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh`       | Phase-RLFN 3× 硬件用例；需 NPU/RGA + `models/rkvc-sr/` bundle                   |
-| CLI 脚本             | `tests/test_cli_args.sh`       | CLI 参数错误（`tests` preset）                                                     |
+| 层级                 | 目标                           | 说明                                                                                          |
+| -------------------- | ------------------------------ | --------------------------------------------------------------------------------------------- |
+| 类型与默认           | `tests/test_types.c`           | 版本、pipeline 默认值、init 幂等                                                              |
+| Codec Router         | `tests/test_router.c`          | policy → H.264/HEVC/AV1 路由                                                                  |
+| Buffer               | `tests/test_buffer.c`          | 视频/码流分配、引用计数                                                                       |
+| 公共契约             | `tests/test_contracts.c`       | caps、端口名、模板                                                                            |
+| 内部一致性           | `tests/test_internal.c`        | FFmpeg 错误映射、像素格式、端口队列                                                           |
+| 后处理上采样         | `tests/test_post_upscale.c`    | 算法名、pipeline 默认值                                                                       |
+| 权限门控             | `tests/test_permissions.c`     | fake `/dev` 权限回归（fault injection preset）                                                |
+| 异常注入             | `tests/test_fault_injection.c` | 确定性 OOM 模拟                                                                               |
+| 硬件集成             | `tests/test_hardware.c`        | **默认跳过**；`RKVC_RUN_HARDWARE_TESTS=1` 时执行（含 RGA 3× 与 `rkvc_sr` AI 3×）              |
+| RGA 缩放             | `tests/test_scale.c`           | 参数/布局始终运行；RGA 用例需硬件标志                                                         |
+| V4L2 mock            | `tests/test_v4l2.c`            | `capture_device=mock` 合成 NV12；Session 短录需 `RKVC_RUN_HARDWARE_TESTS=1`                   |
+| RGA 推广门禁         | `scripts/test-rga.sh`          | 1080p↔360p、padding 源、post_upscale、soak；需 `/dev/rga`                                     |
+| NPU / `rkvc_sr` 门禁 | `scripts/test-npu-sr.sh`       | Phase-RLFN 3× 硬件用例；需 NPU/RGA + `models/rkvc-sr/` bundle                                 |
+| CLI 脚本             | `tests/test_cli_args.sh`       | CLI 参数错误（`tests` preset）                                                                |
 | MLVC 导出            | `tests/test_mlvc_export.py`    | PMF JSON→PMF1；QPP1；ONNX 图重写（需 `onnx`）；`export_onnx` 补丁/占位 YUV（不跑 convert.py） |
-| SR phase 内核        | `tests/test_sr_phase.c`        | NV12 PixelUnshuffle、residual PixelShuffle、色度平均与饱和                      |
-| SR 导出              | `tests/test_sr_export.py`      | 单输入 `12→108` ONNX 契约、拒绝 codec context、bundle hash/许可证清单            |
-| MLVC QPP1            | `tests/test_qppatch.c`         | 打开时二进制补丁：区间应用、空补丁、CRC/尺寸/越界、路径解析                       |
-| 可移植包             | `scripts/test-portable.sh`     | 包完整性、RPATH、三策略 bench、后处理上采样、`rkvc_sr` NPU 冒烟、pkg-config      |
-| 动态分析             | `asan` preset                  | ASan + UBSan                                                                     |
-| 覆盖率               | `coverage` preset              | gcov instrumentation                                                             |
-| 严格门禁             | `scripts/test-strict.sh`       | 顺序执行 tests / asan / coverage                                                 |
+| SR phase 内核        | `tests/test_sr_phase.c`        | NV12 PixelUnshuffle、residual PixelShuffle、色度平均与饱和                                    |
+| SR 导出              | `tests/test_sr_export.py`      | 单输入 `12→108` ONNX 契约、拒绝 codec context、bundle hash/许可证清单                         |
+| MLVC QPP1            | `tests/test_qppatch.c`         | 打开时二进制补丁：区间应用、空补丁、CRC/尺寸/越界、路径解析                                   |
+| 可移植包             | `scripts/test-portable.sh`     | 包完整性、RPATH、三策略 bench、后处理上采样、`rkvc_sr` NPU 冒烟、pkg-config                   |
+| 动态分析             | `asan` preset                  | ASan + UBSan                                                                                  |
+| 覆盖率               | `coverage` preset              | gcov instrumentation                                                                          |
+| 严格门禁             | `scripts/test-strict.sh`       | 顺序执行 tests / asan / coverage                                                              |
 
 `RKVC_ENABLE_FAULT_INJECTION` 默认关闭，仅在 `tests` preset 中启用。
 
 ### CTest 目标统计
 
-| preset       | CTest 目标数 | 说明                                                                 |
-| ------------ | ------------ | -------------------------------------------------------------------- |
-| `tests`      | 20+          | 原矩阵 + `test_qppatch` + `test_mlvc_export`（Python；无 rknn-toolkit2 也可跑） |
+| preset  | CTest 目标数 | 说明                                                                            |
+| ------- | ------------ | ------------------------------------------------------------------------------- |
+| `tests` | 20+          | 原矩阵 + `test_qppatch` + `test_mlvc_export`（Python；无 rknn-toolkit2 也可跑） |
 
 硬件测试按独立 CTest 用例运行（含三策略转码、RGA 3× 上采样与 `rkvc_sr` AI 3×），未设置 `RKVC_RUN_HARDWARE_TESTS=1` 时 **exit 77（Skipped）**。AI 用例另需 `caps.has_rknn`、RGA 与 `models/rkvc-sr/phase_rlfn_sr_x3.rknn`（可用 `RKVC_SR_MODEL` 覆盖）。
 
