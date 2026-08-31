@@ -41,6 +41,10 @@
 
 set -euo pipefail
 
+echo "[DEPRECATED] package-portable.sh 是 0.3 旧媒体栈打包路径；" >&2
+echo "[DEPRECATED] 0.4 核心包请使用: python3 tools/rkvc-build package" >&2
+echo "[DEPRECATED] 退役条件见 docs/0.4.0-refactor-plan.md P6" >&2
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=build-common.sh
 source "$SCRIPT_DIR/build-common.sh"

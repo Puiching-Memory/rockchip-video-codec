@@ -173,6 +173,8 @@ static rkvc_err session_write_packet(rkvc_session *s, const rkvc_buffer *pkt)
     if (s->mlvc_mux)
         return rkvc_mlvc_mux_write_packet(s->mlvc_mux, pkt);
 #endif
+    if (!s->mux)
+        return RKVC_OK;
     return rkvc_mux_write_packet(s->mux, pkt);
 }
 
@@ -188,6 +190,8 @@ static rkvc_err session_drain_encoder(rkvc_session *s)
 
 static rkvc_err session_flush_encoder(rkvc_session *s)
 {
+    const int bounded = s->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE;
+    int64_t deadline = bounded ? rkvc_now_us() + 5000000 : 0;
     for (;;) {
         rkvc_err err = session_drain_encoder(s);
         if (err == RKVC_OK)
@@ -197,6 +201,10 @@ static rkvc_err session_flush_encoder(rkvc_session *s)
         err = drain_encoder_packets(s);
         if (err != RKVC_OK)
             return err;
+        if (bounded && rkvc_now_us() >= deadline) {
+            RKVC_LOG("LIVE_TRANSCODE encoder drain timed out");
+            return RKVC_ERR_HW;
+        }
         av_usleep(100);
     }
 
@@ -211,6 +219,10 @@ static rkvc_err session_flush_encoder(rkvc_session *s)
         if (err == RKVC_ERR_EOF)
             break;
         if (err == RKVC_ERR_AGAIN) {
+            if (bounded && rkvc_now_us() >= deadline) {
+                RKVC_LOG("LIVE_TRANSCODE encoder flush timed out");
+                return RKVC_ERR_HW;
+            }
             av_usleep(100);
             continue;
         }
@@ -270,6 +282,7 @@ static rkvc_err encode_one_frame(rkvc_session *s, rkvc_buffer *frame)
         memcpy(rois, s->rois, (size_t)roi_n * sizeof(rois[0]));
     pthread_mutex_unlock(&s->lock);
 
+    int64_t deadline = rkvc_now_us() + 5000000;
     for (;;) {
         rkvc_err err;
 #ifdef RKVC_ENABLE_MLVC
@@ -289,6 +302,11 @@ static rkvc_err encode_one_frame(rkvc_session *s, rkvc_buffer *frame)
             err = drain_encoder_packets(s);
             if (err != RKVC_OK)
                 return err;
+            if (s->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE &&
+                rkvc_now_us() >= deadline) {
+                RKVC_LOG("LIVE_TRANSCODE encoder input timed out");
+                return RKVC_ERR_HW;
+            }
             av_usleep(100);
             continue;
         }
@@ -340,6 +358,201 @@ static rkvc_err transcode_loop(rkvc_session *s)
     if (err != RKVC_OK && err != RKVC_ERR_EOF)
         return err;
     return session_flush_encoder(s);
+}
+
+static rkvc_codec annexb_codec(const rkvc_buffer *pkt)
+{
+    if (!pkt || pkt->kind != RKVC_BUF_BITSTREAM || !pkt->data)
+        return RKVC_CODEC_AUTO;
+
+    const uint8_t *p = pkt->data;
+    size_t n = pkt->size;
+    for (size_t i = 0; i + 4 < n; i++) {
+        size_t nal = 0;
+        if (p[i] == 0 && p[i + 1] == 0 && p[i + 2] == 1)
+            nal = i + 3;
+        else if (i + 5 < n && p[i] == 0 && p[i + 1] == 0 &&
+                 p[i + 2] == 0 && p[i + 3] == 1)
+            nal = i + 4;
+        if (!nal || nal >= n)
+            continue;
+
+        int h264_type = p[nal] & 0x1f;
+        int hevc_type = (p[nal] >> 1) & 0x3f;
+        if (hevc_type == 32 || hevc_type == 33 || hevc_type == 34)
+            return RKVC_CODEC_HEVC;
+        if (h264_type == 7 || h264_type == 8)
+            return RKVC_CODEC_H264;
+    }
+    return RKVC_CODEC_AUTO;
+}
+
+static rkvc_err live_encode_frame(rkvc_session *s, rkvc_buffer *frame)
+{
+    rkvc_buffer *enc_frame = NULL;
+    rkvc_err err = session_downscale_for_encode(s, frame, &enc_frame);
+    if (err != RKVC_OK)
+        return err;
+    err = encode_one_frame(s, enc_frame);
+    if (enc_frame != frame)
+        rkvc_buffer_unref(enc_frame);
+    return err;
+}
+
+static rkvc_err live_receive_frames(rkvc_session *s, int *decoder_eof)
+{
+    for (;;) {
+        rkvc_buffer *frame = NULL;
+        rkvc_err err = rkvc_mpp_dec_receive_frame(s->dec, &frame);
+        if (err == RKVC_ERR_AGAIN)
+            return RKVC_OK;
+        if (err == RKVC_ERR_EOF) {
+            if (decoder_eof)
+                *decoder_eof = 1;
+            return RKVC_OK;
+        }
+        if (err != RKVC_OK)
+            return err;
+        if (!frame)
+            return RKVC_ERR_INTERNAL;
+
+        err = live_encode_frame(s, frame);
+        rkvc_buffer_unref(frame);
+        if (err != RKVC_OK)
+            return err;
+
+    }
+}
+
+static rkvc_err live_send_packet(rkvc_session *s, rkvc_buffer *pkt)
+{
+    if (!s->dec) {
+        rkvc_codec input = s->desc.input_codec;
+        if (input == RKVC_CODEC_AUTO)
+            input = annexb_codec(pkt);
+        if (input == RKVC_CODEC_AUTO) {
+            RKVC_LOG("LIVE_TRANSCODE could not detect Annex-B codec; "
+                     "set desc.input_codec to H264 or HEVC");
+            return RKVC_ERR_FORMAT;
+        }
+        rkvc_err err = session_open_live_decoder(s, input);
+        if (err != RKVC_OK)
+            return err;
+    }
+
+    int64_t deadline = rkvc_now_us() + 5000000;
+    for (;;) {
+        rkvc_err err = rkvc_mpp_dec_send_packet(s->dec, pkt);
+        if (err == RKVC_OK)
+            return live_receive_frames(s, NULL);
+        if (err != RKVC_ERR_AGAIN)
+            return err;
+        err = live_receive_frames(s, NULL);
+        if (err != RKVC_OK)
+            return err;
+        if (rkvc_now_us() >= deadline) {
+            RKVC_LOG("LIVE_TRANSCODE decoder input timed out");
+            return RKVC_ERR_HW;
+        }
+        av_usleep(100);
+    }
+}
+
+static rkvc_err live_flush_decoder(rkvc_session *s)
+{
+    if (!s->dec)
+        return RKVC_OK;
+
+    int drain_sent = 0;
+    int decoder_eof = 0;
+    int64_t deadline = rkvc_now_us() + 5000000;
+    while (!decoder_eof) {
+        if (!drain_sent) {
+            rkvc_err err = rkvc_mpp_dec_drain(s->dec);
+            if (err == RKVC_OK)
+                drain_sent = 1;
+            else if (err != RKVC_ERR_AGAIN)
+                return err;
+        }
+
+        rkvc_err err = live_receive_frames(s, &decoder_eof);
+        if (err != RKVC_OK)
+            return err;
+        if (!decoder_eof) {
+            if (rkvc_now_us() >= deadline) {
+                RKVC_LOG("LIVE_TRANSCODE decoder flush timed out");
+                return RKVC_ERR_HW;
+            }
+            av_usleep(100);
+        }
+    }
+    return RKVC_OK;
+}
+
+void *rkvc_session_live_worker(void *opaque)
+{
+    rkvc_session *s = opaque;
+    rkvc_err err = RKVC_OK;
+
+    for (;;) {
+        rkvc_buffer *input = NULL;
+        int stopping = s->stop_requested != 0;
+        err = rkvc_port_queue_pull(s->port_capture.queue, &input,
+                                   stopping ? 0 : 50);
+        if (err == RKVC_ERR_AGAIN) {
+            if (stopping) {
+                err = RKVC_OK;
+                break;
+            }
+            /* 异步编码器即使暂时无输入也可能已有输出。 */
+            err = drain_encoder_packets(s);
+            if (err != RKVC_OK)
+                break;
+            continue;
+        }
+        if (err == RKVC_ERR_EOF && s->stop_requested) {
+            err = RKVC_OK;
+            break;
+        }
+        if (err != RKVC_OK)
+            break;
+
+        rkvc_session_stats_frame_in(s);
+        if (input->kind == RKVC_BUF_BITSTREAM)
+            err = live_send_packet(s, input);
+        else if (input->kind == RKVC_BUF_VIDEO)
+            err = live_encode_frame(s, input);
+        else
+            err = RKVC_ERR_FORMAT;
+        rkvc_buffer_unref(input);
+        if (err != RKVC_OK)
+            break;
+    }
+
+    if (err == RKVC_OK)
+        err = live_flush_decoder(s);
+    if (err == RKVC_OK)
+        err = session_flush_encoder(s);
+
+    pthread_mutex_lock(&s->lock);
+    s->worker_err = err;
+    if (err != RKVC_OK)
+        s->stop_requested = 1;
+    s->running = 0;
+    s->stats.running = 0;
+    rkvc_port_queue_close(s->port_capture.queue);
+    pthread_mutex_unlock(&s->lock);
+
+    /* 异步失败时释放尚未处理的输入，避免调用方只 stop、不 destroy 时滞留。 */
+    for (;;) {
+        rkvc_buffer *pending = NULL;
+        if (rkvc_port_queue_pull(s->port_capture.queue, &pending, 0) != RKVC_OK)
+            break;
+        rkvc_buffer_unref(pending);
+        rkvc_session_stats_drop(s);
+    }
+    rkvc_port_queue_close(s->port_output.queue);
+    return NULL;
 }
 
 static rkvc_err session_write_display(rkvc_session *s, FILE *fp,
@@ -720,6 +933,8 @@ static rkvc_err encode_file_loop(rkvc_session *s)
 rkvc_err rkvc_session_run_file(rkvc_session *session)
 {
     if (!session)
+        return RKVC_ERR_INVALID;
+    if (session->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE)
         return RKVC_ERR_INVALID;
 
     rkvc_err err = rkvc_session_start(session);

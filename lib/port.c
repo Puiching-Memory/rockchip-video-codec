@@ -17,6 +17,7 @@ struct rkvc_port_queue {
     pthread_mutex_t   lock;
     pthread_cond_t    not_full;
     pthread_cond_t    not_empty;
+    int               closed;
 };
 
 rkvc_port_queue *rkvc_port_queue_create(int capacity)
@@ -69,6 +70,10 @@ rkvc_err rkvc_port_queue_push(rkvc_port_queue *q, rkvc_buffer *buf)
         return RKVC_ERR_INVALID;
 
     pthread_mutex_lock(&q->lock);
+    if (q->closed) {
+        pthread_mutex_unlock(&q->lock);
+        return RKVC_ERR_EOF;
+    }
     if (av_fifo_can_write(q->fifo) == 0) {
         pthread_mutex_unlock(&q->lock);
         return RKVC_ERR_AGAIN;
@@ -112,6 +117,10 @@ rkvc_err rkvc_port_queue_pull(rkvc_port_queue *q, rkvc_buffer **buf,
     pthread_mutex_lock(&q->lock);
 
     while (av_fifo_can_read(q->fifo) == 0) {
+        if (q->closed) {
+            pthread_mutex_unlock(&q->lock);
+            return RKVC_ERR_EOF;
+        }
         if (timeout_ms == 0) {
             pthread_mutex_unlock(&q->lock);
             return RKVC_ERR_AGAIN;
@@ -142,10 +151,47 @@ rkvc_err rkvc_port_queue_pull(rkvc_port_queue *q, rkvc_buffer **buf,
     return RKVC_OK;
 }
 
+void rkvc_port_queue_close(rkvc_port_queue *q)
+{
+    if (!q)
+        return;
+    pthread_mutex_lock(&q->lock);
+    q->closed = 1;
+    pthread_cond_broadcast(&q->not_empty);
+    pthread_cond_broadcast(&q->not_full);
+    pthread_mutex_unlock(&q->lock);
+}
+
+void rkvc_port_queue_reopen(rkvc_port_queue *q)
+{
+    if (!q)
+        return;
+    pthread_mutex_lock(&q->lock);
+    q->closed = 0;
+    pthread_mutex_unlock(&q->lock);
+}
+
 rkvc_err rkvc_port_push(rkvc_port *port, rkvc_buffer *buf)
 {
-    if (!port || !port->queue)
+    if (!port || !port->queue || !buf)
         return RKVC_ERR_INVALID;
+
+    if (port->session &&
+        port == &port->session->port_capture &&
+        port->session->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE) {
+        rkvc_buffer_kind kind = rkvc_buffer_kind_of(buf);
+        if (kind != RKVC_BUF_VIDEO && kind != RKVC_BUF_BITSTREAM)
+            return RKVC_ERR_FORMAT;
+
+        pthread_mutex_lock(&port->session->lock);
+        int accepting = port->session->running &&
+                        !port->session->stop_requested;
+        rkvc_err err = accepting
+                           ? rkvc_port_queue_push(port->queue, buf)
+                           : RKVC_ERR_EOF;
+        pthread_mutex_unlock(&port->session->lock);
+        return err;
+    }
     return rkvc_port_queue_push(port->queue, buf);
 }
 

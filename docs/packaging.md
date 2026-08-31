@@ -1,6 +1,29 @@
 # 打包与分发
 
-## 可移植包 (推荐)
+## 0.4 核心包（rkvc-build，新流水线）
+
+0.4 起发布产物由单一编排器产出，阶段链
+`sysroot -> build-install -> release-meta -> seal -> verify -> archive -> qemu-smoke`
+全部可重放、确定性归档、产物验证失败即失败：
+
+```bash
+python3 tools/rkvc-build package --jobs $(nproc)
+# 成品: .build/portable/dist/rkvc-<version>-linux-aarch64-glibc231-portable.tar.gz
+# 内容: bin/rkvc, lib/librkvc_core.so.0*, lib/rkvc/backends/,
+#       share/rkvc/models/, bom.cyclonedx.json, legal/, SHA256SUMS, provenance.json
+
+python3 tools/rkvc-build verify <包目录>     # 单独重跑产物验证
+python3 tools/rkvc-build package --refresh-sysroot   # 重建锁定 sysroot
+```
+
+sysroot 为 Ubuntu 20.04 (glibc 2.31) arm64 固定包集
+（`tools/rkvc_build/sysroot.focal-arm64.lock.json`，SHA-256 锁定）。
+当前核心包不含媒体后端（P3 迁移中）；媒体功能请暂用下方 0.3 路径。
+
+## 可移植包（0.3 旧媒体栈，迁移期保留）
+
+> **弃用预告**：`scripts/package-portable.sh` 将在媒体后端完成 P3 迁移、
+> 统一 CLI 功能平价后退役（见 docs/0.4.0-refactor-plan.md P6）。
 
 从源码构建，核心运行库随包携带，解压即用：
 

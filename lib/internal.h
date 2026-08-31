@@ -155,6 +155,8 @@ void rkvc_port_queue_destroy(rkvc_port_queue *q);
 rkvc_err rkvc_port_queue_push(rkvc_port_queue *q, rkvc_buffer *buf);
 rkvc_err rkvc_port_queue_pull(rkvc_port_queue *q, rkvc_buffer **buf,
                               int timeout_ms);
+void rkvc_port_queue_close(rkvc_port_queue *q);
+void rkvc_port_queue_reopen(rkvc_port_queue *q);
 
 /* ── Nodes ────────────────────────────────────────────────────────── */
 
@@ -476,6 +478,8 @@ struct rkvc_session {
     rkvc_port           port_preview;
 
     pthread_t           worker;
+    int                 worker_started;
+    rkvc_err            worker_err;
     int                 running;
     volatile int        stop_requested;
     pthread_mutex_t     lock;

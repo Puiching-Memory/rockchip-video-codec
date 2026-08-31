@@ -1,6 +1,6 @@
 # 示例程序指南
 
-9 个示例位于 `examples/` 目录，一例一概念，构建后在 `examples/bin/` 或 `.build/release/` 下运行。
+10 个示例位于 `examples/` 目录，一例一概念，构建后在 `examples/bin/` 或 `.build/release/` 下运行。
 
 ## 基础层：跑通管线
 
@@ -79,6 +79,19 @@ UDP/RTP 本机回环：`rkvc_net_send` / `rkvc_net_recv` 分片重组冒烟。
 ./examples/bin/example_stream_ports out.h264
 ```
 
+### example_live_transcode_ports
+
+无 `input_path` 的实时全硬件转码：把 H.264/H.265 Annex-B access unit 推入
+`capture`，并发从 `output` 拉取 H.264/H.265 编码包。示例用 libavformat 从
+裸码流文件读取 packet；Monibuca 集成时替换为视频包回调即可。
+
+```bash
+./examples/bin/example_live_transcode_ports input.h265 out.h264 h264 1280 720 2000000
+
+# 24h 单 Session soak（循环输入，输出丢弃）
+./examples/bin/example_live_transcode_ports input.h265 /dev/null h264 1280 720 2000000 86400
+```
+
 ### example_upscale_ctx
 
 RGA 上采样两种 API 对比：一次性 `rkvc_upscale_nv12` vs 复用 DMA 缓冲的
@@ -106,10 +119,11 @@ RGA 上采样两种 API 对比：一次性 `rkvc_upscale_nv12` vs 复用 DMA 缓
 2. `decode_file.c` — 解码与像素格式
 3. `transcode.c` — Codec Router 选型
 4. `live_capture.c` — V4L2 采集
-5. `stream_ports.c` — 命名端口并发消费
-6. `adaptive_bitrate.c` — 运行中热切换控制环
-7. `roi_encode.c` — ROI 区域编码
-8. `upscale_ctx.c` — RGA 批量上采样
-9. `net_loopback.c` — UDP/RTP 收发
+5. `stream_ports.c` — 文件模板的命名端口旁路消费
+6. `live_transcode_ports.c` — Annex-B 实时 push→pull 硬件转码
+7. `adaptive_bitrate.c` — 运行中热切换控制环
+8. `roi_encode.c` — ROI 区域编码
+9. `upscale_ctx.c` — RGA 批量上采样
+10. `net_loopback.c` — UDP/RTP 收发
 
 完整 API 文档见项目 `docs/api.md` 或包内 `DEVELOPMENT.md`。

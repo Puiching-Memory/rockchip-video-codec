@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Light entry point for the release build orchestrator.
+
+Keeps the really thin so ``python -m rkvc_build`` and the on-disk script stay
+equivalent.  The script adds ``tools/`` to ``sys.path`` so the ``rkvc_build``
+package resolves from a source checkout.
+"""
+
+import os
+import sys
+
+_TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+
+from rkvc_build.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

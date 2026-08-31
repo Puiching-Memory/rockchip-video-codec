@@ -53,6 +53,46 @@ static void test_pipeline_template(void **state)
     assert_int_equal(d.policy, RKVC_POLICY_QUALITY);
 }
 
+static void test_live_transcode_contract(void **state)
+{
+    (void)state;
+    rkvc_pipeline_desc d;
+    assert_int_equal(
+        rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_TRANSCODE, &d),
+        RKVC_OK);
+    assert_int_equal(d.policy, RKVC_POLICY_REALTIME);
+    assert_int_equal(d.low_latency, 1);
+    assert_int_equal(d.queue_depth, 8);
+    assert_int_equal(d.input_codec, RKVC_CODEC_AUTO);
+    assert_null(d.input_path);
+    assert_null(d.output_path);
+
+    d.input_codec = RKVC_CODEC_H264;
+    d.codec = RKVC_CODEC_H264;
+    rkvc_session *s = NULL;
+    assert_int_equal(rkvc_session_create(&d, &s), RKVC_OK);
+    assert_non_null(s);
+
+    static const uint8_t annexb[] = {0, 0, 0, 1, 0x67, 0x42, 0, 0x1f};
+    rkvc_buffer *pkt = NULL;
+    assert_int_equal(rkvc_buffer_alloc_bitstream(
+                         &pkt, annexb, sizeof(annexb), 1), RKVC_OK);
+    assert_int_equal(rkvc_port_push(rkvc_session_port(s, "capture"), pkt),
+                     RKVC_ERR_EOF);
+    rkvc_buffer_unref(pkt);
+    rkvc_session_destroy(s);
+
+    d.input_codec = RKVC_CODEC_AV1;
+    s = NULL;
+    assert_int_equal(rkvc_session_create(&d, &s), RKVC_ERR_INVALID);
+    assert_null(s);
+
+    d.input_codec = RKVC_CODEC_H264;
+    d.codec = RKVC_CODEC_AV1;
+    assert_int_equal(rkvc_session_create(&d, &s), RKVC_ERR_INVALID);
+    assert_null(s);
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -60,6 +100,7 @@ int main(void)
         cmocka_unit_test(test_port_null),
         cmocka_unit_test(test_session_port_names),
         cmocka_unit_test(test_pipeline_template),
+        cmocka_unit_test(test_live_transcode_contract),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

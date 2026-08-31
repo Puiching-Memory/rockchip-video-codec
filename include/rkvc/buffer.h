@@ -149,6 +149,15 @@ rkvc_err rkvc_buffer_get_bitstream(const rkvc_buffer *buf,
  */
 rkvc_err rkvc_buffer_set_pts(rkvc_buffer *buf, int64_t pts);
 
+/**
+ * @brief 同时设置压缩包的 PTS/DTS。
+ *
+ * 实时转码存在 B 帧或重排序时应使用本函数；视频帧也接受该调用，但仅 PTS
+ * 会同步到底层 AVFrame。
+ */
+rkvc_err rkvc_buffer_set_timestamps(rkvc_buffer *buf,
+                                    int64_t pts, int64_t dts);
+
 #ifdef __cplusplus
 }
 #endif

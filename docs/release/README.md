@@ -10,6 +10,7 @@
 - **硬件加速** — RKMPP 硬编硬解，支持 8K
 - **SVT-AV1** — QUALITY 策略软件编码 + av1_rkmpp 硬解
 - **Session API** — 统一文件/流式编解码接口
+- **实时硬件转码** — `LIVE_TRANSCODE`：Annex-B 端口输入，MPP 硬解+硬编，output 实时拉流
 - **RGA / AI 上采样** — 解码路径后处理；`rkvc_sr` 使用包内单输入 Phase-RLFN bundle
 
 性能数字见包内 `USAGE.md` 或源码树 `docs/benchmark.md`（1080p E2E：REALTIME ~36 / BALANCED ~27 / QUALITY ~24 fps）。
@@ -80,6 +81,7 @@
 - `adaptive_bitrate` — 带宽自适应控制环
 - `roi_encode` — ROI 智能压缩
 - `stream_ports` — 命名端口并发取流
+- `live_transcode_ports` — H.264/H.265 Annex-B 实时 push→pull 硬件转码
 - `upscale_ctx` — RGA 批量上采样
 - `net_loopback` — UDP/RTP 回环
 

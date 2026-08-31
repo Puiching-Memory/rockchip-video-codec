@@ -39,9 +39,12 @@ static void test_bitstream_buffer(void **state)
     rkvc_buffer *b = NULL;
     assert_int_equal(rkvc_buffer_alloc_bitstream(&b, data, sizeof(data), 1),
                      RKVC_OK);
+    assert_int_equal(rkvc_buffer_set_timestamps(b, 123, 120), RKVC_OK);
     rkvc_buffer_bitstream_view view;
     assert_int_equal(rkvc_buffer_get_bitstream(b, &view), RKVC_OK);
     assert_int_equal(view.size, sizeof(data));
+    assert_int_equal(view.pts, 123);
+    assert_int_equal(view.dts, 120);
     rkvc_buffer_unref(b);
 }
 

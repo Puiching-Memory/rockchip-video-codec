@@ -103,12 +103,59 @@ static int session_is_raw_out(const char *path)
     return 0;
 }
 
+rkvc_err session_open_live_decoder(rkvc_session *s, rkvc_codec input_codec)
+{
+    if (!s || s->desc.template_id != RKVC_TEMPLATE_LIVE_TRANSCODE)
+        return RKVC_ERR_INVALID;
+    if (input_codec != RKVC_CODEC_H264 && input_codec != RKVC_CODEC_HEVC)
+        return RKVC_ERR_FORMAT;
+    if (s->dec)
+        return RKVC_OK;
+
+    AVCodecParameters *par = avcodec_parameters_alloc();
+    if (!par)
+        return RKVC_ERR_NOMEM;
+    par->codec_type = AVMEDIA_TYPE_VIDEO;
+    par->codec_id = input_codec == RKVC_CODEC_HEVC
+                        ? AV_CODEC_ID_HEVC
+                        : AV_CODEC_ID_H264;
+    /* Annex-B 参数集提供真实输入尺寸；目标 width/height 仅属于编码侧。 */
+    par->width = 0;
+    par->height = 0;
+
+    /* route.codec/enc_name 描述目标编码器；这里只按输入独立修正解码侧。 */
+    pthread_mutex_lock(&s->lock);
+    s->route.dec_backend = RKVC_DEC_BACKEND_MPP;
+    s->route.dec_name = input_codec == RKVC_CODEC_HEVC
+                            ? "hevc_rkmpp"
+                            : "h264_rkmpp";
+    s->stats.route = s->route;
+    pthread_mutex_unlock(&s->lock);
+
+    rkvc_mpp_dec_config dc = {
+        .route         = &s->route,
+        .output_format = s->desc.pixel_format,
+        .low_latency   = s->desc.low_latency,
+        .codec_opts    = s->desc.codec_opts,
+    };
+    rkvc_err err = rkvc_mpp_dec_open(&s->dec, &dc, par);
+    avcodec_parameters_free(&par);
+    return err;
+}
+
 static rkvc_err session_open_nodes(rkvc_session *s)
 {
     /* 允许 start 失败后重试：先关掉上次半开的节点，避免 FD/指针泄漏 */
     session_close_nodes(s);
 
     const rkvc_pipeline_desc *d = &s->desc;
+
+    if (d->template_id == RKVC_TEMPLATE_LIVE_TRANSCODE &&
+        d->input_codec != RKVC_CODEC_AUTO) {
+        rkvc_err err = session_open_live_decoder(s, d->input_codec);
+        if (err != RKVC_OK)
+            return err;
+    }
 
     if (d->template_id == RKVC_TEMPLATE_LIVE_CAPTURE) {
         if (!d->capture_device || !d->capture_device[0] || !d->output_path)
@@ -228,9 +275,10 @@ mlvc_input_done:
     if (d->template_id == RKVC_TEMPLATE_FILE_TRANSCODE ||
         d->template_id == RKVC_TEMPLATE_FILE_ENCODE ||
         d->template_id == RKVC_TEMPLATE_LIVE_CAPTURE ||
+        d->template_id == RKVC_TEMPLATE_LIVE_TRANSCODE ||
         d->template_id == RKVC_TEMPLATE_AV1_STORAGE ||
         d->template_id == RKVC_TEMPLATE_MLVC_STORAGE) {
-        if (!d->output_path)
+        if (d->template_id != RKVC_TEMPLATE_LIVE_TRANSCODE && !d->output_path)
             return RKVC_ERR_INVALID;
 
 #ifdef RKVC_ENABLE_MLVC
@@ -332,6 +380,10 @@ mlvc_input_done:
         if (szerr != RKVC_OK)
             return szerr;
 
+        /* 纯端口实时转码不需要 mux；编码包直接进入 output 队列。 */
+        if (!d->output_path)
+            goto standard_output_done;
+
         rkvc_mux_config mc = {
             .output_path  = d->output_path,
             .route        = &s->route,
@@ -365,6 +417,8 @@ mlvc_input_done:
         if (err != RKVC_OK) {
             return err;
         }
+standard_output_done:
+        ;
     }
 mlvc_output_done:
     ;
@@ -381,6 +435,12 @@ rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc,
     if (desc->post_upscale_algo == RKVC_UPSCALE_AI_SR &&
         (!desc->post_upscale_rkvc_model_path ||
          !desc->post_upscale_rkvc_model_path[0]))
+        return RKVC_ERR_INVALID;
+
+    if (desc->template_id == RKVC_TEMPLATE_LIVE_TRANSCODE &&
+        desc->input_codec != RKVC_CODEC_AUTO &&
+        desc->input_codec != RKVC_CODEC_H264 &&
+        desc->input_codec != RKVC_CODEC_HEVC)
         return RKVC_ERR_INVALID;
 
     *out = NULL;
@@ -420,6 +480,13 @@ rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc,
     if (err != RKVC_OK) {
         rkvc_session_destroy(s);
         return err;
+    }
+
+    if (s->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE &&
+        s->route.enc_backend != RKVC_ENC_BACKEND_MPP) {
+        /* 实时模板承诺全硬件路径；AV1/MLVC 等非 MPP 编码路线不静默降级。 */
+        rkvc_session_destroy(s);
+        return RKVC_ERR_INVALID;
     }
 
     /* ── 编解码器独立选择（按方向修正路由）──────────────────────────
@@ -477,6 +544,15 @@ rkvc_err rkvc_session_start(rkvc_session *session)
         return RKVC_ERR_INVALID;
     if (session->running)
         return RKVC_OK;
+    if (session->worker_started)
+        return session->worker_err != RKVC_OK
+                   ? session->worker_err
+                   : RKVC_ERR_INVALID;
+
+    session->stop_requested = 0;
+    session->worker_err = RKVC_OK;
+    rkvc_port_queue_reopen(session->port_capture.queue);
+    rkvc_port_queue_reopen(session->port_output.queue);
 
     rkvc_err err = session_open_nodes(session);
     if (err != RKVC_OK) {
@@ -488,6 +564,20 @@ rkvc_err rkvc_session_start(rkvc_session *session)
     session->running = 1;
     session->stats.running = 1;
     pthread_mutex_unlock(&session->lock);
+
+    if (session->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE) {
+        int rc = pthread_create(&session->worker, NULL,
+                                rkvc_session_live_worker, session);
+        if (rc != 0) {
+            pthread_mutex_lock(&session->lock);
+            session->running = 0;
+            session->stats.running = 0;
+            pthread_mutex_unlock(&session->lock);
+            session_close_nodes(session);
+            return RKVC_ERR_INTERNAL;
+        }
+        session->worker_started = 1;
+    }
     return RKVC_OK;
 }
 
@@ -495,12 +585,24 @@ rkvc_err rkvc_session_stop(rkvc_session *session)
 {
     if (!session)
         return RKVC_ERR_INVALID;
+    pthread_mutex_lock(&session->lock);
     session->stop_requested = 1;
+    pthread_mutex_unlock(&session->lock);
+    if (session->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE)
+        rkvc_port_queue_close(session->port_capture.queue);
+
+    if (session->worker_started) {
+        pthread_join(session->worker, NULL);
+        session->worker_started = 0;
+    }
+    if (session->desc.template_id == RKVC_TEMPLATE_LIVE_TRANSCODE)
+        session_close_nodes(session);
+
     pthread_mutex_lock(&session->lock);
     session->running = 0;
     session->stats.running = 0;
     pthread_mutex_unlock(&session->lock);
-    return RKVC_OK;
+    return session->worker_err;
 }
 
 rkvc_err rkvc_session_get_route(const rkvc_session *session,
@@ -508,7 +610,9 @@ rkvc_err rkvc_session_get_route(const rkvc_session *session,
 {
     if (!session || !plan)
         return RKVC_ERR_INVALID;
+    pthread_mutex_lock((pthread_mutex_t *)&session->lock);
     *plan = session->route;
+    pthread_mutex_unlock((pthread_mutex_t *)&session->lock);
     return RKVC_OK;
 }
 

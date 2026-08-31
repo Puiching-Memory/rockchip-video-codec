@@ -22,14 +22,15 @@
 
 **特点**：吞吐优先，可跑满存储 I/O；`QUALITY` 策略下 SVT-AV1 **软编码**会占满多核 CPU，但编解码均可离线批处理。
 
-### 在线压缩（部分交付，有已知缺口）
+### 在线压缩（已交付）
 
 适用于摄像头采集、低延迟预览、流式推拉等**实时**场景，通过 Session **命名端口**（`capture` / `output`；`preview` 为占位）逐帧 push/pull。
 
 | 能力                       | 状态           | 说明                                                                                   |
 | -------------------------- | -------------- | -------------------------------------------------------------------------------------- |
 | 低延迟编解码链路           | ✅ 可测         | LIVE_CAPTURE + `low_latency`（`example_live_capture`）                                 |
-| 流式 Session API           | ✅ 可用         | `example_stream_ports`（命名端口 push/pull 并发消费）                                  |
+| 流式 Session API           | ✅ 可用         | `LIVE_TRANSCODE` + `example_live_transcode_ports`（Annex-B push / 码流 pull）            |
+| 实时码流硬转码             | ✅ 可用         | 无 `input_path`；H.264/H.265 Annex-B → RKMPP 硬解 + H.264/H.265 RKMPP 硬编              |
 | 三策略实时转码             | ✅ 可用         | `REALTIME`→H.264 硬编（E2E ~36 fps@1080p 转码）；`BALANCED` ~27 fps；`QUALITY` ~24 fps |
 | 非实时高质量               | ✅ 可用         | `OFFLINE`→SVT-AV1 preset 4 + 硬解（~2 fps@1080p，≥1 fps）                              |
 | V4L2 采集 (`LIVE_CAPTURE`) | ✅ 可用         | `capture_device` + `example_live_capture`；`"mock"` 合成源可测                         |

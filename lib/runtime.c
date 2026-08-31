@@ -43,6 +43,7 @@ static int template_has_enc(rkvc_pipeline_template t)
     return t == RKVC_TEMPLATE_FILE_ENCODE ||
            t == RKVC_TEMPLATE_FILE_TRANSCODE ||
            t == RKVC_TEMPLATE_LIVE_CAPTURE ||
+           t == RKVC_TEMPLATE_LIVE_TRANSCODE ||
            t == RKVC_TEMPLATE_AV1_STORAGE ||
            t == RKVC_TEMPLATE_MLVC_STORAGE;
 }

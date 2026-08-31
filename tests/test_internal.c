@@ -58,6 +58,29 @@ static void test_port_queue(void **state)
     rkvc_port_queue_destroy(q);
 }
 
+static void test_port_queue_close_and_reopen(void **state)
+{
+    (void)state;
+    rkvc_port_queue *q = rkvc_port_queue_create(2);
+    rkvc_buffer *b = NULL;
+    rkvc_buffer_alloc_video_host(&b, 16, 16, RKVC_PIX_FMT_NV12);
+    assert_int_equal(rkvc_port_queue_push(q, b), RKVC_OK);
+    rkvc_port_queue_close(q);
+    assert_int_equal(rkvc_port_queue_push(q, b), RKVC_ERR_EOF);
+
+    rkvc_buffer *out = NULL;
+    assert_int_equal(rkvc_port_queue_pull(q, &out, 0), RKVC_OK);
+    rkvc_buffer_unref(out);
+    assert_int_equal(rkvc_port_queue_pull(q, &out, -1), RKVC_ERR_EOF);
+
+    rkvc_port_queue_reopen(q);
+    assert_int_equal(rkvc_port_queue_push(q, b), RKVC_OK);
+    assert_int_equal(rkvc_port_queue_pull(q, &out, 0), RKVC_OK);
+    rkvc_buffer_unref(out);
+    rkvc_buffer_unref(b);
+    rkvc_port_queue_destroy(q);
+}
+
 static void test_hash_buffer(void **state)
 {
     (void)state;
@@ -301,6 +324,7 @@ int main(void)
         cmocka_unit_test(test_pix_fmt_roundtrip),
         cmocka_unit_test(test_buffer_wrap_avframe),
         cmocka_unit_test(test_port_queue),
+        cmocka_unit_test(test_port_queue_close_and_reopen),
         cmocka_unit_test(test_hash_buffer),
         cmocka_unit_test(test_dict_parse_opts),
         cmocka_unit_test(test_now_us_monotonic),

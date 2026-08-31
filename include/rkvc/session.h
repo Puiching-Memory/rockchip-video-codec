@@ -56,16 +56,18 @@ rkvc_err rkvc_session_create(const rkvc_pipeline_desc *desc,
 /**
  * @brief 打开编解码节点并标记为运行中。
  *
- * 流式模板须在 push/pull 前调用；`rkvc_session_run_file` 内部会自动 start。
+ * 流式模板须在 push/pull 前调用；`LIVE_TRANSCODE` 会在内部启动工作线程，
+ * `capture` 输入被持续处理并实时送到 `output`。`rkvc_session_run_file` 内部会自动 start。
  *
  * @return `RKVC_OK` 或硬件/FFmpeg 初始化错误。
  */
 rkvc_err rkvc_session_start(rkvc_session *session);
 
 /**
- * @brief 请求停止并 flush 管线。
+ * @brief 请求停止、排空已接收输入并 flush 管线。
  *
- * 可多次调用；未 start 时安全 no-op。
+ * `LIVE_TRANSCODE` 会拒绝后续 push，等待后台线程退出后返回；返回值包含后台
+ * 解码/编码错误。可多次调用；未 start 时安全 no-op。
  */
 rkvc_err rkvc_session_stop(rkvc_session *session);
 
@@ -79,7 +81,8 @@ rkvc_err rkvc_session_get_route(const rkvc_session *session,
 /**
  * @brief 按名称获取命名端口。
  *
- * 有效名称：`"capture"`（输入视频）、`"output"`（输出视频或码流）、
+ * 有效名称：`"capture"`（输入视频；`LIVE_TRANSCODE` 也接受压缩码流）、
+ * `"output"`（输出视频或码流）、
  * `"preview"`（预览支路，部分模板）。未知名称返回 NULL。
  *
  * @return 端口指针，或 NULL。
@@ -106,7 +109,8 @@ void rkvc_session_destroy(rkvc_session *session);
  * - `FILE_*` / `AV1_STORAGE`：处理 `input_path`/`output_path`
  * - `LIVE_CAPTURE`：从 `capture_device` 拉帧编码到 `output_path`
  *
- * 内部 `start` → 处理 → `stop`。纯端口流式（手动 push/pull）请勿使用。
+ * 内部 `start` → 处理 → `stop`。`LIVE_TRANSCODE` 是纯端口流式模板，
+ * 请直接使用 start/push/pull/stop，不要调用本函数。
  *
  * @return `RKVC_OK` 或 I/O / 编解码错误。
  */

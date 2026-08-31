@@ -2,6 +2,8 @@
 
 面向 RK3588 的 C 库，基于 [ffmpeg-rockchip](https://github.com/nyanmisaka/ffmpeg-rockchip) RKMPP 硬件加速与 SVT-AV1，提供 **Session + Pipeline + Codec Router** 统一 API。
 
+0.4.0 的下一代架构、关键技术决策与分阶段迁移路径见 [0.4.0 大版本重构计划](0.4.0-refactor-plan.md)。
+
 当前版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()` / `rkvc_info -v`
 
 ## 功能特性

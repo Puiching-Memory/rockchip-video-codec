@@ -314,6 +314,120 @@ static void test_session_encode_h264(void **state)
     assert_complete_encode(&stats);
 }
 
+static void fill_nv12_frame(rkvc_buffer *frame, int w, int h, int value)
+{
+    uint8_t *planes[4] = {0};
+    int strides[4] = {0};
+    assert_int_equal(rkvc_buffer_get_video_planes(frame, planes, strides),
+                     RKVC_OK);
+    for (int y = 0; y < h; y++)
+        memset(planes[0] + y * strides[0], value, (size_t)w);
+    for (int y = 0; y < h / 2; y++)
+        memset(planes[1] + y * strides[1], 128, (size_t)w);
+}
+
+static void run_live_transcode_ports(rkvc_codec codec, const char *route_name)
+{
+    enum { W = 320, H = 240, N = 8, CAP = 32 };
+    rkvc_buffer *annexb[CAP] = {0};
+    int annexb_count = 0;
+
+    /* 先用同一个流式模板的 VIDEO 路径产生 Annex-B access unit。 */
+    rkvc_pipeline_desc enc;
+    assert_int_equal(
+        rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_TRANSCODE, &enc),
+        RKVC_OK);
+    enc.codec = codec;
+    enc.width = W;
+    enc.height = H;
+    enc.queue_depth = CAP;
+    enc.gop_size = 4;
+
+    rkvc_session *s = NULL;
+    assert_int_equal(rkvc_session_create(&enc, &s), RKVC_OK);
+    assert_int_equal(rkvc_session_start(s), RKVC_OK);
+    rkvc_port *capture = rkvc_session_port(s, "capture");
+    rkvc_port *output = rkvc_session_port(s, "output");
+    for (int i = 0; i < N; i++) {
+        rkvc_buffer *frame = NULL;
+        assert_int_equal(rkvc_buffer_alloc_video_host(
+                             &frame, W, H, RKVC_PIX_FMT_NV12), RKVC_OK);
+        fill_nv12_frame(frame, W, H, i * 17);
+        rkvc_buffer_set_pts(frame, i);
+        assert_int_equal(rkvc_port_push(capture, frame), RKVC_OK);
+        rkvc_buffer_unref(frame);
+    }
+    assert_int_equal(rkvc_session_stop(s), RKVC_OK);
+    for (;;) {
+        rkvc_buffer *pkt = NULL;
+        rkvc_err err = rkvc_port_pull(output, &pkt, 0);
+        if (err == RKVC_ERR_EOF)
+            break;
+        assert_int_equal(err, RKVC_OK);
+        assert_true(annexb_count < CAP);
+        annexb[annexb_count++] = pkt;
+    }
+    assert_true(annexb_count > 0);
+    rkvc_session_destroy(s);
+
+    /* 再把这些压缩包送进 BITSTREAM 路径，验证无 input_path 的硬解+硬编。 */
+    rkvc_pipeline_desc trans;
+    assert_int_equal(
+        rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_TRANSCODE, &trans),
+        RKVC_OK);
+    trans.input_codec = codec;
+    trans.codec = codec;
+    trans.width = W;
+    trans.height = H;
+    trans.queue_depth = CAP;
+
+    s = NULL;
+    assert_int_equal(rkvc_session_create(&trans, &s), RKVC_OK);
+    assert_int_equal(rkvc_session_start(s), RKVC_OK);
+    capture = rkvc_session_port(s, "capture");
+    output = rkvc_session_port(s, "output");
+    for (int i = 0; i < annexb_count; i++) {
+        assert_int_equal(rkvc_port_push(capture, annexb[i]), RKVC_OK);
+        rkvc_buffer_unref(annexb[i]);
+        annexb[i] = NULL;
+    }
+    assert_int_equal(rkvc_session_stop(s), RKVC_OK);
+
+    int output_count = 0;
+    for (;;) {
+        rkvc_buffer *pkt = NULL;
+        rkvc_err err = rkvc_port_pull(output, &pkt, 0);
+        if (err == RKVC_ERR_EOF)
+            break;
+        assert_int_equal(err, RKVC_OK);
+        output_count++;
+        rkvc_buffer_unref(pkt);
+    }
+
+    rkvc_session_stats stats = {0};
+    rkvc_session_get_stats(s, &stats);
+    assert_true(stats.frames_in > 0);
+    assert_true(stats.frames_out > 0);
+    assert_true(output_count > 0);
+    assert_string_equal(stats.route.dec_name, route_name);
+    assert_string_equal(stats.route.enc_name, route_name);
+    rkvc_session_destroy(s);
+}
+
+static void test_session_live_transcode_ports(void **state)
+{
+    (void)state;
+    skip_unless_hw();
+    run_live_transcode_ports(RKVC_CODEC_H264, "h264_rkmpp");
+}
+
+static void test_session_live_transcode_ports_hevc(void **state)
+{
+    (void)state;
+    skip_unless_hevc();
+    run_live_transcode_ports(RKVC_CODEC_HEVC, "hevc_rkmpp");
+}
+
 static void test_session_av1_storage(void **state)
 {
     (void)state;
@@ -478,6 +592,8 @@ static const struct CMUnitTest tests[] = {
     cmocka_unit_test(test_session_transcode_offline),
     cmocka_unit_test(test_session_decode_nv12),
     cmocka_unit_test(test_session_encode_h264),
+    cmocka_unit_test(test_session_live_transcode_ports),
+    cmocka_unit_test(test_session_live_transcode_ports_hevc),
     cmocka_unit_test(test_session_av1_storage),
     cmocka_unit_test(test_session_encode_decode_upscale_3x),
     cmocka_unit_test(test_session_encode_decode_upscale_3x_ai_sr),

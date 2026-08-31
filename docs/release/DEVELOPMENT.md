@@ -90,37 +90,65 @@ int main(void) {
 }
 ```
 
-## 文件编码（端口 push）
+## 实时端口转码（Annex-B push → 码流 pull）
 
 ```c
 rkvc_pipeline_desc d;
-rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_ENCODE, &d);
-d.output_path = "out.mp4";
-d.policy      = RKVC_POLICY_REALTIME;
-d.width = 1920; d.height = 1080;
+rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_TRANSCODE, &d);
+d.input_codec = RKVC_CODEC_HEVC;  // 输入 Annex-B；也可 H264
+d.codec       = RKVC_CODEC_H264;  // 目标硬编码器 h264_rkmpp
+d.width       = 1280;
+d.height      = 720;
+d.fps_num     = 25;
+d.fps_den     = 1;
+d.bitrate     = 2000000;
+// d.output_path = NULL：纯端口输出；也可设置容器文件同时落盘
 
 rkvc_session *s;
 rkvc_session_create(&d, &s);
 rkvc_session_start(s);
 
 rkvc_port *cap = rkvc_session_port(s, "capture");
-for (int i = 0; i < 300; i++) {
-    rkvc_buffer *buf = NULL;
-    rkvc_buffer_alloc_video_host(&buf, 1920, 1080, RKVC_PIX_FMT_NV12);
-    rkvc_buffer_set_pts(buf, i);
+rkvc_port *out = rkvc_session_port(s, "output");
 
-    uint8_t *planes[4];
-    int strides[4];
-    rkvc_buffer_get_video_planes(buf, planes, strides);
-    // 填充 NV12 像素到 planes[0] (Y) 和 planes[1] (UV)
-
-    rkvc_port_push(cap, buf);
-    rkvc_buffer_unref(buf);
+// 在 Monibuca 视频包回调中：data 必须是一个完整 Annex-B access unit。
+rkvc_buffer *in = NULL;
+rkvc_buffer_alloc_bitstream(&in, data, size, 1);
+rkvc_buffer_set_timestamps(in, pts, dts);
+while (rkvc_port_push(cap, in) == RKVC_ERR_AGAIN) {
+    // capture 有界队列满：退让或按业务策略丢包
 }
+rkvc_buffer_unref(in);
 
-rkvc_session_stop(s);
-rkvc_session_destroy(s);
+// 独立消费线程并发执行，不能等 stop 后才开始拉，否则有界 output 队列会丢包。
+rkvc_buffer *pkt = NULL;
+if (rkvc_port_pull(out, &pkt, 100) == RKVC_OK) {
+    rkvc_buffer_bitstream_view v;
+    rkvc_buffer_get_bitstream(pkt, &v);
+    // 立即发送 v.data / v.size
+    rkvc_buffer_unref(pkt);
+}
 ```
+
+`capture` 也接受 `RKVC_BUF_VIDEO`，此时跳过解码直接硬编。压缩输入推荐显式
+设置 `input_codec`；设为 `AUTO` 时，首批数据必须包含可识别的 Annex-B H.264
+SPS/PPS 或 H.265 VPS/SPS/PPS。目标 `codec` 只允许能走 MPP 的 H.264/H.265，
+SDK 不会在该模板中静默回退到软件编码。
+
+结束时调用 `rkvc_session_stop()`：它先拒绝新 push，再排空已经进入 `capture`
+队列的数据，flush 解码器和编码器，并等待工作线程退出。返回值会透传后台处理
+错误。随后消费线程应以非阻塞 pull 排空 `output` 中的尾包，再 destroy。
+
+完整可运行代码见 `examples/live_transcode_ports.c`。
+该示例最后一个可选参数是持续秒数；传 `86400` 会在同一 Session 内循环输入，
+可直接作为 24h 无泄漏/无挂起 soak 用例。
+
+## 文件编码
+
+`RKVC_TEMPLATE_FILE_ENCODE` 是文件模板：设置原始 YUV `input_path` 和容器
+`output_path`，再调用阻塞式 `rkvc_session_run_file()`。它不消费手动 push 到
+`capture` 的帧。需要帧 push→码流 pull 时，使用上面的 `LIVE_TRANSCODE`；其
+`capture` 同时支持 `RKVC_BUF_VIDEO`。
 
 ## 流式 pull 码流
 
@@ -145,6 +173,8 @@ while (rkvc_port_pull(out, &pkt, 100) == RKVC_OK) {
 | `< 0` | 无限阻塞直至有数据                       |
 
 `push` 在队列满时返回 `RKVC_ERR_AGAIN`（深度由 `d.queue_depth` 控制，默认 3）。
+`LIVE_TRANSCODE` 停止且 `output` 已排空后返回 `RKVC_ERR_EOF`；无限等待中的
+pull 也会被停止操作唤醒。
 
 ## Buffer 进阶
 

@@ -18,6 +18,7 @@ RKVC_1.0 {
         rkvc_buffer_kind_of;
         rkvc_buffer_ref;
         rkvc_buffer_set_pts;
+        rkvc_buffer_set_timestamps;
         rkvc_buffer_unref;
         rkvc_check_hw_permissions;
         rkvc_codec_name;
@@ -75,6 +76,42 @@ RKVC_1.0 {
         rkvc_upscale_yuv420p;
         rkvc_version;
         rkvc_version_number;
+};
+
+/*
+ * 0.4 公共 ABI（rkvc_core）：context / request / job / frame / diagnostic。
+ * local:* 收敛于此末节点；两节点均不允许导出内部符号。
+ */
+RKVC_0.4 {
+    global:
+        rkvc_abi_version;
+        rkvc_status_str;
+        rkvc_context_options_init;
+        rkvc_context_create;
+        rkvc_context_destroy;
+        rkvc_probe_device;
+        rkvc_backend_count;
+        rkvc_backend_id;
+        rkvc_request_init;
+        rkvc_job_create;
+        rkvc_job_start;
+        rkvc_job_wait;
+        rkvc_job_cancel;
+        rkvc_job_destroy;
+        rkvc_job_push;
+        rkvc_job_pull;
+        rkvc_job_push_eos;
+        rkvc_frame_wrap_host;
+        rkvc_frame_retain;
+        rkvc_frame_release;
+        rkvc_frame_get_spec;
+        rkvc_frame_get_data;
+        rkvc_frame_ref_count;
+        rkvc_diag_fmt_text;
+        rkvc_diag_fmt_json;
+        rkvc_diag_release;
+        rkvc_model_count;
+        rkvc_model_info_at;
     local:
         *;
-};
+} RKVC_1.0;

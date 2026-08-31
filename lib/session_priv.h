@@ -26,5 +26,9 @@ rkvc_err session_apply_post_upscale(rkvc_session *s, rkvc_buffer *host,
                                     rkvc_buffer **out);
 rkvc_err session_write_nv12_frame(FILE *fp, const AVFrame *f);
 rkvc_err session_write_nv12_buffer(FILE *fp, const rkvc_buffer *buf);
+rkvc_err session_open_live_decoder(rkvc_session *s, rkvc_codec input_codec);
+
+/** LIVE_TRANSCODE 后台线程入口。 */
+void *rkvc_session_live_worker(void *opaque);
 
 #endif /* RKVC_SESSION_PRIV_H */

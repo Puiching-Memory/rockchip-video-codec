@@ -22,6 +22,7 @@ typedef enum {
     RKVC_TEMPLATE_FILE_DECODE,       /**< 容器 → 原始 NV12 */
     RKVC_TEMPLATE_FILE_TRANSCODE,    /**< 容器 → 容器（Router 选 codec） */
     RKVC_TEMPLATE_LIVE_CAPTURE,      /**< 低延迟 V4L2 采集 → 编码（需 `capture_device`） */
+    RKVC_TEMPLATE_LIVE_TRANSCODE,    /**< 端口码流/视频帧 → 实时编码码流 */
     RKVC_TEMPLATE_AV1_STORAGE,       /**< 强制 AV1 SVT 存储档 */
     RKVC_TEMPLATE_MLVC_STORAGE,      /**< 神经视频编解码存储（RKNN NPU，固定分辨率） */
 } rkvc_pipeline_template;
@@ -35,6 +36,11 @@ typedef struct rkvc_pipeline_desc {
     rkvc_pipeline_template template_id; /**< 模板 ID */
     rkvc_policy            policy;      /**< Codec Router 策略 */
     rkvc_codec             codec;       /**< 目标格式，`AUTO` 时由 Router 决定 */
+    /**
+     * `LIVE_TRANSCODE` 压缩输入格式。推荐显式设为 H264/HEVC；`AUTO` 时
+     * 从首批 Annex-B VPS/SPS/PPS 自动识别。视频帧输入时忽略。
+     */
+    rkvc_codec             input_codec;
 
     int            width;           /**< 显示/参考宽度（像素） */
     int            height;          /**< 显示/参考高度（像素） */
@@ -49,7 +55,7 @@ typedef struct rkvc_pipeline_desc {
     int            qp_init;         /**< 固定 QP 初值，-1 表示编码器默认 */
 
     const char    *input_path;      /**< 文件解码/转码输入路径 */
-    const char    *output_path;     /**< 文件编码/转码输出路径 */
+    const char    *output_path;     /**< 文件输出路径；`LIVE_TRANSCODE` 可为 NULL（纯 output 端口） */
     /**
      * V4L2 设备路径（`LIVE_CAPTURE` 必填，如 `/dev/video-camera0`）。
      * 特殊值 `"mock"` / `"mock:..."`：合成 NV12，无需真实摄像头（单元测试用）。

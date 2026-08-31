@@ -14,11 +14,12 @@
   | `offline`  | SVT-AV1 preset 4 + `av1_rkmpp`          | 非实时高质量（≥1 fps） |
   | `neural`   | MLVC 神经编解码（RKNN NPU + 纯 C rANS） | 超低码率，固定 640×368 |
 
+- **实时全硬件转码** — `LIVE_TRANSCODE` 无需 `input_path`：`capture` push H.264/H.265 Annex-B，`output` 边编边 pull
 - **Session API** — `rkvc_session` + 命名端口 `capture` / `output`（`preview` 占位）
 - **MLVC 神经编解码** — 与 264/265 平行的端到端一等编解码器：编码 `video → .mlvc`、纯解码 `.mlvc → .yuv`、转码 `.mlvc → .mp4`；自定义 `.mlvc` 容器；熵编码为纯 C rANS（算法源自 msrtc_rans，MIT）
 - **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频/码流；RGA NV12 缩放
 - **后处理上采样** — 解码路径：RGA 插值或 RKNN 超分（`rkvc_sr`）；编码路径仅 `enc_scale_denom` 下采样
-- **模板管线** — 文件编解码、转码、AV1 存储、MLVC 存储、**LiveCapture（V4L2）**
+- **模板管线** — 文件编解码、转码、AV1/MLVC 存储、**LiveCapture（V4L2）**、**LiveTranscode（端口流）**
 - **ROI / 配额** — `rkvc_session_set_roi`（MPP 硬区域 QP）；`rkvc_runtime_set_quota`
 - **UDP/RTP 原语** — `rkvc_net_send` / `recv`（分片重组；无国标信令）
 
@@ -49,6 +50,18 @@ cmake --build --preset default
 ```
 
 完整依赖与权限见 [docs/getting-started.md](docs/getting-started.md)。构建目录约定见 [docs/build-layout.md](docs/build-layout.md)。
+
+### 0.4 核心包（aarch64 交叉发布，无 Rockchip 硬件可构建）
+
+```bash
+python3 tools/rkvc-build package --jobs $(nproc)
+# .build/portable/dist/rkvc-<version>-linux-aarch64-glibc231-portable.tar.gz
+# 含统一 CLI（bin/rkvc）、librkvc_core、SBOM、provenance、SHA256SUMS；
+# glibc 2.31 基线验证 + QEMU 冒烟自动执行
+```
+
+媒体后端（MPP/RGA/RKNN）正在按 docs/0.4.0-refactor-plan.md 迁移中，
+迁移完成前媒体功能仍由上方 0.3 路径交付。
 
 ## CLI 工具
 

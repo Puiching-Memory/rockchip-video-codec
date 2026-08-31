@@ -371,6 +371,8 @@ rkvc_err rkvc_buffer_alloc_bitstream(rkvc_buffer **out,
 
     b->kind = RKVC_BUF_BITSTREAM;
     buffer_init_lock(b);
+    b->pts = AV_NOPTS_VALUE;
+    b->dts = AV_NOPTS_VALUE;
 
     if (copy) {
         if (size > SIZE_MAX - (size_t)AV_INPUT_BUFFER_PADDING_SIZE) {
@@ -550,6 +552,18 @@ rkvc_err rkvc_buffer_set_pts(rkvc_buffer *buf, int64_t pts)
     if (!buf)
         return RKVC_ERR_INVALID;
     buf->pts = pts;
+    if (buf->av_frame)
+        buf->av_frame->pts = pts;
+    return RKVC_OK;
+}
+
+rkvc_err rkvc_buffer_set_timestamps(rkvc_buffer *buf,
+                                    int64_t pts, int64_t dts)
+{
+    if (!buf)
+        return RKVC_ERR_INVALID;
+    buf->pts = pts;
+    buf->dts = dts;
     if (buf->av_frame)
         buf->av_frame->pts = pts;
     return RKVC_OK;

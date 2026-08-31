@@ -4,10 +4,26 @@
 
 ## [Unreleased]
 
+### 变更（破坏性）
+
+- **0.4.0 核心重构启动（不兼容 0.3.x）**：根 `CMakeLists.txt` 拆分至 `cmake/RkvcOptions.cmake` / `RkvcDependencies.cmake` / `RkvcTargets.cmake` / `RkvcInstall.cmake`，版本号唯一来源改为 `project(VERSION)`；公共 ABI 冻结于 `include/rkvc/`（`api`/`context`/`request`/`job`/`frame`/`diagnostic` 等），`librkvc.map` 符号白名单拆为 `RKVC_1.0`（0.3 旧符号）与 `RKVC_0.4` 两节点；0.3 旧 API/CLI/包布局不提供兼容层。详见 `docs/0.4.0-refactor-plan.md`。
+
+### 新增
+
+- **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。
+- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
+- **`.rkmodel` v1 线格式与模型信任链**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV + 载荷表含 SHA-256 + 可选 Ed25519 签名尾）与读取器 `lib/rkmodel.c`、注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰）；trust root dev/prod 分离（`RKVC_ENABLE_MODEL_SIGN` + `RKVC_TRUST_PUBKEY_HEX` + `RKVC_TRUST_PRODUCTION`），CLI `rkvc inspect models` 接入真实注册表；Python 签名 → C 验证互操作闭环。
+- **统一发布路径 `tools/rkvc-build`**（stdlib Python）：sysroot 锁定（SHA-256 锁文件）→ 交叉构建 → SBOM（CycloneDX 1.5）/许可证归集 → 封装（SHA256SUMS + provenance）→ 产物验证（ELF 架构/解释器、glibc 2.31 基线、绝对 RPATH 拒绝）→ 确定性归档 → QEMU 冒烟；重复归档字节级一致。
+
+### 进行中
+
+- 媒体后端（MPP/RGA/RKNN）节点 DSO 化与真实板卡回归仍在迁移；完成前媒体功能仍由 0.3 媒体栈（`lib/session*`、旧 CLI）交付，统一 CLI 媒体子命令如实报告“本构建未包含媒体后端”。
+
 ## [0.3.4] - 2026-08-28
 
 ### 新增
 
+- **实时端口硬件转码（需求 A）**：新增 `RKVC_TEMPLATE_LIVE_TRANSCODE`，无需 `input_path`/`run_file`；`start()` 后由内部工作线程持续消费 `capture`，支持 H.264/H.265 Annex-B `RKVC_BUF_BITSTREAM`（MPP 硬解）或 `RKVC_BUF_VIDEO`（直接编码），H.264/H.265 目标统一走 RKMPP 硬编，并实时从 `output` 产包。`output_path` 可选，支持纯旁路或同时落盘。新增 `input_codec`（显式 H264/HEVC，AUTO 可从参数集识别）、`rkvc_buffer_set_timestamps()`、可关闭端口队列与明确 EOF；`stop()` 原子拒绝新输入、排空已接收包、限时 flush codec、等待工作线程，阻塞 pull 会被唤醒。新增 `example_live_transcode_ports`、契约/队列单测及硬件 push→pull 往返用例。
 - **模型自研加密层（可移植包默认开启）**：包内 `.rknn` 在打包收尾阶段原地加密，运行时由 `librkvc` 自动解密，不再依赖 Rockchip `rknn_crypt_tool`（aarch64 wheel 不附带该工具，且官方加密已被证实可完全还原：密钥内嵌 `librknnrt` + 时间戳可预测种子）。机制：模型体用随机数据密钥 `data.key` 做 XSalsa20-Poly1305（libsodium `crypto_secretbox`），`data.key` 不随包分发，而是用编译期内嵌（XOR 混淆）的主密钥 `master.key` 把 `data.key + 目标机机器码` 密封成每机一份的 `model.key`；运行时先解 `model.key`、按 1机1码 同一指纹校验本机机器码，通过才解密模型体。新增 `lib/model_crypt.c` + `lib/model_crypt_layout.h`（加密端/解密端共用的线格式单一来源）、打包工具 `tools/rkvc_model_crypt.c`（`genkey` / `issue` / `verify-key` / `encrypt` / `decrypt` / `machine-id`）、`tests/test_model_crypt.c`；CMake 选项 `RKVC_ENABLE_MODEL_CRYPT` + `RKVC_MODEL_MASTERKEY_FILE`。密钥落在 `tools/keys/{master.key,data.key}`（首次打包自动生成，已 gitignore）。错误语义：无 `model.key` → `RKVC_ERR_UNLICENSED`；机器码不符或文件被篡改 → `RKVC_ERR_LICENSE`；密钥查找顺序 `RKVC_MODEL_KEY_FILE` → `~/.config/rkvc/model.key`。`package-portable.sh` 默认启用（`--no-encrypt-models` 关闭），并为打包机自动签发本机自测用 `model.key`（不随包分发）。
 - **打包后自动包内自测**：`package-portable.sh` 每个平台包产出后自动运行包内 `test.sh`（仅对平台与本机 SoC 匹配的包，非匹配包提示到目标板手动跑；日志落盘 `.build/dist/<pkg>.test.log`），自测失败则打包以错误退出；`--no-test` 可跳过（CI 打包步骤改用该选项，测试由独立 step 承担）。
 - 新增 x86_64 → AArch64 可移植包流水线：统一 CMake toolchain 与交叉依赖前缀，宿主模型/密钥工具和目标库隔离构建；`check-elf-deps.py` 静态验证目标 ELF 架构及 `DT_NEEDED` 闭包，`test-portable-cross.sh` 通过 QEMU user-mode 执行 CLI 冒烟测试。GitHub Actions 新增 x86_64 cross-package job，覆盖 MPP、SVT-AV1、ffmpeg-rockchip、rkvc、RKNN runtime 与模型自动生产的完整 AArch64 打包；MPP/RGA/RKNN 硬件路径仍由目标板门禁验证。

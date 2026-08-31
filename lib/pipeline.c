@@ -15,6 +15,7 @@ rkvc_pipeline_desc rkvc_pipeline_desc_defaults(void)
     d.template_id   = RKVC_TEMPLATE_FILE_TRANSCODE;
     d.policy        = RKVC_POLICY_BALANCED;
     d.codec         = RKVC_CODEC_AUTO;
+    d.input_codec   = RKVC_CODEC_AUTO;
     d.width         = 1920;
     d.height        = 1080;
     d.fps_num       = 30;
@@ -65,6 +66,11 @@ rkvc_err rkvc_pipeline_from_template(rkvc_pipeline_template tmpl,
     case RKVC_TEMPLATE_LIVE_CAPTURE:
         desc->policy = RKVC_POLICY_REALTIME;
         desc->low_latency = 1;
+        break;
+    case RKVC_TEMPLATE_LIVE_TRANSCODE:
+        desc->policy = RKVC_POLICY_REALTIME;
+        desc->low_latency = 1;
+        desc->queue_depth = 8;
         break;
     case RKVC_TEMPLATE_AV1_STORAGE:
         desc->policy = RKVC_POLICY_QUALITY;

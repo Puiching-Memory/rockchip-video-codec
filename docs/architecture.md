@@ -14,6 +14,48 @@ rkvc 不维护任何预设板卡/SoC 知识：所有平台事实都在运行时�
 - **能力汇总**：`rkvc_query_caps`（`lib/init.c`）= FFmpeg rkmpp 注册 ∩ 设备权限 ∩ MPP 上报的 VPU 支持；`rkvc_caps.soc` 为探测到的 SoC 名。
 - **分辨率上限**：内核无探测渠道（`MPP_DEV_GET_MAX_*` ioctl 未实现），rkvc 不再虚报——超尺寸输入由 MPP 在建链时拒绝。
 
+## 0.4 图内核与后端 DSO（新引擎，rkvc_core）
+
+0.4 起媒体路径迁移到 `rkvc_context → rkvc_request → rkvc_job → rkvc_frame`
+公共 ABI（`include/rkvc/`），图内核位于 `lib/graph.c`/`executor.c`/`job.c`：
+
+- **节点生命周期**：`configure` 只协商格式，`open` 才开设备/分配大块内存；
+  任一步失败按逆序关闭已打开对象。端口间为**有界队列**（默认深度 3），
+  背压经阻塞 push/pull 传递；`rkvc_exec_pull` 以 `RKVC_STATUS_EOF` 表示流结束。
+- **规划确定性**：候选顺序 = 后端注册顺序 + 工厂顺序，与 readdir() 无关；
+  无候选时规划失败并携带诊断链（`rkvc_diag`：状态码 + 阶段 + 主体 + 原因）。
+- **后端 DSO 契约**：后端是导出 `const rkvc_backend *rkvc_backend_query(void)`
+  的 `.so`；`rkvc_backend.abi_version` 必须等于核心 `RKVC_ABI_VERSION`
+  （ABI 握手），否则淘汰。加载器（`lib/backend_dso.c`）只扫描可信目录
+  （包内 `lib/rkvc/backends/`、`/usr/local/lib/rkvc/backends`、
+  `/usr/lib/rkvc/backends` 及 context 显式目录；**永不扫描 CWD**），
+  `dlopen(RTLD_NOW|RTLD_LOCAL)`，单个候选失败只淘汰并记录诊断，
+  句柄随 context 销毁。内建后端经 `rkvc_backend_register_builtins()`
+  注册点接入（默认空表，硬件后端编译期替换）。
+- **符号收敛**：共享库导出由 `librkvc.map` 白名单控制（RKVC_1.0 旧符号 +
+  RKVC_0.4 新 ABI，`local:*` 只在末节点），配合 `-Bsymbolic-functions`
+  防 LD_PRELOAD 劫持内部调用。
+
+## 0.4 模型容器（.rkmodel v1）
+
+模型发布单元为 `.rkmodel` 容器（线格式 `lib/rkmodel_layout.h`）：
+
+- **布局**：64B 固定头（magic/version/header_len/payload_count/flags）→
+  有界 TLV 头区（≤1MiB；family/role/id/version/rknn_target/min_abi/...，
+  未知 tag 跳过）→ 载荷表（≤16 项 × 56B：kind/offset/length/SHA-256）→
+  可选签名尾（84B：alg/key_id/Ed25519 sig）→ 载荷数据。
+- **签名语义**：覆盖固定头+TLV+载荷表（含全部载荷摘要），因此间接覆盖
+  全部载荷；签名尾插入会重排载荷偏移（写入侧负责）。key_id =
+  SHA-256(pubkey)[0:16]。
+- **信任模型**：trust root 编译期固定（`RKVC_TRUST_PUBKEY_HEX`），
+  dev/prod 分离——dev 构建接受开发根签名（trust=development）；
+  prod 构建（`RKVC_TRUST_PRODUCTION=ON`）要求生产根签名，
+  unsigned 一律 untrusted。无验证后端时已签名模型如实标 untrusted。
+- **注册表**：context 创建时扫描可信模型目录（包内 `share/rkvc/models/`、
+  系统数据目录、context 显式目录），只读有界头部；载荷按请求装载并校验
+  摘要（`RKVC_STATUS_INTEGRITY`）。工具：`python3 -m rkvc_build.rkmodel
+  pack|keygen|sign|verify|inspect`。
+
 ## 模块关系
 
 ```mermaid
@@ -101,6 +143,7 @@ graph TD
 | `FILE_TRANSCODE` | 容器 → 容器          | mux ← enc ← (rga) ← mpp dec ← demux            |
 | `AV1_STORAGE`    | AV1 存储档           | 强制 AV1 SVT + av1_rkmpp                       |
 | `LIVE_CAPTURE`   | 低延迟 V4L2 采集编码 | v4l2 → (rga) → mpp/svt enc → mux               |
+| `LIVE_TRANSCODE` | 实时端口硬件转码     | capture(bitstream) → mpp dec → (rga) → mpp enc → output |
 
 ## Session 端口
 
@@ -108,7 +151,7 @@ graph TD
 
 | 端口      | 方向 | 数据类型                                 | 说明                                              |
 | --------- | ---- | ---------------------------------------- | ------------------------------------------------- |
-| `capture` | 输入 | `RKVC_BUF_VIDEO`                         | 采集/原始帧入口                                   |
+| `capture` | 输入 | `RKVC_BUF_VIDEO` / `RKVC_BUF_BITSTREAM`  | `LIVE_TRANSCODE` 支持帧或 Annex-B access unit      |
 | `output`  | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流                                  |
 | `preview` | 输出 | `RKVC_BUF_VIDEO`                         | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
 

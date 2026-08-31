@@ -1,0 +1,31 @@
+{
+  "release": "focal",
+  "arch": "arm64",
+  "mirror": "http://ports.ubuntu.com/ubuntu-ports",
+  "packages": [
+    {
+      "name": "libc6",
+      "version": "2.31-0ubuntu9.18",
+      "filename": "pool/main/g/glibc/libc6_2.31-0ubuntu9.18_arm64.deb",
+      "sha256": "4ff60d84ad78f3aa598297dc6966549fa6489f57599f197562ad91547f388da0"
+    },
+    {
+      "name": "libc6-dev",
+      "version": "2.31-0ubuntu9.18",
+      "filename": "pool/main/g/glibc/libc6-dev_2.31-0ubuntu9.18_arm64.deb",
+      "sha256": "a690787a4ed5ad1bb9ce6aebe0bef3300e483e7ed97d11a6af3cdb107e642292"
+    },
+    {
+      "name": "libgcc-s1",
+      "version": "10.5.0-1ubuntu1~20.04",
+      "filename": "pool/main/g/gcc-10/libgcc-s1_10.5.0-1ubuntu1~20.04_arm64.deb",
+      "sha256": "9638c0a04a540175e34314f51bc3c5709859c6f7690cb16f2deccbf8f5f1ecc6"
+    },
+    {
+      "name": "linux-libc-dev",
+      "version": "5.4.0-216.236",
+      "filename": "pool/main/l/linux/linux-libc-dev_5.4.0-216.236_arm64.deb",
+      "sha256": "9f487e7f3a9fff7f42f67172e139fd23c11b30e9b70bf6ae5a2e90b099547990"
+    }
+  ]
+}

@@ -185,6 +185,7 @@ typedef enum {
     RKVC_TEMPLATE_FILE_DECODE,
     RKVC_TEMPLATE_FILE_TRANSCODE,
     RKVC_TEMPLATE_LIVE_CAPTURE,
+    RKVC_TEMPLATE_LIVE_TRANSCODE,
     RKVC_TEMPLATE_AV1_STORAGE,
     RKVC_TEMPLATE_MLVC_STORAGE,
 } rkvc_pipeline_template;
@@ -193,6 +194,7 @@ typedef struct rkvc_pipeline_desc {
     rkvc_pipeline_template template_id;
     rkvc_policy            policy;
     rkvc_codec             codec;
+    rkvc_codec             input_codec;       // LIVE_TRANSCODE 输入 H264/HEVC/AUTO
 
     int            width, height;
     int            fps_num, fps_den;
@@ -239,6 +241,7 @@ typedef struct rkvc_pipeline_desc {
 | `RKVC_TEMPLATE_AV1_STORAGE`    | `QUALITY`   | 强制 AV1 SVT 存储档                  |
 | `RKVC_TEMPLATE_MLVC_STORAGE`   | `QUALITY`   | `.mlvc` 神经编码（`codec=MLVC`）     |
 | `RKVC_TEMPLATE_LIVE_CAPTURE`   | `REALTIME`  | 低延迟 H.264 + V4L2，`low_latency=1` |
+| `RKVC_TEMPLATE_LIVE_TRANSCODE` | `REALTIME`  | Annex-B/视频帧端口输入 → MPP 实时编码 |
 
 ### 默认值（`rkvc_pipeline_desc_defaults`）
 
@@ -247,6 +250,7 @@ typedef struct rkvc_pipeline_desc {
 | template          | `FILE_TRANSCODE`   |
 | policy            | `BALANCED`         |
 | codec             | `AUTO`             |
+| input_codec       | `AUTO`             |
 | 分辨率            | 1920×1080@30       |
 | bitrate           | 4_000_000          |
 | pixel_format      | NV12               |
@@ -300,11 +304,13 @@ rkvc_err rkvc_session_run_file(rkvc_session *session);  // 文件模板阻塞跑
 
 | 端口      | 方向 | 数据类型                                 | 说明                                              |
 | --------- | ---- | ---------------------------------------- | ------------------------------------------------- |
-| `capture` | 输入 | `RKVC_BUF_VIDEO`                         | 采集/原始帧入口                                   |
+| `capture` | 输入 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | `LIVE_TRANSCODE` 的帧/Annex-B access unit 入口     |
 | `output`  | 输出 | `RKVC_BUF_VIDEO` 或 `RKVC_BUF_BITSTREAM` | 解码帧或编码码流                                  |
 | `preview` | 输出 | `RKVC_BUF_VIDEO`                         | `LIVE_CAPTURE`：与 `capture` 同帧侧抽；满则丢最旧 |
 
-文件模式用 `rkvc_session_run_file()`，无需手动操作端口。详见 [architecture.md](architecture.md)。
+文件模式用 `rkvc_session_run_file()`，无需手动操作端口。实时 push/pull 使用
+`RKVC_TEMPLATE_LIVE_TRANSCODE`；`FILE_ENCODE` 不消费手动 push 的帧。详见
+[architecture.md](architecture.md)。
 
 ### 文件转码示例
 
@@ -326,31 +332,37 @@ rkvc_session_destroy(s);
 rkvc_deinit();
 ```
 
-### 端口流式示例
+### 端口实时转码示例
 
 ```c
 rkvc_pipeline_desc d;
-rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_ENCODE, &d);
-d.output_path = "out.mp4";
-d.width = 1920; d.height = 1080;
+rkvc_pipeline_from_template(RKVC_TEMPLATE_LIVE_TRANSCODE, &d);
+d.input_codec = RKVC_CODEC_HEVC;
+d.codec = RKVC_CODEC_H264;
+d.width = 1280; d.height = 720;
+d.bitrate = 2000000;
 
 rkvc_session *s;
 rkvc_session_create(&d, &s);
 rkvc_session_start(s);
 
 rkvc_port *capture = rkvc_session_port(s, "capture");
-for (int i = 0; i < 300; i++) {
-    rkvc_buffer *buf = NULL;
-    rkvc_buffer_alloc_video_host(&buf, 1920, 1080, RKVC_PIX_FMT_NV12);
-    rkvc_buffer_set_pts(buf, i);
-    // 填充像素 ...
-    rkvc_port_push(capture, buf);
-    rkvc_buffer_unref(buf);
-}
+rkvc_port *output = rkvc_session_port(s, "output");
 
+rkvc_buffer *in = NULL;
+rkvc_buffer_alloc_bitstream(&in, annexb_au, annexb_au_size, 1);
+rkvc_buffer_set_timestamps(in, pts, dts);
+rkvc_port_push(capture, in);
+rkvc_buffer_unref(in);
+
+// output 应由另一线程在 push 期间持续 pull
 rkvc_session_stop(s);
 rkvc_session_destroy(s);
 ```
+
+每个 `RKVC_BUF_BITSTREAM` 必须包含一个完整 Annex-B access unit。`stop()` 会
+拒绝新输入、排空 capture 队列、flush 两端 codec 并等待内部工作线程；调用方
+随后应排空 output 尾包。纯端口模式下 `output_path` 可为 `NULL`。
 
 ### 拉取输出示例
 
@@ -382,6 +394,8 @@ rkvc_err rkvc_port_pull(rkvc_port *port, rkvc_buffer **buf, int timeout_ms);
 | `< 0`        | 无限阻塞直至有数据                       |
 
 `push` 队列满时返回 `RKVC_ERR_AGAIN`（深度由 `queue_depth` 控制）。内部对 `buf` 引用计数 +1。
+`LIVE_TRANSCODE` 停止且 `output` 已排空后，pull 返回 `RKVC_ERR_EOF`；即使
+`timeout_ms < 0`，停止也会唤醒等待者。
 
 ---
 
@@ -425,6 +439,7 @@ rkvc_err rkvc_buffer_get_video_planes(rkvc_buffer *buf,
 rkvc_err rkvc_buffer_get_bitstream(const rkvc_buffer *buf,
                                    rkvc_buffer_bitstream_view *view);
 rkvc_err rkvc_buffer_set_pts(rkvc_buffer *buf, int64_t pts);
+rkvc_err rkvc_buffer_set_timestamps(rkvc_buffer *buf, int64_t pts, int64_t dts);
 ```
 
 - `alloc_bitstream(..., copy=1)`：深拷贝；`copy=0`：零拷贝引用 `data`，调用方须保持有效直至 `unref`。
