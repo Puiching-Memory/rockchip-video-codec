@@ -11,6 +11,7 @@ are exercised against real ELF objects.
 from __future__ import annotations
 
 import os
+import struct
 import subprocess
 import sys
 import tempfile
@@ -64,6 +65,30 @@ def _build(prefix: Path) -> None:
                             "-Wl,-rpath,$ORIGIN"])
 
 
+def _write_minimal_elf(output: Path, e_machine: int) -> None:
+    """Write a minimal ELF64 header with the requested machine.
+
+    ``read_elf`` only needs ``e_ident``/``e_machine`` and tolerates empty
+    program/section tables, so a 64-byte header is enough to exercise the
+    arch gate without depending on the host toolchain (the runner may itself
+    be aarch64).
+    """
+    ident = b"\x7fELF" + bytes([2, 1, 1, 0]) + b"\x00" * 8
+    ehdr = struct.pack("<HHIQQQIHHHHHH",
+                       3,          # ET_DYN
+                       e_machine,  # e_machine
+                       1,          # e_version
+                       0,          # e_entry
+                       0,          # e_phoff
+                       0,          # e_shoff
+                       0,          # e_flags
+                       64,         # e_ehsize
+                       0, 0,       # e_phentsize, e_phnum
+                       0, 0,       # e_shentsize, e_shnum
+                       0)          # e_shstrndx
+    output.write_bytes(ident + ehdr)
+
+
 def _violations(package: Path, target: str = "linux-aarch64-glibc231") -> list:
     report = policy.verify_package(package, target)
     return report.violations
@@ -94,7 +119,13 @@ def main() -> None:
             _fail("valid SONAME reported as missing")
         _passthrough("SONAME gate clean")
 
-        # 4. host x86-64 ELF must fail arch on an aarch64 target
+        # 4. host x86-64 ELF must fail arch on an aarch64 target.  We craft the
+        #    ELF header directly so the assertion holds regardless of whether
+        #    the runner is x86-64 or aarch64.
+        xtree = base / "x86"
+        (xtree / "lib").mkdir(parents=True, exist_ok=True)
+        _write_minimal_elf(xtree / "lib" / "libfakex86.so.1", 62)  # EM_X86_64
+        report = policy.verify_package(xtree, "linux-aarch64-glibc231")
         if not any(v.kind == "arch" for v in report.violations):
             _fail("x86-64 ELF was accepted for aarch64 target")
         _passthrough("arch gate rejects x86-64 on aarch64 target")
