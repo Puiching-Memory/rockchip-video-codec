@@ -48,6 +48,12 @@ struct rkvc_port {
 };
 
 /**
+ * 前置声明：节点虚表中的 bind_model 回调以此指针类型为参。
+ * 完整定义见下方 rkvc_model_binding。
+ */
+typedef struct rkvc_model_binding rkvc_model_binding;
+
+/**
  * 节点虚表。所有回调成功返回 0，失败返回负的 rkvc_status；
  * configure() 不得触碰硬件。
  */
@@ -68,7 +74,26 @@ typedef struct rkvc_node_ops {
     void (*close)(rkvc_node *node);
     /** 释放节点及其 priv；恰好调用一次。 */
     void (*destroy)(rkvc_node *node);
+    /**
+     * 可选：核心在 create 之后、configure 之前交付按请求选中的模型。
+     * 实现本回调即声明"本节点必须有模型才能工作"；注册表中无兼容
+     * 候选时该节点在图构建期被淘汰（触发候选回退）。载荷指针在节点
+     * destroy 之前保持有效，由核心统一释放。
+     */
+    int (*bind_model)(rkvc_node *node, const rkvc_model_binding *model,
+                      rkvc_diag **diag);
 } rkvc_node_ops;
+
+/**
+ * 交付给节点的模型绑定：容器摘要 + 已校验的载荷字节。
+ * `info` 与 `payload` 均为核心/上下文持有的只读存储；节点不得释放。
+ */
+struct rkvc_model_binding {
+    const rkvc_model_info *info;  /**< 容器摘要（id/role/target/trust） */
+    const unsigned char   *payload; /**< 载荷字节（默认 RKNN；见 load 约定） */
+    size_t                 payload_size; /**< 载荷字节数 */
+};
+typedef struct rkvc_model_binding rkvc_model_binding;
 
 /** 节点经历的生命周期状态；由核心驱动。 */
 typedef enum rkvc_node_state {

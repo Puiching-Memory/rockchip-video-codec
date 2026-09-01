@@ -95,6 +95,9 @@ typedef struct rkvc_plan {
 
 typedef struct rkvc_graph rkvc_graph;
 
+/* 前置声明：定义在 context_internal.h（模型注册表选择器归上下文所有）。 */
+struct rkvc_context;
+
 /** @brief 已构建/协商/打开的图实例及其计划。 */
 struct rkvc_graph {
     rkvc_node **nodes;         /**< 按执行顺序排列的节点 */
@@ -106,7 +109,12 @@ struct rkvc_graph {
     rkvc_plan   plan;          /**< 构建本图的计划（build 成功后移交持有） */
     size_t      failure_step;  /**< 最近 create/configure/open 失败的步骤 */
     int         state;         /**< 0=构建 1=已协商 2=已打开/运行 3=已关闭 */
+    const struct rkvc_context *ctx; /**< 规划/模型注册表所属上下文（可空） */
+    void       *model_payload; /**< 已交付节点的模型载荷（销毁时释放） */
 };
+
+/** 绑定上下文（须在 build 前调用）：bind_model 节点据其选择模型。 */
+void rkvc_graph_set_context(rkvc_graph *g, const struct rkvc_context *ctx);
 
 /* ── 执行器（executor.c） ─────────────────────────────────────────── */
 typedef struct rkvc_exec rkvc_exec;

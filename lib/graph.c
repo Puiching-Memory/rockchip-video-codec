@@ -10,6 +10,7 @@
  */
 
 #include "graph_internal.h"
+#include "context_internal.h"
 
 #include <string.h>
 
@@ -121,6 +122,68 @@ void rkvc_graph_set_queue_capacity(rkvc_graph *g, size_t capacity) {
         g->queue_capacity = capacity;
 }
 
+void rkvc_graph_set_context(rkvc_graph *g, const struct rkvc_context *ctx) {
+    if (g)
+        g->ctx = ctx;
+}
+
+/** 丢弃上一条候选路径遗留的模型载荷（图内最多一个 transform 绑定）。 */
+static void release_model_payload(rkvc_graph *g) {
+    if (g && g->model_payload) {
+        rkvc_g_free(g->model_payload);
+        g->model_payload = NULL;
+    }
+}
+
+/**
+ * 为声明 bind_model 的节点选择并交付模型；载荷缓冲由图持有，节点销毁
+ * 后释放。返回 NEGOTIATE 表示该候选应被淘汰（无兼容模型或节点拒绝
+ * 契约）；INTEGRITY/IO 等原样上抛，不触发静默回退。
+ */
+static int bind_step_model(rkvc_graph *g, rkvc_node *n,
+                           const rkvc_request *req, rkvc_diag **diag) {
+    const rkvc_rkmodel *m;
+    rkvc_model_binding binding;
+    uint32_t kind = RKMODEL_PAYLOAD_RKNN;
+    rkvc_status st;
+
+    if (!g->ctx) {
+        if (diag)
+            rkvc_diag_push(diag, RKVC_STATUS_INTERNAL, 1, n->ops->id,
+                           "model binding requires a context");
+        return (int)RKVC_STATUS_INTERNAL;
+    }
+    m = rkvc_model_registry_select(g->ctx, req, diag);
+    if (!m) {
+        if (diag)
+            rkvc_diag_push(diag, RKVC_STATUS_NOT_FOUND, 1, n->ops->id,
+                           "transform node requires a model but the "
+                           "registry has no compatible candidate");
+        return (int)RKVC_STATUS_NEGOTIATE;
+    }
+    /* 缺省交付 RKNN 载荷；容器未携带时回退到首个载荷（PMF 等角色）。 */
+    if (!(m->info.payload_mask & (1u << RKMODEL_PAYLOAD_RKNN)) &&
+        m->payload_count)
+        kind = m->payloads[0].kind;
+
+    release_model_payload(g);
+    st = rkvc_rkmodel_load_payload(m, kind, &g->model_payload,
+                                   &binding.payload_size);
+    if (st != RKVC_STATUS_OK) {
+        if (diag)
+            rkvc_diag_push(diag, st, 1, n->ops->id,
+                           "model payload load/verify failed");
+        return (int)st;
+    }
+    binding.info = &m->info;
+    binding.payload = g->model_payload;
+    if (n->ops->bind_model(n, &binding, diag) != 0) {
+        release_model_payload(g);
+        return (int)RKVC_STATUS_NEGOTIATE;
+    }
+    return 0;
+}
+
 /** 逆序 close/destroy 前 created 个节点并释放连接队列。 */
 static void reverse_release(rkvc_graph *g, size_t created) {
     size_t i;
@@ -177,6 +240,17 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
         n->idx = i;
         n->state = RKVC_NODE_CREATED;
         g->nodes[i] = n;
+        /* 声明 bind_model 的节点在 configure 前拿到已选模型（含 I/O 契约
+         * 所需的载荷字节）；失败淘汰该候选并交由计划回退。 */
+        if (n->ops->bind_model) {
+            int brc = bind_step_model(g, n, &plan->steps[i].request, diag);
+            if (brc != 0) {
+                g->failure_step = i;
+                reverse_release(g, i + 1); /* 节点 i 已创建，须一并销毁 */
+                g->node_count = 0;
+                return brc;
+            }
+        }
         created = i + 1;
     }
 
@@ -310,6 +384,8 @@ void rkvc_graph_free(rkvc_graph *g) {
     if (!g)
         return;
     rkvc_graph_teardown(g);
+    /* 载荷在节点销毁之后释放：bind_model 节点可能持有其中的指针。 */
+    release_model_payload(g);
     rkvc_g_free(g->nodes);
     rkvc_g_free(g->queues);
     rkvc_plan_release(&g->plan);

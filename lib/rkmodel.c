@@ -54,6 +54,14 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
     }
     memset(out, 0, sizeof(*out));
     out->info.trust = RKVC_MODEL_TRUST_UNSIGNED;
+    /* 记录来源路径（截断到字段容量），供后续按需装载载荷。 */
+    {
+        size_t plen = strlen(path);
+        if (plen >= sizeof(out->path))
+            plen = sizeof(out->path) - 1;
+        memcpy(out->path, path, plen);
+        out->path[plen] = '\0';
+    }
 
     f = fopen(path, "rb");
     if (!f) {
@@ -263,4 +271,54 @@ rkvc_status rkvc_rkmodel_check_payload(FILE *f, const rkvc_rkmodel *m,
     crypto_hash_sha256_final(&st, digest);
     return memcmp(digest, e->sha256, 32) == 0 ? RKVC_STATUS_OK
                                               : RKVC_STATUS_INTEGRITY;
+}
+
+rkvc_status rkvc_rkmodel_load_payload(const rkvc_rkmodel *m, uint32_t kind,
+                                      void **buf, size_t *size) {
+    const rkmodel_payload_entry *e = NULL;
+    FILE *f;
+    uint8_t *data;
+    rkvc_status rc;
+
+    if (!m || !buf || !size || !m->path[0])
+        return RKVC_STATUS_INVALID;
+    *buf = NULL;
+    *size = 0;
+    for (uint32_t i = 0; i < m->payload_count; ++i) {
+        if (m->payloads[i].kind == kind) {
+            e = &m->payloads[i];
+            break;
+        }
+    }
+    if (!e)
+        return RKVC_STATUS_NOT_FOUND;
+    if (e->length > (uint64_t)1 << 30) /* 1 GiB 防呆 */
+        return RKVC_STATUS_INVALID;
+
+    f = fopen(m->path, "rb");
+    if (!f)
+        return RKVC_STATUS_IO;
+    rc = rkvc_rkmodel_check_payload(f, m, kind);
+    if (rc != RKVC_STATUS_OK) {
+        fclose(f);
+        return rc;
+    }
+    if (fseeko(f, (off_t)e->offset, SEEK_SET) != 0) {
+        fclose(f);
+        return RKVC_STATUS_IO;
+    }
+    data = rkvc_g_calloc(1, (size_t)e->length ? (size_t)e->length : 1);
+    if (!data) {
+        fclose(f);
+        return RKVC_STATUS_NOMEM;
+    }
+    if (fread(data, 1, (size_t)e->length, f) != (size_t)e->length) {
+        rkvc_g_free(data);
+        fclose(f);
+        return RKVC_STATUS_IO;
+    }
+    fclose(f);
+    *buf = data;
+    *size = (size_t)e->length;
+    return RKVC_STATUS_OK;
 }

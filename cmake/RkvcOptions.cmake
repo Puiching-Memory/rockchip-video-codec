@@ -16,6 +16,8 @@ option(RKVC_BUILD_TESTS "Build unit tests (CMocka)" OFF)
 option(RKVC_BUILD_DOCS "Build Doxygen API docs" OFF)
 option(RKVC_BUILD_BACKEND_MPP
     "Build the Rockchip MPP backend DSO (requires MPP_INSTALL_PREFIX)" OFF)
+option(RKVC_BUILD_BACKEND_RGA
+    "Build the Rockchip RGA backend DSO (requires RGA_INSTALL_PREFIX)" OFF)
 option(RKVC_ENABLE_MODEL_SIGN
     "Enable .rkmodel Ed25519 signature verification" OFF)
 option(RKVC_TRUST_PRODUCTION

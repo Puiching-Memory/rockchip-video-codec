@@ -6,8 +6,9 @@
  * @brief 内建 fileio 后端：文件 source/sink 节点。
  *
  * - file.source：FILE 输入端点。DECODE/TRANSCODE 按块产出 BITSTREAM 帧
- *   （解码器侧 split mode 负责切帧）；ENCODE 按 NV12 帧尺寸产出原始帧。
- *   源节点无输入端口，文件消费发生在 flush（start 时输入队列自动 EOS）。
+ *   （解码器侧 split mode 负责切帧）；ENCODE 与 UPSCALE（提供 width/
+ *   height 输入几何时）按 NV12 帧尺寸产出原始帧。源节点无输入端口，
+ *   文件消费发生在 flush（start 时输入队列自动 EOS）。
  * - file.sink：FILE 输出端点。BITSTREAM 帧按载荷写出；NV12/P010/YUV420P
  *   原始帧按可见宽度逐行写出（裁剪 stride 填充）。DMA-BUF 帧经 mmap 读取。
  *
@@ -44,7 +45,8 @@ typedef struct file_source {
     FILE        *fp;      /**< flush 阶段打开的输入文件 */
 } file_source;
 
-/** 声明输出格式：DECODE/TRANSCODE/UPSCALE 为 BITSTREAM，ENCODE 为 NV12。 */
+/** 声明输出格式：DECODE/TRANSCODE 为 BITSTREAM；ENCODE 为 NV12；
+ * UPSCALE 几何已知时按 NV12 原始帧产出（transform 直接消费）。 */
 static int source_configure(rkvc_node *node, rkvc_diag **diag) {
     file_source *src = node->priv;
     rkvc_frame_spec out = {0};
@@ -52,9 +54,23 @@ static int source_configure(rkvc_node *node, rkvc_diag **diag) {
     switch (src->request.operation) {
     case RKVC_OPERATION_DECODE:
     case RKVC_OPERATION_TRANSCODE:
-    case RKVC_OPERATION_UPSCALE:
         out.fmt = RKVC_FRAME_FMT_BITSTREAM;
         out.domain = RKVC_MEM_DOMAIN_HOST;
+        break;
+    case RKVC_OPERATION_UPSCALE:
+        if (!src->request.width || !src->request.height) {
+            /* 几何未知：整文件按 BITSTREAM 产出。当前没有图像 demux，
+             * transform 节点会在协商/处理期拒绝并留下诊断。 */
+            out.fmt = RKVC_FRAME_FMT_BITSTREAM;
+            out.domain = RKVC_MEM_DOMAIN_HOST;
+            break;
+        }
+        /* 几何已知：与 ENCODE 同路径，输入按 NV12 原始帧解释。 */
+        out.fmt = RKVC_FRAME_FMT_NV12;
+        out.domain = RKVC_MEM_DOMAIN_HOST;
+        out.width = src->request.width;
+        out.height = src->request.height;
+        out.stride = src->request.width;
         break;
     case RKVC_OPERATION_ENCODE:
         if (!src->request.width || !src->request.height) {

@@ -84,8 +84,8 @@ typedef struct rkvc_request {
     rkvc_quality  quality;      /**< 质量/时延约束 */
     rkvc_endpoint input;        /**< 输入端点 */
     rkvc_endpoint output;       /**< 输出端点 */
-    uint32_t      width;        /**< 期望输出宽度；0 = 跟随源 */
-    uint32_t      height;       /**< 期望输出高度；0 = 跟随源 */
+    uint32_t      width;        /**< 期望输出宽度；0 = 跟随源；UPSCALE 时为输入几何 */
+    uint32_t      height;       /**< 期望输出高度；0 = 跟随源；UPSCALE 时为输入几何 */
     const char   *model_id;     /**< 可选：稳定模型 ID 覆盖自动选择；NULL=自动 */
 } rkvc_request;
 

@@ -32,6 +32,28 @@ if(RKVC_BUILD_BACKEND_MPP)
     endif()
 endif()
 
+if(RKVC_BUILD_BACKEND_RGA)
+    set(RGA_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/rga-install"
+        CACHE PATH "RGA SDK prefix (lib/ + optional include/)")
+    if(NOT EXISTS "${RGA_INSTALL_PREFIX}/lib/librga.so")
+        message(FATAL_ERROR
+            "RGA backend requested but librga.so was not found at "
+            "${RGA_INSTALL_PREFIX}/lib")
+    endif()
+    set(RGA_LIB_DIR "${RGA_INSTALL_PREFIX}/lib")
+    # 优先使用 SDK 前缀内的头；缺失时回退到只读子模块头（版本一致由
+    # rkvc-build 适配器保证：SDK 前缀正是从该子模块装出的）。
+    if(EXISTS "${RGA_INSTALL_PREFIX}/include/im2d.h")
+        set(RGA_INCLUDE_DIR "${RGA_INSTALL_PREFIX}/include")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/third_party/librga/include/im2d.h")
+        set(RGA_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/librga/include")
+    else()
+        message(FATAL_ERROR
+            "RGA headers not found in ${RGA_INSTALL_PREFIX}/include or "
+            "third_party/librga/include")
+    endif()
+endif()
+
 if(RKVC_ENABLE_MODEL_SIGN)
     set(_trust_pub "${RKVC_TRUST_PUBKEY_HEX}")
     if(NOT _trust_pub AND NOT RKVC_TRUST_PRODUCTION AND

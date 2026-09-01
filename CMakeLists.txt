@@ -66,6 +66,7 @@ if(RKVC_BUILD_TESTS)
     rkvc_add_core_test(test_job tests/c/test_job.c)
     rkvc_add_core_test(test_rkmodel tests/c/test_rkmodel.c)
     rkvc_add_core_test(test_media_pipeline tests/c/test_media_pipeline.c)
+    rkvc_add_core_test(test_model_binding tests/c/test_model_binding.c)
     rkvc_add_core_test(test_frame_metadata tests/c/test_frame_metadata.c)
     rkvc_add_core_test(test_api_contract tests/c/test_api_contract.c)
 

@@ -59,7 +59,8 @@ static void job_free_strings(struct rkvc_job *j) {
 }
 
 /** 反复 build 直到成功或候选耗尽；成功时计划所有权移交给图。 */
-static int graph_build_with_fallback(rkvc_plan *plan, rkvc_diag **diag,
+static int graph_build_with_fallback(const rkvc_context *ctx,
+                                     rkvc_plan *plan, rkvc_diag **diag,
                                      rkvc_graph **out) {
     int rc;
     if (!plan || !out)
@@ -70,6 +71,7 @@ static int graph_build_with_fallback(rkvc_plan *plan, rkvc_diag **diag,
         rkvc_graph *graph = rkvc_graph_new();
         if (!graph)
             return (int)RKVC_STATUS_NOMEM;
+        rkvc_graph_set_context(graph, ctx); /* bind_model 节点需注册表 */
         rc = rkvc_graph_build(graph, plan, diag);
         if (rc == 0) {
             graph->plan = *plan;
@@ -112,7 +114,7 @@ static int job_open_with_fallback(struct rkvc_job *job, rkvc_diag **diag) {
         if (diag)
             rkvc_diag_push(diag, RKVC_STATUS_HW, 2, "planner",
                            "open failed; trying fallback candidate");
-        rc = graph_build_with_fallback(&plan, diag, &job->graph);
+        rc = graph_build_with_fallback(job->ctx, &plan, diag, &job->graph);
         if (rc != 0) {
             rkvc_plan_release(&plan);
             return rc;
@@ -194,7 +196,7 @@ rkvc_status rkvc_job_create(const rkvc_context *ctx,
         return (rkvc_status)rc;
     }
 
-    rc = graph_build_with_fallback(&plan, diag, &j->graph);
+    rc = graph_build_with_fallback(ctx, &plan, diag, &j->graph);
     if (rc != 0) {
         rkvc_plan_release(&plan);
         pthread_cond_destroy(&j->finished_cond);

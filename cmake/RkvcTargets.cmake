@@ -108,3 +108,20 @@ if(RKVC_BUILD_BACKEND_MPP)
     target_link_options(rkvc_backend_mpp PRIVATE
         "-Wl,-soname,rkvc_backend_mpp.so")
 endif()
+
+if(RKVC_BUILD_BACKEND_RGA)
+    add_library(rkvc_backend_rga MODULE backends/backend_rga.c)
+    target_include_directories(rkvc_backend_rga PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${RGA_INCLUDE_DIR})
+    target_link_directories(rkvc_backend_rga PRIVATE ${RGA_LIB_DIR})
+    target_link_libraries(rkvc_backend_rga PRIVATE rga)
+    set_target_properties(rkvc_backend_rga PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_backend_rga
+        POSITION_INDEPENDENT_CODE ON
+        BUILD_RPATH "${RGA_LIB_DIR}"
+        INSTALL_RPATH "$ORIGIN/../..")
+    target_link_options(rkvc_backend_rga PRIVATE
+        "-Wl,-soname,rkvc_backend_rga.so")
+endif()

@@ -22,6 +22,7 @@ typedef struct rkvc_rkmodel {
     int             has_signature;              /**< 文件含签名尾 */
     char            key_slot[33];               /**< 可空 */
     uint32_t        min_runtime_abi;            /**< 0 = 未声明 */
+    char            path[1024];                 /**< 来源文件（载荷按需装载） */
 } rkvc_rkmodel;
 
 /**
@@ -60,6 +61,15 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
  */
 rkvc_status rkvc_rkmodel_check_payload(FILE *f, const rkvc_rkmodel *m,
                                        uint32_t kind);
+
+/**
+ * @brief 校验并把指定载荷完整读入自分配缓冲（*buf 归调用方释放）。
+ *
+ * 先按 check_payload 语义做 SHA-256 全量校验，再一次性读出载荷字节；
+ * 摘要不符返回 RKVC_STATUS_INTEGRITY，不返回部分数据。
+ */
+rkvc_status rkvc_rkmodel_load_payload(const rkvc_rkmodel *m, uint32_t kind,
+                                      void **buf, size_t *size);
 
 /** 编译期 trust root 验证器；未启用 RKVC_ENABLE_MODEL_SIGN 时返回 NULL。 */
 rkvc_rkmodel_verify_fn rkvc_model_trust_verifier(void);

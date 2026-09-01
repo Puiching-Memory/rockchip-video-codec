@@ -3,10 +3,10 @@
 
 /**
  * @file rkvc.c
- * @brief 单一 CLI 入口：inspect / version。
+ * @brief 单一 CLI 入口：inspect / version / 媒体子命令。
  *
- * 所有子命令共享解析、日志、退出码与 JSON 输出。若构建不含必需的
- * 媒体后端，请求会以统一诊断拒绝。
+ * 所有子命令共享解析、日志、退出码与 JSON 输出。CLI 把参数转换为
+ * rkvc_request 后即调用公共 API，不包含后端选择和模型路径拼装逻辑。
  *
  * 退出码：0 成功；1 运行期错误（诊断写 stderr）；2 用法错误。
  */
@@ -40,7 +40,10 @@ static void usage(FILE *out) {
         "  decode    -i in.es -o out.nv12 [--codec h264|hevc|av1]\n"
         "  encode    -i in.nv12 -o out.es --width W --height H\n"
         "            [--codec h264|hevc] [--bitrate BPS] [--qp QP]\n"
-        "  transcode -i in.es -o out.es --codec h264|hevc [--bitrate BPS]\n",
+        "  transcode -i in.es -o out.es --codec h264|hevc [--bitrate BPS]\n"
+        "            [--width W --height H] 转码中缩放\n"
+        "  upscale   -i in.nv12 -o out.nv12 --width W --height H\n"
+        "            [--model ID]   NPU 超分优先，无模型回退 RGA 2x\n",
         out);
 }
 
@@ -269,6 +272,7 @@ static void print_diag_text(const rkvc_diag *diag) {
 static int cmd_media(const char *name, rkvc_operation op,
                      int argc, char **argv, int start, int json) {
     const char *input = NULL, *output = NULL, *codec_s = NULL;
+    const char *model = NULL;
     long width = 0, height = 0, bitrate = 0, qp = -1;
     int codec_ok = 1;
     rkvc_codec codec;
@@ -290,6 +294,9 @@ static int cmd_media(const char *name, rkvc_operation op,
         } else if (!strcmp(a, "--codec")) {
             if (++i >= argc) goto usage_err;
             codec_s = argv[i];
+        } else if (!strcmp(a, "--model")) {
+            if (++i >= argc) goto usage_err;
+            model = argv[i];
         } else if (!strcmp(a, "--width")) {
             if (++i >= argc) goto usage_err;
             width = strtol(argv[i], NULL, 10);
@@ -322,6 +329,11 @@ static int cmd_media(const char *name, rkvc_operation op,
                 name);
         goto usage_err;
     }
+    if (op == RKVC_OPERATION_UPSCALE && (width <= 0 || height <= 0)) {
+        fprintf(stderr, "rkvc %s: upscale 需要 --width/--height"
+                "（原始 NV12 输入几何）\n", name);
+        goto usage_err;
+    }
     if (op == RKVC_OPERATION_TRANSCODE && codec == RKVC_CODEC_AUTO) {
         fprintf(stderr, "rkvc %s: transcode 需要 --codec 指定目标编码\n",
                 name);
@@ -346,6 +358,7 @@ static int cmd_media(const char *name, rkvc_operation op,
     req.height = (uint32_t)height;
     req.quality.bitrate_bps = (int32_t)bitrate;
     req.quality.qp = (int32_t)qp;
+    req.model_id = model;
 
     st = rkvc_job_create(ctx, &req, &diag, &job);
     if (st == RKVC_STATUS_OK)
@@ -437,9 +450,11 @@ int main(int argc, char **argv) {
     if (strcmp(cmd, "transcode") == 0)
         return cmd_media(cmd, RKVC_OPERATION_TRANSCODE, argc, argv, i + 1,
                          json);
+    if (strcmp(cmd, "upscale") == 0)
+        return cmd_media(cmd, RKVC_OPERATION_UPSCALE, argc, argv, i + 1,
+                         json);
 
-    if (strcmp(cmd, "upscale") == 0 || strcmp(cmd, "bench") == 0 ||
-        strcmp(cmd, "license") == 0)
+    if (strcmp(cmd, "bench") == 0 || strcmp(cmd, "license") == 0)
         return cmd_media_unavailable(cmd, json);
 
     fprintf(stderr, "rkvc: 未知子命令: %s\n", cmd);

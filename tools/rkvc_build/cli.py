@@ -65,6 +65,20 @@ def _cmd_package(args: argparse.Namespace) -> int:
         if not result.ok:
             raise StageError(f"deps-mpp build failed: {result.message}")
 
+    def _deps_rga(c):
+        from .adapters.rga import RgaAdapter
+        adapter = RgaAdapter(c.work, logger)
+        dep = adapter.probe(c.target)
+        if dep is None:
+            logger.info("deps-rga: not applicable; skipped")
+            return
+        result = adapter.fetch(dep)
+        if not result.ok:
+            raise StageError(f"deps-rga fetch failed: {result.message}")
+        result = adapter.build(dep, c.host_prefix, c.target_prefix)
+        if not result.ok:
+            raise StageError(f"deps-rga build failed: {result.message}")
+
     def _build_install(c):
         from . import cmake_stage
         state["pkg_root"] = cmake_stage.build_and_install(c, logger)
@@ -109,6 +123,9 @@ def _cmd_package(args: argparse.Namespace) -> int:
                        inputs={"target": ctx.target.name}))
     if not args.no_mpp:
         pipeline.add(Stage("deps-mpp", _deps_mpp, always_run=True,
+                           inputs={"target": ctx.target.name}))
+    if not args.no_rga:
+        pipeline.add(Stage("deps-rga", _deps_rga, always_run=True,
                            inputs={"target": ctx.target.name}))
     pipeline.add(Stage("build-install", _build_install, always_run=True,
                        inputs={"target": ctx.target.name}))
@@ -193,6 +210,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="skip the qemu smoke stage")
     pkg.add_argument("--no-mpp", action="store_true",
                      help="skip the Rockchip MPP dependency and backend DSO")
+    pkg.add_argument("--no-rga", action="store_true",
+                     help="skip the Rockchip RGA dependency and backend DSO")
     pkg.add_argument("-m", "--model-target", action="append", default=[],
                      help="model compilation target (may be repeated)")
     pkg.add_argument("--for-device", type=Path,

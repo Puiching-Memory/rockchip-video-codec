@@ -56,6 +56,12 @@ if(TARGET rkvc_backend_mpp)
         COMPONENT backends)
 endif()
 
+if(TARGET rkvc_backend_rga)
+    install(TARGETS rkvc_backend_rga
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/rkvc/backends
+        COMPONENT backends)
+endif()
+
 set(RKVC_PC_DESCRIPTION "Rockchip media graph library and backend ABI")
 set(RKVC_PC_REQUIRES_PRIVATE "")
 configure_file(
