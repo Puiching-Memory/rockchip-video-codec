@@ -20,6 +20,7 @@ _ADAPTERS = [
     ("rockchip-mpp", "Apache-2.0", "third_party/mpp"),
     ("SVT-AV1", "BSD-3-Clause-Clear", "third_party/SVT-AV1"),
     ("librga", "Apache-2.0", "third_party/librga"),
+    ("rknn-runtime", "LicenseRef-Rockchip-RKNN", ""),
     ("libsodium", "ISC", "third_party/libsodium"),
 ]
 
@@ -47,6 +48,9 @@ def write_sbom(pkg_root: Path, version: str, target: str) -> Path:
                 "description": "sysroot 组件（SHA-256 锁定）",
             })
     for name, license_id, rel in _ADAPTERS:
+        if name == "rknn-runtime" and not any(
+                (pkg_root / "lib").glob("librknnrt.so*")):
+            continue
         components.append({
             "type": "library",
             "name": name,
@@ -81,6 +85,9 @@ def aggregate_legal(pkg_root: Path) -> Path:
     dest = pkg_root / "legal"
     dest.mkdir(parents=True, exist_ok=True)
     shutil.copy2(_REPO_ROOT / "LICENSE", dest / "rkvc.LICENSE")
+    rknn_license = pkg_root / "share" / "licenses" / "rknn-runtime" / "LICENSE"
+    if rknn_license.is_file():
+        shutil.copy2(rknn_license, dest / "rknn-runtime.LICENSE")
     for name, _lic, rel in _ADAPTERS:
         src_dir = _REPO_ROOT / rel
         for cand in _LEGAL_FILES.get(name, []):

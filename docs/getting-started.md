@@ -23,6 +23,24 @@ cmake --build --preset default
 MPP DSO 需要一个目标架构匹配的 MPP 安装前缀，并在配置时设置
 RKVC_BUILD_BACKEND_MPP=ON 与 MPP_INSTALL_PREFIX。
 
+RKNN DSO 同样要求显式目标 SDK 前缀：
+
+~~~bash
+cmake -S . -B .build/rknn -G Ninja \
+  -DRKVC_BUILD_BACKEND_RKNN=ON \
+  -DRKNN_INSTALL_PREFIX=/opt/rknn-runtime-aarch64
+~~~
+
+前缀须含 `include/rknn_api.h`（或 `include/rknn/rknn_api.h`）及
+`lib/librknnrt.so`。运行 `rkvc upscale` 时，注册表自动选择 role=upscale
+的 `.rkmodel`；`--model ID` 可覆盖选择。
+
+~~~bash
+.build/release/rkvc bench decode -i sample.h264 -o /tmp/out.nv12 \
+  --codec h264 --warmup 1 --iterations 5 --frames 300 --json
+.build/release/rkvc license --json
+~~~
+
 MPP 后端加载成功后，可以直接运行逐帧 side-data 示例：
 
 ~~~bash

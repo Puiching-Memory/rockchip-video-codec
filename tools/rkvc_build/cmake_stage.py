@@ -64,6 +64,12 @@ def build_and_install(ctx, logger) -> Path:
     mpp_available = (mpp_prefix / "lib" / "librockchip_mpp.so").is_file()
     rga_prefix = ctx.target_prefix / "rga"
     rga_available = (rga_prefix / "lib" / "librga.so").is_file()
+    rknn_prefix = ctx.target_prefix / "rknn"
+    rknn_available = bool(getattr(ctx, "rknn_enabled", False)) and (
+        rknn_prefix / "lib" / "librknnrt.so").is_file() and (
+        (rknn_prefix / "include" / "rknn_api.h").is_file()
+        or (rknn_prefix / "include" / "rknn" / "rknn_api.h").is_file()
+    )
     sodium_prefix = ctx.target_prefix / "libsodium"
     sodium_available = (sodium_prefix / "lib" / "libsodium.a").is_file()
 
@@ -86,16 +92,21 @@ def build_and_install(ctx, logger) -> Path:
         "-DRKVC_BUILD_STATIC=OFF",
         "-DRKVC_BUILD_CLI=ON",
         "-DRKVC_BUILD_TESTS=OFF",
+        f"-DRKVC_BUILD_BACKEND_MPP={'ON' if mpp_available else 'OFF'}",
+        f"-DRKVC_BUILD_BACKEND_RGA={'ON' if rga_available else 'OFF'}",
+        f"-DRKVC_BUILD_BACKEND_RKNN={'ON' if rknn_available else 'OFF'}",
     ]
     if mpp_available:
         args += [
-            "-DRKVC_BUILD_BACKEND_MPP=ON",
             f"-DMPP_INSTALL_PREFIX={mpp_prefix}",
         ]
     if rga_available:
         args += [
-            "-DRKVC_BUILD_BACKEND_RGA=ON",
             f"-DRGA_INSTALL_PREFIX={rga_prefix}",
+        ]
+    if rknn_available:
+        args += [
+            f"-DRKNN_INSTALL_PREFIX={rknn_prefix}",
         ]
     if sodium_available:
         args.append(f"-DLIBSODIUM_PREFIX={sodium_prefix}")
@@ -106,8 +117,9 @@ def build_and_install(ctx, logger) -> Path:
     _run(["cmake", "--install", str(build_dir), "--prefix", str(pkg_root)],
          env, logger)
 
-    # MPP/RGA 运行库随包分发到扁平 lib/（后端 DSO INSTALL_RPATH=$ORIGIN/../..）。
-    if mpp_available or rga_available:
+    # 厂商运行库随包分发到扁平 lib/（后端 DSO
+    # INSTALL_RPATH=$ORIGIN/../..）。是否允许再分发由发布环境负责把关。
+    if mpp_available or rga_available or rknn_available:
         import shutil
         dst = pkg_root / "lib"
         dst.mkdir(parents=True, exist_ok=True)
@@ -126,4 +138,11 @@ def build_and_install(ctx, logger) -> Path:
             _copy_runtime(mpp_prefix, "librockchip_mpp.so*")
         if rga_available:
             _copy_runtime(rga_prefix, "librga.so*")
+        if rknn_available:
+            _copy_runtime(rknn_prefix, "librknnrt.so*")
+            license_src = rknn_prefix / "LICENSE"
+            if license_src.is_file():
+                license_dst = pkg_root / "share" / "licenses" / "rknn-runtime"
+                license_dst.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(license_src, license_dst / "LICENSE")
     return pkg_root

@@ -54,6 +54,26 @@ if(RKVC_BUILD_BACKEND_RGA)
     endif()
 endif()
 
+if(RKVC_BUILD_BACKEND_RKNN)
+    set(RKNN_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/rknn-install"
+        CACHE PATH "RKNN Runtime SDK prefix (include/ + lib/)")
+    if(NOT EXISTS "${RKNN_INSTALL_PREFIX}/lib/librknnrt.so")
+        message(FATAL_ERROR
+            "RKNN backend requested but librknnrt.so was not found at "
+            "${RKNN_INSTALL_PREFIX}/lib")
+    endif()
+    set(RKNN_LIB_DIR "${RKNN_INSTALL_PREFIX}/lib")
+    if(EXISTS "${RKNN_INSTALL_PREFIX}/include/rknn_api.h")
+        set(RKNN_INCLUDE_DIR "${RKNN_INSTALL_PREFIX}/include")
+    elseif(EXISTS "${RKNN_INSTALL_PREFIX}/include/rknn/rknn_api.h")
+        set(RKNN_INCLUDE_DIR "${RKNN_INSTALL_PREFIX}/include/rknn")
+    else()
+        message(FATAL_ERROR
+            "RKNN backend requested but rknn_api.h was not found below "
+            "${RKNN_INSTALL_PREFIX}/include")
+    endif()
+endif()
+
 if(RKVC_ENABLE_MODEL_SIGN)
     set(_trust_pub "${RKVC_TRUST_PUBKEY_HEX}")
     if(NOT _trust_pub AND NOT RKVC_TRUST_PRODUCTION AND

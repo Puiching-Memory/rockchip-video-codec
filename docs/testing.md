@@ -20,6 +20,7 @@
 | test_backend_loader | DSO ABI 握手、坏候选隔离和可信目录            |
 | test_rkmodel        | 容器边界、摘要和模型注册表                    |
 | test_model_trust    | 可选 Ed25519 签名互操作                       |
+| test_backend_rknn   | fake Runtime 下模型绑定、推理与 NV12 3× 输出  |
 
 ~~~bash
 cmake --preset tests
@@ -69,6 +70,7 @@ done
 
 ## 性能基准
 
-性能测试不混入单元测试或普通 CTest。板卡上使用
-`tools/bench/benchmark.py` 对固定媒体集做预热和多轮采样；完整配置格式、输出指标
+CTest 使用 fake 媒体 DSO 冒烟验证 `rkvc bench` 的真实 Request/Job 执行路径；
+性能门禁仍不混入普通单元测试。板卡上可用内建 `rkvc bench OP` 做单项采样，
+或使用 `tools/bench/benchmark.py` 对固定媒体集做矩阵采样；完整配置格式、输出指标
 及性能门槛见 [性能基准说明](../tools/bench/README.md)。

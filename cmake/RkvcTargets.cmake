@@ -125,3 +125,20 @@ if(RKVC_BUILD_BACKEND_RGA)
     target_link_options(rkvc_backend_rga PRIVATE
         "-Wl,-soname,rkvc_backend_rga.so")
 endif()
+
+if(RKVC_BUILD_BACKEND_RKNN)
+    add_library(rkvc_backend_rknn MODULE backends/backend_rknn.c)
+    target_include_directories(rkvc_backend_rknn PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${RKNN_INCLUDE_DIR})
+    target_link_directories(rkvc_backend_rknn PRIVATE ${RKNN_LIB_DIR})
+    target_link_libraries(rkvc_backend_rknn PRIVATE rknnrt m)
+    set_target_properties(rkvc_backend_rknn PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_backend_rknn
+        POSITION_INDEPENDENT_CODE ON
+        BUILD_RPATH "${RKNN_LIB_DIR}"
+        INSTALL_RPATH "$ORIGIN/../..")
+    target_link_options(rkvc_backend_rknn PRIVATE
+        "-Wl,-soname,rkvc_backend_rknn.so")
+endif()

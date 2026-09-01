@@ -6,7 +6,7 @@
 
 ### 变更（破坏性）
 
-- **0.3 架构已直接移除（不兼容）**：删除 Session/Pipeline/Router、旧节点实现、旧公共头、七个独立 CLI、旧示例与测试、手工打包脚本和 `RKVC_1.0` 符号节点。0.4 核心现在直接生成唯一的 `librkvc.so.0`；不提供 `rkvc_core` 迁移目标、`RKVC_BUILD_NEW_ENGINE` 开关或任何源码/二进制兼容层。未迁移的 RGA/RKNN/SR/MLVC 功能暂不可用，不回退旧路径。
+- **0.3 架构已直接移除（不兼容）**：删除 Session/Pipeline/Router、旧节点实现、旧公共头、七个独立 CLI、旧示例与测试、手工打包脚本和 `RKVC_1.0` 符号节点。0.4 核心现在直接生成唯一的 `librkvc.so.0`；不提供 `rkvc_core` 迁移目标、`RKVC_BUILD_NEW_ENGINE` 开关或任何源码/二进制兼容层。
 
 ### 新增
 
@@ -16,7 +16,8 @@
 - **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
 - **内建 fileio 后端与文件管线**：`lib/node_fileio.c` 提供 `file.source`（SOURCE 阶段，flush 阶段产出整个文件：码流按 256KB 分块、NV12 按帧切分）与 `file.sink`（SINK 阶段，码流直写、NV12/NV21/P010/YUV420P 逐行裁剪 stride 填充写出、DMABUF 经 mmap+DMA_BUF_IOCTL_SYNC）；`rkvc_plan_build` 对 FILE 端点自动注入/摘除 SOURCE/SINK 步骤（无 uri 时保持原行为），`rkvc_job_create` 拒绝缺 uri 的 FILE 端点。`rkvc_frame_spec` 新增 `ver_stride`（ABI 未冻结期允许的破坏性新增），协商合并逻辑同步覆盖。
 - **MPP 后端 DSO（解码 + 编码）**：`backends/backend_mpp.c` 重写为多 codec 节点后端——`mpp.decode` 支持 H.264/HEVC/AV1 显式 codec 与 AUTO/转码首包 Annex-B 探测（H264 SPS / HEVC VPS），解码输出帧回填 `ver_stride`；`mpp.encode` 新增 H.264/HEVC 硬编（DMA-BUF 零拷贝导入、HOST 帧按平面拷贝、CBR/FIXQP、每 IDR 头、EOS 排空）。优先 DMA-HEAP 缓冲组，回退 ION。
-- **统一 CLI 媒体子命令**：`rkvc decode / encode / transcode` 落地（`-i/-o/--codec/--width/--height/--bitrate/--qp`，文本与 `--json` 状态输出，诊断链人类可读）；decode 可从扩展名推断 codec，encode 强制尺寸。upscale/bench/license 仍为“未包含”占位。
+- **统一 CLI 媒体与运维子命令**：`rkvc decode / encode / transcode / upscale` 落地；`rkvc bench OP` 直接复用 Request/Job 路径执行预热和多轮采样，输出耗时、FPS、实时倍速及 JSON；`rkvc license` 输出 AGPL 标识并可从安装树读取全文与定位第三方声明。
+- **RKNN 后端 DSO**：新增 `rknn.upscale`，直接消费 `.rkmodel` 经核心校验后交付的内存载荷，`rknn_init` 后严格验证 Phase-RLFN 单输入 12→108 tensor 契约，执行 NV12 phase 打包、3× 推理、bicubic 基座与残差融合；支持 HOST/线性 DMA-BUF 输入。发布编排器新增 `--rknn-sdk` 显式审计前缀装配，fake Runtime 端到端测试覆盖无 NPU CI。
 - **发布管线依赖适配器**：`tools/rkvc_build/adapters/mpp.py`（子模块钉版本，同工具链/sysroot 交叉构建 MPP）与 `adapters/sodium.py`（经 `tools/install-libsodium.sh` 交叉构建 libsodium）；`rkvc-build package` 新增 `deps-sodium` / `deps-mpp` 阶段与 `--no-mpp` 开关，MPP 运行库随包分发至扁平 `lib/`（与后端 DSO `$ORIGIN/../..` RPATH 对齐），libsodium 静态链入核心库；`build-install` 阶段安装前清空包根，杜绝历史过期产物混入。
 - **`.rkmodel` v1 线格式与模型信任链**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV + 载荷表含 SHA-256 + 可选 Ed25519 签名尾）与读取器 `lib/rkmodel.c`、注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰）；trust root dev/prod 分离（`RKVC_ENABLE_MODEL_SIGN` + `RKVC_TRUST_PUBKEY_HEX` + `RKVC_TRUST_PRODUCTION`），CLI `rkvc inspect models` 接入真实注册表；Python 签名 → C 验证互操作闭环。
 - **统一发布路径 `tools/rkvc-build`**（stdlib Python）：sysroot 锁定（SHA-256 锁文件）→ 交叉构建 → SBOM（CycloneDX 1.5）/许可证归集 → 封装（SHA256SUMS + provenance）→ 产物验证（ELF 架构/解释器、glibc 2.31 基线、绝对 RPATH 拒绝）→ 确定性归档 → QEMU 冒烟；重复归档字节级一致。
@@ -29,7 +30,7 @@
 ### 进行中
 
 - **x86 契约测试 `test_media_pipeline`**：真实内建 fileio + fake 恒等编解码后端，覆盖规划器 SOURCE/SINK 注入、背压/EOS、三操作文件往返字节级一致与错误路径（缺 codec 候选、源打开失败、encode 缺尺寸、FILE 端点缺 uri），9 用例常绿；交叉包（含 MPP 后端 DSO 与 MPP 运行库）经 verify（ELF/glibc 基线/SONAME）与 QEMU 冒烟通过。
-- **待板卡回归**：MPP 解码/编码 DSO 的硬件功能验证需 RK3588→RK3576→RV1126B 在线（当前三块板离线）；RGA/RKNN 后端 DSO 化与 `upscale` 子命令仍在迁移。旧媒体栈已删除，不作为回退路径。
+- **待板卡回归**：MPP/RGA/RKNN DSO 的硬件功能验证仍需按 RK3588→RK3576→RV1126B 执行；RKNN SR 的画质、性能、并发与长稳尚不能由 fake Runtime/QEMU 结果替代。旧媒体栈已删除，不作为回退路径。
 
 ## [0.3.4] - 2026-08-28
 

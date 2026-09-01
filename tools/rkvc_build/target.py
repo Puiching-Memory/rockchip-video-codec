@@ -83,6 +83,7 @@ class BuildContext:
     staging: Path
     cache: Path
     jobs: int = 1
+    rknn_enabled: bool = False
 
     @classmethod
     def create(cls, target_name: str, base: Path, jobs: int = 1) -> "BuildContext":

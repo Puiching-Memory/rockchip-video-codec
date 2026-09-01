@@ -70,6 +70,28 @@ if(RKVC_BUILD_TESTS)
     rkvc_add_core_test(test_frame_metadata tests/c/test_frame_metadata.c)
     rkvc_add_core_test(test_api_contract tests/c/test_api_contract.c)
 
+    # RKNN 后端用受控 fake runtime 做 x86 端到端测试：覆盖模型绑定、
+    # tensor 契约、推理调用、Phase-RLFN 后处理与帧所有权，不要求 NPU。
+    add_executable(test_backend_rknn
+        tests/c/test_backend_rknn.c
+        tests/c/fake_rknn/fake_rknn.c
+        backends/backend_rknn.c
+        ${RKVC_STANDALONE_SOURCES})
+    target_compile_definitions(test_backend_rknn PRIVATE
+        RKVC_STANDALONE_TEST=1 RKVC_RKNN_TESTING=1 _DEFAULT_SOURCE
+        ${RKVC_MODEL_SIGN_DEFS})
+    target_include_directories(test_backend_rknn PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/c/fake_rknn
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${RKVC_SODIUM_INCLUDES}
+        ${CMOCKA_INCLUDE_DIRS})
+    target_link_libraries(test_backend_rknn PRIVATE
+        cmocka pthread m ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS}
+        rkvc_instrumentation)
+    add_test(NAME test_backend_rknn COMMAND test_backend_rknn)
+    set_tests_properties(test_backend_rknn PROPERTIES LABELS "c;unit;backend")
+
     add_library(rkvc_fixture_backend_good MODULE tests/c/fixture_backend.c)
     add_library(rkvc_fixture_backend_badabi MODULE tests/c/fixture_backend_badabi.c)
     foreach(fixture rkvc_fixture_backend_good rkvc_fixture_backend_badabi)
@@ -82,6 +104,15 @@ if(RKVC_BUILD_TESTS)
             PREFIX ""
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fixture_backends)
     endforeach()
+
+    add_library(rkvc_fixture_media_backend MODULE
+        tests/c/fixture_media_backend.c)
+    target_include_directories(rkvc_fixture_media_backend PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    set_target_properties(rkvc_fixture_media_backend PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_fixture_media_backend
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/fixture_media_backends)
 
     set(RKVC_BACKEND_LOADER_SOURCES ${RKVC_STANDALONE_SOURCES})
     list(REMOVE_ITEM RKVC_BACKEND_LOADER_SOURCES
@@ -126,7 +157,7 @@ if(RKVC_BUILD_TESTS)
         test_graph_executor test_job test_rkmodel
         test_media_pipeline test_model_binding
         test_frame_metadata test_api_contract
-        test_backend_loader)
+        test_backend_loader test_backend_rknn)
     if(RKVC_BUILD_EXAMPLES)
         list(APPEND RKVC_CHECK_TARGETS
             example_decode_file example_encode_file example_transcode
@@ -138,8 +169,21 @@ if(RKVC_BUILD_TESTS)
         list(APPEND RKVC_CHECK_TARGETS test_model_trust)
     endif()
     if(TARGET rkvc_cli)
+        add_dependencies(rkvc_cli rkvc_fixture_media_backend)
         add_test(NAME test_cli_version COMMAND rkvc_cli version --json)
         set_tests_properties(test_cli_version PROPERTIES LABELS unit)
+        add_test(NAME test_cli_license COMMAND rkvc_cli license --json)
+        set_tests_properties(test_cli_license PROPERTIES LABELS "unit;cli")
+        add_test(NAME test_cli_bench_help COMMAND rkvc_cli bench --help)
+        set_tests_properties(test_cli_bench_help PROPERTIES LABELS "unit;cli")
+        add_test(NAME test_cli_bench
+            COMMAND rkvc_cli bench encode
+                -i ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/nv12_2x2.fixture
+                -o ${CMAKE_CURRENT_BINARY_DIR}/bench-output.h264
+                --width 2 --height 2 --codec h264
+                --backend-dir ${CMAKE_CURRENT_BINARY_DIR}/fixture_media_backends
+                --warmup 0 --iterations 2 --json)
+        set_tests_properties(test_cli_bench PROPERTIES LABELS "unit;cli")
         list(APPEND RKVC_CHECK_TARGETS rkvc_cli)
     endif()
 

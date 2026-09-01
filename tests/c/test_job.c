@@ -181,8 +181,20 @@ static void test_job_stream_roundtrip(void **state) {
 
     for (i = 0; i < 8; ++i) {
         rkvc_frame *f = mkframe((uint8_t)i);
+        rkvc_status st;
         assert_non_null(f);
-        assert_int_equal(rkvc_job_push(job, f), RKVC_STATUS_OK);
+        /* push 是有界非阻塞 API。慢速 sanitizer 构建下输出队列可能先满，
+         * 此时拉走一帧形成进展后重试；AGAIN 时所有权仍归调用方。 */
+        while ((st = rkvc_job_push(job, f)) == RKVC_STATUS_AGAIN) {
+            rkvc_frame *ready = NULL;
+            assert_int_equal(rkvc_job_pull(job, &ready), RKVC_STATUS_OK);
+            assert_non_null(ready);
+            rkvc_frame_release(ready);
+            pulled++;
+        }
+        if (st != RKVC_STATUS_OK)
+            rkvc_frame_release(f);
+        assert_int_equal(st, RKVC_STATUS_OK);
     }
     assert_int_equal(rkvc_job_push_eos(job), RKVC_STATUS_OK);
 

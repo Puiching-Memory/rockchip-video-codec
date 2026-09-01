@@ -24,8 +24,14 @@ from .verify import verify_package
 
 def _cmd_package(args: argparse.Namespace) -> int:
     logger = Logger("rkvc-build", verbose=args.verbose, quiet=args.quiet)
+    if bool(args.rknn_sdk) != bool(args.rknn_license):
+        logger.error("--rknn-sdk and --rknn-license must be provided together")
+        return 2
     base = Path(args.workdir).resolve()
     ctx = BuildContext.create(args.target, base, jobs=args.jobs)
+    # RKNN Runtime is never inferred from a stale target prefix: each package
+    # invocation must explicitly authorize its audited SDK input.
+    ctx.rknn_enabled = bool(args.rknn_sdk)
     ctx.staging.mkdir(parents=True, exist_ok=True)
     dist = base / "dist"
     state = {"pkg_root": None, "version": None, "archive": None}
@@ -79,6 +85,22 @@ def _cmd_package(args: argparse.Namespace) -> int:
         if not result.ok:
             raise StageError(f"deps-rga build failed: {result.message}")
 
+    def _deps_rknn(c):
+        from .adapters.rknn import RknnAdapter
+        adapter = RknnAdapter(c.work, logger, args.rknn_sdk,
+                              args.rknn_license)
+        dep = adapter.probe(c.target)
+        if dep is None:
+            raise StageError(
+                "deps-rknn: SDK must contain include/rknn_api.h and "
+                "lib/librknnrt.so, and --rknn-license must name a file")
+        result = adapter.fetch(dep)
+        if not result.ok:
+            raise StageError(f"deps-rknn fetch failed: {result.message}")
+        result = adapter.build(dep, c.host_prefix, c.target_prefix)
+        if not result.ok:
+            raise StageError(f"deps-rknn stage failed: {result.message}")
+
     def _build_install(c):
         from . import cmake_stage
         state["pkg_root"] = cmake_stage.build_and_install(c, logger)
@@ -127,6 +149,12 @@ def _cmd_package(args: argparse.Namespace) -> int:
     if not args.no_rga:
         pipeline.add(Stage("deps-rga", _deps_rga, always_run=True,
                            inputs={"target": ctx.target.name}))
+    if args.rknn_sdk:
+        pipeline.add(Stage("deps-rknn", _deps_rknn, always_run=True,
+                           inputs={"target": ctx.target.name,
+                                   "sdk": str(args.rknn_sdk.resolve()),
+                                   "license": str(
+                                       args.rknn_license.resolve())}))
     pipeline.add(Stage("build-install", _build_install, always_run=True,
                        inputs={"target": ctx.target.name}))
     # SBOM/许可证须先于 seal，以纳入 SHA256SUMS 覆盖
@@ -212,6 +240,10 @@ def build_parser() -> argparse.ArgumentParser:
                      help="skip the Rockchip MPP dependency and backend DSO")
     pkg.add_argument("--no-rga", action="store_true",
                      help="skip the Rockchip RGA dependency and backend DSO")
+    pkg.add_argument("--rknn-sdk", type=Path,
+                     help="audited RKNN Runtime SDK prefix (include/ + lib/)")
+    pkg.add_argument("--rknn-license", type=Path,
+                     help="license/redistribution evidence for --rknn-sdk")
     pkg.add_argument("-m", "--model-target", action="append", default=[],
                      help="model compilation target (may be repeated)")
     pkg.add_argument("--for-device", type=Path,

@@ -9,6 +9,7 @@ context / request / job / frame / diagnostic 公共 API、一个 rkvc CLI
 - 有界队列、背压、EOS、取消、逆序回滚和确定性后端回退
 - 文件与流式端点
 - MPP 后端 DSO：H.264/HEVC/AV1 解码，H.264/HEVC 编码
+- RGA 缩放与 Phase-RLFN RKNN 3× 超分后端 DSO
 - DMA-BUF/HOST 帧所有权
 - 逐帧 ROI、运行时码率/GOP 更新与强制 IDR
 - .rkmodel 容器、注册表和可选 Ed25519 信任根
@@ -27,7 +28,10 @@ cmake --build --preset default
 ./.build/release/rkvc inspect backends --json
 ~~~
 
-构建 MPP 后端时先准备 MPP 安装前缀，再启用 RKVC_BUILD_BACKEND_MPP。
+构建 MPP/RGA/RKNN 后端时分别准备对应目标 SDK 前缀，再启用
+`RKVC_BUILD_BACKEND_MPP`、`RKVC_BUILD_BACKEND_RGA` 或
+`RKVC_BUILD_BACKEND_RKNN`。RKNN 前缀必须含 `rknn_api.h` 与
+`lib/librknnrt.so`。
 
 统一 CLI 的媒体命令为：
 
@@ -35,13 +39,18 @@ cmake --build --preset default
 rkvc decode -i input.h264 -o output.nv12 --codec h264
 rkvc encode -i input.nv12 -o output.h264 --width 1920 --height 1080 --codec h264
 rkvc transcode -i input.h265 -o output.h264 --codec h264
+rkvc upscale -i input.nv12 -o output.nv12 --width 640 --height 360
+rkvc bench decode -i input.h264 -o output.nv12 --codec h264 \
+  --warmup 1 --iterations 5 --frames 300 --json
+rkvc license --json
 ~~~
 
 输入输出为后端可直接消费的原始帧或 elementary stream。
 
 ## 性能基准
 
-`tools/bench/benchmark.py` 在 Rockchip 实机上对 decode / encode / transcode
+内建 `rkvc bench OP` 提供单项预热和重复采样；`tools/bench/benchmark.py`
+在 Rockchip 实机上对 decode / encode / transcode
 执行预热和多轮采样，并记录 FPS、实时倍速、吞吐、p95、JSON 与 CSV：
 
 ~~~bash
