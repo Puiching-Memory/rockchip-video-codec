@@ -124,7 +124,8 @@ if(RKVC_BUILD_TESTS)
 
     set(RKVC_CHECK_TARGETS
         test_graph_executor test_job test_rkmodel
-        test_media_pipeline test_frame_metadata test_api_contract
+        test_media_pipeline test_model_binding
+        test_frame_metadata test_api_contract
         test_backend_loader)
     if(RKVC_BUILD_EXAMPLES)
         list(APPEND RKVC_CHECK_TARGETS

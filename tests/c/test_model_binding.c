@@ -245,7 +245,7 @@ static const rkvc_backend scale_backend = {
 
 /* ── 公共夹具 ─────────────────────────────────────────────────────── */
 
-static const char *const MODEL_DIR = "/tmp/rkvc_test_binding/models";
+#define MODEL_DIR "/tmp/rkvc_test_binding/models"
 
 /** 生成确定性的 RKNN 载荷内容。 */
 static void fill_payload(uint8_t payload[MODEL_PAYLOAD_LEN]) {
@@ -320,8 +320,8 @@ static void test_bind_model_receives_verified_payload(void **state) {
 
     assert_int_equal(rkvc_job_start(job, &diag), RKVC_STATUS_OK);
     in = mkframe();
+    /* push 成功后所有权已转移给作业，此处不得再 release。 */
     assert_int_equal(rkvc_job_push(job, in), RKVC_STATUS_OK);
-    rkvc_frame_release(in);
     assert_int_equal(rkvc_job_push_eos(job), RKVC_STATUS_OK);
     assert_int_equal(rkvc_job_pull(job, &out), RKVC_STATUS_OK);
     assert_non_null(out);
@@ -362,8 +362,8 @@ static void test_fallback_when_no_model(void **state) {
 
     assert_int_equal(rkvc_job_start(job, &diag), RKVC_STATUS_OK);
     in = mkframe();
+    /* push 成功后所有权已转移给作业，此处不得再 release。 */
     assert_int_equal(rkvc_job_push(job, in), RKVC_STATUS_OK);
-    rkvc_frame_release(in);
     assert_int_equal(rkvc_job_push_eos(job), RKVC_STATUS_OK);
     assert_int_equal(rkvc_job_pull(job, &out), RKVC_STATUS_OK);
     rkvc_frame_release(out);
