@@ -16,10 +16,12 @@ fi
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-# 22.04 runner 的 ripgrep 无 pcre2 特性，用 GNU grep -P（Ubuntu 均支持）
-grep -ohP 'rkvc_[A-Za-z0-9_]+(?=[[:space:]]*\()' \
-    "$PROJECT_DIR"/include/rkvc/*.h | sort -u >"$tmp_dir/allowed"
-rg -o --no-filename '^[[:space:]]*rkvc_[A-Za-z0-9_]+' \
+# 22.04 runner 镜像不带 ripgrep，本脚本只用 GNU grep（-P 的 lookahead Ubuntu 均支持）。
+# 文档注释会提及后端 DSO 入口符号（如 rkvc_backend_query()），librkvc 并不导出它们，
+# 先剔除注释行再提取声明。
+sed '/^[[:space:]]*\(\/\*\|\*\|\/\/\)/d' "$PROJECT_DIR"/include/rkvc/*.h | \
+    grep -ohP 'rkvc_[A-Za-z0-9_]+(?=[[:space:]]*\()' | sort -u >"$tmp_dir/allowed"
+grep -oE '^[[:space:]]*rkvc_[A-Za-z0-9_]+' \
     "$PROJECT_DIR/librkvc.map" | sed 's/^[[:space:]]*//' | sort -u \
     >"$tmp_dir/versioned"
 nm -D --defined-only "$LIB" | awk '{print $3}' | sed 's/@.*//' | \
