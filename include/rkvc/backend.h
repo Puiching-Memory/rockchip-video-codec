@@ -115,6 +115,10 @@ struct rkvc_backend {
 typedef const rkvc_backend *(*rkvc_backend_query_fn)(void);
 typedef void (*rkvc_backend_frame_release_fn)(void *release_ctx);
 
+/** Add a backend-specific reason to the diagnostic chain. */
+void rkvc_diag_push(rkvc_diag **diag, rkvc_status status, int stage,
+                    const char *subject, const char *reason);
+
 rkvc_port *rkvc_node_get_port(rkvc_node *node, const char *name, int as_input);
 void rkvc_port_set_desired(rkvc_port *port, const rkvc_frame_spec *spec);
 /**

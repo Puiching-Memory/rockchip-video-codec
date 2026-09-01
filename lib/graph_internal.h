@@ -3,7 +3,7 @@
 
 /**
  * @file graph_internal.h
- * @brief 0.4 通用图内核内部定义（非公共 ABI）。
+ * @brief 通用图内核内部定义（非公共 ABI）。
  *
  * 图内核只依赖公共 ABI 头（context/request/job/frame/diagnostic）与
  * libc 分配器；不含任何 FFmpeg / MPP / RGA / RKNN 类型。媒体实现位于

@@ -3,9 +3,9 @@
 
 /**
  * @file api.h
- * @brief rkvc 0.4 公共 ABI —— 五个核心概念的聚合入口。
+ * @brief rkvc 公共 ABI —— 五个核心概念的聚合入口。
  *
- * 0.4 公共 API 只暴露五类概念：context、request、job、frame、diagnostic。
+ * 公共 API 只暴露五类概念：context、request、job、frame、diagnostic。
  * 本头文件不包含任何 FFmpeg / MPP / RGA / RKNN 类型；后端与模型在内部或
  * 后端 DSO 中实现，通过版本化接口进入图内核。
  *
@@ -37,7 +37,7 @@ extern "C" {
      (RKVC_ABI_VERSION_MINOR << 8) |  \
      (RKVC_ABI_VERSION_PATCH))
 
-/* ── 状态码（0.4 专用，避免与 0.3 的 rkvc_err 冲突） ─────────────── */
+/* ── 状态码 ──────────────────────────────────────────────────── */
 
 /**
  * @brief 库调用状态码。

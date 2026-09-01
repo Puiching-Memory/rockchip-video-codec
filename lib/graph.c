@@ -3,7 +3,7 @@
 
 /**
  * @file graph.c
- * @brief 0.4 通用图内核：节点/端口工具与图生命周期。
+ * @brief 通用图内核：节点/端口工具与图生命周期。
  *
  * 图构建分为协商（configure）与实例化（open）两步：协商只确定端口格式，
  * 实例化才打开设备与分配大块内存。任一步失败均按逆序释放已创建对象。
@@ -68,7 +68,9 @@ static int negotiate_edge(rkvc_port *out, rkvc_port *in) {
             merge_dimension(out->fmt.height, in->fmt.height,
                             &resolved.height) != 0 ||
             merge_dimension(out->fmt.stride, in->fmt.stride,
-                            &resolved.stride) != 0)
+                            &resolved.stride) != 0 ||
+            merge_dimension(out->fmt.ver_stride, in->fmt.ver_stride,
+                            &resolved.ver_stride) != 0)
             return -1;
     }
     out->fmt = resolved;

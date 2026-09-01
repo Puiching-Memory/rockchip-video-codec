@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-/* ── 帧像素格式（0.4 专用，避免与 0.3 rkvc_pix_fmt 冲突） ────────── */
+/* ── 帧像素格式 ───────────────────────────────────────────────── */
 typedef enum rkvc_frame_fmt {
     RKVC_FRAME_FMT_UNKNOWN = 0,
     RKVC_FRAME_FMT_NV12,      /**< NV12 semi-planar 4:2:0 */
@@ -43,6 +43,7 @@ typedef struct rkvc_frame_spec {
     rkvc_frame_fmt  fmt;
     rkvc_mem_domain domain;
     uint32_t        stride;      /**< 主平面行字节数；0 = 库自动计算 */
+    uint32_t        ver_stride;  /**< 垂直步幅（UV 平面偏移 = stride*ver_stride）；0 = height */
     uint64_t        modifier;    /**< DRM format modifier；0 = 线性 */
 } rkvc_frame_spec;
 

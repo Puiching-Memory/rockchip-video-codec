@@ -54,7 +54,7 @@ def default_data_dir() -> Path:
 
 
 def uv_bin() -> Path:
-    """定位 uv：RKVC_UV → PATH → .build/host/uv-bootstrap（与 prepare-model-env.sh 一致）。"""
+    """定位 uv：RKVC_UV → PATH → .build/host/uv-bootstrap。"""
     if os.environ.get("RKVC_UV"):
         return Path(os.environ["RKVC_UV"])
     found = shutil.which("uv")

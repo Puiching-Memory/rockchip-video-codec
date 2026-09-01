@@ -2,9 +2,7 @@ name: Documentation
 
 on:
   push:
-    branches:
-      - master
-      - main
+    branches: [master, main]
     paths:
       - .github/workflows/docs.yml
       - CMakeLists.txt
@@ -13,7 +11,6 @@ on:
       - zensical.toml
       - docs/**
       - include/rkvc/**
-      - lib/**
   workflow_dispatch:
 
 permissions:
@@ -25,58 +22,30 @@ concurrency:
 
 jobs:
   docs:
-    name: Build and deploy docs
-    # librga 预编译库仅提供 aarch64/armhf；与 ci.yml 一致使用 ARM runner
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Init submodules (shallow)
-        run: git submodule update --init --depth 1 --recursive
-
-      - name: Install librga (from submodule)
-        run: ./scripts/install-librga.sh
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - name: Initialize libsodium
+        run: git submodule update --init --depth 1 third_party/libsodium
+      - uses: actions/setup-python@v5
         with:
           python-version: 3.x
-
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq doxygen
-          python -m pip install --upgrade pip
+          sudo apt-get install -y -qq autoconf automake cmake doxygen libtool
           pip install zensical
-
-      - name: Build Doxygen
+      - name: Build libsodium and API docs
         run: |
-          # 文档构建不需要 NPU 模块；runner 上无 librknnrt，需显式关闭
-          cmake -B .build/release \
-            -DRKVC_BUILD_DOCS=ON \
-            -DRKVC_ENABLE_RKNN=OFF \
-            -DRKVC_ENABLE_MLVC=OFF
-          cmake --build .build/release --target docs
-
-      - name: Upload API docs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: doxygen-api-docs
-          path: .build/release/docs/html/
-          if-no-files-found: ignore
-
+          ./scripts/install-libsodium.sh
+          cmake -B .build/docs -DRKVC_BUILD_DOCS=ON
+          cmake --build .build/docs --target docs
       - name: Build site
         run: |
           zensical build --clean
-          cp -r .build/release/docs/html site/doxygen
+          cp -r .build/docs/docs/html site/doxygen
           touch site/.nojekyll
-
-      - name: Deploy to gh-pages
-        uses: JamesIves/github-pages-deploy-action@v4
+      - uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages
           folder: site

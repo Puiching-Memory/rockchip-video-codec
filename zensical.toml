@@ -1,6 +1,6 @@
 [project]
-site_name = "rkvc — RK3588 Video Codec"
-site_description = "RK3588 多码率视频编解码 C 库文档 (Session + Codec Router)"
+site_name = "rkvc"
+site_description = "Rockchip 媒体图运行库"
 site_url = "https://puiching-memory.github.io/rockchip-video-codec/"
 repo_url = "https://github.com/Puiching-Memory/rockchip-video-codec"
 repo_name = "rkvc"
@@ -11,10 +11,7 @@ nav = [
   { "架构" = "architecture.md" },
   { "API 参考" = "api.md" },
   { "测试" = "testing.md" },
-  { "基准测试" = "benchmark.md" },
-  { "MLVC RKNN 导出" = "mlvc-rknn-export.md" },
   { "打包与分发" = "packaging.md" },
-  { "交付文档" = "delivery.md" },
 ]
 
 [theme]

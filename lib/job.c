@@ -142,6 +142,10 @@ rkvc_status rkvc_job_create(const rkvc_context *ctx,
         (req->header.api_version &&
          (req->header.api_version >> 16) != RKVC_ABI_VERSION_MAJOR))
         return RKVC_STATUS_INVALID;
+    /* 文件端点必须携带 uri（规划器据此注入内建 source/sink 节点）。 */
+    if ((req->input.kind == RKVC_ENDPOINT_FILE && !req->input.uri) ||
+        (req->output.kind == RKVC_ENDPOINT_FILE && !req->output.uri))
+        return RKVC_STATUS_INVALID;
 
     j = rkvc_g_calloc(1, sizeof(*j));
     if (!j)

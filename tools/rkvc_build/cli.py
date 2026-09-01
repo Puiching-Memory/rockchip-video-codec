@@ -35,6 +35,36 @@ def _cmd_package(args: argparse.Namespace) -> int:
         dest = c.work / "sysroots" / "ubuntu-20.04-arm64"
         c.target.sysroot = ensure_sysroot(dest, refresh=args.refresh_sysroot)
 
+    def _deps_sodium(c):
+        from .adapters.sodium import SodiumAdapter
+        adapter = SodiumAdapter(c.work, logger)
+        dep = adapter.probe(c.target)
+        if dep is None:
+            logger.info("deps-sodium: not applicable; skipped")
+            return
+        result = adapter.fetch(dep)
+        if not result.ok:
+            raise StageError(f"deps-sodium fetch failed: {result.message}")
+        result = adapter.build(dep, c.host_prefix, c.target_prefix)
+        if not result.ok:
+            raise StageError(f"deps-sodium build failed: {result.message}")
+
+    def _deps_mpp(c):
+        import os
+        from .adapters.mpp import MppAdapter
+        adapter = MppAdapter(c.work, logger)
+        dep = adapter.probe(c.target)
+        if dep is None:
+            logger.info("deps-mpp: not applicable; skipped")
+            return
+        os.environ["RKVC_SYSROOT"] = str(c.target.sysroot)
+        result = adapter.fetch(dep)
+        if not result.ok:
+            raise StageError(f"deps-mpp fetch failed: {result.message}")
+        result = adapter.build(dep, c.host_prefix, c.target_prefix)
+        if not result.ok:
+            raise StageError(f"deps-mpp build failed: {result.message}")
+
     def _build_install(c):
         from . import cmake_stage
         state["pkg_root"] = cmake_stage.build_and_install(c, logger)
@@ -75,6 +105,11 @@ def _cmd_package(args: argparse.Namespace) -> int:
     pipeline = Pipeline(ctx, logger=logger)
     pipeline.add(Stage("sysroot", _sysroot, always_run=True,
                        inputs={"target": ctx.target.name}))
+    pipeline.add(Stage("deps-sodium", _deps_sodium, always_run=True,
+                       inputs={"target": ctx.target.name}))
+    if not args.no_mpp:
+        pipeline.add(Stage("deps-mpp", _deps_mpp, always_run=True,
+                           inputs={"target": ctx.target.name}))
     pipeline.add(Stage("build-install", _build_install, always_run=True,
                        inputs={"target": ctx.target.name}))
     # SBOM/许可证须先于 seal，以纳入 SHA256SUMS 覆盖
@@ -156,6 +191,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="re-resolve sysroot packages instead of using the lockfile")
     pkg.add_argument("--no-smoke", action="store_true",
                      help="skip the qemu smoke stage")
+    pkg.add_argument("--no-mpp", action="store_true",
+                     help="skip the Rockchip MPP dependency and backend DSO")
     pkg.add_argument("-m", "--model-target", action="append", default=[],
                      help="model compilation target (may be repeated)")
     pkg.add_argument("--for-device", type=Path,

@@ -1,178 +1,78 @@
 # rockchip-video-codec
 
-面向 Rockchip SoC 的多码率视频管线 C 库（**rkvc**）：Session + Codec Router，支持 H.264 / HEVC / AV1 与 **MLVC 神经视频编解码**，基于 DMA-BUF 热路径与 ffmpeg-rockchip 容器层，纯 C17 实现（无 C++ 依赖）。当前支持板卡：**RK3588**（权威）、**RV1126B**（骨架），通过板卡 profile 抽象层扩展。
+rkvc 是面向 Rockchip Linux 的 C17 媒体图运行库，提供
+context / request / job / frame / diagnostic 公共 API、一个 rkvc CLI
+和版本化后端 ABI。
 
-## 功能特性
+当前已接通：
 
-- **Codec Router** — 五档语义策略自动选路：
+- 有界队列、背压、EOS、取消、逆序回滚和确定性后端回退
+- 文件与流式端点
+- MPP 后端 DSO：H.264/HEVC/AV1 解码，H.264/HEVC 编码
+- DMA-BUF/HOST 帧所有权
+- .rkmodel 容器、注册表和可选 Ed25519 信任根
+- AArch64/glibc 2.31 可复现打包、ELF 验证和 QEMU 冒烟
 
-  | policy     | 编解码方案                              | 目标                   |
-  | ---------- | --------------------------------------- | ---------------------- |
-  | `realtime` | H.264 RKMPP 硬编硬解                    | ≥30 fps @1080p         |
-  | `balanced` | HEVC RKMPP（高帧率 1080p+ 回退 H.264）  | 均衡                   |
-  | `quality`  | SVT-AV1 preset 11 + `av1_rkmpp` 硬解    | 近实时高质量           |
-  | `offline`  | SVT-AV1 preset 4 + `av1_rkmpp`          | 非实时高质量（≥1 fps） |
-  | `neural`   | MLVC 神经编解码（RKNN NPU + 纯 C rANS） | 超低码率，固定 640×368 |
+## 构建
 
-- **实时全硬件转码** — `LIVE_TRANSCODE` 无需 `input_path`：`capture` push H.264/H.265 Annex-B，`output` 边编边 pull
-- **Session API** — `rkvc_session` + 命名端口 `capture` / `output`（`preview` 占位）
-- **MLVC 神经编解码** — 与 264/265 平行的端到端一等编解码器：编码 `video → .mlvc`、纯解码 `.mlvc → .yuv`、转码 `.mlvc → .mp4`；自定义 `.mlvc` 容器；熵编码为纯 C rANS（算法源自 msrtc_rans，MIT）
-- **DMA-BUF 缓冲** — `rkvc_buffer` 统一视频/码流；RGA NV12 缩放
-- **后处理上采样** — 解码路径：RGA 插值或 RKNN 超分（`rkvc_sr`）；编码路径仅 `enc_scale_denom` 下采样
-- **模板管线** — 文件编解码、转码、AV1/MLVC 存储、**LiveCapture（V4L2）**、**LiveTranscode（端口流）**
-- **ROI / 配额** — `rkvc_session_set_roi`（MPP 硬区域 QP）；`rkvc_runtime_set_quota`
-- **UDP/RTP 原语** — `rkvc_net_send` / `recv`（分片重组；无国标信令）
-
-MLVC 与 MLVC-S 共用同一网络骨架（DMC-6.1SB：特征域条件编码 + 双路时空先验 + 门控记忆），仅通道数与超先验配置不同：
-
-![MLVC / MLVC-S 模型架构](docs/images/mlvc-architecture.svg)
-
-## 性能 (RK3588, 1080p E2E, tools/bench/)
-
-| 路线                    | E2E fps | policy                    |
-| ----------------------- | ------- | ------------------------- |
-| H.264 RKMPP             | ~36     | REALTIME                  |
-| HEVC RKMPP              | ~27     | BALANCED                  |
-| SVT-AV1 p11 + av1_rkmpp | ~24     | QUALITY                   |
-| SVT-AV1 p4 + av1_rkmpp  | ~2      | OFFLINE（非实时，≥1 fps） |
-
-MLVC 神经路线（`neural`，固定 640×368，面向带宽极端受限场景）：~0.06 bpp（~66.7 kbps）时 PSNR Y ≈ 26.8 dB、SSIM Y ≈ 0.80。
-
-## 快速开始
-
-```bash
-git submodule update --init --depth 1
-./scripts/build-svt.sh
-./scripts/install-librga.sh         # third_party/librga → .build/deps/librga-install
-./scripts/rebuild-ffmpeg-rkmpp.sh   # h264/hevc/av1 硬解 + h264/hevc 硬编
-
+~~~bash
+git submodule update --init third_party/libsodium
+./scripts/install-libsodium.sh
 cmake --preset default
 cmake --build --preset default
 
-./.build/release/example_encode_file -o /tmp/bench_in.mp4 -s 640x480 -n 30
-./.build/release/rkvc_bench -i /tmp/bench_in.mp4
-```
+./.build/release/rkvc version
+./.build/release/rkvc inspect device --json
+./.build/release/rkvc inspect backends --json
+~~~
 
-完整依赖与权限见 [docs/getting-started.md](docs/getting-started.md)。构建目录约定见 [docs/build-layout.md](docs/build-layout.md)。
+构建 MPP 后端时先准备 MPP 安装前缀，再启用 RKVC_BUILD_BACKEND_MPP。
 
-### 0.4 核心包（aarch64 交叉发布，无 Rockchip 硬件可构建）
+统一 CLI 的媒体命令为：
 
-```bash
-python3 tools/rkvc-build package --jobs $(nproc)
-# .build/portable/dist/rkvc-<version>-linux-aarch64-glibc231-portable.tar.gz
-# 含统一 CLI（bin/rkvc）、librkvc_core、SBOM、provenance、SHA256SUMS；
-# glibc 2.31 基线验证 + QEMU 冒烟自动执行
-```
+~~~bash
+rkvc decode -i input.h264 -o output.nv12 --codec h264
+rkvc encode -i input.nv12 -o output.h264 --width 1920 --height 1080 --codec h264
+rkvc transcode -i input.h265 -o output.h264 --codec h264
+~~~
 
-媒体后端（MPP/RGA/RKNN）正在按 docs/0.4.0-refactor-plan.md 迁移中，
-迁移完成前媒体功能仍由上方 0.3 路径交付。
+输入输出为后端可直接消费的原始帧或 elementary stream。
 
-## CLI 工具
+## API
 
-| 工具                   | 说明                                                    |
-| ---------------------- | ------------------------------------------------------- |
-| `rkvc_info`            | 板卡 / 能力查询（文本 / JSON，含 `board` 字段）         |
-| `rkvc_encode`          | 文件编码（`-p` 五档策略 / `-c` 显式 codec）             |
-| `rkvc_decode`          | 文件解码                                                |
-| `rkvc_transcode`       | 转码；`.mlvc` 编码 / 纯解码 / 转码三种操作              |
-| `rkvc_bench`           | 内置性能基准（REALTIME / BALANCED / QUALITY / OFFLINE） |
-| `rkvc_session_upscale` | 硬解 + 后处理上采样（RGA 插值 / `rkvc_sr` AI 超分）     |
-| `rkvc_yuv_upscale`     | 原始 YUV 上采样（bench 参考帧 prep）                    |
+~~~c
+#include <rkvc/rkvc.h>
 
-MLVC 用法示例：
+rkvc_context *context = NULL;
+rkvc_job *job = NULL;
+rkvc_request request;
 
-```bash
-# 编码：mp4 → .mlvc（neural 档位自动选 MLVC）
-./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/mlvc/gaussian.bin --mlvc-bitest-pmf models/mlvc/bitest.bin
+rkvc_context_create(NULL, &context);
+rkvc_request_init(&request, sizeof(request));
+request.operation = RKVC_OPERATION_TRANSCODE;
+request.input.kind = RKVC_ENDPOINT_FILE;
+request.input.uri = "input.h265";
+request.output.kind = RKVC_ENDPOINT_FILE;
+request.output.uri = "output.h264";
+request.codec = RKVC_CODEC_H264;
 
-# 纯解码：.mlvc → .yuv（NV12，无再编码）
-./.build/release/rkvc_transcode -i out.mlvc -o out.yuv --mlvc-dec models/mlvc/MLVCDecoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/mlvc/gaussian.bin --mlvc-bitest-pmf models/mlvc/bitest.bin
+rkvc_job_create(context, &request, NULL, &job);
+rkvc_job_start(job, NULL);
+rkvc_job_wait(job);
+rkvc_job_destroy(job);
+rkvc_context_destroy(context);
+~~~
 
-# 多 QP：基座模型 + 打开时打补丁（编码用 --mlvc-qp，解码用容器头 qp）
-./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/mlvc/gaussian.bin --mlvc-bitest-pmf models/mlvc/bitest.bin \
-  --mlvc-qp-patch-dir models/mlvc/qp_patches --mlvc-qp 30
-```
+公共接口见 [include/rkvc/api.h](include/rkvc/api.h)，后端扩展接口见
+[include/rkvc/backend.h](include/rkvc/backend.h)。
 
-## API 示例
+## 发布
 
-```c
-rkvc_pipeline_desc d;
-rkvc_pipeline_from_template(RKVC_TEMPLATE_FILE_TRANSCODE, &d);
-d.input_path = "in.mp4";
-d.output_path = "out.mp4";
-d.policy = RKVC_POLICY_BALANCED;
+~~~bash
+python3 tools/rkvc-build package --jobs 6
+~~~
 
-rkvc_session *s = NULL;
-rkvc_session_create(&d, &s);
-rkvc_session_run_file(s);
-rkvc_session_destroy(s);
-```
+发布编排器负责固定 sysroot、交叉构建依赖与目标、从安装树封装、生成
+SBOM/provenance、验证 ELF 与 glibc 2.31 基线、确定性归档和 QEMU 冒烟。
 
-## RD 基准测试（tools/bench/）
-
-端到端码率-画质与性能对比，默认四路：**H.264 / H.265 / SVT-AV1 / rkvc**，可选 `rkvc-neural`（MLVC）、`post-upscale`（下采样编码 + RGA / AI 超分）等路线。
-
-![RD 曲线（1080p E2E）](docs/images/bench/rd_curve_e2e.png)
-
-![E2E 性能对比](docs/images/bench/perf_e2e.png)
-
-```bash
-./tools/bench/run_rd_benchmark.sh /path/to/1080p.mp4
-PLOT_ONLY=1 ./tools/bench/run_rd_benchmark.sh          # 仅重绘图表
-RUN_CODECS=h264,rkvc ./tools/bench/run_rd_benchmark.sh clip.mp4
-```
-
-详见 [tools/bench/README.md](tools/bench/README.md)。
-
-## 测试
-
-```bash
-cmake --preset tests
-cmake --build --preset tests
-ctest --preset tests -j1 --output-on-failure
-
-# RK3588 硬件（每用例独立进程，串行；产物在 .build/tests/）
-RKVC_RUN_HARDWARE_TESTS=1 ctest --test-dir .build/tests -j1 -R 'test_session_' --output-on-failure
-```
-
-## 依赖
-
-- Rockchip BSP、`third_party/` 子模块：MPP、ffmpeg-rockchip、SVT-AV1、[librga](https://github.com/airockchip/librga)
-- libdrm；`librknnrt`（`rkvc_sr` 超分与 MLVC）：`./scripts/install-rknnrt.sh` 下载到 `.build/deps/rknn-install/`，可移植包自带
-- MLVC 与 MLVC-S 使用 `models/mlvc/`、`models/mlvc-s/` 自包含 bundle。SR 使用 [Puiching-Memory/rknn-super-resolution](https://github.com/Puiching-Memory/rknn-super-resolution) 的单输入 Phase-RLFN core，导出为 `models/rkvc-sr/`；完整 checkpoint → ONNX → RKNN → bundle 管道见 [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md)
-
-## 许可证
-
-本项目采用**双许可**模式（见 [LICENSE](LICENSE) 顶部声明）：
-
-- **开源（默认，AGPLv3）**：源码树按 GNU Affero General Public License v3 提供。
-  - 允许商用、修改、再分发，但**衍生/合并作品须以 AGPLv3 开源**；通过网络提供本程序服务的（含 SaaS）须向用户提供对应源码
-  - 默认 CMake 构建关闭产品授权与模型访问校验；可移植包脚本默认开启可选的 NPU 模型访问控制，可用 `--no-encrypt-models` 关闭，不改变 AGPLv3 权利
-- **商业授权**：闭源商业使用需另行取得商业授权，授权范围含强制授权机制（`RKVC_ENABLE_LICENSE`）。Phase-RLFN 上游源码及随 bundle 附带部分按其 MIT License 分发
-- `third_party/` 内各组件（ffmpeg-rockchip、SVT-AV1、mpp、librga、libsodium）版权归其各自所有者，适用各自许可证；分发包随附全部许可证文本、SVT-AV1 专利许可及对 ffmpeg-rockchip 的修改补丁（见 [docs/packaging.md](docs/packaging.md)）
-
-## 文档
-
-| 文档                                                   | 说明                             |
-| ------------------------------------------------------ | -------------------------------- |
-| [docs/index.md](docs/index.md)                         | 文档首页与导航                   |
-| [docs/getting-started.md](docs/getting-started.md)     | 构建与首次运行                   |
-| [docs/build-layout.md](docs/build-layout.md)           | 构建目录约定（全部在 `.build/`） |
-| [docs/api.md](docs/api.md)                             | API 完整参考                     |
-| [docs/architecture.md](docs/architecture.md)           | Session / Router / 节点架构      |
-| [docs/benchmark.md](docs/benchmark.md)                 | 性能与 RD 基准                   |
-| [docs/testing.md](docs/testing.md)                     | 测试矩阵                         |
-| [docs/packaging.md](docs/packaging.md)                 | 可便携包与分发                   |
-| [docs/delivery.md](docs/delivery.md)                   | 客户交付清单                     |
-| [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md)   | MLVC ONNX/PMF → RKNN 导出        |
-| [docs/mlvc-npu-profile.md](docs/mlvc-npu-profile.md)   | MLVC NPU 算子级 profile          |
-| [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md) | Phase-RLFN ONNX/RKNN/bundle 管道 |
-| [docs/release/](docs/release/)                         | 发布包用户文档                   |
-| [CHANGELOG.md](CHANGELOG.md)                           | 版本变更记录                     |
-
-版本：见 `CMakeLists.txt` `project(VERSION)` / `rkvc_version()`（Session + Codec Router API）
+项目按 [LICENSE](LICENSE) 中的 AGPL-3.0-or-later 条款发布。

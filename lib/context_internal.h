@@ -58,6 +58,9 @@ const rkvc_rkmodel *rkvc_model_registry_select(const rkvc_context *ctx,
 /** 注册内建后端（默认空表；硬件后端构建时替换实现）。 */
 void rkvc_backend_register_builtins(rkvc_context *ctx);
 
+/** 注册内建 fileio 后端（文件 source/sink；node_fileio.c 提供）。 */
+void rkvc_fileio_backend_register(rkvc_context *ctx);
+
 /** 扫描可信后端目录并 dlopen 加载；单个候选失败只淘汰该候选。 */
 rkvc_status rkvc_backend_dso_scan(rkvc_context *ctx);
 

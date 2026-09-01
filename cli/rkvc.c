@@ -3,11 +3,10 @@
 
 /**
  * @file rkvc.c
- * @brief 0.4 单一 CLI 入口：inspect / version。
+ * @brief 单一 CLI 入口：inspect / version。
  *
- * 所有子命令共享解析、日志、退出码与 JSON 输出。媒体子命令
- * （encode/decode/transcode/upscale/bench）在后端迁入图内核后点亮；
- * 当前构建若不含媒体后端，会以统一诊断拒绝。
+ * 所有子命令共享解析、日志、退出码与 JSON 输出。若构建不含必需的
+ * 媒体后端，请求会以统一诊断拒绝。
  *
  * 退出码：0 成功；1 运行期错误（诊断写 stderr）；2 用法错误。
  */
@@ -17,13 +16,16 @@
 #include <string.h>
 
 #include "rkvc/api.h"
+#include "rkvc/diagnostic.h"
+#include "rkvc/job.h"
+#include "rkvc/request.h"
 
 #define EXIT_RUNTIME 1
 #define EXIT_USAGE   2
 
 static void usage(FILE *out) {
     fputs(
-        "rkvc " "— Rockchip video codec toolkit (0.4)\n"
+        "rkvc " "— Rockchip video codec toolkit\n"
         "\n"
         "用法: rkvc <子命令> [选项]\n"
         "\n"
@@ -33,8 +35,11 @@ static void usage(FILE *out) {
         "  inspect models [--json]    列出模型注册表候选\n"
         "  version [--json]           打印库与 ABI 版本\n"
         "\n"
-        "媒体子命令（待后端迁移完成后可用）:\n"
-        "  encode | decode | transcode | upscale | bench | license\n",
+        "媒体子命令:\n"
+        "  decode    -i in.es -o out.nv12 [--codec h264|hevc|av1]\n"
+        "  encode    -i in.nv12 -o out.es --width W --height H\n"
+        "            [--codec h264|hevc] [--bitrate BPS] [--qp QP]\n"
+        "  transcode -i in.es -o out.es --codec h264|hevc [--bitrate BPS]\n",
         out);
 }
 
@@ -203,13 +208,163 @@ static int cmd_inspect_models(int json) {
 static int cmd_media_unavailable(const char *name, int json) {
     if (json)
         printf("{\"command\": \"%s\", \"status\": \"error\", "
-               "\"reason\": \"media backends not built into this package\"}\n",
+               "\"reason\": \"command unavailable\"}\n",
                name);
     else
         fprintf(stderr,
-                "rkvc %s: 本构建未包含媒体后端（核心库 + 后端迁移进行中，见 P3）\n",
-                name);
+                "rkvc %s: 该子命令不可用\n", name);
     return EXIT_RUNTIME;
+}
+
+/* ── 媒体子命令（decode/encode/transcode） ───────────────────────── */
+
+static rkvc_codec parse_codec(const char *s, int *ok) {
+    *ok = 1;
+    if (!s || strcmp(s, "auto") == 0) return RKVC_CODEC_AUTO;
+    if (strcmp(s, "h264") == 0 || strcmp(s, "avc") == 0)
+        return RKVC_CODEC_H264;
+    if (strcmp(s, "hevc") == 0 || strcmp(s, "h265") == 0)
+        return RKVC_CODEC_HEVC;
+    if (strcmp(s, "av1") == 0) return RKVC_CODEC_AV1;
+    *ok = 0;
+    return RKVC_CODEC_AUTO;
+}
+
+/* 由输入扩展名推断解码/转码输入编码；识别不了则 AUTO（后端嗅探）。 */
+static rkvc_codec infer_codec_from_ext(const char *path) {
+    const char *dot = path ? strrchr(path, '.') : NULL;
+    if (!dot)
+        return RKVC_CODEC_AUTO;
+    if (!strcmp(dot, ".h264") || !strcmp(dot, ".264"))
+        return RKVC_CODEC_H264;
+    if (!strcmp(dot, ".h265") || !strcmp(dot, ".hevc") ||
+        !strcmp(dot, ".265"))
+        return RKVC_CODEC_HEVC;
+    if (!strcmp(dot, ".av1") || !strcmp(dot, ".ivf"))
+        return RKVC_CODEC_AV1;
+    return RKVC_CODEC_AUTO;
+}
+
+static void print_diag_text(const rkvc_diag *diag) {
+    char buf[1024];
+    if (!diag)
+        return;
+    rkvc_diag_fmt_text(diag, buf, sizeof(buf));
+    if (buf[0])
+        fprintf(stderr, "rkvc: %s\n", buf);
+}
+
+static int cmd_media(const char *name, rkvc_operation op,
+                     int argc, char **argv, int start, int json) {
+    const char *input = NULL, *output = NULL, *codec_s = NULL;
+    long width = 0, height = 0, bitrate = 0, qp = -1;
+    int codec_ok = 1;
+    rkvc_codec codec;
+    rkvc_context *ctx = NULL;
+    rkvc_request req;
+    rkvc_diag *diag = NULL;
+    rkvc_job *job = NULL;
+    rkvc_status st;
+    int i, rc = EXIT_RUNTIME;
+
+    for (i = start; i < argc; ++i) {
+        const char *a = argv[i];
+        if (!strcmp(a, "-i") || !strcmp(a, "--input")) {
+            if (++i >= argc) goto usage_err;
+            input = argv[i];
+        } else if (!strcmp(a, "-o") || !strcmp(a, "--output")) {
+            if (++i >= argc) goto usage_err;
+            output = argv[i];
+        } else if (!strcmp(a, "--codec")) {
+            if (++i >= argc) goto usage_err;
+            codec_s = argv[i];
+        } else if (!strcmp(a, "--width")) {
+            if (++i >= argc) goto usage_err;
+            width = strtol(argv[i], NULL, 10);
+        } else if (!strcmp(a, "--height")) {
+            if (++i >= argc) goto usage_err;
+            height = strtol(argv[i], NULL, 10);
+        } else if (!strcmp(a, "--bitrate")) {
+            if (++i >= argc) goto usage_err;
+            bitrate = strtol(argv[i], NULL, 10);
+        } else if (!strcmp(a, "--qp")) {
+            if (++i >= argc) goto usage_err;
+            qp = strtol(argv[i], NULL, 10);
+        } else if (!strcmp(a, "--json")) {
+            /* 已在全局扫描中处理 */
+        } else {
+            goto usage_err;
+        }
+    }
+
+    if (!input || !output)
+        goto usage_err;
+    codec = parse_codec(codec_s, &codec_ok);
+    if (!codec_ok)
+        goto usage_err;
+    if (op == RKVC_OPERATION_DECODE && codec == RKVC_CODEC_AUTO)
+        codec = infer_codec_from_ext(input); /* AUTO 时由后端首帧嗅探 */
+    if (op == RKVC_OPERATION_ENCODE &&
+        (codec == RKVC_CODEC_AUTO || width <= 0 || height <= 0)) {
+        fprintf(stderr, "rkvc %s: encode 需要 --codec 与 --width/--height\n",
+                name);
+        goto usage_err;
+    }
+    if (op == RKVC_OPERATION_TRANSCODE && codec == RKVC_CODEC_AUTO) {
+        fprintf(stderr, "rkvc %s: transcode 需要 --codec 指定目标编码\n",
+                name);
+        goto usage_err;
+    }
+
+    st = rkvc_context_create(NULL, &ctx);
+    if (st != RKVC_STATUS_OK) {
+        fprintf(stderr, "rkvc: context create failed: %s\n",
+                rkvc_status_str(st));
+        return EXIT_RUNTIME;
+    }
+
+    rkvc_request_init(&req, sizeof(req));
+    req.operation = op;
+    req.codec = codec;
+    req.input.kind = RKVC_ENDPOINT_FILE;
+    req.input.uri = input;
+    req.output.kind = RKVC_ENDPOINT_FILE;
+    req.output.uri = output;
+    req.width = (uint32_t)width;
+    req.height = (uint32_t)height;
+    req.quality.bitrate_bps = (int32_t)bitrate;
+    req.quality.qp = (int32_t)qp;
+
+    st = rkvc_job_create(ctx, &req, &diag, &job);
+    if (st == RKVC_STATUS_OK)
+        st = rkvc_job_start(job, &diag);
+    if (st == RKVC_STATUS_OK)
+        st = rkvc_job_wait(job);
+
+    if (st == RKVC_STATUS_OK) {
+        if (json)
+            printf("{\"command\": \"%s\", \"status\": \"ok\"}\n", name);
+        else
+            printf("%s: 完成 %s -> %s\n", name, input, output);
+        rc = 0;
+    } else {
+        if (json)
+            printf("{\"command\": \"%s\", \"status\": \"error\", "
+                   "\"reason\": \"%s\"}\n", name, rkvc_status_str(st));
+        else
+            fprintf(stderr, "rkvc %s: 失败: %s\n", name,
+                    rkvc_status_str(st));
+        print_diag_text(diag);
+    }
+
+    rkvc_job_destroy(job);
+    rkvc_diag_release(diag);
+    rkvc_context_destroy(ctx);
+    return rc;
+
+usage_err:
+    fprintf(stderr, "rkvc %s: 参数错误；参见 rkvc help\n", name);
+    return EXIT_USAGE;
 }
 
 int main(int argc, char **argv) {
@@ -260,9 +415,18 @@ int main(int argc, char **argv) {
         return EXIT_USAGE;
     }
 
-    if (strcmp(cmd, "encode") == 0 || strcmp(cmd, "decode") == 0 ||
-        strcmp(cmd, "transcode") == 0 || strcmp(cmd, "upscale") == 0 ||
-        strcmp(cmd, "bench") == 0 || strcmp(cmd, "license") == 0)
+    if (strcmp(cmd, "decode") == 0)
+        return cmd_media(cmd, RKVC_OPERATION_DECODE, argc, argv, i + 1,
+                         json);
+    if (strcmp(cmd, "encode") == 0)
+        return cmd_media(cmd, RKVC_OPERATION_ENCODE, argc, argv, i + 1,
+                         json);
+    if (strcmp(cmd, "transcode") == 0)
+        return cmd_media(cmd, RKVC_OPERATION_TRANSCODE, argc, argv, i + 1,
+                         json);
+
+    if (strcmp(cmd, "upscale") == 0 || strcmp(cmd, "bench") == 0 ||
+        strcmp(cmd, "license") == 0)
         return cmd_media_unavailable(cmd, json);
 
     fprintf(stderr, "rkvc: 未知子命令: %s\n", cmd);

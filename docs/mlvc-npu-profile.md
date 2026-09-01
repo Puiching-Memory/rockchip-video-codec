@@ -2,6 +2,8 @@
 
 > 更新日期：2026-08-24 ｜ 当前数据：RK3576 ｜ 标准 MLVC 与 MLVC-S 使用同一测量口径
 
+> 历史性能记录（2026-08-24，RK3576）。数据来自归档版 `rkvc_transcode`。
+
 ## 1. 结论
 
 标准 host I/O 修复了第二帧 NaN/Inf；在此正确性基线上，encoder 进一步
@@ -77,7 +79,7 @@ export RKVC_MLVC_ENCODER_ZERO_COPY=0
 `RKVC_MLVC_PROFILE_WARMUP` 缺省为 10；设为 0 可统计所有帧。以标准 MLVC 为例：
 
 ```bash
-RKVC_BIN=.build/release/rkvc_transcode
+RKVC_BIN=/path/to/archived/rkvc_transcode
 MLVC_DIR=models/mlvc
 INPUT_70F=/path/to/640x368-70f.y4m
 

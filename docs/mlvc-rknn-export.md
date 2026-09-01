@@ -1,6 +1,6 @@
 # MLVC ONNX → RKNN 导出
 
-把 [Microsoft MLVC](https://github.com/microsoft/mlvc) 的固定分辨率 ONNX 与 PMF JSON，转成 `rkvc` 运行时（`lib/node_mlvc.c`）使用的 `.rknn` + `PMF1` 二进制表。
+把 [Microsoft MLVC](https://github.com/microsoft/mlvc) 的固定分辨率 ONNX 与 PMF JSON 转成 `.rknn` + `PMF1` 二进制表。本文只描述模型生产格式。
 
 本仓库**不 vendoring** 上游训练/转换代码。`.venv/bin/python tools/mlvc/export_rknn.py --from-mlvc` 会浅克隆官方仓、下载公开 checkpoint、跑 `convert.py export --target-device generic`，再做图处理与 RKNN 转换。
 
@@ -100,9 +100,9 @@ models/
 
 多目标板：每次调用只转换一个 `--platform`；基座文件名带平台后缀
 （`MLVC{Encoder,Decoder}_<soc>.rknn`），多个平台的模型可在同一 bundle 内并存，
-ONNX 导出只需一次，后续用 `--onnx-dir` 复用。多平台打包由 `scripts/build-models.sh`
-自动完成（见 [packaging.md](packaging.md)），其 QP 补丁按 `qp_patches/<platform>/` 分目录，
-运行时对应传 `--mlvc-qp-patch-dir models/mlvc/qp_patches/<soc>`。
+ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁按
+`qp_patches/<platform>/` 分目录，运行时对应传
+`--mlvc-qp-patch-dir models/mlvc/qp_patches/<soc>`。
 
 产物目录形如：
 
@@ -166,18 +166,11 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。多平台打包由 `sc
 
 JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_lengths` / `pmf_offsets` / `pmf_table`，gaussian 另有 `scale_min` / `scale_max` / `scale_levels` / `index_space`，bitest 另有 `qp_num` / `channels`。
 
-二进制布局见 `lib/node_mlvc.c` `load_pmf()`。`node_mlvc.c` **要求** gaussian 的 `index_space=1`。
+二进制布局由 `tools/mlvc/pmf.py` 定义；gaussian 的 `index_space` 必须为 1。
 
 ## 上板
 
-```bash
-./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
-  --mlvc-dec models/mlvc/MLVCDecoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/mlvc/gaussian.bin \
-  --mlvc-bitest-pmf models/mlvc/bitest.bin \
-  --mlvc-qp 21
-```
+模型可继续导出和校验。
 
 分辨率须与导出时 `--model-width` / `--model-height` 一致（现网 640×368）。`--mlvc-qp` 须与折叠进图的 `--qp` 一致，否则 rANS 码表与 NPU 嵌入错位。
 
@@ -198,13 +191,4 @@ JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_length
 
 产物：`models/mlvc/qp_patches/{enc|dec}_qp{N}.qppatch`（含基座 qp 的空补丁）。格式为 48 字节小端头 `QPP1` + 合并后的 `(offset, length)` 区间 + payload；头里带基座 / payload CRC32。缺补丁或 CRC 不对会打开失败，不会静默用错权重。
 
-```bash
-./.build/release/rkvc_transcode -i in.mp4 -o out.mlvc -p neural \
-  --mlvc-enc models/mlvc/MLVCEncoder_rk3588.rknn \
-  --mlvc-gaussian-pmf models/mlvc/gaussian.bin \
-  --mlvc-bitest-pmf models/mlvc/bitest.bin \
-  --mlvc-qp-patch-dir models/mlvc/qp_patches \
-  --mlvc-qp 30
-```
-
-编码用 `--mlvc-qp` 选 `enc_qpN.qppatch`；解码用容器头里的 qp 选 `dec_qpN.qppatch`。不传 `--mlvc-qp-patch-dir` 时行为与单模型相同（基座须已是该 qp）。不做运行时热切换。
+后端应由 request 的模型 ID 和质量约束选择 QP patch。

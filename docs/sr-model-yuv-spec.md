@@ -77,8 +77,8 @@ INT8 相对 FP16 仅 −0.05dB / −0.001 SSIM，但 NPU 侧快约 1.5×、体�
   敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 按 `docs/mlvc-npu-profile.md` 的
   约定用 `taskset -c 4-7` 固定到大核簇。
 - `rknn_outputs_get(want_float=1)` 的 FP32 转换要占 15–20ms/帧（输出 6.2M 元素）；
-  改为 `want_float=0` 取回原生布局可再省 7ms（FP16）/11ms（INT8），但需融合
-  路径自行反量化，尚未实现。
+  改为 `want_float=0` 取回原生布局可再省 7ms（FP16）/11ms（INT8），但融合
+  路径需自行反量化。
 - ONNX float32 参考（x86，onnxruntime）与板端 FP16 输出在正确布局下一致到
   rms 0.004 / max 0.09，与理想融合（ONNX 残差 + 管线 RGA 基座）的一致性 73.5dB，
   即可认为 NPU 路径无额外损失。
@@ -104,7 +104,7 @@ Toolkit 与其 Torch 版本冲突；本适配器只导入上游模型定义，�
 
 官方 QAT checkpoint 已托管在 HuggingFace
 [Sail2Dream/phase-rlfn-codec-v1](https://huggingface.co/Sail2Dream/phase-rlfn-codec-v1)（`best_ema.pth`，
-SHA-256 `0cf78cee...c84070`）。打包时 `scripts/build-models.sh` 会自动下载该权重；
+SHA-256 `0cf78cee...c84070`）。当前需由导出工具显式下载或传入该权重；
 手动导出也可直接下载后传给 `--weight`。若使用 float checkpoint（仓内 `float/best.pth`），
 导出时加 `--no-from-qat`。
 
@@ -161,9 +161,8 @@ rknn-toolkit2 包含 `rknn_crypt_tool`（aarch64 wheel 通常不带）。常用�
   --weight /path/to/float.pth --no-from-qat --no-quantize
 ```
 
-> 打包集成：`scripts/build-models.sh --platform <soc>`（由 `package-portable.sh` 自动调用）
-> 自动下载 HF QAT checkpoint 并用 `--no-quantize` 转换，无需校准集；手动 INT8 校准变体（§3）
-> 仍可用，用于需要自定义校准分布的场景。
+> 自动下载 HF QAT checkpoint 并用 `--no-quantize` 转换，无需校准集；手动
+> INT8 校准变体（§3）可用于自定义校准分布。
 
 完整 bundle：
 
@@ -180,8 +179,7 @@ models/rkvc-sr/
 模型产物默认被 Git 忽略，manifest、LICENSE 与 SOURCE 由每次导出刷新。不要混用
 不同 checkpoint、ONNX、RKNN 或 manifest。
 
-可单独校验 bundle；portable 打包会自动执行同一大小/SHA-256 门禁，并拒绝
-manifest 未登记的陈旧模型文件：
+可单独校验 bundle；模型适配器必须执行同一大小/SHA-256 门禁：
 
 ```bash
 python3 tools/sr/verify_bundle.py models/rkvc-sr
@@ -189,21 +187,5 @@ python3 tools/sr/verify_bundle.py models/rkvc-sr
 
 ## 5. 构建、打包与实机门禁
 
-`scripts/package-portable.sh` 在 `librkvc` 链接 RKNN 时先校验生产缓存中的完整 bundle；复制后删除含明文权重的 ONNX，只把 runtime 文件装进 portable tarball，并在 `.rknn` 加密后刷新 manifest 摘要：
-
-```bash
-./scripts/package-portable.sh
-./scripts/test-npu-sr.sh
-```
-
-手工运行：
-
-```bash
-./.build/release/rkvc_session_upscale \
-  -i stream.mp4 -o out.nv12 \
-  --width 1920 --height 1080 --enc-scale-denom 3 \
-  --post-upscale rkvc_sr \
-  --rkvc-sr-model models/rkvc-sr/phase_rlfn_sr_x3.rknn
-```
-
-实机必须同时具备 RKNN NPU 与 RGA；`rkvc_sr` 不提供 CPU/RGB 模型回退。
+SR 模型必须进入 `.rkmodel` 注册表，由 request 约束选择。实机门禁要求
+RKNN NPU 与 RGA，并建立正确性、性能和长稳基线。

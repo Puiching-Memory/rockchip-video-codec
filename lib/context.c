@@ -326,11 +326,17 @@ static int ranked_factory_cmp(const void *ap, const void *bp) {
 int rkvc_plan_build(const rkvc_context *ctx, const rkvc_request *req,
                     const rkvc_device_caps *caps, rkvc_plan *plan,
                     rkvc_diag **diag) {
-    rkvc_node_stage required[3];
+    rkvc_node_stage required[5];
     size_t required_count = 0, i;
 
     if (!ctx || !req || !plan)
         return (int)RKVC_STATUS_INVALID;
+
+    /* 文件端点（带 uri）由内建 source/sink 节点承载；流式端点走 push/pull。
+     * job 层已校验 FILE 端点必须携带 uri；此处对空 uri 宽容以便规划器
+     * 可独立单测。 */
+    if (req->input.kind == RKVC_ENDPOINT_FILE && req->input.uri)
+        required[required_count++] = RKVC_NODE_STAGE_SOURCE;
 
     switch (req->operation) {
     case RKVC_OPERATION_ENCODE:
@@ -354,6 +360,9 @@ int rkvc_plan_build(const rkvc_context *ctx, const rkvc_request *req,
     default:
         return (int)RKVC_STATUS_INVALID;
     }
+
+    if (req->output.kind == RKVC_ENDPOINT_FILE && req->output.uri)
+        required[required_count++] = RKVC_NODE_STAGE_SINK;
 
     plan->steps = rkvc_g_calloc(required_count, sizeof(*plan->steps));
     if (!plan->steps)

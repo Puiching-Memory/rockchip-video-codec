@@ -52,10 +52,20 @@ def build_and_install(ctx, logger) -> Path:
     pkg_root = ctx.staging / pkg_name
     build_dir = ctx.work / "build-target"
 
+    # cmake --install 不清理目标目录；先清空，防止历史构建的过期产物混入包。
+    if pkg_root.exists():
+        import shutil
+        shutil.rmtree(pkg_root)
+
     env = dict(os.environ)
     env["RKVC_SYSROOT"] = str(ctx.target.sysroot)
 
-    _run([
+    mpp_prefix = ctx.target_prefix / "mpp"
+    mpp_available = (mpp_prefix / "lib" / "librockchip_mpp.so").is_file()
+    sodium_prefix = ctx.target_prefix / "libsodium"
+    sodium_available = (sodium_prefix / "lib" / "libsodium.a").is_file()
+
+    args = [
         "cmake", "-S", str(SOURCE_ROOT), "-B", str(build_dir), "-G", "Ninja",
         f"-DCMAKE_TOOLCHAIN_FILE={TOOLCHAIN}",
         "-DCMAKE_BUILD_TYPE=Release",
@@ -69,21 +79,36 @@ def build_and_install(ctx, logger) -> Path:
         "-DCMAKE_INSTALL_LIBDIR=lib",
         "-DCMAKE_INSTALL_INCLUDEDIR=include",
         "-DCMAKE_INSTALL_DATADIR=share",
-        # P1 交付面：新引擎核心库 + 单一 CLI；旧库与 Rockchip 依赖在后续
-        # 适配器就绪前不进入可移植包。
-        "-DRKVC_BUILD_NEW_ENGINE=ON",
-        "-DBUILD_SHARED_LIBS=ON",
-        "-DRKVC_BUILD_SHARED=OFF",
+        # 交付面：唯一核心库 + 单一 CLI + 已就绪依赖的后端 DSO。
+        "-DRKVC_BUILD_SHARED=ON",
         "-DRKVC_BUILD_STATIC=OFF",
-        "-DRKVC_BUILD_CLI=OFF",
-        "-DRKVC_BUILD_EXAMPLES=OFF",
+        "-DRKVC_BUILD_CLI=ON",
         "-DRKVC_BUILD_TESTS=OFF",
-        "-DRKVC_ENABLE_RKNN=OFF",
-        "-DRKVC_ENABLE_MLVC=OFF",
-    ], env, logger)
+    ]
+    if mpp_available:
+        args += [
+            "-DRKVC_BUILD_BACKEND_MPP=ON",
+            f"-DMPP_INSTALL_PREFIX={mpp_prefix}",
+        ]
+    if sodium_available:
+        args.append(f"-DLIBSODIUM_PREFIX={sodium_prefix}")
+    _run(args, env, logger)
 
     _run(["cmake", "--build", str(build_dir), "-j", str(ctx.jobs)],
          env, logger)
     _run(["cmake", "--install", str(build_dir), "--prefix", str(pkg_root)],
          env, logger)
+
+    # MPP 运行库随包分发到扁平 lib/（后端 DSO INSTALL_RPATH=$ORIGIN/../..）。
+    if mpp_available:
+        import shutil
+        dst = pkg_root / "lib"
+        for so in sorted((mpp_prefix / "lib").glob("librockchip_mpp.so*")):
+            target = dst / so.name
+            if so.is_symlink():
+                if target.exists():
+                    target.unlink()
+                target.symlink_to(os.readlink(so))
+            elif so.is_file():
+                shutil.copy2(so, target)
     return pkg_root

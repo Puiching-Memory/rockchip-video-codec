@@ -10,7 +10,6 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build",
                 "RKVC_ENABLE_RELEASE_HARDENING": "ON"
             }
         },
@@ -21,8 +20,7 @@
             "binaryDir": "${sourceDir}/.build/debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
         },
         {
@@ -42,11 +40,9 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "RKVC_BUILD_SHARED": "OFF",
-                "RKVC_BUILD_EXAMPLES": "OFF",
                 "RKVC_BUILD_CLI": "ON",
                 "RKVC_BUILD_TESTS": "ON",
-                "RKVC_ENABLE_FAULT_INJECTION": "ON",
-                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build"
+                "RKVC_ENABLE_FAULT_INJECTION": "ON"
             }
         },
         {
@@ -75,7 +71,6 @@
             "binaryDir": "${sourceDir}/.build/portable",
             "cacheVariables": {
                 "CMAKE_INSTALL_RPATH_USE_LINK_PATH": "ON",
-                "MPP_BUILD_DIR": "${sourceDir}/.build/deps/mpp-build",
                 "RKVC_ENABLE_RELEASE_HARDENING": "ON"
             }
         }
@@ -85,13 +80,13 @@
             "name": "default",
             "configurePreset": "default",
             "jobs": 6,
-            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
+            "targets": ["rkvc_shared", "rkvc_static", "rkvc_cli"]
         },
         {
             "name": "debug",
             "configurePreset": "debug",
             "jobs": 6,
-            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
+            "targets": ["rkvc_shared", "rkvc_static", "rkvc_cli"]
         },
         {
             "name": "tests",
@@ -115,19 +110,13 @@
             "name": "portable",
             "configurePreset": "portable",
             "jobs": 6,
-            "targets": ["rkvc_shared", "rkvc_static", "rkvc_bench", "rkvc_encode", "rkvc_decode", "rkvc_transcode", "rkvc_info", "rkvc_session_upscale", "rkvc_yuv_upscale"]
+            "targets": ["rkvc_shared", "rkvc_cli"]
         },
         {
             "name": "docs",
             "configurePreset": "default",
             "jobs": 6,
             "targets": ["docs"]
-        },
-        {
-            "name": "package",
-            "configurePreset": "default",
-            "jobs": 6,
-            "targets": ["package"]
         }
     ],
     "testPresets": [

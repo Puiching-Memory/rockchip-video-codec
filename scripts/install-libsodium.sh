@@ -79,6 +79,3 @@ echo
 echo "✓ libsodium 已安装到 $PREFIX"
 echo "  静态库: $PREFIX/lib/libsodium.a"
 echo "  头文件: $PREFIX/include/sodium.h"
-echo
-echo "开启授权构建:"
-echo "  cmake --preset default -DRKVC_ENABLE_LICENSE=ON"

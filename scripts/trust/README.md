@@ -1,6 +1,6 @@
 # 模型签名信任根（trust root）
 
-`.rkmodel` 容器的 Ed25519 验签公钥在编译期固定进 `librkvc_core`：
+`.rkmodel` 容器的 Ed25519 验签公钥在编译期固定进 `librkvc`：
 
 - **dev 根**：`dev-root.pub`（64 字符 hex，首行注释为 key_id）。
   缺省时 CMake 配置期自动生成临时开发根到 `<build>/trust/`（仅本机构建
