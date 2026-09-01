@@ -22,12 +22,12 @@ concurrency:
 
 jobs:
   docs:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - name: Initialize libsodium
         run: git submodule update --init --depth 1 third_party/libsodium
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: Install dependencies
