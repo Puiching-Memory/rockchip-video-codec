@@ -2,7 +2,7 @@
 
 libsodium provides SHA-256 + Ed25519/XSalsa20-Poly1305 for the rkmodel trust
 stack and is required by the core library on every target.  The build goes
-through ``scripts/install-libsodium.sh`` (autotools), cross-compiled for the
+through ``tools/install-libsodium.sh`` (autotools), cross-compiled for the
 release target via ``RKVC_TARGET_ARCH`` so the triplet logic stays in one
 place.  The commit recorded by the git submodule is the version pin.
 """
@@ -17,7 +17,7 @@ from .base import AdapterResult, Dependency, DependencyAdapter
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SUBMODULE = _REPO_ROOT / "third_party" / "libsodium"
-_SCRIPT = _REPO_ROOT / "scripts" / "install-libsodium.sh"
+_SCRIPT = _REPO_ROOT / "tools" / "install-libsodium.sh"
 
 
 def _submodule_commit() -> str:

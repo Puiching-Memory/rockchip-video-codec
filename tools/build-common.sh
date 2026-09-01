@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/build-common.sh — 构建脚本共用辅助函数
+# tools/build-common.sh — 构建工具共用辅助函数
 #
 # 用法（在其它构建脚本中）:
 #   source "$(dirname "$0")/build-common.sh"
@@ -19,7 +19,7 @@
 #   .build/dist/        可移植包成品
 #   .build/deps/        第三方依赖（MPP / SVT / FFmpeg）
 
-# 仓库根目录（本文件位于 scripts/）
+# 仓库根目录（本文件位于 tools/）
 rkvc_repo_root() {
     local here
     here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

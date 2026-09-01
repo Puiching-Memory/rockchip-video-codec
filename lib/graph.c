@@ -38,6 +38,7 @@ void rkvc_port_set_desired(rkvc_port *p, const rkvc_frame_spec *spec) {
     p->fmt = *spec;
 }
 
+/** 合并单边尺寸：0 为通配；两边非 0 且不等则失败。 */
 static int merge_dimension(uint32_t a, uint32_t b, uint32_t *out) {
     if (a && b && a != b)
         return -1;
@@ -45,8 +46,8 @@ static int merge_dimension(uint32_t a, uint32_t b, uint32_t *out) {
     return 0;
 }
 
-/** Resolve one graph edge. UNKNOWN format accepts the peer's full spec;
- * dimensions and stride equal to zero are per-field wildcards. */
+/** 解析一条图边。UNKNOWN 格式接受对端完整 spec；
+ * 宽高/stride 为 0 时按字段级通配处理。 */
 static int negotiate_edge(rkvc_port *out, rkvc_port *in) {
     rkvc_frame_spec resolved;
 
@@ -120,6 +121,7 @@ void rkvc_graph_set_queue_capacity(rkvc_graph *g, size_t capacity) {
         g->queue_capacity = capacity;
 }
 
+/** 逆序 close/destroy 前 created 个节点并释放连接队列。 */
 static void reverse_release(rkvc_graph *g, size_t created) {
     size_t i;
     /* 逆序关闭已打开节点 */

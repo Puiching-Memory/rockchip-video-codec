@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/install-libsodium.sh — 从 third_party/libsodium 子模块源码构建并安装静态库
+# tools/install-libsodium.sh — 从 third_party/libsodium 子模块源码构建并安装静态库
 #
 # libsodium 使用 autotools 构建系统（无 CMakeLists），沿用本项目对非 CMake
 # 子模块（librga / SVT-AV1）的「install 脚本 + 前缀」惯例。
@@ -7,10 +7,10 @@
 # 提供 Ed25519 签名/验签与 SHA-256（1机1码授权所需），供 librkvc 与 rkvc_lic 静态链接。
 #
 # 用法:
-#   ./scripts/install-libsodium.sh
-#   PREFIX=/usr/local ./scripts/install-libsodium.sh   # 装到系统前缀（需写权限）
-#   BUILD_JOBS=8 ./scripts/install-libsodium.sh         # 指定并行编译任务数
-#   RKVC_TARGET_ARCH=aarch64 BUILD_DIR=... PREFIX=... ./scripts/install-libsodium.sh
+#   bash tools/install-libsodium.sh
+#   PREFIX=/usr/local bash tools/install-libsodium.sh   # 装到系统前缀（需写权限）
+#   BUILD_JOBS=8 bash tools/install-libsodium.sh         # 指定并行编译任务数
+#   RKVC_TARGET_ARCH=aarch64 BUILD_DIR=... PREFIX=... bash tools/install-libsodium.sh
 
 set -euo pipefail
 

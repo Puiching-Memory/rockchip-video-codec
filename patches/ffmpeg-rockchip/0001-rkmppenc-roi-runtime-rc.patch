@@ -1,0 +1,300 @@
+From: rkvc <rkvc@local>
+Subject: [PATCH] rkmppenc: hard ROI (KEY_ROI_DATA) + runtime RC update
+
+Bridge AV_FRAME_DATA_REGIONS_OF_INTEREST (+ rkvc_roi_force_intra metadata)
+to MPP KEY_ROI_DATA, and re-apply MPP_ENC_SET_CFG when avctx bit_rate/gop
+change mid-stream.
+
+---
+--- a/libavcodec/rkmppenc.h
++++ b/libavcodec/rkmppenc.h
+@@ -49,6 +49,8 @@
+     AVFrame            *frame;
+     MppFrame            mpp_frame;
+     MppEncUserDataSet   mpp_sei_set;
++    MppEncROICfg        mpp_roi_cfg;
++    MppEncROIRegion     mpp_roi_regions[8];
+     struct MPPEncFrame *next;
+     int                 queued;
+ } MPPEncFrame;
+@@ -87,6 +89,10 @@
+     int                intra_refresh;
+     int                refresh_mode;
+     int                refresh_num;
++
++    /* Runtime RC cache: re-apply MPP_ENC_SET_CFG when avctx bit_rate/gop changes. */
++    int64_t            applied_bps;
++    int                applied_gop;
+ } RKMPPEncContext;
+ 
+ static const AVRational mpp_tb = { 1, 1000000 };
+--- a/libavcodec/rkmppenc.c
++++ b/libavcodec/rkmppenc.c
+@@ -226,6 +226,8 @@
+ 
+                 av_freep(&list->mpp_sei_set.datas);
+                 list->mpp_sei_set.count = 0;
++                memset(&list->mpp_roi_cfg, 0, sizeof(list->mpp_roi_cfg));
++                memset(list->mpp_roi_regions, 0, sizeof(list->mpp_roi_regions));
+ 
+                 av_frame_free(&list->frame);
+                 list->queued = 0;
+@@ -258,6 +260,8 @@
+ 
+         av_freep(&frame->mpp_sei_set.datas);
+         frame->mpp_sei_set.count = 0;
++        memset(&frame->mpp_roi_cfg, 0, sizeof(frame->mpp_roi_cfg));
++        memset(frame->mpp_roi_regions, 0, sizeof(frame->mpp_roi_regions));
+ 
+         av_frame_free(&frame->frame);
+         av_freep(&frame);
+@@ -633,6 +637,9 @@
+         return AVERROR_EXTERNAL;
+     }
+ 
++    r->applied_bps = target_bps;
++    r->applied_gop = FFMAX(avctx->gop_size, 1);
++
+     if (avctx->codec_id == AV_CODEC_ID_H264 ||
+         avctx->codec_id == AV_CODEC_ID_HEVC) {
+         sei_mode = (r->udu_sei || (r->intra_refresh && r->refresh_num))
+@@ -712,6 +719,150 @@
+     return 0;
+ }
+ 
++/**
++ * Map FFmpeg AV_FRAME_DATA_REGIONS_OF_INTEREST onto MPP KEY_ROI_DATA.
++ *
++ * qoffset ∈ [-1,+1] → relative QP (×51). Optional frame metadata
++ * "rkvc_roi_force_intra" = "0,1,0,..." sets MppEncROIRegion.intra per region.
++ * Rectangles are 16-pixel aligned as required by MPP.
++ */
++static int rkmpp_prepare_roi_data(AVCodecContext *avctx, MPPEncFrame *mpp_enc_frame)
++{
++    AVFrameSideData *sd;
++    const AVRegionOfInterest *roi;
++    uint32_t roi_size;
++    int nb_roi, i, ret;
++    MppMeta mpp_meta;
++    int fw, fh;
++    const char *intra_meta = NULL;
++    AVDictionaryEntry *intra_ent;
++
++    if (!mpp_enc_frame || !mpp_enc_frame->frame || !mpp_enc_frame->mpp_frame)
++        return AVERROR(EINVAL);
++
++    if (avctx->codec_id != AV_CODEC_ID_H264 &&
++        avctx->codec_id != AV_CODEC_ID_HEVC)
++        return 0;
++
++    sd = av_frame_get_side_data(mpp_enc_frame->frame,
++                                AV_FRAME_DATA_REGIONS_OF_INTEREST);
++    if (!sd)
++        return 0;
++
++    roi = (const AVRegionOfInterest *)sd->data;
++    roi_size = roi->self_size;
++    if (!roi_size || sd->size % roi_size != 0) {
++        av_log(avctx, AV_LOG_WARNING, "Invalid ROI side data size, skipping\n");
++        return 0;
++    }
++
++    nb_roi = sd->size / (int)roi_size;
++    if (nb_roi > 8) {
++        av_log(avctx, AV_LOG_WARNING,
++               "ROI count %d exceeds MPP legacy limit 8, truncating\n", nb_roi);
++        nb_roi = 8;
++    }
++
++    fw = mpp_frame_get_width(mpp_enc_frame->mpp_frame);
++    fh = mpp_frame_get_height(mpp_enc_frame->mpp_frame);
++    if (fw <= 0)
++        fw = avctx->width;
++    if (fh <= 0)
++        fh = avctx->height;
++
++    intra_ent = av_dict_get(mpp_enc_frame->frame->metadata, "rkvc_roi_force_intra",
++                            NULL, 0);
++    if (intra_ent)
++        intra_meta = intra_ent->value;
++
++    memset(mpp_enc_frame->mpp_roi_regions, 0,
++           sizeof(mpp_enc_frame->mpp_roi_regions));
++    memset(&mpp_enc_frame->mpp_roi_cfg, 0, sizeof(mpp_enc_frame->mpp_roi_cfg));
++
++    for (i = 0; i < nb_roi; i++) {
++        int top, bottom, left, right, w, h, qp_delta, force_intra = 0;
++        int n = (int)mpp_enc_frame->mpp_roi_cfg.number;
++        MppEncROIRegion *dst;
++
++        roi = (const AVRegionOfInterest *)(sd->data + (size_t)roi_size * i);
++        if (roi->qoffset.den == 0) {
++            av_log(avctx, AV_LOG_WARNING, "ROI[%d] qoffset.den=0, skip\n", i);
++            continue;
++        }
++
++        top    = FFMAX(roi->top, 0);
++        left   = FFMAX(roi->left, 0);
++        bottom = FFMIN(roi->bottom, fh);
++        right  = FFMIN(roi->right, fw);
++        if (bottom <= top || right <= left)
++            continue;
++
++        /* MPP prefers 16-pixel aligned rectangles */
++        left   = ALIGN_DOWN(left, 16);
++        top    = ALIGN_DOWN(top, 16);
++        right  = FFMIN(FFALIGN(right, 16), fw);
++        bottom = FFMIN(FFALIGN(bottom, 16), fh);
++        w = right - left;
++        h = bottom - top;
++        if (w <= 0 || h <= 0)
++            continue;
++
++        /* qoffset ∈ [-1,1] → relative QP; negative = better quality */
++        qp_delta = (int)(roi->qoffset.num * 51.0 / roi->qoffset.den);
++        if (qp_delta > 51)
++            qp_delta = 51;
++        if (qp_delta < -51)
++            qp_delta = -51;
++
++        if (intra_meta) {
++            const char *p = intra_meta;
++            int idx = 0;
++            while (*p && idx < i) {
++                if (*p == ',')
++                    idx++;
++                p++;
++            }
++            if (idx == i && *p == '1')
++                force_intra = 1;
++        }
++
++        dst = &mpp_enc_frame->mpp_roi_regions[n];
++        dst->x = (RK_U16)left;
++        dst->y = (RK_U16)top;
++        dst->w = (RK_U16)w;
++        dst->h = (RK_U16)h;
++        dst->intra = force_intra ? 1 : 0;
++        dst->quality = (RK_S16)qp_delta;
++        dst->qp_area_idx = 0;
++        dst->area_map_en = 1;
++        dst->abs_qp_en = 0; /* relative QP */
++
++        mpp_enc_frame->mpp_roi_cfg.number = (RK_U32)(n + 1);
++
++        av_log(avctx, AV_LOG_DEBUG,
++               "MPP ROI[%d]: (%d,%d) %dx%d qp_delta=%d intra=%d\n",
++               n, left, top, w, h, qp_delta, force_intra);
++    }
++
++    if (mpp_enc_frame->mpp_roi_cfg.number == 0)
++        return 0;
++
++    mpp_enc_frame->mpp_roi_cfg.regions = mpp_enc_frame->mpp_roi_regions;
++
++    mpp_meta = mpp_frame_get_meta(mpp_enc_frame->mpp_frame);
++    if (!mpp_meta) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to get frame meta for ROI\n");
++        return AVERROR_EXTERNAL;
++    }
++    if ((ret = mpp_meta_set_ptr(mpp_meta, KEY_ROI_DATA,
++                                (void *)&mpp_enc_frame->mpp_roi_cfg)) != MPP_OK) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to set KEY_ROI_DATA: %d\n", ret);
++        return AVERROR_EXTERNAL;
++    }
++
++    return 0;
++}
++
+ static MPPEncFrame *rkmpp_submit_frame(AVCodecContext *avctx, AVFrame *frame)
+ {
+     RKMPPEncContext *r = avctx->priv_data;
+@@ -896,6 +1047,13 @@
+             goto exit;
+     }
+ 
++    if (avctx->codec_id == AV_CODEC_ID_H264 ||
++        avctx->codec_id == AV_CODEC_ID_HEVC) {
++        ret = rkmpp_prepare_roi_data(avctx, mpp_enc_frame);
++        if (ret < 0)
++            goto exit;
++    }
++
+     return mpp_enc_frame;
+ 
+ exit:
+@@ -906,6 +1064,64 @@
+     return NULL;
+ }
+ 
++/**
++ * Lightweight runtime bitrate / GOP update (no prep/profile rewrite).
++ * Triggered when callers mutate avctx->bit_rate / gop_size mid-stream.
++ */
++static int rkmpp_update_rc_if_needed(AVCodecContext *avctx)
++{
++    RKMPPEncContext *r = avctx->priv_data;
++    MppEncCfg cfg = r->mcfg;
++    int64_t target_bps = FFMIN(avctx->bit_rate, INT_MAX);
++    int gop = FFMAX(avctx->gop_size, 1);
++    int64_t max_bps, min_bps;
++    RK_U32 rc_mode;
++    int ret;
++
++    if (!r->cfg_init || !cfg || !r->mapi || !r->mctx)
++        return 0;
++    if (target_bps == r->applied_bps && gop == r->applied_gop)
++        return 0;
++    if (avctx->codec_id != AV_CODEC_ID_H264 &&
++        avctx->codec_id != AV_CODEC_ID_HEVC)
++        return 0;
++
++    rc_mode = r->rc_mode;
++    if (rc_mode == MPP_ENC_RC_MODE_BUTT)
++        rc_mode = MPP_ENC_RC_MODE_CBR;
++
++    mpp_enc_cfg_set_s32(cfg, "rc:gop", gop);
++
++    if (rc_mode == MPP_ENC_RC_MODE_FIXQP) {
++        /* bitrate ignored in CQP */
++    } else if (rc_mode == MPP_ENC_RC_MODE_VBR ||
++               rc_mode == MPP_ENC_RC_MODE_AVBR) {
++        max_bps = target_bps * 17 / 16;
++        min_bps = target_bps * 1 / 16;
++        mpp_enc_cfg_set_s32(cfg, "rc:bps_target", (int32_t)target_bps);
++        mpp_enc_cfg_set_s32(cfg, "rc:bps_max", (int32_t)FFMIN(max_bps, INT_MAX));
++        mpp_enc_cfg_set_s32(cfg, "rc:bps_min", (int32_t)min_bps);
++    } else {
++        max_bps = target_bps * 17 / 16;
++        min_bps = target_bps * 15 / 16;
++        mpp_enc_cfg_set_s32(cfg, "rc:bps_target", (int32_t)target_bps);
++        mpp_enc_cfg_set_s32(cfg, "rc:bps_max", (int32_t)FFMIN(max_bps, INT_MAX));
++        mpp_enc_cfg_set_s32(cfg, "rc:bps_min", (int32_t)min_bps);
++    }
++
++    if ((ret = r->mapi->control(r->mctx, MPP_ENC_SET_CFG, cfg)) != MPP_OK) {
++        av_log(avctx, AV_LOG_ERROR, "Failed to update RC config: %d\n", ret);
++        return AVERROR_EXTERNAL;
++    }
++
++    av_log(avctx, AV_LOG_VERBOSE,
++           "Runtime RC update: bps %"PRId64" -> %"PRId64", gop %d -> %d\n",
++           r->applied_bps, target_bps, r->applied_gop, gop);
++    r->applied_bps = target_bps;
++    r->applied_gop = gop;
++    return 0;
++}
++
+ static int rkmpp_send_frame(AVCodecContext *avctx, MPPEncFrame *mpp_enc_frame)
+ {
+     RKMPPEncContext *r = avctx->priv_data;
+@@ -921,6 +1137,9 @@
+     if (frame && (ret = rkmpp_set_enc_cfg_prep(avctx, frame)) < 0)
+         goto exit;
+ 
++    if (frame && (ret = rkmpp_update_rc_if_needed(avctx)) < 0)
++        goto exit;
++
+     if ((avctx->codec_id == AV_CODEC_ID_H264 ||
+          avctx->codec_id == AV_CODEC_ID_HEVC) &&
+          frame && frame->pict_type == AV_PICTURE_TYPE_I) {

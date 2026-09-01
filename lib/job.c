@@ -17,18 +17,19 @@
 #include <pthread.h>
 #include <string.h>
 
+/** @brief rkvc_job 内部结构：规划结果 + 执行线程 + 完成同步。 */
 struct rkvc_job {
     const rkvc_context *ctx;    /* 持有引用，保证工厂/节点 DSO 生命周期 */
-    rkvc_request        req;
-    rkvc_graph         *graph;
+    rkvc_request        req;    /* 请求深拷贝（uri/model_id 自有副本） */
+    rkvc_graph         *graph;  /* 已构建/打开的图 */
     rkvc_exec          *exec;   /* == graph->exec */
-    pthread_t           thread;
-    pthread_mutex_t     mutex;
-    pthread_cond_t      finished_cond;
+    pthread_t           thread;      /* 执行线程（run 阻塞在此线程内） */
+    pthread_mutex_t     mutex;       /* 保护以下生命周期字段 */
+    pthread_cond_t      finished_cond; /* 等待执行线程完成 */
     int                 thread_started;
-    int                 joining;
-    int                 joined;
-    int                 finished;
+    int                 joining;     /* 某线程正在 join */
+    int                 joined;      /* 执行线程已回收 */
+    int                 finished;    /* 执行线程已置完成标记 */
     int                 state;  /* 0=planned 1=running 2=finished */
     int                 run_status;
     rkvc_diag          *diag;
@@ -37,6 +38,7 @@ struct rkvc_job {
     char               *model_id;
 };
 
+/** 库内 strdup（经 rkvc_g_calloc，便于统一审计）。 */
 static char *job_strdup(const char *s) {
     char *copy;
     size_t len;
@@ -49,12 +51,14 @@ static char *job_strdup(const char *s) {
     return copy;
 }
 
+/** 释放请求字符串的自有副本。 */
 static void job_free_strings(struct rkvc_job *j) {
     rkvc_g_free(j->input_uri);
     rkvc_g_free(j->output_uri);
     rkvc_g_free(j->model_id);
 }
 
+/** 反复 build 直到成功或候选耗尽；成功时计划所有权移交给图。 */
 static int graph_build_with_fallback(rkvc_plan *plan, rkvc_diag **diag,
                                      rkvc_graph **out) {
     int rc;
@@ -85,6 +89,7 @@ static int graph_build_with_fallback(rkvc_plan *plan, rkvc_diag **diag,
     }
 }
 
+/** open 失败（HW）时回退到次优候选重建图，直到成功或候选耗尽。 */
 static int job_open_with_fallback(struct rkvc_job *job, rkvc_diag **diag) {
     for (;;) {
         size_t failed_step;
@@ -115,6 +120,7 @@ static int job_open_with_fallback(struct rkvc_job *job, rkvc_diag **diag) {
     }
 }
 
+/** 作业执行线程：跑执行器并在完成时广播 finished_cond。 */
 static void *job_thread(void *argp) {
     struct rkvc_job *j = argp;
     j->run_status = rkvc_exec_run(j->exec, &j->diag);

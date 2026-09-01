@@ -74,7 +74,7 @@ typedef enum rkvc_status {
  * 后续扩展时保持向后兼容；`api_version` 由调用方填入其编译时的 ABI 版本。
  */
 typedef struct rkvc_header {
-    size_t    struct_size;   /**< sizeof(caller struct) */
+    size_t    struct_size;   /**< sizeof(调用方结构体) */
     uint32_t  api_version;   /**< RKVC_ABI_VERSION */
     uint32_t  reserved;      /**< 保留，恒为 0 */
 } rkvc_header;

@@ -2,7 +2,14 @@
 #ifndef RKVC_RKVC_H
 #define RKVC_RKVC_H
 
-/* Application API. Backend authors should additionally include backend.h. */
+/**
+ * @file rkvc.h
+ * @brief rkvc 聚合头：一条 include 引入全部公共应用 API。
+ *
+ * 应用侧只需包含本头文件（等价于 rkvc/api.h）。后端 DSO 作者额外
+ * 包含 rkvc/backend.h。
+ */
+
 #include "rkvc/api.h"
 
 #endif /* RKVC_RKVC_H */

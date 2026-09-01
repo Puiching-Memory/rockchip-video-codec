@@ -67,7 +67,7 @@ else()
 endif()
 
 if(RKVC_BUILD_CLI)
-    add_executable(rkvc_cli cli/rkvc.c)
+    add_executable(rkvc_cli rkvc.c)
     set_target_properties(rkvc_cli PROPERTIES
         OUTPUT_NAME rkvc
         INSTALL_RPATH "$ORIGIN/../lib"
@@ -76,8 +76,24 @@ if(RKVC_BUILD_CLI)
     target_include_directories(rkvc_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 endif()
 
+if(RKVC_BUILD_EXAMPLES)
+    foreach(example decode_file encode_file transcode stream_ports
+                    roi_encode adaptive_bitrate live_capture net_loopback
+                    live_transcode_ports upscale_ctx)
+        add_executable(example_${example}
+            examples/${example}.c examples/example_common.c)
+        target_include_directories(example_${example} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+        target_link_libraries(example_${example} PRIVATE
+            rkvc rkvc_instrumentation)
+        set_target_properties(example_${example} PROPERTIES
+            INSTALL_RPATH "$ORIGIN/../../../lib"
+            BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR}")
+    endforeach()
+endif()
+
 if(RKVC_BUILD_BACKEND_MPP)
-    add_library(rkvc_backend_mpp MODULE backends/mpp/backend_mpp.c)
+    add_library(rkvc_backend_mpp MODULE backends/backend_mpp.c)
     target_include_directories(rkvc_backend_mpp PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${MPP_INCLUDE_DIR})

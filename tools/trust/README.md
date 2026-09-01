@@ -1,5 +1,7 @@
 # 模型签名信任根（trust root）
 
+信任根配置与其他主机侧工具统一放在 `tools/` 下。
+
 `.rkmodel` 容器的 Ed25519 验签公钥在编译期固定进 `librkvc`：
 
 - **dev 根**：`dev-root.pub`（64 字符 hex，首行注释为 key_id）。

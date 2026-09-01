@@ -10,17 +10,21 @@
 
 ### 新增
 
+- **0.4 实机性能基准**：重建 `tools/bench/`，以零第三方依赖的 Python 驱动器对统一 CLI 的 decode/encode/transcode 做预热和多轮采样，记录 FPS、实时倍速、I/O 吞吐、MP/s、mean/median/p95/stdev、板卡温度与 CPU governor；支持 JSON/CSV 留档、矩阵筛选及可用于板卡回归门禁的性能阈值。
+- **0.4 示例与 ROI/热控恢复**：按 Context/Request/Job/Frame API 重写 0.3 的全部 10 个示例（文件、流式端口、合成采集、UDP loopback、ROI、自适应码率、实时转码与 upscale context）；ROI 改为逐帧 `rkvc_frame_desc` side data（深拷贝、最多 8 区、QP/边界校验），MPP 后端映射 `KEY_ROI_DATA`，并支持逐帧 bitrate/GOP/IDR 热控；转码编码器在协商期宽高未知时延迟到首个解码帧初始化。恢复 ffmpeg-rockchip ROI/runtime-RC 下游补丁及无修改 apply-check；新增 frame metadata 与公共 ABI 契约测试。
+
 - **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
 - **内建 fileio 后端与文件管线**：`lib/node_fileio.c` 提供 `file.source`（SOURCE 阶段，flush 阶段产出整个文件：码流按 256KB 分块、NV12 按帧切分）与 `file.sink`（SINK 阶段，码流直写、NV12/NV21/P010/YUV420P 逐行裁剪 stride 填充写出、DMABUF 经 mmap+DMA_BUF_IOCTL_SYNC）；`rkvc_plan_build` 对 FILE 端点自动注入/摘除 SOURCE/SINK 步骤（无 uri 时保持原行为），`rkvc_job_create` 拒绝缺 uri 的 FILE 端点。`rkvc_frame_spec` 新增 `ver_stride`（ABI 未冻结期允许的破坏性新增），协商合并逻辑同步覆盖。
-- **MPP 后端 DSO（解码 + 编码）**：`backends/mpp/backend_mpp.c` 重写为多 codec 节点后端——`mpp.decode` 支持 H.264/HEVC/AV1 显式 codec 与 AUTO/转码首包 Annex-B 探测（H264 SPS / HEVC VPS），解码输出帧回填 `ver_stride`；`mpp.encode` 新增 H.264/HEVC 硬编（DMA-BUF 零拷贝导入、HOST 帧按平面拷贝、CBR/FIXQP、每 IDR 头、EOS 排空）。优先 DMA-HEAP 缓冲组，回退 ION。
+- **MPP 后端 DSO（解码 + 编码）**：`backends/backend_mpp.c` 重写为多 codec 节点后端——`mpp.decode` 支持 H.264/HEVC/AV1 显式 codec 与 AUTO/转码首包 Annex-B 探测（H264 SPS / HEVC VPS），解码输出帧回填 `ver_stride`；`mpp.encode` 新增 H.264/HEVC 硬编（DMA-BUF 零拷贝导入、HOST 帧按平面拷贝、CBR/FIXQP、每 IDR 头、EOS 排空）。优先 DMA-HEAP 缓冲组，回退 ION。
 - **统一 CLI 媒体子命令**：`rkvc decode / encode / transcode` 落地（`-i/-o/--codec/--width/--height/--bitrate/--qp`，文本与 `--json` 状态输出，诊断链人类可读）；decode 可从扩展名推断 codec，encode 强制尺寸。upscale/bench/license 仍为“未包含”占位。
-- **发布管线依赖适配器**：`tools/rkvc_build/adapters/mpp.py`（子模块钉版本，同工具链/sysroot 交叉构建 MPP）与 `adapters/sodium.py`（经 `scripts/install-libsodium.sh` 交叉构建 libsodium）；`rkvc-build package` 新增 `deps-sodium` / `deps-mpp` 阶段与 `--no-mpp` 开关，MPP 运行库随包分发至扁平 `lib/`（与后端 DSO `$ORIGIN/../..` RPATH 对齐），libsodium 静态链入核心库；`build-install` 阶段安装前清空包根，杜绝历史过期产物混入。
+- **发布管线依赖适配器**：`tools/rkvc_build/adapters/mpp.py`（子模块钉版本，同工具链/sysroot 交叉构建 MPP）与 `adapters/sodium.py`（经 `tools/install-libsodium.sh` 交叉构建 libsodium）；`rkvc-build package` 新增 `deps-sodium` / `deps-mpp` 阶段与 `--no-mpp` 开关，MPP 运行库随包分发至扁平 `lib/`（与后端 DSO `$ORIGIN/../..` RPATH 对齐），libsodium 静态链入核心库；`build-install` 阶段安装前清空包根，杜绝历史过期产物混入。
 - **`.rkmodel` v1 线格式与模型信任链**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV + 载荷表含 SHA-256 + 可选 Ed25519 签名尾）与读取器 `lib/rkmodel.c`、注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰）；trust root dev/prod 分离（`RKVC_ENABLE_MODEL_SIGN` + `RKVC_TRUST_PUBKEY_HEX` + `RKVC_TRUST_PRODUCTION`），CLI `rkvc inspect models` 接入真实注册表；Python 签名 → C 验证互操作闭环。
 - **统一发布路径 `tools/rkvc-build`**（stdlib Python）：sysroot 锁定（SHA-256 锁文件）→ 交叉构建 → SBOM（CycloneDX 1.5）/许可证归集 → 封装（SHA256SUMS + provenance）→ 产物验证（ELF 架构/解释器、glibc 2.31 基线、绝对 RPATH 拒绝）→ 确定性归档 → QEMU 冒烟；重复归档字节级一致。
 
 ### 变更
 
-- **SHA-256 收敛到 libsodium**：删除自研 `lib/sha256.c`/`sha256.h`（FIPS 180-4），`.rkmodel` 载荷摘要与 key_id 计算统一走 libsodium `crypto_hash_sha256`；唯一核心库与单元测试均要求先运行 `./scripts/install-libsodium.sh`。
+- **开发工具目录收敛**：原 `scripts/` 剩余的依赖构建、公共 shell helper、ABI 导出检查和 trust 说明全部迁入 `tools/`，CI、CMake 诊断与文档调用路径同步更新，不再维护两个平行工具根目录。
+- **SHA-256 收敛到 libsodium**：删除自研 `lib/sha256.c`/`sha256.h`（FIPS 180-4），`.rkmodel` 载荷摘要与 key_id 计算统一走 libsodium `crypto_hash_sha256`；唯一核心库与单元测试均要求先运行 `bash tools/install-libsodium.sh`。
 
 ### 进行中
 

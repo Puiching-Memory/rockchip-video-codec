@@ -11,7 +11,7 @@ if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
     message(FATAL_ERROR
         "libsodium not found at ${LIBSODIUM_PREFIX}/lib/libsodium.a\n"
         "  Run: git submodule update --init third_party/libsodium\n"
-        "       ./scripts/install-libsodium.sh")
+        "       bash tools/install-libsodium.sh")
 endif()
 set(RKVC_SODIUM_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
 set(RKVC_SODIUM_INCLUDES ${LIBSODIUM_PREFIX}/include)
@@ -35,8 +35,8 @@ endif()
 if(RKVC_ENABLE_MODEL_SIGN)
     set(_trust_pub "${RKVC_TRUST_PUBKEY_HEX}")
     if(NOT _trust_pub AND NOT RKVC_TRUST_PRODUCTION AND
-       EXISTS "${CMAKE_SOURCE_DIR}/scripts/trust/dev-root.pub")
-        file(STRINGS "${CMAKE_SOURCE_DIR}/scripts/trust/dev-root.pub" _pub_lines)
+       EXISTS "${CMAKE_SOURCE_DIR}/tools/trust/dev-root.pub")
+        file(STRINGS "${CMAKE_SOURCE_DIR}/tools/trust/dev-root.pub" _pub_lines)
         foreach(_line IN LISTS _pub_lines)
             if(NOT _line MATCHES "^#")
                 set(_trust_pub "${_line}")

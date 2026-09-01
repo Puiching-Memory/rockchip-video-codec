@@ -35,6 +35,16 @@ if(RKVC_BUILD_CLI)
         COMPONENT runtime)
 endif()
 
+if(RKVC_BUILD_EXAMPLES)
+    install(TARGETS
+        example_decode_file example_encode_file example_transcode
+        example_stream_ports example_roi_encode example_adaptive_bitrate
+        example_live_capture example_net_loopback
+        example_live_transcode_ports example_upscale_ctx
+        RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/rkvc/examples
+        COMPONENT examples)
+endif()
+
 install(DIRECTORY DESTINATION ${CMAKE_INSTALL_LIBDIR}/rkvc/backends
     COMPONENT runtime)
 install(DIRECTORY DESTINATION ${CMAKE_INSTALL_DATADIR}/rkvc/models

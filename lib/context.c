@@ -20,6 +20,7 @@
 #define FIELD_AVAILABLE(type, size, field) \
     ((size) >= offsetof(type, field) + sizeof(((type *)0)->field))
 
+/** 校验调用方头部：struct_size 覆盖 minimum 且 ABI major 一致（0 视为未填）。 */
 static int header_compatible(const rkvc_header *h, size_t minimum) {
     uint32_t caller_major;
     if (!h || h->struct_size < minimum)
@@ -30,6 +31,7 @@ static int header_compatible(const rkvc_header *h, size_t minimum) {
     return caller_major == RKVC_ABI_VERSION_MAJOR;
 }
 
+/** 释放上下文持有的路径深拷贝。 */
 static void free_paths(rkvc_context *ctx) {
     size_t i;
     for (i = 0; i < ctx->paths.backend_dir_count; ++i)
@@ -41,6 +43,7 @@ static void free_paths(rkvc_context *ctx) {
     rkvc_g_free(ctx->model_dir_override);
 }
 
+/** 深拷贝字符串目录列表；owned_out 归上下文所有，view_out 供公共视图使用。 */
 static rkvc_status copy_dir_list(const char **src, size_t count,
                                  char ***owned_out, const char ***view_out) {
     char **owned;
@@ -78,6 +81,7 @@ nomem:
     return RKVC_STATUS_NOMEM;
 }
 
+/** 从 device-tree compatible 探测 SoC 名称（取第一个 rockchip,<soc>）。 */
 static void probe_soc(char *out, size_t out_size) {
     FILE *fp;
     const char *path = "/proc/device-tree/compatible";
@@ -111,6 +115,7 @@ static void probe_soc(char *out, size_t out_size) {
     }
 }
 
+/** 探测设备能力基线；硬件能力位由后端注册时按 capability_flags 补齐。 */
 static void probe_device(rkvc_device_caps *caps) {
     memset(caps, 0, sizeof(*caps));
     probe_soc(caps->soc, sizeof(caps->soc));
@@ -222,6 +227,7 @@ const char *rkvc_backend_id(const rkvc_context *ctx, size_t idx) {
 
 /* ── 注册表 ───────────────────────────────────────────────────────── */
 
+/** 校验后端工厂表：id/backend_id/stage/matches/create 齐备且数量有界。 */
 static rkvc_status validate_backend_factories(const rkvc_backend *be) {
     const rkvc_node_factory *factories;
     size_t count = 0, i;
@@ -306,11 +312,13 @@ const rkvc_node_factory *rkvc_registry_find_factory(const rkvc_context *ctx,
 
 /* ── 规划器 ───────────────────────────────────────────────────────── */
 
+/** 排名条目：工厂与其综合分（priority + score 加成）。 */
 struct ranked_factory {
     const rkvc_node_factory *factory;
     int score;
 };
 
+/** qsort 比较器：分数降序，平分按 backend_id/id 字典序（确定性）。 */
 static int ranked_factory_cmp(const void *ap, const void *bp) {
     const struct ranked_factory *a = ap;
     const struct ranked_factory *b = bp;
@@ -350,9 +358,8 @@ int rkvc_plan_build(const rkvc_context *ctx, const rkvc_request *req,
         break;
     case RKVC_OPERATION_TRANSCODE:
         required[required_count++] = RKVC_NODE_STAGE_DECODE;
-        /* A transform is optional and selected only when the request asks for
-         * a size change or a matching transform factory is explicitly forced
-         * by model_id. */
+        /* transform 节点可选：仅当请求指定了输出尺寸，或 model_id 显式
+         * 强制匹配的 transform 工厂时才纳入计划。 */
         if (req->width || req->height || req->model_id)
             required[required_count++] = RKVC_NODE_STAGE_TRANSFORM;
         required[required_count++] = RKVC_NODE_STAGE_ENCODE;

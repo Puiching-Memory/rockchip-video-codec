@@ -11,6 +11,7 @@ set(RKVC_VERSION_COMPILE_DEFS
 option(RKVC_BUILD_SHARED "Build librkvc shared library" ON)
 option(RKVC_BUILD_STATIC "Build librkvc static library" ON)
 option(RKVC_BUILD_CLI "Build the unified rkvc CLI" ON)
+option(RKVC_BUILD_EXAMPLES "Build public API examples" ON)
 option(RKVC_BUILD_TESTS "Build unit tests (CMocka)" OFF)
 option(RKVC_BUILD_DOCS "Build Doxygen API docs" OFF)
 option(RKVC_BUILD_BACKEND_MPP

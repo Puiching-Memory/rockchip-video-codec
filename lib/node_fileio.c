@@ -38,11 +38,13 @@ static void fileio_frame_release(void *ptr) {
 
 /* ── file.source ─────────────────────────────────────────────────── */
 
+/** file.source 节点私有状态。 */
 typedef struct file_source {
-    rkvc_request request;
-    FILE        *fp;
+    rkvc_request request; /**< 请求副本（读取 uri/操作类型） */
+    FILE        *fp;      /**< flush 阶段打开的输入文件 */
 } file_source;
 
+/** 声明输出格式：DECODE/TRANSCODE/UPSCALE 为 BITSTREAM，ENCODE 为 NV12。 */
 static int source_configure(rkvc_node *node, rkvc_diag **diag) {
     file_source *src = node->priv;
     rkvc_frame_spec out = {0};
@@ -74,6 +76,7 @@ static int source_configure(rkvc_node *node, rkvc_diag **diag) {
     return 0;
 }
 
+/** 打开输入文件（实例化阶段；失败产生 IO 诊断）。 */
 static int source_open(rkvc_node *node, rkvc_diag **diag) {
     file_source *src = node->priv;
 
@@ -87,6 +90,7 @@ static int source_open(rkvc_node *node, rkvc_diag **diag) {
     return 0;
 }
 
+/** 把一块读入的数据包装为帧并推入输出端口；失败时自行释放缓冲。 */
 static int source_emit(rkvc_node *node, const rkvc_frame_spec *spec,
                        void *data, size_t size) {
     rkvc_frame_desc desc;
@@ -109,7 +113,7 @@ static int source_emit(rkvc_node *node, const rkvc_frame_spec *spec,
     return rc;
 }
 
-/* 源节点在 flush 阶段（输入队列 EOS 触发）产出整个文件。 */
+/** 源节点在 flush 阶段（输入队列 EOS 触发）产出整个文件。 */
 static int source_flush(rkvc_node *node, rkvc_diag **diag) {
     file_source *src = node->priv;
     const rkvc_frame_spec *spec = &node->out_ports[0].fmt;
@@ -153,6 +157,7 @@ static int source_flush(rkvc_node *node, rkvc_diag **diag) {
     return 0;
 }
 
+/** 关闭输入文件（幂等）。 */
 static void source_close(rkvc_node *node) {
     file_source *src = node->priv;
     if (src && src->fp) {
@@ -161,6 +166,7 @@ static void source_close(rkvc_node *node) {
     }
 }
 
+/** 通用销毁：先 close 再释放节点与端口数组（source/sink 共用）。 */
 static void fileio_destroy(rkvc_node *node) {
     if (!node)
         return;
@@ -177,6 +183,7 @@ static const rkvc_node_ops source_ops = {
     source_close, fileio_destroy,
 };
 
+/** matches 回调：纯软件节点对任意操作/编码/设备恒可用。 */
 static int fileio_matches_any(rkvc_operation op, rkvc_codec codec,
                               const rkvc_device_caps *caps) {
     (void)op;
@@ -185,6 +192,7 @@ static int fileio_matches_any(rkvc_operation op, rkvc_codec codec,
     return 1;
 }
 
+/** 创建 file.source 节点（单输出端口 "out"；仅接受 FILE 输入端点）。 */
 static rkvc_node *source_create(const rkvc_node_factory *factory,
                                 const rkvc_request *request,
                                 void *create_ctx) {
@@ -217,13 +225,15 @@ static rkvc_node *source_create(const rkvc_node_factory *factory,
 
 /* ── file.sink ───────────────────────────────────────────────────── */
 
+/** file.sink 节点私有状态与写出统计。 */
 typedef struct file_sink {
-    rkvc_request request;
-    FILE        *fp;
-    uint64_t     frames;
-    uint64_t     bytes;
+    rkvc_request request; /**< 请求副本（读取 output.uri） */
+    FILE        *fp;      /**< 打开的输出文件 */
+    uint64_t     frames;  /**< 已写出帧数 */
+    uint64_t     bytes;   /**< 已写出字节数 */
 } file_sink;
 
+/** 接受上游任意已解析格式（UNKNOWN 通配）。 */
 static int sink_configure(rkvc_node *node, rkvc_diag **diag) {
     rkvc_frame_spec in = {0}; /* UNKNOWN：接受上游任意已解析格式 */
     (void)diag;
@@ -232,6 +242,7 @@ static int sink_configure(rkvc_node *node, rkvc_diag **diag) {
     return 0;
 }
 
+/** 打开输出文件（"wb"，截断已存在文件）。 */
 static int sink_open(rkvc_node *node, rkvc_diag **diag) {
     file_sink *sink = node->priv;
 
@@ -245,13 +256,14 @@ static int sink_open(rkvc_node *node, rkvc_diag **diag) {
     return 0;
 }
 
+/** 原子写出一块数据；短写返回 IO 错误。 */
 static int sink_write(file_sink *sink, const void *data, size_t size) {
     size_t put = fwrite(data, 1, size, sink->fp);
     sink->bytes += put;
     return put == size ? 0 : (int)RKVC_STATUS_IO;
 }
 
-/* 按可见宽度逐行写出 Y/UV 平面，裁剪 stride 填充。 */
+/** 按可见宽度逐行写出 Y/UV 平面，裁剪 stride 填充。 */
 static int sink_write_video(file_sink *sink, const rkvc_frame_desc *desc,
                             const unsigned char *base) {
     const rkvc_frame_spec *spec = &desc->spec;
@@ -301,12 +313,14 @@ static int sink_write_video(file_sink *sink, const rkvc_frame_desc *desc,
 }
 
 #ifdef __linux__
+/** DMA-BUF 读同步 ioctl（best effort，失败不影响数据读取）。 */
 static void dmabuf_read_sync(int fd, unsigned long flags) {
     struct dma_buf_sync sync = {flags};
     (void)ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync); /* best effort */
 }
 #endif
 
+/** 处理一帧：码流按载荷直写；原始帧按平面裁剪写出（DMA-BUF 先 mmap）。 */
 static int sink_process(rkvc_node *node, rkvc_frame *input,
                         rkvc_diag **diag) {
     file_sink *sink = node->priv;
@@ -355,6 +369,7 @@ static int sink_process(rkvc_node *node, rkvc_frame *input,
     return rc;
 }
 
+/** 关闭输出文件（幂等）。 */
 static void sink_close(rkvc_node *node) {
     file_sink *sink = node->priv;
     if (sink && sink->fp) {
@@ -368,6 +383,7 @@ static const rkvc_node_ops sink_ops = {
     sink_close, fileio_destroy,
 };
 
+/** 创建 file.sink 节点（单输入端口 "in"；仅接受 FILE 输出端点）。 */
 static rkvc_node *sink_create(const rkvc_node_factory *factory,
                               const rkvc_request *request,
                               void *create_ctx) {
@@ -401,6 +417,7 @@ static rkvc_node *sink_create(const rkvc_node_factory *factory,
 
 /* ── 后端描述符与注册 ─────────────────────────────────────────────── */
 
+/** fileio 后端工厂表：source 与 sink 两个条目。 */
 static const rkvc_node_factory fileio_factories[] = {
     {
         .id = "file.source",
@@ -420,6 +437,7 @@ static const rkvc_node_factory fileio_factories[] = {
     },
 };
 
+/** factories 回调：返回静态工厂表。 */
 static const rkvc_node_factory *fileio_factory_list(void *probe_ctx,
                                                     size_t *count) {
     (void)probe_ctx;
@@ -427,6 +445,7 @@ static const rkvc_node_factory *fileio_factory_list(void *probe_ctx,
     return fileio_factories;
 }
 
+/** probe 回调：纯软件节点，无设备依赖，恒通过。 */
 static int fileio_probe(const rkvc_device_caps *caps, void *probe_ctx,
                         rkvc_diag **diag) {
     (void)caps;
@@ -435,6 +454,7 @@ static int fileio_probe(const rkvc_device_caps *caps, void *probe_ctx,
     return 0; /* 纯软件节点，始终可用 */
 }
 
+/** fileio 后端描述符（静态存储，随核心库常驻）。 */
 static const rkvc_backend fileio_backend = {
     .abi_version = RKVC_ABI_VERSION,
     .id = "fileio",

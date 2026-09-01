@@ -23,6 +23,7 @@
 #define EXIT_RUNTIME 1
 #define EXIT_USAGE   2
 
+/** 输出用法说明到 out（stdout 或 stderr）。 */
 static void usage(FILE *out) {
     fputs(
         "rkvc " "— Rockchip video codec toolkit\n"
@@ -44,6 +45,7 @@ static void usage(FILE *out) {
 }
 
 /* ── 极简 JSON 输出（字段均为库内受控字符串） ────────────────────── */
+/** 输出一个 JSON 字符串字面量（转义控制字符与引号）。 */
 static void json_escape(FILE *out, const char *s) {
     const unsigned char *p = (const unsigned char *)s;
     fputc('"', out);
@@ -64,6 +66,7 @@ static void json_escape(FILE *out, const char *s) {
     fputc('"', out);
 }
 
+/** version 子命令：打印库与 ABI 版本。 */
 static int cmd_version(int json) {
     if (json) {
         printf("{\"version\": ");
@@ -75,6 +78,7 @@ static int cmd_version(int json) {
     return 0;
 }
 
+/** inspect device 子命令：创建上下文并输出设备能力。 */
 static int cmd_inspect_device(int json) {
     rkvc_context *ctx = NULL;
     rkvc_device_caps caps;
@@ -114,6 +118,7 @@ static int cmd_inspect_device(int json) {
     return 0;
 }
 
+/** inspect backends 子命令：列出已装载后端 id。 */
 static int cmd_inspect_backends(int json) {
     rkvc_context *ctx = NULL;
     rkvc_status st = rkvc_context_create(NULL, &ctx);
@@ -145,6 +150,7 @@ static int cmd_inspect_backends(int json) {
     return 0;
 }
 
+/** 信任级别转稳定字符串（文本与 JSON 输出共用）。 */
 static const char *trust_str(rkvc_model_trust t) {
     switch (t) {
     case RKVC_MODEL_TRUST_UNSIGNED:    return "unsigned";
@@ -154,6 +160,7 @@ static const char *trust_str(rkvc_model_trust t) {
     }
 }
 
+/** 输出一个模型候选的 JSON 对象（last 控制数组分隔符）。 */
 static void print_model_json(const rkvc_model_info *m, int last) {
     printf("{\"id\": ");
     json_escape(stdout, m->id);
@@ -170,6 +177,7 @@ static void print_model_json(const rkvc_model_info *m, int last) {
     printf(", \"payload_mask\": %u}%s", m->payload_mask, last ? "" : ", ");
 }
 
+/** inspect models 子命令：列出模型注册表候选摘要。 */
 static int cmd_inspect_models(int json) {
     rkvc_context *ctx = NULL;
     rkvc_status st = rkvc_context_create(NULL, &ctx);
@@ -205,6 +213,7 @@ static int cmd_inspect_models(int json) {
     return 0;
 }
 
+/** 未构建进本二进制的媒体子命令（upscale/bench/license）统一拒绝。 */
 static int cmd_media_unavailable(const char *name, int json) {
     if (json)
         printf("{\"command\": \"%s\", \"status\": \"error\", "
@@ -218,6 +227,7 @@ static int cmd_media_unavailable(const char *name, int json) {
 
 /* ── 媒体子命令（decode/encode/transcode） ───────────────────────── */
 
+/** 解析 --codec 参数（h264/hevc/av1 及常见别名）；失败置 *ok=0。 */
 static rkvc_codec parse_codec(const char *s, int *ok) {
     *ok = 1;
     if (!s || strcmp(s, "auto") == 0) return RKVC_CODEC_AUTO;
@@ -230,7 +240,7 @@ static rkvc_codec parse_codec(const char *s, int *ok) {
     return RKVC_CODEC_AUTO;
 }
 
-/* 由输入扩展名推断解码/转码输入编码；识别不了则 AUTO（后端嗅探）。 */
+/** 由输入扩展名推断解码/转码输入编码；识别不了则 AUTO（后端嗅探）。 */
 static rkvc_codec infer_codec_from_ext(const char *path) {
     const char *dot = path ? strrchr(path, '.') : NULL;
     if (!dot)
@@ -245,6 +255,7 @@ static rkvc_codec infer_codec_from_ext(const char *path) {
     return RKVC_CODEC_AUTO;
 }
 
+/** 把诊断链格式化为一行并打到 stderr。 */
 static void print_diag_text(const rkvc_diag *diag) {
     char buf[1024];
     if (!diag)
@@ -254,6 +265,7 @@ static void print_diag_text(const rkvc_diag *diag) {
         fprintf(stderr, "rkvc: %s\n", buf);
 }
 
+/** 媒体子命令公共实现：解析参数 → 建请求 → create/start/wait → 汇报。 */
 static int cmd_media(const char *name, rkvc_operation op,
                      int argc, char **argv, int start, int json) {
     const char *input = NULL, *output = NULL, *codec_s = NULL;
@@ -367,6 +379,7 @@ usage_err:
     return EXIT_USAGE;
 }
 
+/** CLI 入口：全局 --json 预扫描 + 子命令分发。 */
 int main(int argc, char **argv) {
     int json = 0;
     int i;

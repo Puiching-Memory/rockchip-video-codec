@@ -10,7 +10,7 @@
  *
  * 独立编译：
  *   cc -DRKVC_STANDALONE_TEST -Iinclude -Ilib \
- *      tests/test_graph_executor.c lib/graph.c lib/executor.c lib/frame.c \
+ *      tests/c/test_graph_executor.c lib/graph.c lib/executor.c lib/frame.c \
  *      lib/api.c lib/context.c -lcmocka -lpthread
  */
 
@@ -236,7 +236,7 @@ static void test_configure_rollback(void **st) {
     assert_int_equal(rkvc_registry_add_backend(ctx, &be.backend), RKVC_STATUS_OK);
     rkvc_request req; rkvc_request_init(&req, sizeof(req));
     req.operation = RKVC_OPERATION_TRANSCODE;
-    req.width = 640; /* request an explicit transform stage */
+    req.width = 640; /* 请求显式注入 transform 阶段 */
     assert_int_equal(rkvc_plan_build(ctx, &req, &caps, &plan, &diag), 0);
     assert_int_equal(plan.step_count, 3);
 
@@ -568,7 +568,7 @@ static void test_plan_deterministic(void **st) {
     (void)st;
 
     be_init(&be, 3, tags, fail);
-    /* Alternatives for one stage: score selects one; matches are not chained. */
+    /* 同一阶段的多个候选：按 score 选出唯一一个；matches 不会级联。 */
     be.fs[0].stage = RKVC_NODE_STAGE_DECODE; be.fs[0].priority = 10;
     be.fs[1].stage = RKVC_NODE_STAGE_DECODE; be.fs[1].priority = 30;
     be.fs[2].stage = RKVC_NODE_STAGE_DECODE; be.fs[2].priority = 20;

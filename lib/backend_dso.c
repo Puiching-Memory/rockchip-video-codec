@@ -25,6 +25,7 @@
 #define PATH_MAX 4096
 #endif
 
+/** qsort 比较器：按路径字典序（保证候选加载顺序确定）。 */
 static int path_cmp(const void *a, const void *b) {
     return strcmp(*(const char *const *)a, *(const char *const *)b);
 }
@@ -53,6 +54,7 @@ static int package_backend_dir(char *out, size_t cap) {
     return 0;
 }
 
+/** 收集目录下全部 .so 候选路径（不递归；上限 RKVC_MAX_BACKENDS）。 */
 static void collect_candidates(const char *dir, char **paths, size_t *npaths) {
     DIR *d = opendir(dir);
     struct dirent *de;
@@ -73,6 +75,7 @@ static void collect_candidates(const char *dir, char **paths, size_t *npaths) {
     closedir(d);
 }
 
+/** dlopen 单个候选并做 ABI 握手；失败只记录诊断并淘汰该候选。 */
 static void try_load(rkvc_context *ctx, const char *path) {
     void *handle;
     void *symbol;

@@ -17,8 +17,8 @@
 /** @brief 已解析头部（内存形态；字符串已 NUL 截断）。 */
 typedef struct rkvc_rkmodel {
     rkvc_model_info info;                       /**< 公共摘要 */
-    uint32_t        payload_count;
-    rkmodel_payload_entry payloads[RKMODEL_MAX_PAYLOADS];
+    uint32_t        payload_count;              /**< 载荷表项数 */
+    rkmodel_payload_entry payloads[RKMODEL_MAX_PAYLOADS]; /**< 载荷表 */
     int             has_signature;              /**< 文件含签名尾 */
     char            key_slot[33];               /**< 可空 */
     uint32_t        min_runtime_abi;            /**< 0 = 未声明 */
@@ -47,8 +47,8 @@ typedef int (*rkvc_rkmodel_verify_fn)(const uint8_t key_id[16],
  * 载荷。所有长度读取前检查上界；未知 TLV 跳过；字符串按字段容量截断。
  * 无验证回调时，已签名文件标 RKVC_MODEL_TRUST_UNTRUSTED。
  *
- * @return RKVC_STATUS_OK / RKVC_STATUS_INVALID_ARGUMENT（格式违例） /
- *         RKVC_STATUS_IO_ERROR。
+ * @return RKVC_STATUS_OK / RKVC_STATUS_INVALID（格式违例） /
+ *         RKVC_STATUS_IO。
  */
 rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
                               rkvc_rkmodel_verify_fn verify, void *opaque,

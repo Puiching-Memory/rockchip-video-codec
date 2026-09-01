@@ -37,7 +37,7 @@ jobs:
           pip install zensical
       - name: Build libsodium and API docs
         run: |
-          ./scripts/install-libsodium.sh
+          bash tools/install-libsodium.sh
           cmake -B .build/docs -DRKVC_BUILD_DOCS=ON
           cmake --build .build/docs --target docs
       - name: Build site

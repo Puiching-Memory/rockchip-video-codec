@@ -22,9 +22,10 @@
 
 #include <sodium.h>
 
-static uint8_t g_root_pk[32];
-static int     g_root_set = 0;
+static uint8_t g_root_pk[32]; /**< 编译期 trust root 公钥（首次使用时解析） */
+static int     g_root_set = 0; /**< g_root_pk 是否已初始化 */
 
+/** 十六进制串解到 n 字节；非法字符返回 -1。 */
 static int hex_to_bytes(const char *hex, uint8_t *out, size_t n) {
     size_t i;
     for (i = 0; i < n; ++i) {
@@ -36,6 +37,7 @@ static int hex_to_bytes(const char *hex, uint8_t *out, size_t n) {
     return 0;
 }
 
+/** 惰性解析 RKVC_TRUST_PUBKEY_HEX 到 g_root_pk（仅一次）。 */
 static void ensure_root(void) {
     if (g_root_set)
         return;
@@ -47,6 +49,7 @@ static void ensure_root(void) {
 }
 
 #ifdef RKVC_STANDALONE_TEST
+/** 测试钩子：直接注入 trust root 公钥（绕过编译期常量）。 */
 void rkvc_model_trust_install_root_for_test(const uint8_t pk[32]) {
     memcpy(g_root_pk, pk, 32);
     g_root_set = 1;
@@ -61,6 +64,7 @@ int rkvc_model_trust_production_mode(void) {
 #endif
 }
 
+/** Ed25519 验签回调：key_id 须匹配 SHA-256(pubkey) 前 16 字节。 */
 static int verify_ed25519(const uint8_t key_id[16], const uint8_t sig[64],
                           const uint8_t *bytes, size_t len,
                           rkvc_model_trust *trust, void *opaque) {

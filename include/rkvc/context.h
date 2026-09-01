@@ -21,24 +21,27 @@
 extern "C" {
 #endif
 
+/** 库上下文：持有设备探测、后端/模型注册表；多数 API 的第一个参数。 */
 typedef struct rkvc_context rkvc_context;
 
 /* ── 后端/模型搜索路径 ────────────────────────────────────────────── */
+/** @brief 可信后端/模型搜索路径（字符串由调用方持有，创建时深拷贝）。 */
 typedef struct rkvc_search_paths {
     const char **backend_dirs;  /**< 可信后端 DSO 目录列表 */
-    size_t       backend_dir_count;
+    size_t       backend_dir_count; /**< backend_dirs 元素数 */
     const char **model_dirs;    /**< 可信模型注册表目录列表 */
-    size_t       model_dir_count;
+    size_t       model_dir_count; /**< model_dirs 元素数 */
 } rkvc_search_paths;
 
 /* ── 上下文选项 ───────────────────────────────────────────────────── */
+/** @brief 上下文创建选项（先用 rkvc_context_options_init 初始化再覆写）。 */
 typedef struct rkvc_context_options {
-    rkvc_header        header;
-    rkvc_thread_model  thread_model;
+    rkvc_header        header;         /**< struct_size/api_version */
+    rkvc_thread_model  thread_model;   /**< 线程安全性模型 */
     rkvc_search_paths  paths;         /**< 空 = 使用包内 + 系统默认路径 */
     const char        *model_dir_override; /**< 可选：覆盖模型目录；NULL=自动 */
     uint32_t           inspect_timeout_ms; /**< 探测超时；0 = 默认 2000 */
-    uint32_t           log_level;
+    uint32_t           log_level;      /**< 日志级别；0 = 静默 */
 } rkvc_context_options;
 
 /**
@@ -65,6 +68,7 @@ rkvc_status rkvc_context_create(const rkvc_context_options *opts,
 void rkvc_context_destroy(rkvc_context *ctx);
 
 /* ── 探测查询（只读） ─────────────────────────────────────────────── */
+/** @brief 设备能力快照（context 创建时探测一次，之后只读）。 */
 typedef struct rkvc_device_caps {
     char   soc[64];            /**< 探测到的 SoC 名称（device-tree compatible） */
     uint32_t npu_cores;        /**< NPU 核心数；0 = 无 */

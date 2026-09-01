@@ -23,7 +23,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq autoconf automake clang-tidy cmake libtool ninja-build
       - name: Build libsodium
-        run: ./scripts/install-libsodium.sh
+        run: bash tools/install-libsodium.sh
       - name: Configure
         run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug
       - name: Run clang-tidy
@@ -37,6 +37,9 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Initialize libsodium
         run: git submodule update --init --depth 1 third_party/libsodium
       - name: Install dependencies
@@ -44,15 +47,20 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq autoconf automake cmake gcc libcmocka-dev libtool ninja-build pkg-config
       - name: Build libsodium
-        run: ./scripts/install-libsodium.sh
-      - name: Configure and test
+        run: bash tools/install-libsodium.sh
+      - name: Configure and run C tests
         run: |
           cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_SHARED=ON -DRKVC_BUILD_STATIC=ON -DRKVC_BUILD_TESTS=ON
           cmake --build .build/tests --target check
-      - name: Test package verifier
-        run: python3 tests/test_rkvc_build_verify.py
+      - name: Run Python tests
+        run: python3 -m unittest discover -s tests/python -p 'test_*.py' -v
+      - name: Run Bash tests
+        run: |
+          for test_script in tests/bash/test_*.sh; do
+            bash "$test_script"
+          done
       - name: Check exported ABI
-        run: ./scripts/check-exported-symbols.sh .build/tests/librkvc.so
+        run: bash tools/check-exported-symbols.sh .build/tests/librkvc.so
 
   package:
     runs-on: ubuntu-22.04

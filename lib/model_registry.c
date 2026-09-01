@@ -29,6 +29,7 @@
 /* 以对象地址定位当前 ELF 映像，避免 ISO C 禁止的函数指针到 void * 强转。 */
 static const unsigned char rkvc_model_registry_anchor;
 
+/** qsort 比较器：按路径字典序（保证扫描顺序确定）。 */
 static int path_cmp(const void *a, const void *b) {
     return strcmp(*(const char *const *)a, *(const char *const *)b);
 }
@@ -53,6 +54,7 @@ static int package_model_dir(char *out, size_t cap) {
     return 0;
 }
 
+/** 递归收集目录下 .rkmodel 文件（不跟随符号链接；深度/数量有界）。 */
 static void scan_dir_recursive(const char *dir, unsigned depth, char **paths,
                                size_t *npaths) {
     DIR *d = opendir(dir);
@@ -70,7 +72,7 @@ static void scan_dir_recursive(const char *dir, unsigned depth, char **paths,
         if (!full)
             break;
         sprintf(full, "%s/%s", dir, de->d_name);
-        /* Never follow symlinks while discovering trusted content. */
+        /* 发现可信内容时不跟随符号链接。 */
         if (lstat(full, &st) != 0 || S_ISLNK(st.st_mode)) {
             rkvc_g_free(full);
             continue;
@@ -126,8 +128,8 @@ rkvc_status rkvc_model_registry_scan(rkvc_context *ctx) {
         if (rkvc_rkmodel_open(paths[i], m, rkvc_model_trust_verifier(), NULL,
                               err, sizeof(err)) == RKVC_STATUS_OK) {
             int reject = 0;
-            /* A present-but-invalid signature is never a usable candidate.
-             * Production additionally requires the production trust root. */
+            /* 签名存在但验证不通过的候选绝不可用；
+             * 生产模式额外要求生产 trust root 签名。 */
             if (m->info.trust == RKVC_MODEL_TRUST_UNTRUSTED)
                 reject = 1;
             if (rkvc_model_trust_production_mode() &&
@@ -147,6 +149,7 @@ rkvc_status rkvc_model_registry_scan(rkvc_context *ctx) {
     return RKVC_STATUS_OK;
 }
 
+/** 请求类型对应的模型角色；TRANSCODE 无单一角色（返回 NULL = 不过滤）。 */
 static const char *role_for_operation(rkvc_operation op) {
     switch (op) {
     case RKVC_OPERATION_ENCODE:  return "encoder";

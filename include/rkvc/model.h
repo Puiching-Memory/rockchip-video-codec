@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+/** @brief 模型签名验证后的信任级别。 */
 typedef enum rkvc_model_trust {
     RKVC_MODEL_TRUST_UNSIGNED = 0, /**< 未签名（仅开发模式可用） */
     RKVC_MODEL_TRUST_DEVELOPMENT,  /**< 开发 trust root 签名通过 */
@@ -36,7 +37,7 @@ typedef struct rkvc_model_info {
     char              role[32];        /**< 角色 */
     char              version[32];     /**< 模型版本 */
     char              rknn_target[32]; /**< RKNN 编译目标（可空） */
-    rkvc_model_trust  trust;
+    rkvc_model_trust  trust;           /**< 签名验证结果 */
     uint32_t          payload_mask;    /**< 载荷位掩码（1<<kind） */
 } rkvc_model_info;
 

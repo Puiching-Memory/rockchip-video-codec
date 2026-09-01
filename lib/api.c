@@ -69,6 +69,7 @@ void rkvc_request_init(rkvc_request *req, size_t size) {
     req->header.api_version = RKVC_ABI_VERSION;
     req->codec = RKVC_CODEC_AUTO;
     req->policy = RKVC_POLICY_BALANCED;
+    req->quality.qp = -1;
 }
 
 void rkvc_context_options_init(rkvc_context_options *opts, size_t size) {

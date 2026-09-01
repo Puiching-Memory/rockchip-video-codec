@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/types.h>
 
+/** 把解析失败原因格式化进调用方 errbuf（可为空）。 */
 static void fail(char *errbuf, size_t cap, const char *fmt, ...) {
     va_list ap;
     if (!errbuf || !cap)
@@ -31,6 +32,7 @@ static void fail(char *errbuf, size_t cap, const char *fmt, ...) {
     va_end(ap);
 }
 
+/** 拷贝 TLV 字符串值并按目标容量截断、补 NUL。 */
 static void tlv_str(const uint8_t *val, uint32_t len, char *dst, size_t cap) {
     size_t n = len < cap - 1 ? len : cap - 1;
     memcpy(dst, val, n);

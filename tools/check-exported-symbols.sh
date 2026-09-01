@@ -1,5 +1,6 @@
 #!/bin/bash
 # Verify that librkvc exports only API functions declared by public headers.
+# This repository-maintenance command lives with the other tools.
 
 set -euo pipefail
 

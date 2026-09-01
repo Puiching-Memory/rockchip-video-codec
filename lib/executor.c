@@ -16,29 +16,32 @@
 #include <string.h>
 
 /* ── 队列 ─────────────────────────────────────────────────────────── */
+/** @brief 有界 FIFO 帧队列：环形缓冲 + 互斥锁/条件变量实现背压与唤醒。 */
 struct rkvc_queue {
-    rkvc_frame **slots;
-    size_t       capacity, head, count;
-    pthread_mutex_t m;
-    pthread_cond_t  not_full, not_empty;
-    int eos;
-    rkvc_exec *exec;
+    rkvc_frame **slots;          /**< 环形缓冲槽位 */
+    size_t       capacity, head, count; /**< 容量 / 首帧下标 / 当前帧数 */
+    pthread_mutex_t m;           /**< 保护以下全部字段 */
+    pthread_cond_t  not_full;    /**< 消费后唤醒被背压的生产者 */
+    pthread_cond_t  not_empty;   /**< 生产后唤醒等待的消费者 */
+    int eos;                     /**< 流结束标记 */
+    rkvc_exec *exec;             /**< 所属执行器（用于取消检查） */
 };
 
 /* ── 执行器 ───────────────────────────────────────────────────────── */
+/** @brief 图执行器：每节点一个工作者线程 + 输入/输出边界队列。 */
 struct rkvc_exec {
-    rkvc_graph *g;
-    pthread_t  *threads;
-    size_t      nthreads;
-    size_t      started_threads;
-    atomic_int  canceled;
-    atomic_int  failed;
-    atomic_int  error_code;
-    rkvc_queue *input_queue;
-    rkvc_queue *output_queue;
+    rkvc_graph *g;               /**< 被执行的图 */
+    pthread_t  *threads;         /**< 工作者线程数组 */
+    size_t      nthreads;        /**< 计划启动的线程数 */
+    size_t      started_threads; /**< 实际启动成功的线程数 */
+    atomic_int  canceled;        /**< 取消标记（广播唤醒阻塞队列） */
+    atomic_int  failed;          /**< 任一节点失败标记 */
+    atomic_int  error_code;      /**< 首个失败的返回码 */
+    rkvc_queue *input_queue;     /**< 图输入边界队列（job push 入口） */
+    rkvc_queue *output_queue;    /**< 图输出边界队列（job pull 出口） */
     rkvc_queue **qlist;   /* 全部队列，用于 cancel 广播唤醒 */
-    size_t      qcount, qcap;
-    int         joined;
+    size_t      qcount, qcap;    /**< qlist 元素数与容量 */
+    int         joined;          /**< 线程是否已全部 join */
 };
 
 rkvc_queue *rkvc_queue_create(size_t capacity) {
@@ -147,12 +150,14 @@ void rkvc_queue_set_eos(rkvc_queue *q) {
 }
 
 /* ── 执行器 ───────────────────────────────────────────────────────── */
+/** 把队列登记进执行器广播表（容量已预分配，满则忽略）。 */
 static void exec_addq(rkvc_exec *e, rkvc_queue *q) {
     if (e->qcount == e->qcap)
         return;
     e->qlist[e->qcount++] = q;
 }
 
+/** 唤醒全部队列上阻塞的生产者/消费者（取消或失败时调用）。 */
 static void exec_broadcast(rkvc_exec *e) {
     size_t i;
     for (i = 0; i < e->qcount; ++i) {
@@ -163,8 +168,10 @@ static void exec_broadcast(rkvc_exec *e) {
     }
 }
 
+/** 工作者线程参数：执行器 + 节点下标（线程自持有，退出前自释放）。 */
 struct worker_arg { rkvc_exec *e; size_t idx; };
 
+/** 节点主循环：从输入队列取帧 → process → 释放；EOS 时 flush 并下传 EOS。 */
 static void *exec_worker(void *argp) {
     struct worker_arg *w = argp;
     rkvc_exec *e = w->e;

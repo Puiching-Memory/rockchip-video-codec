@@ -30,6 +30,7 @@ RKNN、PMF、QP 补丁和 manifest 必须来自同一次、同一变体的导出
 兼容。ONNX、RKNN、manifest 与许可证的完整生成命令见
 [Phase-RLFN 超分模型](../docs/sr-model-yuv-spec.md)。模型二进制默认被 Git 忽略。
 
-`models/rkvc-sr/` 仅用于手工导出和本地试验。标准自动生产路径写入
-`.build/models/<platform>/rkvc-sr/`，打包和 `scripts/test-npu-sr.sh` 会按本机 SoC
-读取该目录；不要把手工目录误认为发布输入。
+`models/rkvc-sr/` 仅用于手工导出和本地试验。交付模型时应通过
+`tools/sr/export_model.py --output-dir .build/models/<platform>/rkvc-sr/` 写入独立
+构建树，并用 `tools/sr/verify_bundle.py` 验证后再纳入发布输入；不要把手工目录
+误认为已验证的交付产物。
