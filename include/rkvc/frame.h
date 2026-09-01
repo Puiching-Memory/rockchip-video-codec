@@ -43,8 +43,30 @@ typedef struct rkvc_frame_spec {
     rkvc_frame_fmt  fmt;
     rkvc_mem_domain domain;
     uint32_t        stride;      /**< 主平面行字节数；0 = 库自动计算 */
-    uint32_t        modifier;    /**< DRM modifier；0 = 线性 */
+    uint64_t        modifier;    /**< DRM format modifier；0 = 线性 */
 } rkvc_frame_spec;
+
+#define RKVC_FRAME_TS_UNKNOWN INT64_MIN
+
+enum {
+    RKVC_FRAME_FLAG_KEYFRAME      = 1u << 0,
+    RKVC_FRAME_FLAG_DISCONTINUITY = 1u << 1,
+    RKVC_FRAME_FLAG_CORRUPT       = 1u << 2,
+};
+
+/** Complete opaque-frame description used for bitstreams and DMA-BUF frames. */
+typedef struct rkvc_frame_desc {
+    rkvc_header     header;
+    rkvc_frame_spec spec;
+    void           *data;   /**< HOST pointer; NULL is valid for DMA-BUF. */
+    size_t          size;   /**< Payload/allocated bytes; 0 = unknown. */
+    int             fd;     /**< DMA-BUF fd, otherwise -1. */
+    int64_t         pts;
+    int64_t         dts;
+    uint32_t        flags;
+} rkvc_frame_desc;
+
+void rkvc_frame_desc_init(rkvc_frame_desc *desc, size_t size);
 
 /* ── 帧生命周期 ───────────────────────────────────────────────────── */
 /**
@@ -64,6 +86,9 @@ rkvc_status rkvc_frame_wrap_host(const rkvc_frame_spec *spec,
                                  void *data, size_t size,
                                  rkvc_frame **out);
 
+/** Wrap a caller-owned frame description without copying its payload. */
+rkvc_status rkvc_frame_wrap(const rkvc_frame_desc *desc, rkvc_frame **out);
+
 /**
  * @brief 递增帧引用计数。
  */
@@ -82,6 +107,10 @@ rkvc_status rkvc_frame_get_spec(const rkvc_frame *frame,
 /** @brief 读取帧数据指针（host 域）或 fd（dmabuf 域）。 */
 rkvc_status rkvc_frame_get_data(const rkvc_frame *frame,
                                 void **data, int *fd);
+
+/** Read payload size, timing, flags and memory handles in one call. */
+rkvc_status rkvc_frame_get_desc(const rkvc_frame *frame,
+                                rkvc_frame_desc *desc);
 
 /** @brief 读取帧的引用计数（调试用）。 */
 uint32_t rkvc_frame_ref_count(const rkvc_frame *frame);

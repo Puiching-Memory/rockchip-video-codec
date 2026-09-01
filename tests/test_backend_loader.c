@@ -34,8 +34,10 @@ static const rkvc_node_factory *selftest_factories(void *probe_ctx,
 }
 
 static rkvc_backend g_selftest = {
-    RKVC_ABI_VERSION, "selftest-builtin", selftest_probe, selftest_factories,
-    NULL,
+    .abi_version = RKVC_ABI_VERSION,
+    .id = "selftest-builtin",
+    .probe = selftest_probe,
+    .factories = selftest_factories,
 };
 
 void rkvc_backend_register_builtins(rkvc_context *ctx) {
@@ -65,13 +67,14 @@ static void test_dso_loaded_and_badabi_rejected(void **state) {
     rkvc_context *ctx = NULL;
     (void)state;
 
-    memset(&opts, 0, sizeof(opts));
+    rkvc_context_options_init(&opts, sizeof(opts));
     opts.paths.backend_dirs = dirs;
     opts.paths.backend_dir_count = 1;
     assert_int_equal(rkvc_context_create(&opts, &ctx), RKVC_STATUS_OK);
 
     /* 好夹具装载；坏 ABI 夹具被淘汰；淘汰有诊断 */
     assert_true(has_backend(ctx, "fixture-good"));
+    assert_true(ctx->caps.has_rga);
     assert_false(has_backend(ctx, "fixture-badabi"));
     assert_int_equal(ctx->backend_skipped, 1);
     assert_non_null(strstr(ctx->backend_diag, "fixture_backend_badabi"));
@@ -87,11 +90,42 @@ static void test_missing_dir_tolerated(void **state) {
     rkvc_context *ctx = NULL;
     (void)state;
 
-    memset(&opts, 0, sizeof(opts));
+    rkvc_context_options_init(&opts, sizeof(opts));
     opts.paths.backend_dirs = dirs;
     opts.paths.backend_dir_count = 1;
     assert_int_equal(rkvc_context_create(&opts, &ctx), RKVC_STATUS_OK);
     assert_int_equal(ctx->backend_skipped, 0);
+    rkvc_context_destroy(ctx);
+}
+
+static const rkvc_node_factory g_malformed_factory = {
+    .id = "malformed",
+    .backend_id = NULL,
+    .stage = RKVC_NODE_STAGE_TRANSFORM,
+};
+
+static const rkvc_node_factory *malformed_factories(void *probe_ctx,
+                                                    size_t *count) {
+    (void)probe_ctx;
+    *count = 1;
+    return &g_malformed_factory;
+}
+
+static void test_malformed_and_duplicate_backend_rejected(void **state) {
+    rkvc_context *ctx = NULL;
+    rkvc_backend malformed = {
+        .abi_version = RKVC_ABI_VERSION,
+        .id = "malformed-backend",
+        .factories = malformed_factories,
+    };
+    (void)state;
+
+    assert_int_equal(rkvc_context_create(NULL, &ctx), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_registry_add_backend(ctx, &malformed),
+                     RKVC_STATUS_FORMAT);
+    assert_int_equal(rkvc_registry_add_backend(ctx, &g_selftest),
+                     RKVC_STATUS_FORMAT);
+    assert_false(has_backend(ctx, "malformed-backend"));
     rkvc_context_destroy(ctx);
 }
 
@@ -100,6 +134,7 @@ int main(void) {
         cmocka_unit_test(test_builtin_registered),
         cmocka_unit_test(test_dso_loaded_and_badabi_rejected),
         cmocka_unit_test(test_missing_dir_tolerated),
+        cmocka_unit_test(test_malformed_and_duplicate_backend_rejected),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

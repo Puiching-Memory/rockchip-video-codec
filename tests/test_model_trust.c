@@ -21,7 +21,6 @@
 #include <sodium.h>
 
 #include "rkmodel.h"
-#include "sha256.h"
 
 void rkvc_model_trust_install_root_for_test(const uint8_t pk[32]);
 
@@ -50,7 +49,6 @@ static void build_signed(blob *out, const uint8_t sk[64],
     blob sig_input = {0};
     size_t data_off;
     uint8_t digest[32];
-    rkvc_sha256 sha;
 
     btlv(&tlv, RKMODEL_TAG_FAMILY, "sr");
     btlv(&tlv, RKMODEL_TAG_ROLE, "upscale");
@@ -59,9 +57,12 @@ static void build_signed(blob *out, const uint8_t sk[64],
 
     data_off = RKMODEL_FIXED_SIZE + tlv.len + sizeof(rkmodel_payload_entry) +
                sizeof(tr);
-    rkvc_sha256_init(&sha);
-    rkvc_sha256_update(&sha, PAYLOAD, sizeof(PAYLOAD));
-    rkvc_sha256_final(&sha, digest);
+    {
+        crypto_hash_sha256_state st;
+        crypto_hash_sha256_init(&st);
+        crypto_hash_sha256_update(&st, PAYLOAD, sizeof(PAYLOAD));
+        crypto_hash_sha256_final(&st, digest);
+    }
     bu32(&table, RKMODEL_PAYLOAD_RKNN);
     bu32(&table, 0);
     bu64(&table, (uint64_t)data_off);
@@ -82,9 +83,10 @@ static void build_signed(blob *out, const uint8_t sk[64],
     tr.alg = RKMODEL_SIG_ED25519;
     {
         uint8_t id[32];
-        rkvc_sha256_init(&sha);
-        rkvc_sha256_update(&sha, pk, 32);
-        rkvc_sha256_final(&sha, id);
+        crypto_hash_sha256_state st;
+        crypto_hash_sha256_init(&st);
+        crypto_hash_sha256_update(&st, pk, 32);
+        crypto_hash_sha256_final(&st, id);
         memcpy(tr.key_id, id, 16);
     }
     crypto_sign_ed25519_detached(tr.sig, NULL, sig_input.b, sig_input.len, sk);

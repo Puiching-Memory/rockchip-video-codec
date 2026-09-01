@@ -23,6 +23,10 @@
 - **ROI / 配额** — `rkvc_session_set_roi`（MPP 硬区域 QP）；`rkvc_runtime_set_quota`
 - **UDP/RTP 原语** — `rkvc_net_send` / `recv`（分片重组；无国标信令）
 
+MLVC 与 MLVC-S 共用同一网络骨架（DMC-6.1SB：特征域条件编码 + 双路时空先验 + 门控记忆），仅通道数与超先验配置不同：
+
+![MLVC / MLVC-S 模型架构](docs/images/mlvc-architecture.svg)
+
 ## 性能 (RK3588, 1080p E2E, tools/bench/)
 
 | 路线                    | E2E fps | policy                    |

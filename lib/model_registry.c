@@ -20,10 +20,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
+
+/* 以对象地址定位当前 ELF 映像，避免 ISO C 禁止的函数指针到 void * 强转。 */
+static const unsigned char rkvc_model_registry_anchor;
 
 static int path_cmp(const void *a, const void *b) {
     return strcmp(*(const char *const *)a, *(const char *const *)b);
@@ -34,7 +38,7 @@ static int package_model_dir(char *out, size_t cap) {
     Dl_info info;
     char *slash;
 
-    if (!dladdr((void *)rkvc_model_count, &info) || !info.dli_fname)
+    if (!dladdr(&rkvc_model_registry_anchor, &info) || !info.dli_fname)
         return -1;
     if (strlen(info.dli_fname) >= cap)
         return -1;
@@ -49,23 +53,38 @@ static int package_model_dir(char *out, size_t cap) {
     return 0;
 }
 
-static void scan_dir(rkvc_context *ctx, const char *dir, char **paths,
-                     size_t *npaths) {
+static void scan_dir_recursive(const char *dir, unsigned depth, char **paths,
+                               size_t *npaths) {
     DIR *d = opendir(dir);
     struct dirent *de;
 
-    if (!d)
+    if (!d || depth > 16)
         return;
     while (*npaths < RKMODEL_MAX_SCAN_FILES && (de = readdir(d)) != NULL) {
         size_t len = strlen(de->d_name);
         char *full;
-        if (len < 9 || strcmp(de->d_name + len - 8, ".rkmodel") != 0)
+        struct stat st;
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
             continue;
         full = rkvc_g_calloc(1, strlen(dir) + len + 2);
         if (!full)
             break;
         sprintf(full, "%s/%s", dir, de->d_name);
-        paths[(*npaths)++] = full;
+        /* Never follow symlinks while discovering trusted content. */
+        if (lstat(full, &st) != 0 || S_ISLNK(st.st_mode)) {
+            rkvc_g_free(full);
+            continue;
+        }
+        if (S_ISDIR(st.st_mode)) {
+            scan_dir_recursive(full, depth + 1, paths, npaths);
+            rkvc_g_free(full);
+            continue;
+        }
+        if (S_ISREG(st.st_mode) && len >= 9 &&
+            strcmp(de->d_name + len - 8, ".rkmodel") == 0)
+            paths[(*npaths)++] = full;
+        else
+            rkvc_g_free(full);
     }
     closedir(d);
 }
@@ -79,17 +98,20 @@ rkvc_status rkvc_model_registry_scan(rkvc_context *ctx) {
 
     if (!ctx)
         return RKVC_STATUS_INVALID;
-    if (package_model_dir(dirs[0], PATH_MAX) == 0)
-        ndirs = 1;
-    snprintf(dirs[ndirs++], PATH_MAX, "/usr/local/share/rkvc/models");
-    snprintf(dirs[ndirs++], PATH_MAX, "/usr/share/rkvc/models");
-    for (i = 0; i < ctx->paths.model_dir_count && ndirs < RKVC_MAX_MODEL_DIRS;
-         ++i) {
-        snprintf(dirs[ndirs++], PATH_MAX, "%s", ctx->paths.model_dirs[i]);
+    if (ctx->model_dir_override) {
+        snprintf(dirs[ndirs++], PATH_MAX, "%s", ctx->model_dir_override);
+    } else {
+        if (package_model_dir(dirs[0], PATH_MAX) == 0)
+            ndirs = 1;
+        snprintf(dirs[ndirs++], PATH_MAX, "/usr/local/share/rkvc/models");
+        snprintf(dirs[ndirs++], PATH_MAX, "/usr/share/rkvc/models");
+        for (i = 0; i < ctx->paths.model_dir_count &&
+                    ndirs < RKVC_MAX_MODEL_DIRS; ++i)
+            snprintf(dirs[ndirs++], PATH_MAX, "%s", ctx->paths.model_dirs[i]);
     }
 
     for (i = 0; i < ndirs; ++i)
-        scan_dir(ctx, dirs[i], paths, &npaths);
+        scan_dir_recursive(dirs[i], 0, paths, &npaths);
     qsort(paths, npaths, sizeof(paths[0]), path_cmp);
 
     ctx->models = rkvc_g_calloc(npaths ? npaths : 1, sizeof(*ctx->models));
@@ -103,17 +125,71 @@ rkvc_status rkvc_model_registry_scan(rkvc_context *ctx) {
         rkvc_rkmodel *m = &ctx->models[ctx->model_count];
         if (rkvc_rkmodel_open(paths[i], m, rkvc_model_trust_verifier(), NULL,
                               err, sizeof(err)) == RKVC_STATUS_OK) {
-            /* 生产信任模式下 unsigned 等价 untrusted */
+            int reject = 0;
+            /* A present-but-invalid signature is never a usable candidate.
+             * Production additionally requires the production trust root. */
+            if (m->info.trust == RKVC_MODEL_TRUST_UNTRUSTED)
+                reject = 1;
             if (rkvc_model_trust_production_mode() &&
-                m->info.trust == RKVC_MODEL_TRUST_UNSIGNED)
-                m->info.trust = RKVC_MODEL_TRUST_UNTRUSTED;
-            ctx->model_count++;
+                m->info.trust != RKVC_MODEL_TRUST_PRODUCTION)
+                reject = 1;
+            if (m->min_runtime_abi > RKVC_ABI_VERSION)
+                reject = 1;
+            if (reject)
+                ctx->model_skipped++;
+            else
+                ctx->model_count++;
         } else {
             ctx->model_skipped++;
         }
         rkvc_g_free(paths[i]);
     }
     return RKVC_STATUS_OK;
+}
+
+static const char *role_for_operation(rkvc_operation op) {
+    switch (op) {
+    case RKVC_OPERATION_ENCODE:  return "encoder";
+    case RKVC_OPERATION_DECODE:  return "decoder";
+    case RKVC_OPERATION_UPSCALE: return "upscale";
+    default:                     return NULL;
+    }
+}
+
+const rkvc_rkmodel *rkvc_model_registry_select(const rkvc_context *ctx,
+                                               const rkvc_request *req,
+                                               rkvc_diag **diag) {
+    const rkvc_rkmodel *best = NULL;
+    const char *role;
+    int best_score = -1;
+    size_t i;
+    if (!ctx || !req)
+        return NULL;
+    role = role_for_operation(req->operation);
+    for (i = 0; i < ctx->model_count; ++i) {
+        const rkvc_rkmodel *m = &ctx->models[i];
+        int score = 0;
+        if (req->model_id && strcmp(req->model_id, m->info.id) != 0)
+            continue;
+        if (!req->model_id && role && strcmp(role, m->info.role) != 0)
+            continue;
+        if (m->info.rknn_target[0] && ctx->caps.soc[0] &&
+            strcmp(m->info.rknn_target, ctx->caps.soc) != 0)
+            continue;
+        if (m->info.trust == RKVC_MODEL_TRUST_PRODUCTION) score += 300;
+        else if (m->info.trust == RKVC_MODEL_TRUST_DEVELOPMENT) score += 200;
+        else score += 100;
+        if (m->info.rknn_target[0] && ctx->caps.soc[0]) score += 50;
+        if (!best || score > best_score ||
+            (score == best_score && strcmp(m->info.id, best->info.id) < 0)) {
+            best = m;
+            best_score = score;
+        }
+    }
+    if (!best && diag)
+        rkvc_diag_push(diag, RKVC_STATUS_NOT_FOUND, 2,
+                       "model-registry", "no compatible model candidate");
+    return best;
 }
 
 size_t rkvc_model_count(const rkvc_context *ctx) {

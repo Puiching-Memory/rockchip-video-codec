@@ -153,30 +153,50 @@ if(RKVC_MLVC_ENABLED)
     list(APPEND RKVC_SOURCES ${RKVC_MLVC_SRC})
 endif()
 
-# ── 授权（1机1码，Ed25519） ────────────────────────────────────────
-# 通过 third_party/libsodium 子模块提供 SHA-256 + Ed25519，无需系统 OpenSSL/mbedTLS。
-# libsodium 使用 autotools 构建，沿用本项目对非 CMake 子模块（librga/SVT-AV1）的
-# 「install 脚本 + 前缀」惯例：先运行 ./scripts/install-libsodium.sh。
-# 单一选项 RKVC_ENABLE_LICENSE：开启即编译授权模块 + 运行时强制校验。
+# ── libsodium（公共：SHA-256 + Ed25519 / XSalsa20-Poly1305）─────────
+# 通过 third_party/libsodium 子模块提供 SHA-256 + Ed25519/XSalsa20-Poly1305，
+# 无需系统 OpenSSL/mbedTLS。libsodium 使用 autotools 构建，沿用本项目对非
+# CMake 子模块（librga/SVT-AV1）的「install 脚本 + 前缀」惯例：
+# 先运行 ./scripts/install-libsodium.sh。
 #
-# 公钥来源（二选一）:
-#   RKVC_LICENSE_PUBKEY_FILE=<path>  指向 32 字节公钥二进制文件（生产密钥，推荐）
-#   未设置                           使用 lib/license_pubkey.c 演示公钥（仅开发）
-if(RKVC_ENABLE_LICENSE)
-    set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
-        CACHE PATH "libsodium install prefix (see scripts/install-libsodium.sh)")
+# .rkmodel 容器摘要/签名（lib/rkmodel.c、lib/model_trust.c）与授权、模型加密
+# 共用 libsodium，因此新引擎（RKVC_BUILD_NEW_ENGINE）与核心单元测试
+# （RKVC_BUILD_TESTS，独立编译 rkmodel.c）都要求 libsodium；旧引擎仅在
+# LICENSE/MODEL_CRYPT 开启时链接。默认构建（旧引擎、无测试、三项功能全关）
+# 不要求 libsodium。
+set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
+    CACHE PATH "libsodium install prefix (see scripts/install-libsodium.sh)")
+
+set(_RKVC_NEED_SODIUM OFF)
+if(RKVC_ENABLE_LICENSE OR RKVC_ENABLE_MODEL_CRYPT OR
+   RKVC_ENABLE_MODEL_SIGN OR RKVC_BUILD_NEW_ENGINE OR RKVC_BUILD_TESTS)
+    set(_RKVC_NEED_SODIUM ON)
+endif()
+
+set(RKVC_SODIUM_LIBS "")
+set(RKVC_SODIUM_INCLUDES "")
+if(_RKVC_NEED_SODIUM)
     if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
         message(FATAL_ERROR
             "libsodium not found at ${LIBSODIUM_PREFIX}/lib/libsodium.a\n"
             "  Run: git submodule update --init third_party/libsodium\n"
             "       ./scripts/install-libsodium.sh")
     endif()
-    list(APPEND RKVC_SOURCES lib/license.c lib/license_machine.c)
     # libsodium 静态库依赖线程原语；旧 glibc(<2.34)/musl 上需显式链接 pthread，
-    # 用 Threads::Threads 让 librkvc 与 rkvc_lic 都自包含地拿到线程库。
+    # 用 Threads::Threads 让链接方自包含地拿到线程库。
     find_package(Threads REQUIRED)
-    set(RKVC_LICENSE_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
-    set(RKVC_LICENSE_INCLUDES ${LIBSODIUM_PREFIX}/include)
+    set(RKVC_SODIUM_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
+    set(RKVC_SODIUM_INCLUDES ${LIBSODIUM_PREFIX}/include)
+endif()
+
+# ── 授权（1机1码，Ed25519） ────────────────────────────────────────
+# 单一选项 RKVC_ENABLE_LICENSE：开启即编译授权模块 + 运行时强制校验。
+#
+# 公钥来源（二选一）:
+#   RKVC_LICENSE_PUBKEY_FILE=<path>  指向 32 字节公钥二进制文件（生产密钥，推荐）
+#   未设置                           使用 lib/license_pubkey.c 演示公钥（仅开发）
+if(RKVC_ENABLE_LICENSE)
+    list(APPEND RKVC_SOURCES lib/license.c lib/license_machine.c)
     set(RKVC_LICENSE_DEFS RKVC_ENABLE_LICENSE=1)
 
     if(RKVC_LICENSE_PUBKEY_FILE AND EXISTS "${RKVC_LICENSE_PUBKEY_FILE}")
@@ -234,20 +254,6 @@ endif()
 #   RKVC_MODEL_MASTERKEY_FILE=<path>  指向 32 字节主密钥二进制文件（生产，推荐）
 #   未设置                             使用 lib/model_key.c 演示密钥（仅开发）
 if(RKVC_ENABLE_MODEL_CRYPT)
-    if(NOT DEFINED RKVC_LICENSE_LIBS)
-        # LICENSE 未开启时独立准备 libsodium（同一安装前缀）
-        set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
-            CACHE PATH "libsodium install prefix (see scripts/install-libsodium.sh)")
-        if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
-            message(FATAL_ERROR
-                "libsodium not found at ${LIBSODIUM_PREFIX}/lib/libsodium.a\n"
-                "  Run: git submodule update --init third_party/libsodium\n"
-                "       ./scripts/install-libsodium.sh")
-        endif()
-        find_package(Threads REQUIRED)
-        set(RKVC_LICENSE_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
-        set(RKVC_LICENSE_INCLUDES ${LIBSODIUM_PREFIX}/include)
-    endif()
     list(APPEND RKVC_SOURCES lib/model_crypt.c)
     if(NOT RKVC_ENABLE_LICENSE)
         # 机器码指纹采集（与 1机1码 同一实现）
@@ -309,19 +315,6 @@ if(RKVC_ENABLE_MODEL_SIGN)
     if(NOT RKVC_BUILD_NEW_ENGINE)
         message(FATAL_ERROR "RKVC_ENABLE_MODEL_SIGN requires RKVC_BUILD_NEW_ENGINE=ON")
     endif()
-    if(NOT DEFINED RKVC_LICENSE_LIBS)
-        set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
-            CACHE PATH "libsodium install prefix (see scripts/install-libsodium.sh)")
-        if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
-            message(FATAL_ERROR
-                "libsodium not found at ${LIBSODIUM_PREFIX}/lib/libsodium.a\n"
-                "  Run: git submodule update --init third_party/libsodium\n"
-                "       ./scripts/install-libsodium.sh")
-        endif()
-        find_package(Threads REQUIRED)
-        set(RKVC_LICENSE_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
-        set(RKVC_LICENSE_INCLUDES ${LIBSODIUM_PREFIX}/include)
-    endif()
 
     set(_trust_pub "${RKVC_TRUST_PUBKEY_HEX}")
     if(NOT _trust_pub AND NOT RKVC_TRUST_PRODUCTION AND
@@ -366,8 +359,8 @@ if(RKVC_ENABLE_MODEL_SIGN)
         message(FATAL_ERROR "trust pubkey 必须是 64 字符 hex：${_trust_pub}")
     endif()
     string(TOLOWER "${_trust_pub}" RKVC_TRUST_PUBKEY_HEX_EFFECTIVE)
-    set(RKVC_MODEL_SIGN_LIBS ${RKVC_LICENSE_LIBS})
-    set(RKVC_MODEL_SIGN_INCLUDES ${RKVC_LICENSE_INCLUDES})
+    set(RKVC_MODEL_SIGN_LIBS ${RKVC_SODIUM_LIBS})
+    set(RKVC_MODEL_SIGN_INCLUDES ${RKVC_SODIUM_INCLUDES})
     set(RKVC_MODEL_SIGN_DEFS
         RKVC_ENABLE_MODEL_SIGN=1
         RKVC_TRUST_PUBKEY_HEX="${RKVC_TRUST_PUBKEY_HEX_EFFECTIVE}"

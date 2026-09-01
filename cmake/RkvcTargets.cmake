@@ -17,7 +17,7 @@ function(rkvc_configure_target tgt)
             ${RGA_INCLUDE_DIR}
             ${RKVC_RKNN_INCLUDES}
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
-            ${RKVC_LICENSE_INCLUDES}
+            ${RKVC_SODIUM_INCLUDES}
     )
     if(RKVC_RKNN_ENABLED)
         target_compile_definitions(${tgt} PRIVATE RKVC_ENABLE_RKNN=1)
@@ -42,7 +42,7 @@ if(RKVC_BUILD_SHARED)
         # 符号的调用绑定到本 DSO 定义(防止 LD_PRELOAD 劫持校验链)。
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/librkvc.map"
         "-Wl,-Bsymbolic-functions")
-    target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
+    target_link_libraries(rkvc_shared PRIVATE rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_SODIUM_LIBS})
     set_target_properties(rkvc_shared PROPERTIES
         OUTPUT_NAME rkvc
         VERSION     ${PROJECT_VERSION}
@@ -58,7 +58,7 @@ if(RKVC_BUILD_STATIC)
     rkvc_configure_target(rkvc_static)
     target_link_directories(rkvc_static PUBLIC ${RKVC_DEP_LIB_DIRS})
     target_link_options(rkvc_static INTERFACE ${RKVC_RPATH_LINK_OPTIONS})
-    target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_LICENSE_LIBS})
+    target_link_libraries(rkvc_static PUBLIC rkvc_instrumentation ${FFMPEG_LIBS} ${EXTRA_LIBS} ${RKVC_RKNN_LIBS} ${RKVC_SODIUM_LIBS})
     set_target_properties(rkvc_static PROPERTIES OUTPUT_NAME rkvc)
     add_library(rkvc::static ALIAS rkvc_static)
 endif()
@@ -85,7 +85,6 @@ if(RKVC_BUILD_NEW_ENGINE)
         lib/executor.c
         lib/context.c
         lib/job.c
-        lib/sha256.c
         lib/rkmodel.c
         lib/model_registry.c
         lib/backend_dso.c
@@ -102,15 +101,22 @@ if(RKVC_BUILD_NEW_ENGINE)
     )
     target_compile_definitions(rkvc_core PRIVATE ${RKVC_VERSION_COMPILE_DEFS})
     find_package(Threads REQUIRED)
+    # .rkmodel 载荷摘要（SHA-256）是核心契约，rkvc_core 始终链接 libsodium
+    target_include_directories(rkvc_core PRIVATE ${RKVC_SODIUM_INCLUDES})
     target_link_libraries(rkvc_core PUBLIC Threads::Threads
-                                   PRIVATE ${CMAKE_DL_LIBS})
+                                   PRIVATE ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS})
     if(RKVC_ENABLE_MODEL_SIGN)
         target_compile_definitions(rkvc_core PRIVATE ${RKVC_MODEL_SIGN_DEFS})
-        target_include_directories(rkvc_core PRIVATE ${RKVC_MODEL_SIGN_INCLUDES})
-        target_link_libraries(rkvc_core PRIVATE ${RKVC_MODEL_SIGN_LIBS})
+    endif()
+    if(NOT RKVC_BUILD_SHARED AND NOT RKVC_BUILD_STATIC)
+        set(_RKVC_CORE_OUTPUT_NAME rkvc)
+        set(_RKVC_CORE_VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/librkvc-0.4.map")
+    else()
+        set(_RKVC_CORE_OUTPUT_NAME rkvc_core)
+        set(_RKVC_CORE_VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/librkvc.map")
     endif()
     set_target_properties(rkvc_core PROPERTIES
-        OUTPUT_NAME rkvc_core
+        OUTPUT_NAME ${_RKVC_CORE_OUTPUT_NAME}
         POSITION_INDEPENDENT_CODE ON
     )
     if(BUILD_SHARED_LIBS)
@@ -119,9 +125,9 @@ if(RKVC_BUILD_NEW_ENGINE)
             SOVERSION 0
         )
         # 导出符号仅限公共 ABI（rkvc_ 前缀白名单）
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/librkvc.map")
+        if(EXISTS "${_RKVC_CORE_VERSION_SCRIPT}")
             target_link_options(rkvc_core PRIVATE
-                "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/librkvc.map"
+                "-Wl,--version-script=${_RKVC_CORE_VERSION_SCRIPT}"
                 "-Wl,-Bsymbolic-functions")
         endif()
     endif()
@@ -137,6 +143,30 @@ if(RKVC_BUILD_NEW_ENGINE)
     )
     target_link_libraries(rkvc_cli PRIVATE rkvc::core rkvc_instrumentation)
     target_include_directories(rkvc_cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+endif()
+
+# ── 0.4 MPP decoder backend DSO ─────────────────────────────────────
+if(RKVC_BUILD_BACKEND_MPP)
+    if(NOT RKVC_BUILD_NEW_ENGINE)
+        message(FATAL_ERROR "RKVC_BUILD_BACKEND_MPP requires RKVC_BUILD_NEW_ENGINE=ON")
+    endif()
+    if(NOT EXISTS "${MPP_INSTALL_PREFIX}/lib/librockchip_mpp.so")
+        message(FATAL_ERROR
+            "Bundled MPP not found at ${MPP_INSTALL_PREFIX}; build the project-owned dependency first")
+    endif()
+    add_library(rkvc_backend_mpp MODULE backends/mpp/backend_mpp.c)
+    target_include_directories(rkvc_backend_mpp PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${MPP_INCLUDE_DIR})
+    target_link_directories(rkvc_backend_mpp PRIVATE ${MPP_LIB_DIR})
+    target_link_libraries(rkvc_backend_mpp PRIVATE
+        rockchip_mpp)
+    set_target_properties(rkvc_backend_mpp PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_backend_mpp
+        POSITION_INDEPENDENT_CODE ON
+        BUILD_RPATH "${MPP_LIB_DIR}"
+        INSTALL_RPATH "$ORIGIN/../..")
 endif()
 
 # ── 示例程序 ──────────────────────────────────────────────────────────
@@ -235,14 +265,14 @@ if(RKVC_ENABLE_LICENSE)
     # 不含 genkey/issue/inspect，避免把私钥签发能力随包分发给终端客户。
     add_executable(rkvc_lic tools/rkvc_lic.c lib/license_machine.c)
     target_include_directories(rkvc_lic PRIVATE
-            ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
-    target_link_libraries(rkvc_lic PRIVATE ${RKVC_LICENSE_LIBS})
+            ${RKVC_SODIUM_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    target_link_libraries(rkvc_lic PRIVATE ${RKVC_SODIUM_LIBS})
 
     add_executable(rkvc_lic_client tools/rkvc_lic.c lib/license_machine.c)
     target_compile_definitions(rkvc_lic_client PRIVATE RKVC_LIC_MACHINE_ONLY=1)
     target_include_directories(rkvc_lic_client PRIVATE
-            ${RKVC_LICENSE_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
-    target_link_libraries(rkvc_lic_client PRIVATE ${RKVC_LICENSE_LIBS})
+            ${RKVC_SODIUM_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    target_link_libraries(rkvc_lic_client PRIVATE ${RKVC_SODIUM_LIBS})
 endif()
 
 if(RKVC_ENABLE_MODEL_CRYPT)
@@ -250,13 +280,13 @@ if(RKVC_ENABLE_MODEL_CRYPT)
     add_executable(rkvc_model_crypt tools/rkvc_model_crypt.c lib/license_machine.c)
     target_include_directories(rkvc_model_crypt PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${RKVC_LICENSE_INCLUDES})
-    target_link_libraries(rkvc_model_crypt PRIVATE ${RKVC_LICENSE_LIBS})
+        ${RKVC_SODIUM_INCLUDES})
+    target_link_libraries(rkvc_model_crypt PRIVATE ${RKVC_SODIUM_LIBS})
 
     # 客户侧只读机器码采集器：不包含 genkey/issue/decrypt 等发码能力。
     add_executable(rkvc_model_id tools/rkvc_model_id.c lib/license_machine.c)
     target_include_directories(rkvc_model_id PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${RKVC_LICENSE_INCLUDES})
-    target_link_libraries(rkvc_model_id PRIVATE ${RKVC_LICENSE_LIBS})
+        ${RKVC_SODIUM_INCLUDES})
+    target_link_libraries(rkvc_model_id PRIVATE ${RKVC_SODIUM_LIBS})
 endif()

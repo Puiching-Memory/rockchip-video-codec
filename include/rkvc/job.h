@@ -66,6 +66,9 @@ void rkvc_job_destroy(rkvc_job *job);
 /* ── 流式推/拉（零拷贝路径） ─────────────────────────────────────── */
 /**
  * @brief 向作业输入端点推入一帧（非阻塞；队列满返回 RKVC_STATUS_AGAIN）。
+ *
+ * 成功时帧引用的所有权转移给作业，调用方不得再次 release；失败（含 AGAIN）
+ * 时所有权仍归调用方。push_eos 后返回 RKVC_STATUS_EOF。
  */
 rkvc_status rkvc_job_push(rkvc_job *job, rkvc_frame *frame);
 

@@ -84,9 +84,10 @@ typedef struct rkvc_header {
 /**
  * @brief 线程安全性约定。
  *
- *  - `rkvc_context`、`rkvc_job` 均可被多个线程并行使用。
+ *  - `rkvc_context`、`rkvc_job` 的非销毁操作可被多个线程并行使用。
  *  - 库内部对共享状态加锁；用户回调（若启用）在库持锁时不会被调用。
  *  - 每当回调被调用时，库不持有内部锁，用户可在回调中安全调用非阻塞 API。
+ *  - destroy 必须在调用方确认没有其他线程仍在使用对应句柄后调用。
  */
 typedef enum rkvc_thread_model {
     RKVC_THREAD_MODEL_DEFAULT = 0,   /**< 库内部线程池 + 自动加锁 */

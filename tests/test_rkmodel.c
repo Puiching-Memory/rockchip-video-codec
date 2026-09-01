@@ -19,9 +19,9 @@
 #include <sys/stat.h>
 
 #include <cmocka.h>
+#include <sodium.h>
 
 #include "rkmodel.h"
-#include "sha256.h"
 #include "context_internal.h"
 
 /* ── 测试侧容器构造（与 rkmodel.py 写入侧同格式） ────────────────── */
@@ -83,15 +83,15 @@ static void build_container(blob *out, uint16_t extra_tlv_tag,
     {
         size_t data_off = table_off;
         for (i = 0; i < npl; ++i) {
-            rkvc_sha256 sha;
+            crypto_hash_sha256_state st;
             uint8_t digest[32];
             blob_u32(&table, pl[i].kind);
             blob_u32(&table, 0);
             blob_u64(&table, (uint64_t)data_off);
             blob_u64(&table, (uint64_t)pl[i].len);
-            rkvc_sha256_init(&sha);
-            rkvc_sha256_update(&sha, pl[i].data, pl[i].len);
-            rkvc_sha256_final(&sha, digest);
+            crypto_hash_sha256_init(&st);
+            crypto_hash_sha256_update(&st, pl[i].data, pl[i].len);
+            crypto_hash_sha256_final(&st, digest);
             blob_put(&table, digest, 32);
             data_off += pl[i].len;
         }
@@ -272,7 +272,7 @@ static void test_registry_scan(void **state) {
     write_file("/tmp/rkvc_test_models/bad.rkmodel", bad.bytes, bad.len);
     write_file("/tmp/rkvc_test_models/notamodel.txt", (const uint8_t *)"x", 1);
 
-    memset(&opts, 0, sizeof(opts));
+    rkvc_context_options_init(&opts, sizeof(opts));
     opts.paths.model_dirs = dirs;
     opts.paths.model_dir_count = 1;
     assert_int_equal(rkvc_context_create(&opts, &ctx), RKVC_STATUS_OK);

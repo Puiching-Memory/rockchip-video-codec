@@ -30,6 +30,7 @@ struct rkvc_exec {
     rkvc_graph *g;
     pthread_t  *threads;
     size_t      nthreads;
+    size_t      started_threads;
     atomic_int  canceled;
     atomic_int  failed;
     atomic_int  error_code;
@@ -59,8 +60,13 @@ rkvc_queue *rkvc_queue_create(size_t capacity) {
 }
 
 void rkvc_queue_destroy(rkvc_queue *q) {
+    size_t i;
     if (!q)
         return;
+    for (i = 0; i < q->count; ++i) {
+        rkvc_frame *f = q->slots[(q->head + i) % q->capacity];
+        rkvc_frame_release(f);
+    }
     pthread_mutex_destroy(&q->m);
     pthread_cond_destroy(&q->not_full);
     pthread_cond_destroy(&q->not_empty);
@@ -71,7 +77,7 @@ void rkvc_queue_destroy(rkvc_queue *q) {
 int rkvc_queue_push(rkvc_queue *q, rkvc_frame *f, void *execp) {
     rkvc_exec *e = execp;
     pthread_mutex_lock(&q->m);
-    while (q->count == q->capacity &&
+    while (q->count == q->capacity && !q->eos &&
            !(e && atomic_load(&e->canceled))) {
         pthread_cond_wait(&q->not_full, &q->m);
     }
@@ -79,11 +85,36 @@ int rkvc_queue_push(rkvc_queue *q, rkvc_frame *f, void *execp) {
         pthread_mutex_unlock(&q->m);
         return (int)RKVC_STATUS_CANCELED;
     }
+    if (q->eos) {
+        pthread_mutex_unlock(&q->m);
+        return (int)RKVC_STATUS_EOF;
+    }
     q->slots[(q->head + q->count) % q->capacity] = f;
     q->count++;
     pthread_cond_signal(&q->not_empty);
     pthread_mutex_unlock(&q->m);
     return 0;
+}
+
+int rkvc_queue_try_push(rkvc_queue *q, rkvc_frame *f, void *execp) {
+    rkvc_exec *e = execp;
+    int rc = 0;
+    if (!q || !f)
+        return (int)RKVC_STATUS_INVALID;
+    pthread_mutex_lock(&q->m);
+    if (e && atomic_load(&e->canceled))
+        rc = (int)RKVC_STATUS_CANCELED;
+    else if (q->eos)
+        rc = (int)RKVC_STATUS_EOF;
+    else if (q->count == q->capacity)
+        rc = (int)RKVC_STATUS_AGAIN;
+    else {
+        q->slots[(q->head + q->count) % q->capacity] = f;
+        q->count++;
+        pthread_cond_signal(&q->not_empty);
+    }
+    pthread_mutex_unlock(&q->m);
+    return rc;
 }
 
 int rkvc_queue_pop(rkvc_queue *q, rkvc_frame **out, void *execp) {
@@ -149,8 +180,10 @@ static void *exec_worker(void *argp) {
         if (r < 0)
             break; /* 取消 */
         if (r == 0) { /* EOS */
-            if (node->ops->flush && node->ops->flush(node, &d) != 0)
-                atomic_store(&e->error_code, -(int)RKVC_STATUS_INTERNAL);
+            if (node->ops->flush && node->ops->flush(node, &d) != 0) {
+                atomic_store(&e->error_code, (int)RKVC_STATUS_INTERNAL);
+                atomic_store(&e->failed, 1);
+            }
             rkvc_diag_release(d);
             rkvc_queue_set_eos(outq);
             break;
@@ -158,7 +191,8 @@ static void *exec_worker(void *argp) {
         if (node->ops->process) {
             int rc = node->ops->process(node, f, &d);
             if (rc != 0) {
-                atomic_store(&e->error_code, rc < 0 ? rc : -(int)RKVC_STATUS_INTERNAL);
+                atomic_store(&e->error_code,
+                             rc < 0 ? rc : (int)RKVC_STATUS_INTERNAL);
                 rkvc_diag_release(d);
                 rkvc_frame_release(f);
                 atomic_store(&e->failed, 1);
@@ -214,6 +248,7 @@ struct rkvc_exec *rkvc_exec_create(rkvc_graph *g, size_t worker_threads) {
 
 int rkvc_exec_run(rkvc_exec *e, rkvc_diag **diag) {
     size_t i;
+    int launch_error = 0;
     if (!e || e->nthreads == 0)
         return 0;
     e->threads = rkvc_g_calloc(e->nthreads, sizeof(*e->threads));
@@ -221,23 +256,35 @@ int rkvc_exec_run(rkvc_exec *e, rkvc_diag **diag) {
         return (int)RKVC_STATUS_NOMEM;
     for (i = 0; i < e->nthreads; ++i) {
         struct worker_arg *wa = rkvc_g_calloc(1, sizeof(*wa));
-        if (!wa)
-            return (int)RKVC_STATUS_NOMEM;
+        if (!wa) {
+            launch_error = (int)RKVC_STATUS_NOMEM;
+            atomic_store(&e->canceled, 1);
+            exec_broadcast(e);
+            break;
+        }
         wa->e = e;
         wa->idx = i;
         if (pthread_create(&e->threads[i], NULL, exec_worker, wa) != 0) {
             rkvc_g_free(wa);
-            return (int)RKVC_STATUS_INTERNAL;
+            launch_error = (int)RKVC_STATUS_INTERNAL;
+            atomic_store(&e->canceled, 1);
+            exec_broadcast(e);
+            break;
         }
+        e->started_threads++;
     }
-    for (i = 0; i < e->nthreads; ++i)
+    for (i = 0; i < e->started_threads; ++i)
         pthread_join(e->threads[i], NULL);
     e->joined = 1;
+
+    if (launch_error)
+        return launch_error;
 
     if (atomic_load(&e->failed)) {
         int code = atomic_load(&e->error_code);
         if (diag)
-            rkvc_diag_push(diag, -(code), 3, "executor", "node failed");
+            rkvc_diag_push(diag, (rkvc_status)code, 3,
+                           "executor", "node failed");
         return code;
     }
     if (atomic_load(&e->canceled))
@@ -259,7 +306,7 @@ void rkvc_exec_destroy(rkvc_exec *e) {
     atomic_store(&e->canceled, 1);
     exec_broadcast(e);
     if (!e->joined && e->threads) {
-        for (i = 0; i < e->nthreads; ++i)
+        for (i = 0; i < e->started_threads; ++i)
             pthread_join(e->threads[i], NULL);
     }
     rkvc_queue_destroy(e->input_queue);
@@ -273,7 +320,7 @@ void rkvc_exec_destroy(rkvc_exec *e) {
 int rkvc_exec_push(rkvc_exec *e, rkvc_frame *frame) {
     if (!e)
         return (int)RKVC_STATUS_INVALID;
-    return rkvc_queue_push(e->input_queue, frame, e);
+    return rkvc_queue_try_push(e->input_queue, frame, e);
 }
 
 int rkvc_exec_pull(rkvc_exec *e, rkvc_frame **frame) {

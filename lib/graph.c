@@ -38,6 +38,44 @@ void rkvc_port_set_desired(rkvc_port *p, const rkvc_frame_spec *spec) {
     p->fmt = *spec;
 }
 
+static int merge_dimension(uint32_t a, uint32_t b, uint32_t *out) {
+    if (a && b && a != b)
+        return -1;
+    *out = a ? a : b;
+    return 0;
+}
+
+/** Resolve one graph edge. UNKNOWN format accepts the peer's full spec;
+ * dimensions and stride equal to zero are per-field wildcards. */
+static int negotiate_edge(rkvc_port *out, rkvc_port *in) {
+    rkvc_frame_spec resolved;
+
+    if (out->fmt.fmt == RKVC_FRAME_FMT_UNKNOWN &&
+        in->fmt.fmt == RKVC_FRAME_FMT_UNKNOWN)
+        return 0;
+    if (out->fmt.fmt == RKVC_FRAME_FMT_UNKNOWN)
+        resolved = in->fmt;
+    else if (in->fmt.fmt == RKVC_FRAME_FMT_UNKNOWN)
+        resolved = out->fmt;
+    else {
+        if (out->fmt.fmt != in->fmt.fmt ||
+            out->fmt.domain != in->fmt.domain ||
+            out->fmt.modifier != in->fmt.modifier)
+            return -1;
+        resolved = out->fmt;
+        if (merge_dimension(out->fmt.width, in->fmt.width,
+                            &resolved.width) != 0 ||
+            merge_dimension(out->fmt.height, in->fmt.height,
+                            &resolved.height) != 0 ||
+            merge_dimension(out->fmt.stride, in->fmt.stride,
+                            &resolved.stride) != 0)
+            return -1;
+    }
+    out->fmt = resolved;
+    in->fmt = resolved;
+    return 0;
+}
+
 int rkvc_node_connect(rkvc_node *a, const char *out_name, rkvc_node *b,
                       const char *in_name) {
     rkvc_port *out = a ? rkvc_node_get_port(a, out_name, 0) : NULL;
@@ -54,8 +92,8 @@ int rkvc_node_connect(rkvc_node *a, const char *out_name, rkvc_node *b,
     return 0;
 }
 
-int rkvc_node_emit(rkvc_node *n, int out_index, rkvc_frame *frame) {
-    if (!n || !frame || out_index < 0 || out_index >= n->out_count)
+int rkvc_node_emit(rkvc_node *n, size_t out_index, rkvc_frame *frame) {
+    if (!n || !frame || out_index >= (size_t)n->out_count)
         return -2;
     if (!n->out_ports[out_index].queue || !n->graph)
         return -2;
@@ -69,6 +107,7 @@ rkvc_graph *rkvc_graph_new(void) {
     rkvc_graph *g = rkvc_g_calloc(1, sizeof(*g));
     if (g) {
         g->queue_capacity = 4;
+        g->failure_step = SIZE_MAX;
         g->state = 0;
     }
     return g;
@@ -107,6 +146,7 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
 
     if (!g || !plan)
         return -2;
+    g->failure_step = SIZE_MAX;
     g->node_count = plan->step_count;
     g->nodes = rkvc_g_calloc(g->node_count ? g->node_count : 1, sizeof(*g->nodes));
     g->queues = rkvc_g_calloc(g->node_count ? g->node_count : 1, sizeof(*g->queues));
@@ -122,6 +162,7 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
                            ->create(plan->steps[i].factory, &plan->steps[i].request,
                                     plan->steps[i].factory->create_ctx);
         if (!n) {
+            g->failure_step = i;
             if (diag) rkvc_diag_push(diag, RKVC_STATUS_INTERNAL, 1,
                     plan->steps[i].factory->id, "create failed");
             reverse_release(g, created);
@@ -143,6 +184,7 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
         rkvc_port *in  = dst->in_count ? &dst->in_ports[0] : NULL;
         rkvc_queue *q;
         if (!out || !in) {
+            g->failure_step = i + 1;
             if (diag) rkvc_diag_push(diag, RKVC_STATUS_NEGOTIATE, 1,
                     "graph", "linear link missing port");
             reverse_release(g, created);
@@ -165,6 +207,7 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
     for (i = 0; i < g->node_count; ++i) {
         rkvc_node *n = g->nodes[i];
         if (n->ops->configure && n->ops->configure(n, diag) != 0) {
+            g->failure_step = i;
             reverse_release(g, created);
             g->node_count = 0;
             return (int)RKVC_STATUS_NEGOTIATE;
@@ -172,18 +215,53 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
         n->state = RKVC_NODE_CONFIGURED;
     }
 
-    /* 实例化（open）：打开设备、分配大块内存 */
+    /* configure 完成后统一解析每条边；不兼容格式必须在 open 设备前失败。 */
+    for (i = 0; i + 1 < g->node_count; ++i) {
+        rkvc_node *src = g->nodes[i];
+        rkvc_node *dst = g->nodes[i + 1];
+        rkvc_port *out = &src->out_ports[src->out_count - 1];
+        rkvc_port *in = &dst->in_ports[0];
+        if (negotiate_edge(out, in) != 0) {
+            g->failure_step = i + 1;
+            if (diag)
+                rkvc_diag_push(diag, RKVC_STATUS_NEGOTIATE, 1,
+                               out->name ? out->name : "graph",
+                               "incompatible connected port specs");
+            reverse_release(g, created);
+            g->node_count = 0;
+            return (int)RKVC_STATUS_NEGOTIATE;
+        }
+    }
+
+    g->state = 1;
+    return 0;
+}
+
+int rkvc_graph_open(rkvc_graph *g, rkvc_diag **diag) {
+    size_t i;
+
+    if (!g)
+        return (int)RKVC_STATUS_INVALID;
+    if (g->state == 2)
+        return 0;
+    if (g->state != 1)
+        return (int)RKVC_STATUS_INVALID;
+    g->failure_step = SIZE_MAX;
+
+    /* 实例化（open）：只在 job_start 阶段打开设备、分配大块内存。 */
     for (i = 0; i < g->node_count; ++i) {
         rkvc_node *n = g->nodes[i];
         if (n->ops->open && n->ops->open(n, diag) != 0) {
-            reverse_release(g, created);
+            g->failure_step = i;
+            reverse_release(g, g->node_count);
             g->node_count = 0;
+            g->state = 3;
             return (int)RKVC_STATUS_HW;
         }
         n->state = RKVC_NODE_OPEN;
     }
 
-    g->state = 1;
+    g->state = 2;
     return 0;
 }
 
@@ -192,12 +270,18 @@ int rkvc_graph_run(rkvc_graph *g, rkvc_diag **diag) {
     int rc;
     if (!g)
         return -2;
+    if (g->state == 1) {
+        rc = rkvc_graph_open(g, diag);
+        if (rc != 0)
+            return rc;
+    }
+    if (g->state != 2)
+        return (int)RKVC_STATUS_INVALID;
     e = rkvc_exec_create(g, g->node_count);
     if (!e)
         return (int)RKVC_STATUS_NOMEM;
     g->exec = e;
     rc = rkvc_exec_run(e, diag);
-    g->state = 2;
     return rc;
 }
 

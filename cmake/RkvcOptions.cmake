@@ -33,6 +33,9 @@ option(RKVC_ENABLE_MODEL_CRYPT "Encrypt RKNN models with rkvc's own layer (XSals
 option(RKVC_BUILD_NEW_ENGINE
     "Build the 0.4 graph-kernel engine (context/request/job/frame/diagnostic) as the rkvc_core target alongside the legacy rkvc_shared. Default OFF so the existing pipeline keeps building unchanged."
     OFF)
+option(RKVC_BUILD_BACKEND_MPP
+    "Build the FFmpeg-rockchip MPP decoder backend DSO (requires libavcodec/libavutil/libdrm)"
+    OFF)
 option(RKVC_ENABLE_MODEL_SIGN
     "Enable .rkmodel Ed25519 signature verification (libsodium; dev/prod trust root)"
     OFF)

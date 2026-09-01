@@ -44,6 +44,9 @@ rkvc 不维护任何预设板卡/SoC 知识：所有平台事实都在运行时�
   有界 TLV 头区（≤1MiB；family/role/id/version/rknn_target/min_abi/...，
   未知 tag 跳过）→ 载荷表（≤16 项 × 56B：kind/offset/length/SHA-256）→
   可选签名尾（84B：alg/key_id/Ed25519 sig）→ 载荷数据。
+- **摘要/签名后端**：载荷 SHA-256 与 Ed25519 均由 libsodium 提供
+  （`crypto_hash_sha256` / `crypto_sign_ed25519`，静态链接，NEON 加速），
+  故新引擎构建要求先运行 `./scripts/install-libsodium.sh`。
 - **签名语义**：覆盖固定头+TLV+载荷表（含全部载荷摘要），因此间接覆盖
   全部载荷；签名尾插入会重排载荷偏移（写入侧负责）。key_id =
   SHA-256(pubkey)[0:16]。

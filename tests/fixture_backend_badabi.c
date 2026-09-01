@@ -6,7 +6,8 @@
 #include "graph_internal.h"
 
 static rkvc_backend g_bad = {
-    0xffffu /* 错误 ABI */, "fixture-badabi", NULL, NULL, NULL,
+    .abi_version = 0xffffu, /* 错误 ABI */
+    .id = "fixture-badabi",
 };
 
 const rkvc_backend *rkvc_backend_query(void) { return &g_bad; }

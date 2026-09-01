@@ -22,8 +22,6 @@
 
 #include <sodium.h>
 
-#include "sha256.h"
-
 static uint8_t g_root_pk[32];
 static int     g_root_set = 0;
 
@@ -66,16 +64,16 @@ int rkvc_model_trust_production_mode(void) {
 static int verify_ed25519(const uint8_t key_id[16], const uint8_t sig[64],
                           const uint8_t *bytes, size_t len,
                           rkvc_model_trust *trust, void *opaque) {
-    rkvc_sha256 sha;
+    crypto_hash_sha256_state st;
     uint8_t id[32];
     (void)opaque;
 
     ensure_root();
     if (!g_root_set)
         return -1;
-    rkvc_sha256_init(&sha);
-    rkvc_sha256_update(&sha, g_root_pk, sizeof(g_root_pk));
-    rkvc_sha256_final(&sha, id);
+    crypto_hash_sha256_init(&st);
+    crypto_hash_sha256_update(&st, g_root_pk, sizeof(g_root_pk));
+    crypto_hash_sha256_final(&st, id);
     if (memcmp(id, key_id, 16) != 0)
         return -1;
     if (sodium_init() < 0)

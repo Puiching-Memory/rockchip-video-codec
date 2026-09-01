@@ -10,10 +10,13 @@
 
 ### 新增
 
-- **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。
-- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
+- **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
 - **`.rkmodel` v1 线格式与模型信任链**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV + 载荷表含 SHA-256 + 可选 Ed25519 签名尾）与读取器 `lib/rkmodel.c`、注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰）；trust root dev/prod 分离（`RKVC_ENABLE_MODEL_SIGN` + `RKVC_TRUST_PUBKEY_HEX` + `RKVC_TRUST_PRODUCTION`），CLI `rkvc inspect models` 接入真实注册表；Python 签名 → C 验证互操作闭环。
 - **统一发布路径 `tools/rkvc-build`**（stdlib Python）：sysroot 锁定（SHA-256 锁文件）→ 交叉构建 → SBOM（CycloneDX 1.5）/许可证归集 → 封装（SHA256SUMS + provenance）→ 产物验证（ELF 架构/解释器、glibc 2.31 基线、绝对 RPATH 拒绝）→ 确定性归档 → QEMU 冒烟；重复归档字节级一致。
+
+### 变更
+
+- **SHA-256 收敛到 libsodium**：删除自研 `lib/sha256.c`/`sha256.h`（FIPS 180-4），`.rkmodel` 载荷摘要与 key_id 计算统一走 libsodium `crypto_hash_sha256`（NEON/SIMD 加速，与授权/模型加密共用同一加密后端，CMake 中三处 libsodium 准备逻辑合并为公共块）。新引擎（`RKVC_BUILD_NEW_ENGINE`）与核心单元测试现在要求先运行 `./scripts/install-libsodium.sh`；默认旧引擎构建（无 LICENSE/MODEL_CRYPT）不要求 libsodium。
 
 ### 进行中
 

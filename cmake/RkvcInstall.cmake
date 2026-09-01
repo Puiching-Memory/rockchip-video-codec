@@ -10,10 +10,25 @@
 
 include(GNUInstallDirs)
 
-install(DIRECTORY include/rkvc
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    COMPONENT devel
-)
+if(RKVC_BUILD_NEW_ENGINE AND NOT RKVC_BUILD_SHARED AND NOT RKVC_BUILD_STATIC)
+    install(FILES
+        include/rkvc/api.h
+        include/rkvc/backend.h
+        include/rkvc/context.h
+        include/rkvc/request.h
+        include/rkvc/job.h
+        include/rkvc/frame.h
+        include/rkvc/diagnostic.h
+        include/rkvc/model.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rkvc
+        COMPONENT devel
+    )
+else()
+    install(DIRECTORY include/rkvc
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        COMPONENT devel
+    )
+endif()
 
 if(RKVC_BUILD_SHARED)
     install(TARGETS rkvc_shared
@@ -49,6 +64,12 @@ if(RKVC_BUILD_NEW_ENGINE)
     install(DIRECTORY DESTINATION ${CMAKE_INSTALL_DATADIR}/rkvc/models
         COMPONENT runtime
     )
+    if(TARGET rkvc_backend_mpp)
+        install(TARGETS rkvc_backend_mpp
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/rkvc/backends
+            COMPONENT backends
+        )
+    endif()
 endif()
 
 # 安装旧版 CLI 到 bin/（迁移期保留，P6 移除）
@@ -60,6 +81,13 @@ if(RKVC_CLI_TARGETS)
 endif()
 
 # pkg-config 文件
+if(RKVC_BUILD_NEW_ENGINE AND NOT RKVC_BUILD_SHARED AND NOT RKVC_BUILD_STATIC)
+    set(RKVC_PC_DESCRIPTION "Rockchip media graph core and backend ABI")
+    set(RKVC_PC_REQUIRES_PRIVATE "")
+else()
+    set(RKVC_PC_DESCRIPTION "Rockchip multi-codec media pipeline library")
+    set(RKVC_PC_REQUIRES_PRIVATE "libavcodec libavformat libavutil")
+endif()
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/lib/rkvc.pc.in
     ${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc

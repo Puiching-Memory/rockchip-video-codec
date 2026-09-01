@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 project(rkvc
     VERSION 0.4.0
     DESCRIPTION "Rockchip multi-SoC multi-codec pipeline library"
@@ -102,7 +102,7 @@ if(RKVC_BUILD_TESTS)
                 ${AVCODEC_INCLUDE_DIRS}
         )
         if(TEST_NAME STREQUAL "test_model_crypt")
-            target_include_directories(${TEST_NAME} PRIVATE ${RKVC_LICENSE_INCLUDES})
+            target_include_directories(${TEST_NAME} PRIVATE ${RKVC_SODIUM_INCLUDES})
         endif()
         target_link_directories(${TEST_NAME}
             PRIVATE
@@ -138,7 +138,7 @@ if(RKVC_BUILD_TESTS)
     add_executable(test_graph_executor
         tests/test_graph_executor.c
         lib/graph.c lib/executor.c lib/frame.c lib/api.c lib/context.c lib/job.c
-        lib/rkmodel.c lib/sha256.c lib/model_registry.c
+        lib/rkmodel.c lib/model_registry.c
         lib/backend_dso.c lib/builtin_backends.c lib/model_trust.c
     )
     target_compile_definitions(test_graph_executor PRIVATE
@@ -147,9 +147,11 @@ if(RKVC_BUILD_TESTS)
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            ${RKVC_SODIUM_INCLUDES}
             ${CMOCKA_INCLUDE_DIRS}
     )
-    target_link_libraries(test_graph_executor PRIVATE cmocka pthread ${CMAKE_DL_LIBS})
+    target_link_libraries(test_graph_executor PRIVATE
+        cmocka pthread ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS})
     add_test(NAME test_graph_executor COMMAND test_graph_executor)
     set_tests_properties(test_graph_executor PROPERTIES LABELS unit)
 
@@ -157,7 +159,7 @@ if(RKVC_BUILD_TESTS)
     add_executable(test_job
         tests/test_job.c
         lib/graph.c lib/executor.c lib/frame.c lib/api.c lib/context.c lib/job.c
-        lib/rkmodel.c lib/sha256.c lib/model_registry.c
+        lib/rkmodel.c lib/model_registry.c
         lib/backend_dso.c lib/builtin_backends.c lib/model_trust.c
     )
     target_compile_definitions(test_job PRIVATE
@@ -166,16 +168,18 @@ if(RKVC_BUILD_TESTS)
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            ${RKVC_SODIUM_INCLUDES}
             ${CMOCKA_INCLUDE_DIRS}
     )
-    target_link_libraries(test_job PRIVATE cmocka pthread ${CMAKE_DL_LIBS})
+    target_link_libraries(test_job PRIVATE
+        cmocka pthread ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS})
     add_test(NAME test_job COMMAND test_job)
     set_tests_properties(test_job PROPERTIES LABELS unit)
 
     # 0.4 模型容器/注册表回归（含写入侧构造 + 扫描过滤）
     add_executable(test_rkmodel
         tests/test_rkmodel.c
-        lib/rkmodel.c lib/sha256.c lib/model_registry.c
+        lib/rkmodel.c lib/model_registry.c
         lib/backend_dso.c lib/builtin_backends.c lib/model_trust.c
         lib/context.c lib/api.c lib/frame.c
     )
@@ -185,9 +189,11 @@ if(RKVC_BUILD_TESTS)
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            ${RKVC_SODIUM_INCLUDES}
             ${CMOCKA_INCLUDE_DIRS}
     )
-    target_link_libraries(test_rkmodel PRIVATE cmocka pthread ${CMAKE_DL_LIBS})
+    target_link_libraries(test_rkmodel PRIVATE
+        cmocka pthread ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS})
     add_test(NAME test_rkmodel COMMAND test_rkmodel)
     set_tests_properties(test_rkmodel PROPERTIES LABELS unit)
 
@@ -207,7 +213,7 @@ if(RKVC_BUILD_TESTS)
     add_executable(test_backend_loader
         tests/test_backend_loader.c
         lib/context.c lib/api.c lib/frame.c
-        lib/rkmodel.c lib/sha256.c lib/model_registry.c lib/backend_dso.c
+        lib/rkmodel.c lib/model_registry.c lib/backend_dso.c
         lib/model_trust.c
         # 不链接 lib/builtin_backends.c：测试 TU 提供强定义
     )
@@ -218,9 +224,11 @@ if(RKVC_BUILD_TESTS)
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            ${RKVC_SODIUM_INCLUDES}
             ${CMOCKA_INCLUDE_DIRS}
     )
-    target_link_libraries(test_backend_loader PRIVATE cmocka pthread ${CMAKE_DL_LIBS})
+    target_link_libraries(test_backend_loader PRIVATE
+        cmocka pthread ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS})
     add_dependencies(test_backend_loader
         rkvc_fixture_backend_good rkvc_fixture_backend_badabi)
     add_test(NAME test_backend_loader COMMAND test_backend_loader)
@@ -230,7 +238,7 @@ if(RKVC_BUILD_TESTS)
     if(RKVC_ENABLE_MODEL_SIGN)
     add_executable(test_model_trust
         tests/test_model_trust.c
-        lib/rkmodel.c lib/sha256.c lib/model_trust.c
+        lib/rkmodel.c lib/model_trust.c
     )
     target_compile_definitions(test_model_trust PRIVATE
         RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE _FILE_OFFSET_BITS=64

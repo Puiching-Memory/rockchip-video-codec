@@ -13,10 +13,10 @@
 #include "rkmodel.h"
 
 #include "graph_internal.h"
-#include "sha256.h"
 
 #include <errno.h>
 #include <inttypes.h>
+#include <sodium.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -231,7 +231,7 @@ out:
 rkvc_status rkvc_rkmodel_check_payload(FILE *f, const rkvc_rkmodel *m,
                                        uint32_t kind) {
     const rkmodel_payload_entry *e = NULL;
-    rkvc_sha256 sha;
+    crypto_hash_sha256_state st;
     uint8_t digest[32];
     uint8_t buf[8192];
 
@@ -248,17 +248,17 @@ rkvc_status rkvc_rkmodel_check_payload(FILE *f, const rkvc_rkmodel *m,
     if (fseeko(f, (off_t)e->offset, SEEK_SET) != 0)
         return RKVC_STATUS_IO;
 
-    rkvc_sha256_init(&sha);
+    crypto_hash_sha256_init(&st);
     uint64_t left = e->length;
     while (left) {
         size_t want = left < sizeof(buf) ? (size_t)left : sizeof(buf);
         size_t got = fread(buf, 1, want, f);
         if (got == 0)
             return RKVC_STATUS_IO;
-        rkvc_sha256_update(&sha, buf, got);
+        crypto_hash_sha256_update(&st, buf, got);
         left -= got;
     }
-    rkvc_sha256_final(&sha, digest);
+    crypto_hash_sha256_final(&st, digest);
     return memcmp(digest, e->sha256, 32) == 0 ? RKVC_STATUS_OK
                                               : RKVC_STATUS_INTEGRITY;
 }

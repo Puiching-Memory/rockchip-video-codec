@@ -25,20 +25,20 @@
 #define PATH_MAX 4096
 #endif
 
-#define RKVC_BACKEND_QUERY_SYMBOL "rkvc_backend_query"
-
-typedef const rkvc_backend *(*rkvc_backend_query_fn)(void);
-
 static int path_cmp(const void *a, const void *b) {
     return strcmp(*(const char *const *)a, *(const char *const *)b);
 }
+
+/* dladdr() 接受对象指针；使用本翻译单元内的对象可避免把函数指针强转成
+ * void *，并且仍能稳定定位承载核心实现的 ELF 映像。 */
+static const unsigned char rkvc_backend_dso_anchor;
 
 /** 包内后端目录：<本 DSO 所在目录>/rkvc/backends */
 static int package_backend_dir(char *out, size_t cap) {
     Dl_info info;
     char *slash;
 
-    if (!dladdr((void *)rkvc_backend_count, &info) || !info.dli_fname)
+    if (!dladdr(&rkvc_backend_dso_anchor, &info) || !info.dli_fname)
         return -1;
     if (strlen(info.dli_fname) >= cap)
         return -1;
@@ -75,6 +75,7 @@ static void collect_candidates(const char *dir, char **paths, size_t *npaths) {
 
 static void try_load(rkvc_context *ctx, const char *path) {
     void *handle;
+    void *symbol;
     rkvc_backend_query_fn query;
     const rkvc_backend *be;
     rkvc_status st;
@@ -88,14 +89,19 @@ static void try_load(rkvc_context *ctx, const char *path) {
         ctx->backend_skipped++;
         return;
     }
-    query = (rkvc_backend_query_fn)dlsym(handle, RKVC_BACKEND_QUERY_SYMBOL);
-    if (!query) {
+    symbol = dlsym(handle, RKVC_BACKEND_QUERY_SYMBOL);
+    if (!symbol) {
         snprintf(ctx->backend_diag, sizeof(ctx->backend_diag),
                  "%s: missing %s()", path, RKVC_BACKEND_QUERY_SYMBOL);
         ctx->backend_skipped++;
         dlclose(handle);
         return;
     }
+    /* POSIX 规定 dlsym() 可返回函数地址，但 ISO C 不允许对象/函数指针
+     * 直接强转。目标平台二者同宽；memcpy 保留位模式且通过 -Wpedantic。 */
+    _Static_assert(sizeof(query) == sizeof(symbol),
+                   "dlsym function pointer size mismatch");
+    memcpy(&query, &symbol, sizeof(query));
     be = query();
     st = rkvc_registry_add_backend(ctx, be); /* 含 ABI 握手校验 */
     if (st != RKVC_STATUS_OK) {

@@ -20,6 +20,7 @@
 #include <string.h>
 
 #include "rkvc/api.h"
+#include "rkvc/backend.h"
 #include "rkvc/frame.h"
 
 #ifdef __cplusplus
@@ -43,7 +44,11 @@ struct rkvc_frame {
     uint32_t       refcount;
     rkvc_frame_spec spec;
     void          *data;
+    size_t          size;
     int            fd;
+    int64_t         pts;
+    int64_t         dts;
+    uint32_t        flags;
     void         (*free_fn)(void *);
     void          *free_ctx;
 };
@@ -65,100 +70,19 @@ rkvc_frame *rkvc_frame_internal_alloc(const rkvc_frame_spec *spec, void *data,
 void rkvc_diag_push(rkvc_diag **diag, rkvc_status status, int stage,
                     const char *subject, const char *reason);
 
-/* ── 端口 ─────────────────────────────────────────────────────────── */
-typedef struct rkvc_port_interp rkvc_port;
-typedef struct rkvc_queue        rkvc_queue;
-
-/** @brief 端口方向与格式（端口是节点的 I/O 面，连接被建模为 rkvc_queue）。 */
-struct rkvc_port_interp {
-    const char    *name;      /**< 端口名（如 input/output/preview） */
-    int            is_input;  /**< 从节点视角看是否为输入 */
-    rkvc_frame_spec fmt;      /**< 协商后的数据格式 */
-    rkvc_frame_spec desired;  /**< 期望/初始要求格式 */
-    rkvc_queue     *queue;    /**< 关联的连接队列（输出=push 面，输入=pull 面） */
-};
-
-/* ── 节点 ─────────────────────────────────────────────────────────── */
-typedef struct rkvc_node rkvc_node;
-
-/**
- * @brief 节点操作表。
- *
- * `configure` 只协商格式（不打开设备/分配大块内存）；`open` 才打开设备并
- * 分配大块内存。二者任一步失败，图内核按逆序关闭已打开对象。
- * `process` 收到 in（可为空表示 EOS），可经 rkvc_node_emit 产出 0..N 帧。
- */
-typedef struct rkvc_node_ops {
-    const char *id;
-    int (*configure)(rkvc_node *n, rkvc_diag **diag);
-    int (*open)(rkvc_node *n, rkvc_diag **diag);
-    int (*process)(rkvc_node *n, rkvc_frame *in, rkvc_diag **diag);
-    int (*flush)(rkvc_node *n, rkvc_diag **diag);
-    void (*close)(rkvc_node *n);
-    void (*destroy)(rkvc_node *n);
-} rkvc_node_ops;
-
-typedef enum rkvc_node_state {
-    RKVC_NODE_CREATED = 0,
-    RKVC_NODE_CONFIGURED,
-    RKVC_NODE_OPEN,
-    RKVC_NODE_RUNNING,
-    RKVC_NODE_CLOSED,
-    RKVC_NODE_FAILED,
-} rkvc_node_state;
-
-struct rkvc_node {
-    const rkvc_node_ops *ops;
-    void  *priv;              /**< 节点私有数据（由工厂 create 分配） */
-    int    state;
-    int    in_count;
-    rkvc_port *in_ports;
-    int    out_count;
-    rkvc_port *out_ports;
-    struct rkvc_graph *graph;
-    size_t idx;               /**< 在图中索引（决定确定性顺序） */
-};
-
-/* ── 节点工厂与后端注册表 ─────────────────────────────────────────── */
-typedef struct rkvc_backend rkvc_backend;
-typedef struct rkvc_node_factory rkvc_node_factory;
-
-/**
- * @brief 节点工厂：声明节点类型与筛选（是否匹配 op/codec/caps），并创建节点。
- */
-struct rkvc_node_factory {
-    const char *id;
-    const char *backend_id;
-    int (*matches)(rkvc_operation op, rkvc_codec codec,
-                   const rkvc_device_caps *caps);
-    rkvc_node *(*create)(const rkvc_node_factory *factory,
-                         const rkvc_request *req, void *create_ctx);
-    void *create_ctx;
-};
-
-/**
- * @brief 后端：ABI 版本化，导出能力探测与节点工厂列表。
- *
- * 后端 DSO 通过 `rkvc_backend_query()` 返回本结构；load 失败只淘汰候选。
- */
-struct rkvc_backend {
-    uint32_t abi_version;
-    const char *id;
-    int (*probe)(const rkvc_device_caps *caps, void *probe_ctx,
-                 rkvc_diag **diag);
-    const rkvc_node_factory *(*factories)(void *probe_ctx, size_t *count);
-    void *probe_ctx;
-};
-
 /* ── 计划与图 ─────────────────────────────────────────────────────── */
 typedef struct rkvc_plan_step {
     const rkvc_node_factory *factory;
+    const rkvc_node_factory **candidates; /**< 按分数/稳定 ID 排序 */
+    size_t candidate_count;
+    size_t candidate_index;
     rkvc_request request;      /**< 每步可携带微调后的请求（如 color range） */
 } rkvc_plan_step;
 
 typedef struct rkvc_plan {
     rkvc_plan_step *steps;
     size_t           step_count;
+    size_t           fallback_count;
 } rkvc_plan;
 
 typedef struct rkvc_graph rkvc_graph;
@@ -171,7 +95,8 @@ struct rkvc_graph {
     size_t      queue_capacity;/**< 每条连接的容量（背压上限） */
     void       *exec;          /**< 执行器（opaque，见 executor.c） */
     rkvc_plan   plan;
-    int         state;         /**< 0=构建 1=已实例化 2=运行 3=已关闭 */
+    size_t      failure_step;  /**< 最近 create/configure/open 失败的步骤 */
+    int         state;         /**< 0=构建 1=已协商 2=已打开/运行 3=已关闭 */
 };
 
 /* ── 执行器（executor.c） ─────────────────────────────────────────── */
@@ -188,8 +113,11 @@ int     rkvc_exec_eos(rkvc_exec *e);                     /* 输入 EOS */
 rkvc_graph *rkvc_graph_new(void);
 void rkvc_graph_free(rkvc_graph *g);
 
-/* 从计划实例化：创建节点、连接端口（协商格式）、open 全部；失败逆序回滚 */
+/* 从计划创建节点并协商格式；不打开设备或分配大块硬件资源。 */
 int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag);
+
+/* 实例化协商后的图：打开设备；失败时逆序回滚，图不可重试。 */
+int rkvc_graph_open(rkvc_graph *g, rkvc_diag **diag);
 
 /* 运行器（起线程→跑→join），阻塞；返回 0 成功 / <0 错误 */
 int rkvc_graph_run(rkvc_graph *g, rkvc_diag **diag);
@@ -201,6 +129,8 @@ int rkvc_plan_build(const rkvc_context *ctx, const rkvc_request *req,
                     const rkvc_device_caps *caps, rkvc_plan *plan,
                     rkvc_diag **diag);
 void rkvc_plan_release(rkvc_plan *plan);
+/** 切换失败步骤到次优候选；必要时推进其他步骤，返回 1=存在新组合。 */
+int rkvc_plan_advance(rkvc_plan *plan, size_t failure_step);
 
 /* ── 注册表（registry.c） ─────────────────────────────────────────── */
 rkvc_status rkvc_registry_add_backend(rkvc_context *ctx, const rkvc_backend *be);
@@ -210,17 +140,15 @@ const rkvc_node_factory *rkvc_registry_find_factory(const rkvc_context *ctx,
                                                     const char *id);
 
 /* ── 节点/端口工具（node.c） ────────────────────────────────────────── */
-rkvc_port *rkvc_node_get_port(rkvc_node *n, const char *name, int as_input);
 int rkvc_node_connect(rkvc_node *a, const char *out_name,
                       rkvc_node *b, const char *in_name);
-void rkvc_port_set_desired(rkvc_port *p, const rkvc_frame_spec *spec);
-int rkvc_node_emit(rkvc_node *n, int out_index, rkvc_frame *frame);
 
 /* ── 连接队列（executor.c 内部；此处仅声明给 graph.c 用） ────────── */
 rkvc_queue *rkvc_queue_create(size_t capacity);
 void rkvc_queue_destroy(rkvc_queue *q);
 /* push 阻塞至有空间（背压），返回 0 或被取消返回 -13；pop 返回 1=帧 / 0=EOS / <0=取消 */
 int rkvc_queue_push(rkvc_queue *q, rkvc_frame *f, void *exec);
+int rkvc_queue_try_push(rkvc_queue *q, rkvc_frame *f, void *exec);
 int rkvc_queue_pop(rkvc_queue *q, rkvc_frame **f, void *exec);
 void rkvc_queue_set_eos(rkvc_queue *q);
 

@@ -19,7 +19,11 @@ static const rkvc_node_factory *fixture_factories(void *probe_ctx,
 }
 
 static rkvc_backend g_fixture = {
-    RKVC_ABI_VERSION, "fixture-good", fixture_probe, fixture_factories, NULL,
+    .abi_version = RKVC_ABI_VERSION,
+    .id = "fixture-good",
+    .capability_flags = RKVC_BACKEND_CAP_RGA,
+    .probe = fixture_probe,
+    .factories = fixture_factories,
 };
 
 const rkvc_backend *rkvc_backend_query(void) { return &g_fixture; }
