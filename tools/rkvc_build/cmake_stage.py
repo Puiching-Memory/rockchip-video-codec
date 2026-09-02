@@ -73,6 +73,19 @@ def build_and_install(ctx, logger) -> Path:
     sodium_prefix = ctx.target_prefix / "libsodium"
     sodium_available = (sodium_prefix / "lib" / "libsodium.a").is_file()
 
+    # SVT-AV1 / FFmpeg 容器依赖：软件编码器与 mp4/mkv 等 demux/mux。
+    # 二者在项目内预构建（SVT 安装前缀 + ffmpeg-rockchip 源码树内产出的
+    # 共享库）；存在即纳入发布包，缺失则按 OFF 构建。
+    svt_prefix = SOURCE_ROOT / ".build" / "deps" / "svt-av1-install"
+    svt_available = (svt_prefix / "lib" / "libSvtAv1Enc.so").is_file()
+    ffmpeg_src = SOURCE_ROOT / "third_party" / "ffmpeg-rockchip"
+    ffmpeg_available = all(
+        (ffmpeg_src / d / f"lib{lib}.so").is_file()
+        for d, lib in (("libavcodec", "avcodec"),
+                       ("libavformat", "avformat"),
+                       ("libavutil", "avutil"))
+    )
+
     args = [
         "cmake", "-S", str(SOURCE_ROOT), "-B", str(build_dir), "-G", "Ninja",
         f"-DCMAKE_TOOLCHAIN_FILE={TOOLCHAIN}",
@@ -96,6 +109,8 @@ def build_and_install(ctx, logger) -> Path:
         f"-DRKVC_BUILD_BACKEND_RGA={'ON' if rga_available else 'OFF'}",
         f"-DRKVC_BUILD_BACKEND_RKNN={'ON' if rknn_available else 'OFF'}",
         f"-DRKVC_BUILD_BACKEND_MLVC={'ON' if rknn_available else 'OFF'}",
+        f"-DRKVC_BUILD_BACKEND_SVT={'ON' if svt_available else 'OFF'}",
+        f"-DRKVC_BUILD_BACKEND_FFMPEG={'ON' if ffmpeg_available else 'OFF'}",
     ]
     if mpp_available:
         args += [
@@ -120,13 +135,14 @@ def build_and_install(ctx, logger) -> Path:
 
     # 厂商运行库随包分发到扁平 lib/（后端 DSO
     # INSTALL_RPATH=$ORIGIN/../..）。是否允许再分发由发布环境负责把关。
-    if mpp_available or rga_available or rknn_available:
+    if mpp_available or rga_available or rknn_available \
+            or svt_available or ffmpeg_available:
         import shutil
         dst = pkg_root / "lib"
         dst.mkdir(parents=True, exist_ok=True)
 
-        def _copy_runtime(prefix: Path, pattern: str) -> None:
-            for so in sorted((prefix / "lib").glob(pattern)):
+        def _copy_runtime(lib_dir: Path, pattern: str) -> None:
+            for so in sorted(lib_dir.glob(pattern)):
                 target = dst / so.name
                 if so.is_symlink():
                     if target.exists():
@@ -136,14 +152,34 @@ def build_and_install(ctx, logger) -> Path:
                     shutil.copy2(so, target)
 
         if mpp_available:
-            _copy_runtime(mpp_prefix, "librockchip_mpp.so*")
+            _copy_runtime(mpp_prefix / "lib", "librockchip_mpp.so*")
         if rga_available:
-            _copy_runtime(rga_prefix, "librga.so*")
+            _copy_runtime(rga_prefix / "lib", "librga.so*")
         if rknn_available:
-            _copy_runtime(rknn_prefix, "librknnrt.so*")
+            _copy_runtime(rknn_prefix / "lib", "librknnrt.so*")
             license_src = rknn_prefix / "LICENSE"
             if license_src.is_file():
                 license_dst = pkg_root / "share" / "licenses" / "rknn-runtime"
                 license_dst.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(license_src, license_dst / "LICENSE")
+        if svt_available:
+            _copy_runtime(svt_prefix / "lib", "libSvtAv1Enc.so*")
+            for name in ("LICENSE.md", "LICENSE"):
+                license_src = SOURCE_ROOT / "third_party" / "SVT-AV1" / name
+                if license_src.is_file():
+                    license_dst = pkg_root / "share" / "licenses" / "svt-av1"
+                    license_dst.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(license_src, license_dst / license_src.name)
+                    break
+        if ffmpeg_available:
+            for d, lib in (("libavcodec", "avcodec"),
+                           ("libavformat", "avformat"),
+                           ("libavutil", "avutil")):
+                _copy_runtime(ffmpeg_src / d, f"lib{lib}.so*")
+            for name in ("COPYING.LGPLv2.1", "COPYING.GPLv2"):
+                license_src = ffmpeg_src / name
+                if license_src.is_file():
+                    license_dst = pkg_root / "share" / "licenses" / "ffmpeg"
+                    license_dst.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(license_src, license_dst / license_src.name)
     return pkg_root

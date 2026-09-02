@@ -74,6 +74,52 @@ if(RKVC_BUILD_BACKEND_RKNN OR RKVC_BUILD_BACKEND_MLVC)
     endif()
 endif()
 
+if(RKVC_BUILD_BACKEND_SVT)
+    set(SVT_AV1_INSTALL_PREFIX
+        "${CMAKE_SOURCE_DIR}/.build/deps/svt-av1-install"
+        CACHE PATH "SVT-AV1 install prefix (lib/ + include/svt-av1/)")
+    if(NOT EXISTS "${SVT_AV1_INSTALL_PREFIX}/lib/libSvtAv1Enc.so")
+        message(FATAL_ERROR
+            "SVT backend requested but libSvtAv1Enc.so was not found at "
+            "${SVT_AV1_INSTALL_PREFIX}/lib\n"
+            "  Build/install SVT-AV1 from third_party/SVT-AV1 into "
+            "${SVT_AV1_INSTALL_PREFIX} first.")
+    endif()
+    set(SVT_AV1_LIB_DIR "${SVT_AV1_INSTALL_PREFIX}/lib")
+    if(EXISTS "${SVT_AV1_INSTALL_PREFIX}/include/svt-av1/EbSvtAv1Enc.h")
+        set(SVT_AV1_INCLUDE_DIR
+            "${SVT_AV1_INSTALL_PREFIX}/include/svt-av1")
+    else()
+        message(FATAL_ERROR
+            "SVT backend requested but EbSvtAv1Enc.h was not found under "
+            "${SVT_AV1_INSTALL_PREFIX}/include/svt-av1")
+    endif()
+endif()
+
+# FFmpeg 容器后端链接源码树内的共享库：需先在
+# third_party/ffmpeg-rockchip 中 configure && make（--enable-shared，
+# 默认 libavcodec/libavformat/libavutil 三个子目录产出 .so）。
+if(RKVC_BUILD_BACKEND_FFMPEG)
+    set(FFMPEG_SRC_DIR "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip")
+    if(NOT EXISTS "${FFMPEG_SRC_DIR}/libavcodec/libavcodec.so" OR
+       NOT EXISTS "${FFMPEG_SRC_DIR}/libavformat/libavformat.so" OR
+       NOT EXISTS "${FFMPEG_SRC_DIR}/libavutil/libavutil.so")
+        message(FATAL_ERROR
+            "FFmpeg backend requested but ffmpeg-rockchip shared libs were "
+            "not found in ${FFMPEG_SRC_DIR}\n"
+            "  Run the ffmpeg-rockchip configure/make step first.")
+    endif()
+    set(FFMPEG_INCLUDE_DIRS
+        "${FFMPEG_SRC_DIR}"
+        "${FFMPEG_SRC_DIR}/libavcodec"
+        "${FFMPEG_SRC_DIR}/libavformat"
+        "${FFMPEG_SRC_DIR}/libavutil")
+    set(FFMPEG_LIB_DIRS
+        "${FFMPEG_SRC_DIR}/libavcodec"
+        "${FFMPEG_SRC_DIR}/libavformat"
+        "${FFMPEG_SRC_DIR}/libavutil")
+endif()
+
 if(RKVC_ENABLE_MODEL_SIGN)
     set(_trust_pub "${RKVC_TRUST_PUBKEY_HEX}")
     if(NOT _trust_pub AND NOT RKVC_TRUST_PRODUCTION AND

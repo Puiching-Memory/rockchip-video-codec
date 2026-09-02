@@ -23,6 +23,22 @@ cmake --build --preset default
 MPP DSO 需要一个目标架构匹配的 MPP 安装前缀，并在配置时设置
 RKVC_BUILD_BACKEND_MPP=ON 与 MPP_INSTALL_PREFIX。
 
+SVT-AV1 软件编码后端（`svt.encode`，AV1）与 FFmpeg 容器后端
+（`ffmpeg.demux` / `ffmpeg.mux`）按需启用：
+
+~~~bash
+# SVT：先构建安装到 .build/deps/svt-av1-install（含 include/svt-av1 与 lib/libSvtAv1Enc.so）
+cmake -S . -B .build/svt -G Ninja \
+  -DRKVC_BUILD_BACKEND_SVT=ON \
+  -DRKVC_BUILD_BACKEND_FFMPEG=ON
+~~~
+
+FFmpeg 后端链接 `third_party/ffmpeg-rockchip` 源码树内的共享库，需先
+configure && make（--enable-shared）产出 libavcodec/libavformat/libavutil
+三个 `.so`。启用后，`decode`/`transcode` 的 `.mp4/.mkv/.ts` 等容器输入
+自动走 `ffmpeg.demux`，`encode`/`transcode` 的容器输出自动走
+`ffmpeg.mux`；裸码流路径不受影响，仍回退到 `file.source` / `file.sink`。
+
 RKNN DSO 同样要求显式目标 SDK 前缀：
 
 ~~~bash

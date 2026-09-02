@@ -167,3 +167,42 @@ if(RKVC_BUILD_BACKEND_MLVC)
     target_link_options(rkvc_backend_mlvc PRIVATE
         "-Wl,-soname,rkvc_backend_mlvc.so")
 endif()
+
+if(RKVC_BUILD_BACKEND_SVT)
+    add_library(rkvc_backend_svt MODULE backends/backend_svt.c)
+    target_include_directories(rkvc_backend_svt PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${SVT_AV1_INCLUDE_DIR})
+    target_link_directories(rkvc_backend_svt PRIVATE ${SVT_AV1_LIB_DIR})
+    target_link_libraries(rkvc_backend_svt PRIVATE SvtAv1Enc m pthread)
+    set_target_properties(rkvc_backend_svt PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_backend_svt
+        POSITION_INDEPENDENT_CODE ON
+        BUILD_RPATH "${SVT_AV1_LIB_DIR}"
+        INSTALL_RPATH "$ORIGIN/../..")
+    target_link_options(rkvc_backend_svt PRIVATE
+        "-Wl,-soname,rkvc_backend_svt.so")
+endif()
+
+if(RKVC_BUILD_BACKEND_FFMPEG)
+    add_library(rkvc_backend_ffmpeg MODULE backends/backend_ffmpeg.c)
+    target_include_directories(rkvc_backend_ffmpeg PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${FFMPEG_INCLUDE_DIRS})
+    target_link_directories(rkvc_backend_ffmpeg PRIVATE ${FFMPEG_LIB_DIRS})
+    target_link_libraries(rkvc_backend_ffmpeg PRIVATE
+        avformat avcodec avutil m pthread)
+    set_target_properties(rkvc_backend_ffmpeg PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_backend_ffmpeg
+        POSITION_INDEPENDENT_CODE ON
+        BUILD_RPATH "${FFMPEG_LIB_DIRS}"
+        INSTALL_RPATH "$ORIGIN/../..")
+    # DT_RPATH（而非 DT_RUNPATH）会被 ld.so 传递给间接依赖：
+    # libavformat -> libavcodec -> libavutil 都位于包内扁平 lib/，
+    # 只有 $ORIGIN 链式继承才能全部解析。
+    target_link_options(rkvc_backend_ffmpeg PRIVATE
+        "-Wl,-soname,rkvc_backend_ffmpeg.so"
+        "-Wl,--disable-new-dtags")
+endif()

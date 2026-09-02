@@ -22,6 +22,10 @@ option(RKVC_BUILD_BACKEND_RKNN
     "Build the Rockchip RKNN backend DSO (requires RKNN_INSTALL_PREFIX)" OFF)
 option(RKVC_BUILD_BACKEND_MLVC
     "Build the MLVC neural codec backend DSO (requires RKNN_INSTALL_PREFIX)" OFF)
+option(RKVC_BUILD_BACKEND_SVT
+    "Build the SVT-AV1 software encoder backend DSO (requires SVT_AV1_INSTALL_PREFIX)" OFF)
+option(RKVC_BUILD_BACKEND_FFMPEG
+    "Build the FFmpeg demux/mux backend DSO (requires an in-tree ffmpeg-rockchip build)" OFF)
 option(RKVC_ENABLE_MODEL_SIGN
     "Enable .rkmodel Ed25519 signature verification" OFF)
 option(RKVC_TRUST_PRODUCTION
