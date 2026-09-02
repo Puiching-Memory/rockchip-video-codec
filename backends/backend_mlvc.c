@@ -341,6 +341,53 @@ static const rkvc_model_payload_view *find_payload(
     return NULL;
 }
 
+/* QPP1 头（48B 小端）内联读取 qp（offset 16）；不完整/非 QPP1 返回 -1。 */
+static int qppatch_qp(const rkvc_model_payload_view *v)
+{
+    const uint8_t *p;
+    if (!v || !v->data || v->size < MLVC_QPPATCH_HEADER_SIZE)
+        return -1;
+    p = v->data;
+    if (memcmp(p, MLVC_QPPATCH_MAGIC, 4) != 0)
+        return -1;
+    return (int)((uint32_t)p[16] | ((uint32_t)p[17] << 8) |
+                 ((uint32_t)p[18] << 16) | ((uint32_t)p[19] << 24));
+}
+
+/**
+ * 多 QP 单模型：容器可携带多个 QPPATCH 载荷（每 qp 一份，基座 qp 的
+ * 空补丁也含在内）。按目标 qp 选择；仅一个补丁且 qp 匹配时沿用。
+ */
+static const rkvc_model_payload_view *find_qppatch_for_qp(
+    const rkvc_model_binding *binding, int qp)
+{
+    const rkvc_model_payload_view *first = NULL;
+    const rkvc_model_payload_view *hit = NULL;
+    size_t count = 0;
+    size_t i;
+
+    if (!binding)
+        return NULL;
+    for (i = 0; i < binding->payload_count; ++i) {
+        const rkvc_model_payload_view *v = &binding->payloads[i];
+        if (v->kind != RKMODEL_PAYLOAD_QPPATCH)
+            continue;
+        if (!first)
+            first = v;
+        if (!hit && qppatch_qp(v) == qp)
+            hit = v;
+        count++;
+    }
+    if (!count)
+        return NULL;
+    if (hit)
+        return hit;
+    /* 单补丁且声明 qp 与目标一致（或无法解析）时交由 apply 校验。 */
+    if (count == 1 && qppatch_qp(first) < 0)
+        return first;
+    return NULL;
+}
+
 static int init_rans_from_binding(const rkvc_model_binding *binding,
                                   rkvc_rans_coder *g, rkvc_rans_coder *b,
                                   int require_gaussian_index_space)
@@ -622,7 +669,7 @@ static int mlvc_enc_bind_model(rkvc_node *node,
     e->rans_ready = 1;
 
     const rkvc_model_payload_view *patch =
-        find_payload(binding, RKMODEL_PAYLOAD_QPPATCH);
+        find_qppatch_for_qp(binding, e->qp);
     rc = rknn_model_init(&e->enc_model, binding->payload,
                          binding->payload_size,
                          patch ? patch->data : NULL,
@@ -952,8 +999,7 @@ struct mlvc_decoder {
     /* 绑定暂存：RKNN 惰性初始化（首帧容器头给出 qp 后） */
     const unsigned char *model_bytes;
     size_t model_size;
-    const uint8_t *patch_bytes;
-    size_t patch_size;
+    const rkvc_model_binding *binding; /* 多 QP 补丁按 qp 选择用 */
 
     mlvc_demuxer demux;
     uint32_t frame_count;
@@ -1099,16 +1145,11 @@ static int mlvc_dec_bind_model(rkvc_node *node,
     }
     d->rans_ready = 1;
 
-    /* RKNN 字节暂存：qp 需从首个 .mlvc 容器头读取（qppatch 校验 qp），
-     * 故惰性到首帧再 rknn_init。字节归图持有（节点 destroy 前有效）。 */
+    /* 绑定暂存：多 QP 补丁须在容器头给出 qp 后才能选择，故保留
+     * binding 引用（核心保证载荷在节点 destroy 前有效）。 */
     d->model_bytes = binding->payload;
     d->model_size = binding->payload_size;
-    {
-        const rkvc_model_payload_view *patch =
-            find_payload(binding, RKMODEL_PAYLOAD_QPPATCH);
-        d->patch_bytes = patch ? patch->data : NULL;
-        d->patch_size = patch ? patch->size : 0;
-    }
+    d->binding = binding;
     return 0;
 }
 
@@ -1141,8 +1182,11 @@ static int mlvc_dec_open(rkvc_node *node, rkvc_diag **diag)
 static int dec_lazy_init(struct mlvc_decoder *d, rkvc_diag **diag,
                          const rkvc_node *node)
 {
+    const rkvc_model_payload_view *patch =
+        find_qppatch_for_qp(d->binding, d->qp);
     int rc = rknn_model_init(&d->dec_model, d->model_bytes, d->model_size,
-                             d->patch_bytes, d->patch_size, d->qp);
+                             patch ? patch->data : NULL,
+                             patch ? patch->size : 0, d->qp);
     if (rc != 0) {
         push_reason(diag, (rkvc_status)rc, node,
                     "decoder RKNN init failed (qp patch/model)");
