@@ -106,6 +106,33 @@ class PackageVerifierTests(unittest.TestCase):
             any(v.kind == "arch" for v in self.report.violations)
         )
 
+    def test_rejects_isoc23_symbol_references(self) -> None:
+        """__isoc23_* 等新 glibc 别名无 version 记录，必须单独拦截。
+
+        2026-09 板卡回归: RK3576 (glibc 2.35) 加载含 __isoc23_sscanf
+        UND 引用的库直接 symbol lookup error，而 .gnu.version_r 只到
+        GLIBC_2.29，glibc 基线门禁漏检。"""
+        package = self.base / "isoc23"
+        library_dir = package / "lib"
+        library_dir.mkdir(parents=True)
+        # 宿主 gcc >= 13 且 glibc >= 2.38 时 -D_GNU_SOURCE 下 stdio.h 会
+        # 将 sscanf 等重定向为 __isoc23_*；否则跳过。
+        probe = library_dir / "libisoc23_probe.so"
+        _compile_so(
+            probe,
+            source=(
+                "#define _GNU_SOURCE\n"
+                "#include <stdio.h>\n"
+                "int rkvc_payload(const char *s){int v;sscanf(s,"
+                "\"%d\",&v);return v;}\n"
+            ),
+        )
+        info = read_elf(str(probe))
+        if not any(s.startswith("__isoc23_") for s in info.undef_symbols):
+            self.skipTest("host toolchain does not emit __isoc23_*")
+        report = policy.verify_package(package, "linux-aarch64-glibc231")
+        self.assertTrue(any(v.kind == "symbol" for v in report.violations))
+
     def test_rejects_newer_glibc(self) -> None:
         candidates = (Path("/usr/bin/python3"), Path(sys.executable))
         newer_elf = None

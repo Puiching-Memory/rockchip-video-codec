@@ -339,6 +339,29 @@ static void test_decode_file_roundtrip(void **state) {
     rkvc_context_destroy(ctx);
 }
 
+/* 多包输入（>内部缓冲×chunk 上限）必须完整收尾不挂死：2026-09 板卡
+ * 回归发现 MPP 后端在第 4 个 256KB 包起 put/get 互等死锁；该用例在
+ * x86 锁定“源节点持续产出多 chunk、执行器满压下背压+EoS 收尾”契约。 */
+static void test_decode_multi_chunk_backpressure(void **state) {
+    char in[64], out[64];
+    rkvc_context *ctx = ctx_with_fake();
+    (void)state;
+
+    make_path(in, sizeof(in), "dec_many");
+    make_path(out, sizeof(out), "dec_many_out");
+    /* 40 个 chunk（10MB），远超 file.source 单次 flush 与队列容量 4×4 */
+    write_pattern_file(in, 40 * 256 * 1024 + 5, 13);
+
+    assert_int_equal(run_file_job(ctx, RKVC_OPERATION_DECODE,
+                                  RKVC_CODEC_H264, in, out, 0, 0),
+                     RKVC_STATUS_OK);
+    assert_files_equal(in, out);
+
+    remove(in);
+    remove(out);
+    rkvc_context_destroy(ctx);
+}
+
 /* encode 文件→文件：NV12 原始帧输入，尺寸由请求提供。 */
 static void test_encode_file_roundtrip(void **state) {
     char in[64], out[64];
@@ -466,6 +489,7 @@ int main(void) {
         cmocka_unit_test(test_planner_injects_source_sink),
         cmocka_unit_test(test_planner_streaming_no_fileio),
         cmocka_unit_test(test_decode_file_roundtrip),
+        cmocka_unit_test(test_decode_multi_chunk_backpressure),
         cmocka_unit_test(test_encode_file_roundtrip),
         cmocka_unit_test(test_transcode_file_roundtrip),
         cmocka_unit_test(test_missing_codec_candidate),

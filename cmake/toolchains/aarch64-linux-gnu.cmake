@@ -35,9 +35,53 @@ if(NOT _rkvc_sysroot STREQUAL "")
     # 目录失效后 gcc 静默回落宿主 libc。链接 flags 不受该正则影响。
     # -B 用于把 crt 文件与 libc.so 链接脚本指向 sysroot; --sysroot 用于让
     # gcc 驱动把脚本内绝对路径(/lib/...、/usr/lib/...)改写进 sysroot。
-    set(CMAKE_C_FLAGS_INIT "--sysroot=${_rkvc_sysroot} -static-libgcc")
+    #
+    # 头文件隔离（2026-09 板卡回归教训）: Ubuntu 交叉 gcc 的内建搜索链把
+    # 宿主 /usr/<triplet>/include（glibc 2.39 头, 含 __isoc23_* C23 重定向）
+    # 排在 --sysroot 头之前, 会在 glibc 2.31 产物里悄悄引入 2.38 符号。
+    # -nostdinc + 显式 -I 完全接管系统头搜索: 只允许 gcc 内建 include
+    # (stddef.h 等) 与锁定 sysroot 的通用/multiarch 头。
+    #
+    # 上面提到的 "-g[^ ]*" 正则同样作用于所有 -I 路径: 任何含 "-gnu" 的
+    # 路径（gcc 内建目录、sysroot multiarch 目录）都会被剥成 "…-linux"
+    # 而失效。因此这两个目录必须经不含 "-g" 的软链中转；软链在 configure
+    # 时自动创建（幂等），路径可用环境变量覆盖。
+    set(_rkvc_cross_cache "$ENV{RKVC_CROSS_CACHE}")
+    if(_rkvc_cross_cache STREQUAL "")
+        set(_rkvc_cross_cache "/root/.rkvc-cross")
+    endif()
+    set(_rkvc_gcc_builtin_inc "$ENV{RKVC_GCC_BUILTIN_INC}")
+    if(_rkvc_gcc_builtin_inc STREQUAL "")
+        set(_rkvc_gcc_builtin_inc "/usr/lib/gcc-cross/aarch64-linux-gnu")
+    endif()
+    execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory
+                    ${_rkvc_cross_cache})
+    execute_process(COMMAND ln -sfn ${_rkvc_gcc_builtin_inc}
+                    ${_rkvc_cross_cache}/gccinc)
+    execute_process(COMMAND ln -sfn
+                    ${_rkvc_sysroot}/usr/include/aarch64-linux-gnu
+                    ${_rkvc_cross_cache}/sysinc)
+    # glibc 2.31 头的 `!__GNUC_PREREQ (7, 0) || defined __cplusplus` 守卫
+    # 在 gcc 13 C++ 下仍为真: gcc 7 起 _FloatN 在 C++ 中也是内建类型,
+    # 旧守卫导致 typedef 重定义 (-fpermissive 报错)。configure 时把
+    # 系统头里的守卫收紧为 `!__GNUC_PREREQ (7, 0)` (与 glibc 2.35+ 一致)。
+    execute_process(
+        COMMAND sh -c
+        "grep -rl '__GNUC_PREREQ (7, 0) || defined __cplusplus' \
+${_rkvc_sysroot}/usr/include 2>/dev/null | xargs -r sed -i \
+'s/__GNUC_PREREQ (7, 0) || defined __cplusplus/__GNUC_PREREQ (7, 0)/g'")
+    set(CMAKE_C_FLAGS_INIT
+        "--sysroot=${_rkvc_sysroot} -static-libgcc -nostdinc \
+-I${_rkvc_sysroot}/usr/include \
+-I${_rkvc_cross_cache}/sysinc \
+-I${_rkvc_cross_cache}/gccinc/13/include")
     set(CMAKE_CXX_FLAGS_INIT
-        "--sysroot=${_rkvc_sysroot} -static-libgcc -static-libstdc++")
+        "--sysroot=${_rkvc_sysroot} -static-libgcc -static-libstdc++ -nostdinc \
+-I${_rkvc_sysroot}/usr/include/c++/13 \
+-I${_rkvc_cross_cache}/sysinc/c++/13 \
+-I${_rkvc_sysroot}/usr/include \
+-I${_rkvc_cross_cache}/sysinc \
+-I${_rkvc_cross_cache}/gccinc/13/include")
     set(CMAKE_EXE_LINKER_FLAGS_INIT
         "-B${_rkvc_sysroot}/usr/lib/aarch64-linux-gnu --sysroot=${_rkvc_sysroot} -static-libgcc")
     set(CMAKE_SHARED_LINKER_FLAGS_INIT

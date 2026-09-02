@@ -33,6 +33,12 @@ TRIPLET = {"aarch64": "aarch64-linux-gnu", "armhf": "arm-linux-gnueabihf"}
 
 _VERSION_RE = re.compile(r"^GLIBC_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?$")
 
+# 未版本化符号前缀黑名单：glibc 在 C23 方言下重定向 sscanf/strtoul 等
+# 到 __isoc23_*（glibc 2.38 引入），这类引用不出现在 .gnu.version_r，
+# 只能靠扫 .dynsym 的 SHN_UNDEF 捕获（2026-09 板卡回归教训：RK3576
+# glibc 2.35 加载即 symbol lookup error，verify 却放行）。
+_BANNED_SYMBOL_PREFIXES = ("__isoc23_",)
+
 # Libraries supplied by the target runtime (glibc base + toolchain), never
 # bundled in the package per the plan ("package does not carry glibc, dynamic
 # loader, libpthread, libdl").  They are satisfied by the target rootfs, so an
@@ -202,6 +208,18 @@ def verify_package(package: Path,
                 rel, "glibc",
                 f"requires {'.'.join(map(str, mg))} > floor "
                 f"{'.'.join(map(str, max_glibc))}"))
+
+        # ---- banned unversioned symbol references ----
+        # __isoc23_* 等新 glibc 别名无 version_r 记录，单独扫 .dynsym。
+        banned = sorted({
+            sym for sym in info.undef_symbols
+            if any(sym.startswith(p) for p in _BANNED_SYMBOL_PREFIXES)
+        })
+        if banned:
+            report.violations.append(Violation(
+                rel, "symbol",
+                f"references newer-glibc aliases: {' '.join(banned[:4])}"
+                + (" ..." if len(banned) > 4 else "")))
 
         # ---- RPATH / RUNPATH ----
         for tag_name, paths in (("rpath", info.dynamic.rpath),

@@ -78,6 +78,10 @@ class ElfFile:
     #: required symbol binds to is necessarily present in ``.dynstr``, so this
     #: is a robust source for the glibc baseline gate.
     dynstr_versions: list[str] = field(default_factory=list)
+    #: Undefined dynamic symbols (``.dynsym`` SHN_UNDEF), unversioned name
+    #: only.  Used by the gate that rejects glibc newer-than-baseline aliases
+    #: such as ``__isoc23_*`` that never appear in ``.gnu.version_r``.
+    undef_symbols: list[str] = field(default_factory=list)
 
     @property
     def max_glibc(self) -> tuple[int, int, int] | None:
@@ -253,11 +257,35 @@ def read_elf(path: str) -> ElfFile:
                     dynsym_link = sh_link
 
         dynstr: bytes = b""
+        dynsym_off = dynsym_size = 0
         if dynsym_link >= 0:
             st_type, st_off, st_size, _lk = sections[dynsym_link]
             if st_type == SHT_STRTAB:
                 stream.seek(st_off)
                 dynstr = stream.read(st_size)
+            # .dynsym 本体是 section 头链上第一个 SHT_DYNSYM
+            for j, (sh_type, sh_offset, sh_size, _l) in enumerate(sections):
+                if sh_type == SHT_DYNSYM:
+                    dynsym_off, dynsym_size = sh_offset, sh_size
+                    break
+
+        undef: list[str] = []
+        if dynsym_off and dynstr:
+            entsize = 24 if bits == ELFCLASS64 else 16
+            stream.seek(dynsym_off)
+            raw = stream.read(dynsym_size)
+            for k in range(0, len(raw) - entsize + 1, entsize):
+                if bits == ELFCLASS64:
+                    _nm, _info, _other, shndx, _val, sz = struct.unpack_from(
+                        endian + "IBBHQQ", raw, k)
+                else:
+                    _nm, _val, sz, _info, _other, shndx = struct.unpack_from(
+                        endian + "IIIBBH", raw, k)
+                if shndx != 0 or sz != 0:
+                    continue  # 只关心未定义引用
+                name = _read_string(dynstr, _nm, path)
+                if name:
+                    undef.append(name)
 
         dyn = _parse_dynamic(dyn_sec, bits, endian, dynstr, path) \
             if dyn_sec is not None else Dynamic()
@@ -273,4 +301,5 @@ def read_elf(path: str) -> ElfFile:
             load_wx=load_wx,
             stack_exec=stack_exec,
             dynstr_versions=_scan_dynstr_versions(dynstr),
+            undef_symbols=undef,
         )

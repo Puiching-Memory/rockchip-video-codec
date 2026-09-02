@@ -89,6 +89,7 @@ struct mpp_decoder {
     MppApi       *mpi;         /**< MPP 控制 API */
     MppCodingType coding;      /* MPP_VIDEO_CodingUnused = 待首帧嗅探 */
     int           initialized; /**< 已完成 mpp_init（嗅探输入为惰性） */
+    uint64_t      emitted;     /**< 已发出帧数（BUFFER_FULL 重试进展检测） */
 };
 
 /** 把一帧解码输出的 MppFrame 包装为线性 DMABUF rkvc_frame 并发出。 */
@@ -160,6 +161,8 @@ static int drain_decoder(rkvc_node *node, int until_eos) {
         if (mpp_frame_get_buffer(frame)) {
             rc = emit_mpp_frame(node, frame);
             mpp_frame_deinit(&frame);
+            if (rc == 0)
+                dec->emitted++;
             if (rc != 0)
                 return rc;
         } else {
@@ -248,7 +251,8 @@ static int mpp_dec_process(rkvc_node *node, rkvc_frame *input,
     rkvc_frame_desc desc;
     MppPacket packet = NULL;
     MPP_RET ret;
-    int retries = 1000; /* 每帧最多阻塞重试预算，防硬件假死卡死图 */
+    /* 时间预算而非次数预算：drain 有产出即重置；无进展满 10s 判硬件假死 */
+    struct timespec deadline;
 
     if (rkvc_frame_get_desc(input, &desc) != RKVC_STATUS_OK ||
         desc.spec.fmt != RKVC_FRAME_FMT_BITSTREAM || !desc.data || !desc.size)
@@ -274,7 +278,12 @@ static int mpp_dec_process(rkvc_node *node, rkvc_frame *input,
         return (int)RKVC_STATUS_NOMEM;
     mpp_packet_set_pts(packet, desc.pts);
     mpp_packet_set_dts(packet, desc.dts);
+
+    clock_gettime(CLOCK_MONOTONIC, &deadline);
+    deadline.tv_sec += 10;
     for (;;) {
+        uint64_t before;
+        int rc;
         ret = dec->mpi->decode_put_packet(dec->ctx, packet);
         if (ret == MPP_OK)
             break;
@@ -289,22 +298,32 @@ static int mpp_dec_process(rkvc_node *node, rkvc_frame *input,
             return (int)RKVC_STATUS_NOMEM;
         mpp_packet_set_pts(packet, desc.pts);
         mpp_packet_set_dts(packet, desc.dts);
-        {
-            int rc = drain_decoder(node, 0);
-            if (rc != 0) {
-                mpp_packet_deinit(&packet);
-                return rc;
-            }
-        }
-        if (--retries < 0) {
+        before = dec->emitted;
+        rc = drain_decoder(node, 0);
+        if (rc != 0) {
             mpp_packet_deinit(&packet);
-            if (diag)
-                rkvc_diag_push(diag, RKVC_STATUS_HW, 3, node->ops->id,
-                               "decoder input stays full; hardware stall?");
-            return (int)RKVC_STATUS_HW;
+            return rc;
         }
-        struct timespec ts = {0, 1000000}; /* 1ms，与官方测试节奏一致 */
-        nanosleep(&ts, NULL);
+        if (dec->emitted != before) {
+            /* 有进展：重置假死计时 */
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            deadline = now;
+            deadline.tv_sec += 10;
+        } else {
+            struct timespec now, ts = {0, 1000000}; /* 1ms，官方测试节奏 */
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            if (now.tv_sec > deadline.tv_sec ||
+                (now.tv_sec == deadline.tv_sec &&
+                 now.tv_nsec >= deadline.tv_nsec)) {
+                mpp_packet_deinit(&packet);
+                if (diag)
+                    rkvc_diag_push(diag, RKVC_STATUS_HW, 3, node->ops->id,
+                                   "decoder input stays full; hw stall?");
+                return (int)RKVC_STATUS_HW;
+            }
+            nanosleep(&ts, NULL);
+        }
     }
     mpp_packet_deinit(&packet);
     return drain_decoder(node, 0);
