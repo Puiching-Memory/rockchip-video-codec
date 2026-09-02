@@ -92,6 +92,34 @@ if(RKVC_BUILD_TESTS)
     add_test(NAME test_backend_rknn COMMAND test_backend_rknn)
     set_tests_properties(test_backend_rknn PROPERTIES LABELS "c;unit;backend")
 
+    # MLVC 后端：fake RKNN runtime + 最小 PMF 表，x86 端到端
+    # encode→container 与 encode→decode 往返，不要求 NPU。
+    add_executable(test_backend_mlvc
+        tests/c/test_backend_mlvc.c
+        tests/c/fake_rknn/fake_rknn.c
+        backends/backend_mlvc.c
+        backends/mlvc/rans.c
+        backends/mlvc/mlvc_pixel.c
+        backends/mlvc/pmf.c
+        backends/mlvc/qppatch.c
+        backends/mlvc/container.c
+        ${RKVC_STANDALONE_SOURCES})
+    target_compile_definitions(test_backend_mlvc PRIVATE
+        RKVC_STANDALONE_TEST=1 RKVC_MLVC_TESTING=1 _DEFAULT_SOURCE
+        ${RKVC_MODEL_SIGN_DEFS})
+    target_include_directories(test_backend_mlvc PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/c/fake_rknn
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/backends
+        ${RKVC_SODIUM_INCLUDES}
+        ${CMOCKA_INCLUDE_DIRS})
+    target_link_libraries(test_backend_mlvc PRIVATE
+        cmocka pthread m ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS}
+        rkvc_instrumentation)
+    add_test(NAME test_backend_mlvc COMMAND test_backend_mlvc)
+    set_tests_properties(test_backend_mlvc PROPERTIES LABELS "c;unit;backend")
+
     add_library(rkvc_fixture_backend_good MODULE tests/c/fixture_backend.c)
     add_library(rkvc_fixture_backend_badabi MODULE tests/c/fixture_backend_badabi.c)
     foreach(fixture rkvc_fixture_backend_good rkvc_fixture_backend_badabi)
@@ -157,7 +185,7 @@ if(RKVC_BUILD_TESTS)
         test_graph_executor test_job test_rkmodel
         test_media_pipeline test_model_binding
         test_frame_metadata test_api_contract
-        test_backend_loader test_backend_rknn)
+        test_backend_loader test_backend_rknn test_backend_mlvc)
     if(RKVC_BUILD_EXAMPLES)
         list(APPEND RKVC_CHECK_TARGETS
             example_decode_file example_encode_file example_transcode

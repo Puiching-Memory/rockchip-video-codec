@@ -95,6 +95,7 @@ def build_and_install(ctx, logger) -> Path:
         f"-DRKVC_BUILD_BACKEND_MPP={'ON' if mpp_available else 'OFF'}",
         f"-DRKVC_BUILD_BACKEND_RGA={'ON' if rga_available else 'OFF'}",
         f"-DRKVC_BUILD_BACKEND_RKNN={'ON' if rknn_available else 'OFF'}",
+        f"-DRKVC_BUILD_BACKEND_MLVC={'ON' if rknn_available else 'OFF'}",
     ]
     if mpp_available:
         args += [

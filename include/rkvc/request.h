@@ -38,6 +38,7 @@ typedef enum rkvc_codec {
     RKVC_CODEC_H264,       /**< H.264/AVC */
     RKVC_CODEC_HEVC,       /**< H.265/HEVC */
     RKVC_CODEC_AV1,        /**< AV1 */
+    RKVC_CODEC_MLVC,       /**< MLVC 神经视频编解码（NPU + rANS） */
 } rkvc_codec;
 
 /* ── 策略（软约束，供排序使用） ───────────────────────────────────── */

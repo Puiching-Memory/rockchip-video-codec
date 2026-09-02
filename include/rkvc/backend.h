@@ -53,6 +53,13 @@ struct rkvc_port {
  */
 typedef struct rkvc_model_binding rkvc_model_binding;
 
+/** 模型容器中单个已校验载荷的视图（见 rkvc_model_binding）。 */
+typedef struct rkvc_model_payload_view {
+    uint32_t            kind; /**< RKMODEL_PAYLOAD_* */
+    const unsigned char *data; /**< 载荷字节（核心持有，只读） */
+    size_t              size; /**< 载荷字节数 */
+} rkvc_model_payload_view;
+
 /**
  * 节点虚表。所有回调成功返回 0，失败返回负的 rkvc_status；
  * configure() 不得触碰硬件。
@@ -86,12 +93,19 @@ typedef struct rkvc_node_ops {
 
 /**
  * 交付给节点的模型绑定：容器摘要 + 已校验的载荷字节。
- * `info` 与 `payload` 均为核心/上下文持有的只读存储；节点不得释放。
+ * `info` 与各载荷指针均为核心/上下文持有的只读存储；节点不得释放。
+ *
+ * 兼容字段 `payload`/`payload_size` 指向缺省载荷（RKNN；容器未携带时
+ * 为首个载荷）。`payloads`/`payload_count` 是同一容器全部载荷的视图，
+ * 供需要多载荷（如 MLVC 的 RKNN + 双 PMF 熵表）的节点按 kind 取用；
+ * 载荷视图按容器表序排列，节点用 RKMODEL_PAYLOAD_* 匹配 kind。
  */
 struct rkvc_model_binding {
     const rkvc_model_info *info;  /**< 容器摘要（id/role/target/trust） */
-    const unsigned char   *payload; /**< 载荷字节（默认 RKNN；见 load 约定） */
-    size_t                 payload_size; /**< 载荷字节数 */
+    const unsigned char   *payload; /**< 缺省载荷字节（见上方约定） */
+    size_t                 payload_size; /**< 缺省载荷字节数 */
+    const rkvc_model_payload_view *payloads; /**< 全部载荷视图；无载荷为 NULL */
+    size_t                 payload_count;   /**< payloads 元素数 */
 };
 typedef struct rkvc_model_binding rkvc_model_binding;
 

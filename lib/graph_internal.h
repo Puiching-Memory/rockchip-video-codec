@@ -110,7 +110,9 @@ struct rkvc_graph {
     size_t      failure_step;  /**< 最近 create/configure/open 失败的步骤 */
     int         state;         /**< 0=构建 1=已协商 2=已打开/运行 3=已关闭 */
     const struct rkvc_context *ctx; /**< 规划/模型注册表所属上下文（可空） */
-    void       *model_payload; /**< 已交付节点的模型载荷（销毁时释放） */
+    rkvc_model_payload_view *payload_views; /**< 已装载载荷视图（kind+指针） */
+    void **payload_buffers;    /**< 载荷字节缓冲（销毁时逐个释放） */
+    size_t      payload_count; /**< 已装载载荷数 */
 };
 
 /** 绑定上下文（须在 build 前调用）：bind_model 节点据其选择模型。 */

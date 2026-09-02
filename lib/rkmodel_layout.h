@@ -43,9 +43,11 @@
 #define RKMODEL_TAG_KEY_SLOT    9u   /* 密钥槽（加密载荷用） */
 
 /* 载荷类型 */
-#define RKMODEL_PAYLOAD_RKNN    1u
-#define RKMODEL_PAYLOAD_PMF     2u
-#define RKMODEL_PAYLOAD_QPPATCH 3u
+#define RKMODEL_PAYLOAD_RKNN         1u
+#define RKMODEL_PAYLOAD_PMF          2u
+#define RKMODEL_PAYLOAD_QPPATCH      3u
+#define RKMODEL_PAYLOAD_PMF_GAUSSIAN 4u
+#define RKMODEL_PAYLOAD_PMF_BITEST   5u
 
 /* 签名算法 */
 #define RKMODEL_SIG_ED25519     1u

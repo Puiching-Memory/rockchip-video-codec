@@ -55,9 +55,10 @@ static void usage(FILE *out) {
         "  license [--json] [--full]  显示许可证与第三方声明位置\n"
         "\n"
         "媒体子命令:\n"
-        "  decode    -i in.es -o out.nv12 [--codec h264|hevc|av1]\n"
+        "  decode    -i in.es -o out.nv12 [--codec h264|hevc|av1|mlvc]\n"
         "  encode    -i in.nv12 -o out.es --width W --height H\n"
-        "            [--codec h264|hevc] [--bitrate BPS] [--qp QP]\n"
+        "            [--codec h264|hevc|mlvc] [--bitrate BPS] [--qp QP]\n"
+        "            mlvc 需 NPU 模型；--qp 为 MLVC 量化档（默认 21）\n"
         "  transcode -i in.es -o out.es --codec h264|hevc [--bitrate BPS]\n"
         "            [--width W --height H] 转码中缩放\n"
         "  upscale   -i in.nv12 -o out.nv12 --width W --height H\n"
@@ -345,7 +346,7 @@ static int cmd_license(int argc, char **argv, int start, int json) {
 
 /* ── 媒体子命令（decode/encode/transcode） ───────────────────────── */
 
-/** 解析 --codec 参数（h264/hevc/av1 及常见别名）；失败置 *ok=0。 */
+/** 解析 --codec 参数（h264/hevc/av1/mlvc 及常见别名）；失败置 *ok=0。 */
 static rkvc_codec parse_codec(const char *s, int *ok) {
     *ok = 1;
     if (!s || strcmp(s, "auto") == 0) return RKVC_CODEC_AUTO;
@@ -354,6 +355,7 @@ static rkvc_codec parse_codec(const char *s, int *ok) {
     if (strcmp(s, "hevc") == 0 || strcmp(s, "h265") == 0)
         return RKVC_CODEC_HEVC;
     if (strcmp(s, "av1") == 0) return RKVC_CODEC_AV1;
+    if (strcmp(s, "mlvc") == 0) return RKVC_CODEC_MLVC;
     *ok = 0;
     return RKVC_CODEC_AUTO;
 }
@@ -370,6 +372,8 @@ static rkvc_codec infer_codec_from_ext(const char *path) {
         return RKVC_CODEC_HEVC;
     if (!strcmp(dot, ".av1") || !strcmp(dot, ".ivf"))
         return RKVC_CODEC_AV1;
+    if (!strcmp(dot, ".mlvc"))
+        return RKVC_CODEC_MLVC;
     return RKVC_CODEC_AUTO;
 }
 

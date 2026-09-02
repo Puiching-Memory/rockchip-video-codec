@@ -20,6 +20,8 @@ option(RKVC_BUILD_BACKEND_RGA
     "Build the Rockchip RGA backend DSO (requires RGA_INSTALL_PREFIX)" OFF)
 option(RKVC_BUILD_BACKEND_RKNN
     "Build the Rockchip RKNN backend DSO (requires RKNN_INSTALL_PREFIX)" OFF)
+option(RKVC_BUILD_BACKEND_MLVC
+    "Build the MLVC neural codec backend DSO (requires RKNN_INSTALL_PREFIX)" OFF)
 option(RKVC_ENABLE_MODEL_SIGN
     "Enable .rkmodel Ed25519 signature verification" OFF)
 option(RKVC_TRUST_PRODUCTION

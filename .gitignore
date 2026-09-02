@@ -2,6 +2,8 @@
 # Canonical: .build/{release,debug,tests,asan,coverage,portable,dist,deps}/
 # Legacy root-level build/ / build-*/ kept ignored so leftovers never enter git.
 .build/
+# 0.3 MLVC 参考源码（只读对照用，不入库）
+.mlvc-ref/
 build/
 build-*/
 build_*/

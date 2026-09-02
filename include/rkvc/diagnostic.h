@@ -52,15 +52,16 @@ void rkvc_diag_fmt_json(const rkvc_diag *diag, char *buf, size_t size);
  * @brief 在诊断链首追加一个节点。
  *
  * 供后端 DSO 在 configure/open/process/flush 失败时记录可解释原因；
- * 宿主侧（规划器/执行器/任务层）同样使用。subject/reason 必须是静态
- * 字符串（不拷贝，不释放）。
+ * 宿主侧（规划器/执行器/任务层）同样使用。subject/reason 入链即拷贝
+ * （不持有调用方指针，也无需释放）。
  *
  * @param diag   指向链首指针（可为空链）。失败时记为 NOMEM 节点并仍返回原链。
  * @param status 关联状态码。
  * @param stage  阶段编码（1=规划 2=打开 3=处理/刷新）。
  * @param subject 主体（后端 id / 模型 id / 端口名）。
- * @param reason  静态原因。
- */
+ * @param reason  静态原因。 *
+ * subject/reason 在入链时拷贝到诊断节点自有缓冲（截断至 95 字符），
+ * 调用方无需保证字符串在诊断消费前存活——后端 DSO 卸载后诊断仍可用。 */
 void rkvc_diag_push(rkvc_diag **diag, rkvc_status status, int stage,
                     const char *subject, const char *reason);
 

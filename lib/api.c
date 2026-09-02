@@ -84,23 +84,38 @@ void rkvc_context_options_init(rkvc_context_options *opts, size_t size) {
 
 /* ── 诊断链 ───────────────────────────────────────────────────────── */
 
+/** 诊断节点内联字符串容量（NUL 含；subject/reason 截断到该长度）。 */
+#define RKVC_DIAG_TEXT_MAX 96
+
 void rkvc_diag_push(rkvc_diag **diag, rkvc_status status, int stage,
                     const char *subject, const char *reason) {
-    rkvc_diag *n = rkvc_g_calloc(1, sizeof(*n));
+    /* 字符串随节点拷贝：后端 DSO 可能在诊断消费前被 dlclose，
+     * 静态串指针会随映射卸载失效（板上实测崩溃）。 */
+    struct rkvc_diag_owned {
+        rkvc_diag node;
+        char subject_text[RKVC_DIAG_TEXT_MAX];
+        char reason_text[RKVC_DIAG_TEXT_MAX];
+    };
+    struct rkvc_diag_owned *n =
+        rkvc_g_calloc(1, sizeof(*n));
     if (!n)
         return; /* 内存不足：链保持原样，调用方仍可见更上层的错误 */
-    n->status = status;
-    n->stage = stage;
-    n->subject = subject;
-    n->reason = reason;
-    n->next = *diag;
-    *diag = n;
+    n->node.status = status;
+    n->node.stage = stage;
+    if (subject)
+        snprintf(n->subject_text, RKVC_DIAG_TEXT_MAX, "%s", subject);
+    if (reason)
+        snprintf(n->reason_text, RKVC_DIAG_TEXT_MAX, "%s", reason);
+    n->node.subject = n->subject_text;
+    n->node.reason = n->reason_text;
+    n->node.next = *diag;
+    *diag = &n->node;
 }
 
 void rkvc_diag_release(rkvc_diag *diag) {
     while (diag) {
         rkvc_diag *next = (rkvc_diag *)diag->next;
-        rkvc_g_free(diag);
+        rkvc_g_free(diag); /* push 时按内联串结构整体分配 */
         diag = next;
     }
 }

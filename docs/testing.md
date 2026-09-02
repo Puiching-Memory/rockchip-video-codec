@@ -2,25 +2,26 @@
 
 项目测试按实现语言分目录，避免测试源码、脚本入口和 Python 工具测试混放：
 
-| 类型   | 目录             | 执行方式                    |
-| ------ | ---------------- | --------------------------- |
-| C      | `tests/c/`       | CMake 构建，CTest 执行      |
-| Python | `tests/python/`  | `unittest` 自动发现         |
-| Bash   | `tests/bash/`    | 逐个执行 `test_*.sh`        |
+| 类型   | 目录            | 执行方式               |
+| ------ | --------------- | ---------------------- |
+| C      | `tests/c/`      | CMake 构建，CTest 执行 |
+| Python | `tests/python/` | `unittest` 自动发现    |
+| Bash   | `tests/bash/`   | 逐个执行 `test_*.sh`   |
 
 ## C 测试
 
-| 测试                | 覆盖                                          |
-| ------------------- | --------------------------------------------- |
-| test_graph_executor | 协商、回滚、背压、EOS、取消和候选回退         |
-| test_job            | job 生命周期、线程和流式 push/pull            |
-| test_media_pipeline | file source/sink 与 fake codec 端到端         |
-| test_frame_metadata | ROI/编码热控校验、元数据深拷贝与所有权        |
-| test_api_contract   | 初始化器、状态码、结构体前缀兼容与 ABI 主版本 |
-| test_backend_loader | DSO ABI 握手、坏候选隔离和可信目录            |
-| test_rkmodel        | 容器边界、摘要和模型注册表                    |
-| test_model_trust    | 可选 Ed25519 签名互操作                       |
-| test_backend_rknn   | fake Runtime 下模型绑定、推理与 NV12 3× 输出  |
+| 测试                | 覆盖                                           |
+| ------------------- | ---------------------------------------------- |
+| test_graph_executor | 协商、回滚、背压、EOS、取消和候选回退          |
+| test_job            | job 生命周期、线程和流式 push/pull             |
+| test_media_pipeline | file source/sink 与 fake codec 端到端          |
+| test_frame_metadata | ROI/编码热控校验、元数据深拷贝与所有权         |
+| test_api_contract   | 初始化器、状态码、结构体前缀兼容与 ABI 主版本  |
+| test_backend_loader | DSO ABI 握手、坏候选隔离和可信目录             |
+| test_rkmodel        | 容器边界、摘要和模型注册表                     |
+| test_model_trust    | 可选 Ed25519 签名互操作                        |
+| test_backend_rknn   | fake Runtime 下模型绑定、推理与 NV12 3× 输出   |
+| test_backend_mlvc   | fake RKNN 下 MLVC `.mlvc` 容器守恒与编解码往返 |
 
 ~~~bash
 cmake --preset tests
@@ -39,12 +40,12 @@ cmake --build --preset tests
 
 ## Python 测试
 
-| 测试                        | 覆盖                                      |
-| --------------------------- | ----------------------------------------- |
-| test_mlvc_export.py         | MLVC PMF/QP patch、导出 CLI 与 ONNX 重写  |
-| test_sr_export.py           | 超分模型导出、校准数据和 bundle 校验      |
-| test_rkvc_build_verify.py   | ELF、RPATH、SONAME、依赖与 glibc 门禁     |
-| test_benchmark.py           | 性能基准配置、命令生成、统计与阈值        |
+| 测试                      | 覆盖                                     |
+| ------------------------- | ---------------------------------------- |
+| test_mlvc_export.py       | MLVC PMF/QP patch、导出 CLI 与 ONNX 重写 |
+| test_sr_export.py         | 超分模型导出、校准数据和 bundle 校验     |
+| test_rkvc_build_verify.py | ELF、RPATH、SONAME、依赖与 glibc 门禁    |
+| test_benchmark.py         | 性能基准配置、命令生成、统计与阈值       |
 
 ~~~bash
 python3 -m unittest discover -s tests/python -p 'test_*.py' -v

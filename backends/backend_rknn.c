@@ -369,12 +369,25 @@ static int rknn_open(rkvc_node *node, rkvc_diag **diag) {
         !tensor_chw(&up->input_attr, &in_c, &in_h, &in_w) ||
         !tensor_chw(&up->output_attr, &out_c, &out_h, &out_w) ||
         up->input_attr.fmt != RKNN_TENSOR_NHWC ||
-        up->input_attr.type != RKNN_TENSOR_UINT8 ||
         up->output_attr.fmt != RKNN_TENSOR_NCHW ||
         in_c != RKNN_PHASE_INPUT_CHANNELS ||
         out_c != RKNN_PHASE_OUTPUT_CHANNELS || in_w != out_w ||
         in_h != out_h || in_w > RKNN_MAX_DIMENSION / 6 ||
         in_h > RKNN_MAX_DIMENSION / 6) {
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "unsupported RKNN tensor contract (expected UINT8 NHWC 12-channel input and NCHW 108-channel output)");
+        goto incompatible;
+    }
+    /* 量化模型（w8a8 / asymmetric_quantized-8）的宿主输入属性报
+     * RKNN_TENSOR_INT8 且零点 zp=-128、scale=1.0：这是 runtime 对
+     * uint8 字节流（real = q - zp，q∈[-128,127] → real∈[0,255]）的
+     * 量化重解释约定。宿主仍按 UINT8 递交（rknn_inputs_set 声明
+     * RKNN_TENSOR_UINT8），runtime 依据 zp/scale 自动转换。因此除原生
+     * UINT8 外，同时接受「INT8 + 仿射量化 + 零点 -128」的输入属性。 */
+    if (up->input_attr.type != RKNN_TENSOR_UINT8 &&
+        !(up->input_attr.type == RKNN_TENSOR_INT8 &&
+          up->input_attr.qnt_type != RKNN_TENSOR_QNT_NONE &&
+          up->input_attr.zp == -128)) {
         push_reason(diag, RKVC_STATUS_FORMAT, node,
                     "unsupported RKNN tensor contract (expected UINT8 NHWC 12-channel input and NCHW 108-channel output)");
         goto incompatible;

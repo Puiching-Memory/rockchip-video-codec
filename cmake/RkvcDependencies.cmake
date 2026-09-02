@@ -54,7 +54,7 @@ if(RKVC_BUILD_BACKEND_RGA)
     endif()
 endif()
 
-if(RKVC_BUILD_BACKEND_RKNN)
+if(RKVC_BUILD_BACKEND_RKNN OR RKVC_BUILD_BACKEND_MLVC)
     set(RKNN_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/rknn-install"
         CACHE PATH "RKNN Runtime SDK prefix (include/ + lib/)")
     if(NOT EXISTS "${RKNN_INSTALL_PREFIX}/lib/librknnrt.so")

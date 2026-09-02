@@ -247,6 +247,7 @@ def convert_rknn(
             target_platform=target,
             quantized_algorithm="kl_divergence",
             quantized_method="channel",
+            quantized_dtype="asymmetric_quantized-8",
             optimization_level=3,
         )
         if ret not in (None, 0):

@@ -142,3 +142,28 @@ if(RKVC_BUILD_BACKEND_RKNN)
     target_link_options(rkvc_backend_rknn PRIVATE
         "-Wl,-soname,rkvc_backend_rknn.so")
 endif()
+
+if(RKVC_BUILD_BACKEND_MLVC)
+    add_library(rkvc_backend_mlvc MODULE
+        backends/backend_mlvc.c
+        backends/mlvc/rans.c
+        backends/mlvc/mlvc_pixel.c
+        backends/mlvc/pmf.c
+        backends/mlvc/qppatch.c
+        backends/mlvc/container.c)
+    target_include_directories(rkvc_backend_mlvc PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/backends
+        ${RKNN_INCLUDE_DIR})
+    target_link_directories(rkvc_backend_mlvc PRIVATE ${RKNN_LIB_DIR})
+    target_link_libraries(rkvc_backend_mlvc PRIVATE rknnrt m)
+    set_target_properties(rkvc_backend_mlvc PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME rkvc_backend_mlvc
+        POSITION_INDEPENDENT_CODE ON
+        BUILD_RPATH "${RKNN_LIB_DIR}"
+        INSTALL_RPATH "$ORIGIN/../..")
+    target_link_options(rkvc_backend_mlvc PRIVATE
+        "-Wl,-soname,rkvc_backend_mlvc.so")
+endif()

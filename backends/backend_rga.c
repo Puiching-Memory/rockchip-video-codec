@@ -193,9 +193,10 @@ static int rga_process(rkvc_node *node, rkvc_frame *input, rkvc_diag **diag) {
     dst = wrapbuffer_virtualaddr_t(buffer, (int)out_w, (int)out_h,
                                    (int)out_w, (int)out_h, rga_fmt);
 
-    /* 上采样统一 bicubic（与 SR 模型训练基座一致的插值族）。 */
+    /* 上采样统一 bicubic（与 SR 模型训练基座一致的插值族）。
+     * librga 成功返回 SUCCESS(1)（同步任务）或 NOERROR(2)（异步受理）。 */
     ret = imresize_t(src, dst, 0, 0, IM_INTERP_CUBIC, 1);
-    if (ret != IM_STATUS_NOERROR) {
+    if (ret != IM_STATUS_SUCCESS && ret != IM_STATUS_NOERROR) {
         if (diag)
             rkvc_diag_push(diag, RKVC_STATUS_HW, 3, node->ops->id,
                            imStrError_t(ret));

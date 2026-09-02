@@ -176,8 +176,11 @@ const rkvc_rkmodel *rkvc_model_registry_select(const rkvc_context *ctx,
             continue;
         if (!req->model_id && role && strcmp(role, m->info.role) != 0)
             continue;
+        /* rknn_target 是 SoC 族名（如 rk3576），而 caps.soc 来自设备树
+         * compatible，可能带板级后缀（rk3576-evb1-v10）：按前缀匹配。 */
         if (m->info.rknn_target[0] && ctx->caps.soc[0] &&
-            strcmp(m->info.rknn_target, ctx->caps.soc) != 0)
+            strncmp(m->info.rknn_target, ctx->caps.soc,
+                    strlen(m->info.rknn_target)) != 0)
             continue;
         if (m->info.trust == RKVC_MODEL_TRUST_PRODUCTION) score += 300;
         else if (m->info.trust == RKVC_MODEL_TRUST_DEVELOPMENT) score += 200;

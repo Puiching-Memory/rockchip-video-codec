@@ -35,7 +35,8 @@ TAG_VERSION = 4
 TAG_RKNN_TARGET = 5
 TAG_MIN_ABI = 8
 
-PAYLOAD_KINDS = {"rknn": 1, "pmf": 2, "qppatch": 3}
+PAYLOAD_KINDS = {"rknn": 1, "pmf": 2, "qppatch": 3,
+                 "pmf-gaussian": 4, "pmf-bitest": 5}
 KIND_NAMES = {v: k for k, v in PAYLOAD_KINDS.items()}
 
 SIG_ALG_ED25519 = 1

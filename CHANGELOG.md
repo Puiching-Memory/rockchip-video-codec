@@ -21,6 +21,7 @@
 - **发布管线依赖适配器**：`tools/rkvc_build/adapters/mpp.py`（子模块钉版本，同工具链/sysroot 交叉构建 MPP）与 `adapters/sodium.py`（经 `tools/install-libsodium.sh` 交叉构建 libsodium）；`rkvc-build package` 新增 `deps-sodium` / `deps-mpp` 阶段与 `--no-mpp` 开关，MPP 运行库随包分发至扁平 `lib/`（与后端 DSO `$ORIGIN/../..` RPATH 对齐），libsodium 静态链入核心库；`build-install` 阶段安装前清空包根，杜绝历史过期产物混入。
 - **`.rkmodel` v1 线格式与模型信任链**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV + 载荷表含 SHA-256 + 可选 Ed25519 签名尾）与读取器 `lib/rkmodel.c`、注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰）；trust root dev/prod 分离（`RKVC_ENABLE_MODEL_SIGN` + `RKVC_TRUST_PUBKEY_HEX` + `RKVC_TRUST_PRODUCTION`），CLI `rkvc inspect models` 接入真实注册表；Python 签名 → C 验证互操作闭环。
 - **统一发布路径 `tools/rkvc-build`**（stdlib Python）：sysroot 锁定（SHA-256 锁文件）→ 交叉构建 → SBOM（CycloneDX 1.5）/许可证归集 → 封装（SHA256SUMS + provenance）→ 产物验证（ELF 架构/解释器、glibc 2.31 基线、绝对 RPATH 拒绝）→ 确定性归档 → QEMU 冒烟；重复归档字节级一致。
+- **MLVC 神经视频编解码后端（`backends/backend_mlvc.c` DSO）**：工厂 `mlvc.encode`/`mlvc.decode`（priority 1100）+ 支撑库 `backends/mlvc/`（rANS 熵编码、PMF1 表加载、像素转换、QPP1 补丁、`.mlvc` 容器）；`RKVC_CODEC_MLVC` 进入公共 codec 枚举与统一 CLI（`.mlvc` 扩展名自动推断，encode 需 `--width/--height`，`--qp` 默认 21）。模型以 `.rkmodel` 多载荷交付（`rknn` + `pmf-gaussian` + `pmf-bitest`，可选 `qppatch`），核心校验 SHA-256 后经 `bind_model` 传入；encoder NV12→NPU 双输入→rANS 三段码流（首帧附 32B 容器头），decoder 流式 demux→惰性按容器头 qp 初始化→rANS 解码→四输入 NPU→NV12（tail D2S 已拆出图外时 CPU DCR）。RKNN 混合 I/O：encoder 输入零拷贝（`RKVC_MLVC_ENCODER_ZERO_COPY=0` 回退）、decoder native 四输入。x86 fake RKNN 契约测试 `test_backend_mlvc`（容器守恒 + 往返）常绿。板卡回归（2026-09-02）：RK3576 encode/decode 20 帧 2.8s/2.2s、100 帧×3 轮 md5 一致、Y-PSNR 32.7dB；RV1126B 5.1s/4.6s、32.71dB；跨板互操作通过（RK3576 编码流 RV1126B 解码）。
 
 ### 变更
 
@@ -30,7 +31,8 @@
 ### 进行中
 
 - **x86 契约测试 `test_media_pipeline`**：真实内建 fileio + fake 恒等编解码后端，覆盖规划器 SOURCE/SINK 注入、背压/EOS、三操作文件往返字节级一致与错误路径（缺 codec 候选、源打开失败、encode 缺尺寸、FILE 端点缺 uri），9 用例常绿；交叉包（含 MPP 后端 DSO 与 MPP 运行库）经 verify（ELF/glibc 基线/SONAME）与 QEMU 冒烟通过。
-- **待板卡回归**：MPP/RGA/RKNN DSO 的硬件功能验证仍需按 RK3588→RK3576→RV1126B 执行；RKNN SR 的画质、性能、并发与长稳尚不能由 fake Runtime/QEMU 结果替代。旧媒体栈已删除，不作为回退路径。
+- **MLVC 模型导出打包链打通**：容器内 microsoft/mlvc 官方仓 + 公开 checkpoint（SHA-256 校验）→ `convert.py export`（640×368、generic、占位 I420 tracing，`--exporter-params-json` 注入绝对路径绕过 Azure 测试数据依赖）→ `tools/mlvc/export_rknn.py`（qp 折叠、SpaceToDepth/Max/Div 重写、tail D2S 拆出、FP16）→ `rkvc_build.rkmodel pack` 多载荷容器（`pmf-gaussian`/`pmf-bitest` kind 已进 `PAYLOAD_KINDS`）；rk3576/rv1126b 双平台产物已生成并在两板验证。
+- **待板卡回归**：MPP/RGA/RKNN DSO 的硬件功能验证仍需按 RK3588→RK3576→RV1126B 执行；RKNN SR 的画质、性能、并发与长稳尚不能由 fake Runtime/QEMU 结果替代。旧媒体栈已删除，不作为回退路径。MLVC 已在 RK3576/RV1126B 完成功能回归（RK3588 待 sshd 恢复补测）。
 
 ## [0.3.4] - 2026-08-28
 

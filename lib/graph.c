@@ -129,22 +129,31 @@ void rkvc_graph_set_context(rkvc_graph *g, const struct rkvc_context *ctx) {
 
 /** 丢弃上一条候选路径遗留的模型载荷（图内最多一个 transform 绑定）。 */
 static void release_model_payload(rkvc_graph *g) {
-    if (g && g->model_payload) {
-        rkvc_g_free(g->model_payload);
-        g->model_payload = NULL;
-    }
+    if (!g)
+        return;
+    for (size_t i = 0; i < g->payload_count; ++i)
+        rkvc_g_free(g->payload_buffers[i]);
+    rkvc_g_free(g->payload_buffers);
+    g->payload_buffers = NULL;
+    rkvc_g_free(g->payload_views);
+    g->payload_views = NULL;
+    g->payload_count = 0;
 }
 
 /**
  * 为声明 bind_model 的节点选择并交付模型；载荷缓冲由图持有，节点销毁
  * 后释放。返回 NEGOTIATE 表示该候选应被淘汰（无兼容模型或节点拒绝
  * 契约）；INTEGRITY/IO 等原样上抛，不触发静默回退。
+ *
+ * 容器全部载荷均装载并按 kind 提供视图（MLVC 需 RKNN + 双 PMF 熵表
+ * + 可选 QPPATCH）；缺省字段 payload 仍指向 RKNN（或首个）载荷，
+ * 既有单载荷节点不受影响。
  */
 static int bind_step_model(rkvc_graph *g, rkvc_node *n,
                            const rkvc_request *req, rkvc_diag **diag) {
     const rkvc_rkmodel *m;
     rkvc_model_binding binding;
-    uint32_t kind = RKMODEL_PAYLOAD_RKNN;
+    uint32_t default_kind = RKMODEL_PAYLOAD_RKNN;
     rkvc_status st;
 
     if (!g->ctx) {
@@ -164,19 +173,53 @@ static int bind_step_model(rkvc_graph *g, rkvc_node *n,
     /* 缺省交付 RKNN 载荷；容器未携带时回退到首个载荷（PMF 等角色）。 */
     if (!(m->info.payload_mask & (1u << RKMODEL_PAYLOAD_RKNN)) &&
         m->payload_count)
-        kind = m->payloads[0].kind;
+        default_kind = m->payloads[0].kind;
 
     release_model_payload(g);
-    st = rkvc_rkmodel_load_payload(m, kind, &g->model_payload,
-                                   &binding.payload_size);
-    if (st != RKVC_STATUS_OK) {
-        if (diag)
-            rkvc_diag_push(diag, st, 1, n->ops->id,
-                           "model payload load/verify failed");
-        return (int)st;
+    if (m->payload_count) {
+        g->payload_views = rkvc_g_calloc(m->payload_count,
+                                         sizeof(*g->payload_views));
+        g->payload_buffers = rkvc_g_calloc(m->payload_count,
+                                           sizeof(*g->payload_buffers));
+        if (!g->payload_views || !g->payload_buffers) {
+            release_model_payload(g);
+            if (diag)
+                rkvc_diag_push(diag, RKVC_STATUS_NOMEM, 1, n->ops->id,
+                               "model payload view alloc failed");
+            return (int)RKVC_STATUS_NOMEM;
+        }
+        for (uint32_t i = 0; i < m->payload_count; ++i) {
+            st = rkvc_rkmodel_load_payload(m, m->payloads[i].kind,
+                                           &g->payload_buffers[i],
+                                           &binding.payload_size);
+            if (st != RKVC_STATUS_OK) {
+                release_model_payload(g);
+                if (diag)
+                    rkvc_diag_push(diag, st, 1, n->ops->id,
+                                   "model payload load/verify failed");
+                return (int)st;
+            }
+            g->payload_views[i].kind = m->payloads[i].kind;
+            g->payload_views[i].data = g->payload_buffers[i];
+            g->payload_views[i].size = binding.payload_size;
+        }
+        g->payload_count = m->payload_count;
     }
+
     binding.info = &m->info;
-    binding.payload = g->model_payload;
+    binding.payloads = g->payload_views;
+    binding.payload_count = g->payload_count;
+    for (size_t i = 0; i < g->payload_count; ++i) {
+        if (g->payload_views[i].kind == default_kind) {
+            binding.payload = g->payload_views[i].data;
+            binding.payload_size = g->payload_views[i].size;
+            break;
+        }
+    }
+    if (!binding.payloads) {
+        binding.payload = NULL;
+        binding.payload_size = 0;
+    }
     if (n->ops->bind_model(n, &binding, diag) != 0) {
         release_model_payload(g);
         return (int)RKVC_STATUS_NEGOTIATE;
