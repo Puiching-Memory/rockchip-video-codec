@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifdef __linux__
@@ -189,7 +190,7 @@ static int mpp_dec_configure(rkvc_node *node, rkvc_diag **diag) {
 
 /** mpp_init 及依赖编码类型的 control 集中在此，供显式/嗅探两条路径复用。 */
 static int decoder_init_locked(struct mpp_decoder *dec) {
-    RK_S64 input_timeout = MPP_TIMEOUT_BLOCK;
+    RK_S64 input_timeout = MPP_TIMEOUT_NON_BLOCK;
     RK_S64 output_timeout = MPP_TIMEOUT_NON_BLOCK;
     MppFrameFormat output_format = MPP_FMT_YUV420SP;
     MPP_RET ret;
@@ -238,13 +239,16 @@ static int mpp_dec_open(rkvc_node *node, rkvc_diag **diag) {
     return 0;
 }
 
-/** 送入一帧码流；首次使用时完成解码器初始化。 */
+/** 送入一帧码流；首次使用时完成解码器初始化。
+ * 输入超时非阻塞：MPP 内部 packet buffer 满（BUFFER_FULL）时先排空
+ * 已解码帧释放缓冲再重试，避免 put/get 同线程互等死锁。 */
 static int mpp_dec_process(rkvc_node *node, rkvc_frame *input,
                            rkvc_diag **diag) {
     struct mpp_decoder *dec = node->priv;
     rkvc_frame_desc desc;
     MppPacket packet = NULL;
     MPP_RET ret;
+    int retries = 1000; /* 每帧最多阻塞重试预算，防硬件假死卡死图 */
 
     if (rkvc_frame_get_desc(input, &desc) != RKVC_STATUS_OK ||
         desc.spec.fmt != RKVC_FRAME_FMT_BITSTREAM || !desc.data || !desc.size)
@@ -270,10 +274,39 @@ static int mpp_dec_process(rkvc_node *node, rkvc_frame *input,
         return (int)RKVC_STATUS_NOMEM;
     mpp_packet_set_pts(packet, desc.pts);
     mpp_packet_set_dts(packet, desc.dts);
-    ret = dec->mpi->decode_put_packet(dec->ctx, packet);
+    for (;;) {
+        ret = dec->mpi->decode_put_packet(dec->ctx, packet);
+        if (ret == MPP_OK)
+            break;
+        if (ret != MPP_ERR_BUFFER_FULL) {
+            mpp_packet_deinit(&packet);
+            return (int)RKVC_STATUS_HW;
+        }
+        /* 内部缓冲满：先取走已解码帧腾出空间。若下游队列同样满压，
+         * drain 内的 emit 会在本线程阻塞等待消费，不会丢失帧。 */
+        mpp_packet_deinit(&packet);
+        if (mpp_packet_init(&packet, desc.data, desc.size) != MPP_OK)
+            return (int)RKVC_STATUS_NOMEM;
+        mpp_packet_set_pts(packet, desc.pts);
+        mpp_packet_set_dts(packet, desc.dts);
+        {
+            int rc = drain_decoder(node, 0);
+            if (rc != 0) {
+                mpp_packet_deinit(&packet);
+                return rc;
+            }
+        }
+        if (--retries < 0) {
+            mpp_packet_deinit(&packet);
+            if (diag)
+                rkvc_diag_push(diag, RKVC_STATUS_HW, 3, node->ops->id,
+                               "decoder input stays full; hardware stall?");
+            return (int)RKVC_STATUS_HW;
+        }
+        struct timespec ts = {0, 1000000}; /* 1ms，与官方测试节奏一致 */
+        nanosleep(&ts, NULL);
+    }
     mpp_packet_deinit(&packet);
-    if (ret != MPP_OK)
-        return (int)RKVC_STATUS_HW;
     return drain_decoder(node, 0);
 }
 
