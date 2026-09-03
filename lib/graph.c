@@ -354,6 +354,61 @@ int rkvc_graph_build(rkvc_graph *g, const rkvc_plan *plan, rkvc_diag **diag) {
         }
     }
 
+    /* FRAME_SINK 端点无 source 节点：单节点图中编码节点输入端口无人
+     * 填充格式（节点间边协商不覆盖它），open 阶段会读到 UNKNOWN 而失败。
+     * 把请求端点声明的格式/几何注入首节点输入端口；字段级合并，冲突即
+     * 协商失败。末节点输出端口同理注入输出端点声明。 */
+    if (g->node_count) {
+        const rkvc_request *req = &plan->steps[0].request;
+        rkvc_node *first = g->nodes[0];
+        rkvc_node *last = g->nodes[g->node_count - 1];
+        if (req->input.kind == RKVC_ENDPOINT_FRAME_SINK &&
+            first->in_count && req->input.fmt != RKVC_FRAME_FMT_UNKNOWN) {
+            rkvc_frame_spec resolved = first->in_ports[0].fmt;
+            if (resolved.fmt == RKVC_FRAME_FMT_UNKNOWN) {
+                resolved.fmt = req->input.fmt;
+                resolved.domain = RKVC_MEM_DOMAIN_HOST;
+            } else if (resolved.fmt != req->input.fmt) {
+                g->failure_step = 0;
+                if (diag)
+                    rkvc_diag_push(diag, RKVC_STATUS_NEGOTIATE, 1,
+                                   first->in_ports[0].name
+                                       ? first->in_ports[0].name : "graph",
+                                   "input endpoint fmt conflicts with node");
+                reverse_release(g, created);
+                g->node_count = 0;
+                return (int)RKVC_STATUS_NEGOTIATE;
+            }
+            if (merge_dimension(resolved.width, req->width, &resolved.width) != 0 ||
+                merge_dimension(resolved.height, req->height, &resolved.height) != 0) {
+                reverse_release(g, created);
+                g->node_count = 0;
+                return (int)RKVC_STATUS_NEGOTIATE;
+            }
+            first->in_ports[0].fmt = resolved;
+        }
+        if (req->output.kind == RKVC_ENDPOINT_FRAME_SINK &&
+            last->out_count && req->output.fmt != RKVC_FRAME_FMT_UNKNOWN) {
+            rkvc_frame_spec resolved = last->out_ports[last->out_count - 1].fmt;
+            if (resolved.fmt == RKVC_FRAME_FMT_UNKNOWN) {
+                resolved.fmt = req->output.fmt;
+                resolved.domain = RKVC_MEM_DOMAIN_HOST;
+            } else if (resolved.fmt != req->output.fmt) {
+                g->failure_step = g->node_count - 1;
+                if (diag)
+                    rkvc_diag_push(diag, RKVC_STATUS_NEGOTIATE, 1,
+                                   last->out_ports[last->out_count - 1].name
+                                       ? last->out_ports[last->out_count - 1].name
+                                       : "graph",
+                                   "output endpoint fmt conflicts with node");
+                reverse_release(g, created);
+                g->node_count = 0;
+                return (int)RKVC_STATUS_NEGOTIATE;
+            }
+            last->out_ports[last->out_count - 1].fmt = resolved;
+        }
+    }
+
     g->state = 1;
     return 0;
 }

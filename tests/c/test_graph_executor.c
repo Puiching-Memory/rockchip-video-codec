@@ -41,7 +41,7 @@ static int trace_count(void) { return g_tr.n; }
 struct fake_node {
     const char *tag;
     rkvc_frame_fmt fmt;
-    int fail_configure, fail_open, fail_process;
+    int fail_configure, fail_open, fail_process, fail_flush;
     int processed, emitted, flush_count;
 };
 
@@ -92,6 +92,8 @@ static int fake_flush(rkvc_node *n, rkvc_diag **diag) {
     (void)diag;
     fn->flush_count++;
     g_tr.flushes++;
+    if (fn->fail_flush)
+        return (int)RKVC_STATUS_HW;
     return 0;
 }
 
@@ -370,6 +372,27 @@ static void test_queue_try_push_again(void **st) {
     rkvc_queue_destroy(q);
 }
 
+/* try-pop must distinguish a delivered frame (1) from EOS (0).  Returning
+ * zero after removing a frame makes the public try_pull path silently drop
+ * every output and report EOF while the stream is still running. */
+static void test_queue_try_pop_status(void **st) {
+    rkvc_queue *q = rkvc_queue_create(1);
+    rkvc_frame *in = mkframe(9);
+    rkvc_frame *out = NULL;
+    (void)st;
+
+    assert_non_null(q);
+    assert_non_null(in);
+    assert_int_equal(rkvc_queue_try_pop(q, &out, NULL), RKVC_STATUS_AGAIN);
+    assert_int_equal(rkvc_queue_try_push(q, in, NULL), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_queue_try_pop(q, &out, NULL), 1);
+    assert_ptr_equal(out, in);
+    rkvc_frame_release(out);
+    rkvc_queue_set_eos(q);
+    assert_int_equal(rkvc_queue_try_pop(q, &out, NULL), 0);
+    rkvc_queue_destroy(q);
+}
+
 static int g_backend_frame_releases;
 
 static void backend_frame_release(void *ctx) {
@@ -558,6 +581,44 @@ static void test_error_propagation(void **st) {
     rkvc_plan_release(&plan); rkvc_context_destroy(ctx); rkvc_diag_release(diag);
 }
 
+/* A flush failure is a terminal worker error, not a clean end-of-stream. */
+static void test_flush_error_propagation(void **st) {
+    const char *tags[] = {"n0"};
+    const int fail[][3] = {{0,0,0}};
+    struct fake_backend be;
+    rkvc_context *ctx = NULL; rkvc_diag *diag = NULL;
+    rkvc_plan plan = {0}; rkvc_device_caps caps = {0};
+    rkvc_frame *frame = NULL;
+    (void)st;
+
+    be_init(&be, 1, tags, fail);
+    assert_int_equal(rkvc_context_create(NULL, &ctx), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_registry_add_backend(ctx, &be.backend), RKVC_STATUS_OK);
+    rkvc_request req; rkvc_request_init(&req, sizeof(req));
+    req.operation = RKVC_OPERATION_DECODE;
+    assert_int_equal(rkvc_plan_build(ctx, &req, &caps, &plan, &diag), 0);
+
+    rkvc_graph *g = rkvc_graph_new();
+    assert_non_null(g);
+    assert_int_equal(rkvc_graph_build(g, &plan, &diag), 0);
+    assert_int_equal(rkvc_graph_open(g, &diag), 0);
+    ((struct fake_node *)g->nodes[0]->priv)->fail_flush = 1;
+    rkvc_exec *e = rkvc_exec_create(g, 1);
+    assert_non_null(e);
+
+    pthread_t rth; struct run_arg ra = {e, 0};
+    pthread_create(&rth, NULL, exec_run_thunk, &ra);
+    assert_int_equal(rkvc_exec_eos(e), 0);
+    assert_int_equal(rkvc_exec_pull(e, &frame), (int)RKVC_STATUS_HW);
+    assert_null(frame);
+    pthread_join(rth, NULL);
+    assert_int_equal(ra.rc, (int)RKVC_STATUS_HW);
+
+    rkvc_exec_destroy(e);
+    rkvc_graph_free(g);
+    rkvc_plan_release(&plan); rkvc_context_destroy(ctx); rkvc_diag_release(diag);
+}
+
 /* ── 用例 8：确定性规划顺序 ──────────────────────────────────────── */
 static void test_plan_deterministic(void **st) {
     const char *tags[] = {"alpha", "beta", "gamma"};
@@ -640,11 +701,13 @@ int main(void) {
         cmocka_unit_test(test_incompatible_ports_rejected_before_open),
         cmocka_unit_test(test_queue_backpressure),
         cmocka_unit_test(test_queue_try_push_again),
+        cmocka_unit_test(test_queue_try_pop_status),
         cmocka_unit_test(test_backend_frame_descriptor_and_release),
         cmocka_unit_test(test_backend_dmabuf_is_core_owned),
         cmocka_unit_test(test_eos_flush_ordering),
         cmocka_unit_test(test_cancel),
         cmocka_unit_test(test_error_propagation),
+        cmocka_unit_test(test_flush_error_propagation),
         cmocka_unit_test(test_plan_deterministic),
         cmocka_unit_test(test_concurrent_ordering),
     };

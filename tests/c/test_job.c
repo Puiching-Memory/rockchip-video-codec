@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <setjmp.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <cmocka.h>
 
 #include "graph_internal.h"
@@ -215,6 +216,41 @@ static void test_job_stream_roundtrip(void **state) {
     rkvc_context_destroy(ctx);
 }
 
+/* Public try_pull must return the frame status, rather than translating a
+ * successful queue pop into EOF.  The loop also covers the normal asynchronous
+ * window in which the worker has not processed the pushed frame yet. */
+static void test_job_try_pull_roundtrip(void **state) {
+    rkvc_context *ctx = NULL;
+    rkvc_job *job = NULL;
+    rkvc_request req = mkrequest();
+    rkvc_frame *out = NULL;
+    rkvc_status st = RKVC_STATUS_AGAIN;
+    int i;
+    (void)state;
+
+    setup_backend();
+    assert_int_equal(rkvc_context_create(NULL, &ctx), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_registry_add_backend(ctx, &g_be.backend),
+                     RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_create(ctx, &req, NULL, &job), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_start(job, NULL), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_push(job, mkframe(31)), RKVC_STATUS_OK);
+
+    for (i = 0; i < 100 && st == RKVC_STATUS_AGAIN; ++i) {
+        st = rkvc_job_try_pull(job, &out);
+        if (st == RKVC_STATUS_AGAIN)
+            usleep(1000);
+    }
+    assert_int_equal(st, RKVC_STATUS_OK);
+    assert_non_null(out);
+    rkvc_frame_release(out);
+    assert_int_equal(rkvc_job_push_eos(job), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_pull(job, &out), RKVC_STATUS_EOF);
+    assert_int_equal(rkvc_job_wait(job), RKVC_STATUS_OK);
+    rkvc_job_destroy(job);
+    rkvc_context_destroy(ctx);
+}
+
 static void test_job_retains_context(void **state) {
     rkvc_context *ctx = NULL;
     rkvc_job *job = NULL;
@@ -363,6 +399,7 @@ static void test_job_invalid_args(void **state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_job_stream_roundtrip),
+        cmocka_unit_test(test_job_try_pull_roundtrip),
         cmocka_unit_test(test_job_retains_context),
         cmocka_unit_test(test_job_configure_falls_back_to_next_candidate),
         cmocka_unit_test(test_job_open_falls_back_to_next_candidate),

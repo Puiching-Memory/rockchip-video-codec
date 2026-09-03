@@ -400,7 +400,12 @@ static int mpp_enc_open(rkvc_node *node, rkvc_diag **diag) {
     const rkvc_frame_spec *in = &node->in_ports[0].fmt;
     MppEncCfg cfg = NULL;
     MppEncHeaderMode header_mode = MPP_ENC_HEADER_MODE_EACH_IDR;
-    RK_S64 block = MPP_TIMEOUT_BLOCK;
+    /* 输出非阻塞：B 帧重排序/GOP 缓冲期 MPP 不产包，阻塞模式会把
+     * worker 卡死在 mpp_cond_wait，与调用方形成三线程互等。 */
+    /* 保持同步 task 接口的 frame/buffer 引用语义，但用有限输入超时
+     * 杜绝硬件异常时永久卡在 encode_put_frame。 */
+    RK_S64 input_timeout = 5000;
+    RK_S64 output_timeout = MPP_TIMEOUT_NON_BLOCK;
     MPP_RET ret;
     int64_t bps;
 
@@ -474,8 +479,10 @@ static int mpp_enc_open(rkvc_node *node, rkvc_diag **diag) {
         enc->mpi->control(enc->ctx, MPP_ENC_SET_CFG, cfg) != MPP_OK ||
         enc->mpi->control(enc->ctx, MPP_ENC_SET_HEADER_MODE,
                           &header_mode) != MPP_OK ||
+        enc->mpi->control(enc->ctx, MPP_SET_INPUT_TIMEOUT,
+                          &input_timeout) != MPP_OK ||
         enc->mpi->control(enc->ctx, MPP_SET_OUTPUT_TIMEOUT,
-                          &block) != MPP_OK) {
+                          &output_timeout) != MPP_OK) {
         if (diag)
             rkvc_diag_push(diag, RKVC_STATUS_HW, 3, node->ops->id,
                            "mpp encoder init failed");
@@ -678,7 +685,9 @@ static int enc_emit_packet(rkvc_node *node, MppPacket packet) {
     return rc;
 }
 
-/** 反复调用 encode_get_packet 直到取干；until_eos 时必须等到 EOS 包。 */
+/** 反复调用 encode_get_packet 直到取干；until_eos 时必须等到 EOS 包。
+ * 输出超时由调用路径约定：process 路径 NON_BLOCK（NULL=暂无就绪包，
+ * 正常返回）；flush 路径有限超时（NULL=等 EOS 超时，HW）。 */
 static int enc_drain_packets(rkvc_node *node, int until_eos) {
     struct mpp_encoder *enc = node->priv;
 
@@ -687,10 +696,18 @@ static int enc_drain_packets(rkvc_node *node, int until_eos) {
         MPP_RET ret = enc->mpi->encode_get_packet(enc->ctx, &packet);
         int eos, rc;
 
-        if (ret != MPP_OK)
+        if (ret != MPP_OK) {
+            /* legacy async API reports an empty non-blocking output list as
+             * MPP_NOK instead of returning MPP_OK with a NULL packet. */
+            if (ret == MPP_NOK && !until_eos)
+                return 0;
             return (int)RKVC_STATUS_HW;
-        if (!packet)
-            return 0; /* 防御：阻塞输出模式下不应出现空包 */
+        }
+        if (!packet) {
+            if (until_eos)
+                return (int)RKVC_STATUS_HW;
+            return 0; /* 非阻塞：暂无就绪包 */
+        }
         eos = !!mpp_packet_get_eos(packet);
         rc = enc_emit_packet(node, packet);
         mpp_packet_deinit(&packet);
@@ -749,22 +766,25 @@ static int mpp_enc_process(rkvc_node *node, rkvc_frame *input,
         return (int)RKVC_STATUS_NOMEM;
 
     ret = mpp_frame_init(&frame);
-    if (ret == MPP_OK) {
-        mpp_frame_set_width(frame, enc->width);
-        mpp_frame_set_height(frame, enc->height);
-        mpp_frame_set_hor_stride(frame, enc->hor_stride);
-        mpp_frame_set_ver_stride(frame, enc->ver_stride);
-        mpp_frame_set_fmt(frame, enc->format);
-        mpp_frame_set_buffer(frame, buf);
-        mpp_frame_set_pts(frame, desc.pts);
-        rc = enc_attach_roi(enc, frame, &desc);
-        ret = rc == 0 ? enc->mpi->encode_put_frame(enc->ctx, frame)
-                      : MPP_NOK;
-        mpp_frame_deinit(&frame);
-    }
     if (ret != MPP_OK) {
         mpp_buffer_put(buf);
-        return rc != 0 ? rc : (int)RKVC_STATUS_HW;
+        return (int)RKVC_STATUS_HW;
+    }
+    mpp_frame_set_width(frame, enc->width);
+    mpp_frame_set_height(frame, enc->height);
+    mpp_frame_set_hor_stride(frame, enc->hor_stride);
+    mpp_frame_set_ver_stride(frame, enc->ver_stride);
+    mpp_frame_set_fmt(frame, enc->format);
+    mpp_frame_set_buffer(frame, buf);
+    mpp_frame_set_pts(frame, desc.pts);
+    rc = enc_attach_roi(enc, frame, &desc);
+    if (rc == 0)
+        rc = enc->mpi->encode_put_frame(enc->ctx, frame) == MPP_OK
+                 ? 0 : (int)RKVC_STATUS_HW;
+    mpp_frame_deinit(&frame);
+    if (rc != 0) {
+        mpp_buffer_put(buf);
+        return rc;
     }
     rc = enc_drain_packets(node, 0);
     mpp_buffer_put(buf);
@@ -776,6 +796,7 @@ static int mpp_enc_flush(rkvc_node *node, rkvc_diag **diag) {
     struct mpp_encoder *enc = node->priv;
     MppFrame frame = NULL;
     MPP_RET ret;
+    int rc;
     (void)diag;
 
     if (!enc->ctx)
@@ -789,10 +810,18 @@ static int mpp_enc_flush(rkvc_node *node, rkvc_diag **diag) {
     mpp_frame_set_ver_stride(frame, enc->ver_stride);
     mpp_frame_set_fmt(frame, enc->format);
     mpp_frame_set_eos(frame, 1);
-    ret = enc->mpi->encode_put_frame(enc->ctx, frame);
+    rc = enc->mpi->encode_put_frame(enc->ctx, frame) == MPP_OK
+             ? 0 : (int)RKVC_STATUS_HW;
     mpp_frame_deinit(&frame);
-    if (ret != MPP_OK)
-        return (int)RKVC_STATUS_HW;
+    if (rc != 0)
+        return rc;
+    /* EOS 已成功入队后有限阻塞等待尾包，排干重排序缓冲。 */
+    {
+        RK_S64 output_timeout = 5000;
+        if (enc->mpi->control(enc->ctx, MPP_SET_OUTPUT_TIMEOUT,
+                              &output_timeout) != MPP_OK)
+            return (int)RKVC_STATUS_HW;
+    }
     return enc_drain_packets(node, 1);
 }
 

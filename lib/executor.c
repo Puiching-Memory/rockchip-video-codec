@@ -148,16 +148,16 @@ int rkvc_queue_try_pop(rkvc_queue *q, rkvc_frame **out, void *execp) {
     if (!q || !out)
         return (int)RKVC_STATUS_INVALID;
     pthread_mutex_lock(&q->m);
-    if (e && atomic_load(&e->canceled))
-        rc = (int)RKVC_STATUS_CANCELED;
-    else if (q->count == 0)
-        rc = q->eos ? 0 : (int)RKVC_STATUS_AGAIN;
-    else {
+    if (q->count) {
         *out = q->slots[q->head];
         q->head = (q->head + 1) % q->capacity;
         q->count--;
         pthread_cond_signal(&q->not_full);
-    }
+        rc = 1;
+    } else if (e && atomic_load(&e->canceled))
+        rc = (int)RKVC_STATUS_CANCELED;
+    else
+        rc = q->eos ? 0 : (int)RKVC_STATUS_AGAIN;
     pthread_mutex_unlock(&q->m);
     return rc;
 }
@@ -166,6 +166,7 @@ void rkvc_queue_set_eos(rkvc_queue *q) {
     pthread_mutex_lock(&q->m);
     q->eos = 1;
     pthread_cond_broadcast(&q->not_empty);
+    pthread_cond_broadcast(&q->not_full);
     pthread_mutex_unlock(&q->m);
 }
 
@@ -207,9 +208,13 @@ static void *exec_worker(void *argp) {
         if (r < 0)
             break; /* 取消 */
         if (r == 0) { /* EOS */
-            if (node->ops->flush && node->ops->flush(node, &d) != 0) {
-                atomic_store(&e->error_code, (int)RKVC_STATUS_INTERNAL);
-                atomic_store(&e->failed, 1);
+            if (node->ops->flush) {
+                int rc = node->ops->flush(node, &d);
+                if (rc != 0) {
+                    atomic_store(&e->error_code,
+                                 rc < 0 ? rc : (int)RKVC_STATUS_INTERNAL);
+                    atomic_store(&e->failed, 1);
+                }
             }
             rkvc_diag_release(d);
             rkvc_queue_set_eos(outq);
@@ -357,9 +362,14 @@ int rkvc_exec_pull(rkvc_exec *e, rkvc_frame **frame) {
     r = rkvc_queue_pop(e->output_queue, frame, e);
     if (r == 1)
         return 0;
-    if (r == 0)
+    if (r == 0) {
+        if (atomic_load(&e->failed))
+            return atomic_load(&e->error_code);
         return (int)RKVC_STATUS_EOF;
-    return (int)RKVC_STATUS_CANCELED;
+    }
+    if (r < 0 && atomic_load(&e->failed))
+        return atomic_load(&e->error_code);
+    return r;
 }
 
 int rkvc_exec_try_pull(rkvc_exec *e, rkvc_frame **frame) {
@@ -369,11 +379,14 @@ int rkvc_exec_try_pull(rkvc_exec *e, rkvc_frame **frame) {
     r = rkvc_queue_try_pop(e->output_queue, frame, e);
     if (r == 1)
         return 0;
-    if (r == 0)
+    if (r == 0) {
+        if (atomic_load(&e->failed))
+            return atomic_load(&e->error_code);
         return (int)RKVC_STATUS_EOF;
-    if (r == (int)RKVC_STATUS_AGAIN)
-        return (int)RKVC_STATUS_AGAIN;
-    return (int)RKVC_STATUS_CANCELED;
+    }
+    if (r < 0 && atomic_load(&e->failed))
+        return atomic_load(&e->error_code);
+    return r;
 }
 
 int rkvc_exec_eos(rkvc_exec *e) {
