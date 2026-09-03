@@ -18,6 +18,7 @@ RKVC_0.4 {
         rkvc_job_destroy;
         rkvc_job_push;
         rkvc_job_pull;
+        rkvc_job_try_pull;
         rkvc_job_push_eos;
         rkvc_frame_wrap_host;
         rkvc_frame_desc_init;

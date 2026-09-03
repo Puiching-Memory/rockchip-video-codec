@@ -132,6 +132,8 @@ void    rkvc_exec_cancel(rkvc_exec *e);
 int     rkvc_exec_push(rkvc_exec *e, rkvc_frame *frame);
 /** 从图输出边界队列拉取一帧；EOS/取消映射为对应状态码。 */
 int     rkvc_exec_pull(rkvc_exec *e, rkvc_frame **frame);
+/** 非阻塞拉取：空时返回 RKVC_STATUS_AGAIN，EOS 返回 EOF。 */
+int     rkvc_exec_try_pull(rkvc_exec *e, rkvc_frame **frame);
 /** 通知图输入已到流结束（flush 语义）。 */
 int     rkvc_exec_eos(rkvc_exec *e);
 
@@ -190,7 +192,8 @@ int rkvc_queue_push(rkvc_queue *q, rkvc_frame *f, void *exec);
 int rkvc_queue_try_push(rkvc_queue *q, rkvc_frame *f, void *exec);
 /** 阻塞 pop：返回 1=帧 / 0=EOS / <0=取消。 */
 int rkvc_queue_pop(rkvc_queue *q, rkvc_frame **f, void *exec);
-/** 标记流结束并唤醒所有等待的消费者。 */
+/** 非阻塞弹出：有帧返回 1，空且未 EOS 返回 AGAIN，EOS 返回 0。 */
+int rkvc_queue_try_pop(rkvc_queue *q, rkvc_frame **f, void *exec);
 void rkvc_queue_set_eos(rkvc_queue *q);
 
 /* 图可调项 */

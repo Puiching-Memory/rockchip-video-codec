@@ -81,6 +81,14 @@ rkvc_status rkvc_job_push(rkvc_job *job, rkvc_frame *frame);
  */
 rkvc_status rkvc_job_pull(rkvc_job *job, rkvc_frame **frame);
 
+/**
+ * @brief 从作业输出端点拉取一帧（非阻塞）。
+ * @return RKVC_STATUS_OK 时帧引用被转移给调用方，须由调用方
+ *         `rkvc_frame_release`；RKVC_STATUS_AGAIN 表示暂无可取帧；
+ *         RKVC_STATUS_EOF 表示流结束；RKVC_STATUS_CANCELED 表示被取消。
+ */
+rkvc_status rkvc_job_try_pull(rkvc_job *job, rkvc_frame **frame);
+
 /** @brief 通知输入已到流结束（flush 语义）。 */
 rkvc_status rkvc_job_push_eos(rkvc_job *job);
 

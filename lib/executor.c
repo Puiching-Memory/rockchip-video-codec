@@ -142,6 +142,26 @@ int rkvc_queue_pop(rkvc_queue *q, rkvc_frame **out, void *execp) {
     return 1;
 }
 
+int rkvc_queue_try_pop(rkvc_queue *q, rkvc_frame **out, void *execp) {
+    rkvc_exec *e = execp;
+    int rc = 0;
+    if (!q || !out)
+        return (int)RKVC_STATUS_INVALID;
+    pthread_mutex_lock(&q->m);
+    if (e && atomic_load(&e->canceled))
+        rc = (int)RKVC_STATUS_CANCELED;
+    else if (q->count == 0)
+        rc = q->eos ? 0 : (int)RKVC_STATUS_AGAIN;
+    else {
+        *out = q->slots[q->head];
+        q->head = (q->head + 1) % q->capacity;
+        q->count--;
+        pthread_cond_signal(&q->not_full);
+    }
+    pthread_mutex_unlock(&q->m);
+    return rc;
+}
+
 void rkvc_queue_set_eos(rkvc_queue *q) {
     pthread_mutex_lock(&q->m);
     q->eos = 1;
@@ -339,6 +359,20 @@ int rkvc_exec_pull(rkvc_exec *e, rkvc_frame **frame) {
         return 0;
     if (r == 0)
         return (int)RKVC_STATUS_EOF;
+    return (int)RKVC_STATUS_CANCELED;
+}
+
+int rkvc_exec_try_pull(rkvc_exec *e, rkvc_frame **frame) {
+    int r;
+    if (!e || !frame)
+        return (int)RKVC_STATUS_INVALID;
+    r = rkvc_queue_try_pop(e->output_queue, frame, e);
+    if (r == 1)
+        return 0;
+    if (r == 0)
+        return (int)RKVC_STATUS_EOF;
+    if (r == (int)RKVC_STATUS_AGAIN)
+        return (int)RKVC_STATUS_AGAIN;
     return (int)RKVC_STATUS_CANCELED;
 }
 

@@ -7,6 +7,9 @@ project(rkvc
 # Only context/request/job/frame and the backend ABI are built or installed.
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+# 后端 DSO 必须导出 rkvc_backend_query；不继承宿主项目（如父级 SDK）设置的
+# 隐藏可见性，否则 dlopen 后 dlsym 找不到入口符号。
+set(CMAKE_C_VISIBILITY_PRESET default)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

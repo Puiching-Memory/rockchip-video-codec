@@ -353,6 +353,16 @@ rkvc_status rkvc_job_pull(rkvc_job *job, rkvc_frame **frame) {
     return exec ? (rkvc_status)rkvc_exec_pull(exec, frame) : RKVC_STATUS_INVALID;
 }
 
+rkvc_status rkvc_job_try_pull(rkvc_job *job, rkvc_frame **frame) {
+    rkvc_exec *exec;
+    if (!job || !frame)
+        return RKVC_STATUS_INVALID;
+    pthread_mutex_lock(&job->mutex);
+    exec = job->state == 1 ? job->exec : NULL;
+    pthread_mutex_unlock(&job->mutex);
+    return exec ? (rkvc_status)rkvc_exec_try_pull(exec, frame) : RKVC_STATUS_INVALID;
+}
+
 rkvc_status rkvc_job_push_eos(rkvc_job *job) {
     rkvc_exec *exec;
     if (!job)

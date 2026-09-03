@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Dependencies used by the core library and its backend DSOs.
+#
+# All paths below are relative to the rkvc source tree (CMAKE_CURRENT_SOURCE_DIR),
+# so rkvc can also be added as a subdirectory of another CMake project.
 
 find_package(Threads REQUIRED)
 
 # The model container always uses libsodium SHA-256. Keep it in a project-owned
 # prefix so host and target libraries cannot be mixed during cross builds.
-set(LIBSODIUM_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/libsodium-install"
+set(LIBSODIUM_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/.build/deps/libsodium-install"
     CACHE PATH "libsodium install prefix")
 if(NOT EXISTS "${LIBSODIUM_PREFIX}/lib/libsodium.a")
     message(FATAL_ERROR
@@ -17,7 +20,7 @@ set(RKVC_SODIUM_LIBS ${LIBSODIUM_PREFIX}/lib/libsodium.a Threads::Threads)
 set(RKVC_SODIUM_INCLUDES ${LIBSODIUM_PREFIX}/include)
 
 if(RKVC_BUILD_BACKEND_MPP)
-    set(MPP_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/mpp-install"
+    set(MPP_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/.build/deps/mpp-install"
         CACHE PATH "MPP install prefix")
     if(NOT EXISTS "${MPP_INSTALL_PREFIX}/lib/librockchip_mpp.so")
         message(FATAL_ERROR
@@ -28,12 +31,12 @@ if(RKVC_BUILD_BACKEND_MPP)
     if(EXISTS "${MPP_INSTALL_PREFIX}/include/rockchip/mpp_api.h")
         set(MPP_INCLUDE_DIR "${MPP_INSTALL_PREFIX}/include/rockchip")
     else()
-        set(MPP_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/mpp/inc")
+        set(MPP_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/mpp/inc")
     endif()
 endif()
 
 if(RKVC_BUILD_BACKEND_RGA)
-    set(RGA_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/rga-install"
+    set(RGA_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/.build/deps/rga-install"
         CACHE PATH "RGA SDK prefix (lib/ + optional include/)")
     if(NOT EXISTS "${RGA_INSTALL_PREFIX}/lib/librga.so")
         message(FATAL_ERROR
@@ -45,8 +48,8 @@ if(RKVC_BUILD_BACKEND_RGA)
     # rkvc-build 适配器保证：SDK 前缀正是从该子模块装出的）。
     if(EXISTS "${RGA_INSTALL_PREFIX}/include/im2d.h")
         set(RGA_INCLUDE_DIR "${RGA_INSTALL_PREFIX}/include")
-    elseif(EXISTS "${CMAKE_SOURCE_DIR}/third_party/librga/include/im2d.h")
-        set(RGA_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/third_party/librga/include")
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/librga/include/im2d.h")
+        set(RGA_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/librga/include")
     else()
         message(FATAL_ERROR
             "RGA headers not found in ${RGA_INSTALL_PREFIX}/include or "
@@ -55,7 +58,7 @@ if(RKVC_BUILD_BACKEND_RGA)
 endif()
 
 if(RKVC_BUILD_BACKEND_RKNN OR RKVC_BUILD_BACKEND_MLVC)
-    set(RKNN_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/.build/deps/rknn-install"
+    set(RKNN_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/.build/deps/rknn-install"
         CACHE PATH "RKNN Runtime SDK prefix (include/ + lib/)")
     if(NOT EXISTS "${RKNN_INSTALL_PREFIX}/lib/librknnrt.so")
         message(FATAL_ERROR
@@ -76,7 +79,7 @@ endif()
 
 if(RKVC_BUILD_BACKEND_SVT)
     set(SVT_AV1_INSTALL_PREFIX
-        "${CMAKE_SOURCE_DIR}/.build/deps/svt-av1-install"
+        "${CMAKE_CURRENT_SOURCE_DIR}/.build/deps/svt-av1-install"
         CACHE PATH "SVT-AV1 install prefix (lib/ + include/svt-av1/)")
     if(NOT EXISTS "${SVT_AV1_INSTALL_PREFIX}/lib/libSvtAv1Enc.so")
         message(FATAL_ERROR
@@ -100,7 +103,7 @@ endif()
 # third_party/ffmpeg-rockchip 中 configure && make（--enable-shared，
 # 默认 libavcodec/libavformat/libavutil 三个子目录产出 .so）。
 if(RKVC_BUILD_BACKEND_FFMPEG)
-    set(FFMPEG_SRC_DIR "${CMAKE_SOURCE_DIR}/third_party/ffmpeg-rockchip")
+    set(FFMPEG_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ffmpeg-rockchip")
     if(NOT EXISTS "${FFMPEG_SRC_DIR}/libavcodec/libavcodec.so" OR
        NOT EXISTS "${FFMPEG_SRC_DIR}/libavformat/libavformat.so" OR
        NOT EXISTS "${FFMPEG_SRC_DIR}/libavutil/libavutil.so")
@@ -123,8 +126,8 @@ endif()
 if(RKVC_ENABLE_MODEL_SIGN)
     set(_trust_pub "${RKVC_TRUST_PUBKEY_HEX}")
     if(NOT _trust_pub AND NOT RKVC_TRUST_PRODUCTION AND
-       EXISTS "${CMAKE_SOURCE_DIR}/tools/trust/dev-root.pub")
-        file(STRINGS "${CMAKE_SOURCE_DIR}/tools/trust/dev-root.pub" _pub_lines)
+       EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/trust/dev-root.pub")
+        file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/tools/trust/dev-root.pub" _pub_lines)
         foreach(_line IN LISTS _pub_lines)
             if(NOT _line MATCHES "^#")
                 set(_trust_pub "${_line}")
@@ -139,7 +142,7 @@ if(RKVC_ENABLE_MODEL_SIGN)
         find_program(PYTHON3_EXECUTABLE python3 REQUIRED)
         set(_trust_dir "${CMAKE_BINARY_DIR}/trust")
         execute_process(
-            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_SOURCE_DIR}/tools"
+            COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/tools"
                 ${PYTHON3_EXECUTABLE} -m rkvc_build.rkmodel keygen
                 "${_trust_dir}/dev-root"
             RESULT_VARIABLE _keygen_rc ERROR_QUIET)
