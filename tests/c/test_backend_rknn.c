@@ -13,8 +13,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <sodium.h>
-
 #include "rkvc/backend.h"
 #include "rkvc/context.h"
 #include "rkvc/job.h"
@@ -70,11 +68,11 @@ static void write_model(void) {
     fixed.format_version = RKMODEL_VERSION;
     fixed.header_len = (uint32_t)tlv.len;
     fixed.payload_count = 1;
+    fixed.payload_entry_size = sizeof(rkmodel_payload_entry);
     memset(&entry, 0, sizeof(entry));
     entry.kind = RKMODEL_PAYLOAD_RKNN;
     entry.offset = RKMODEL_FIXED_SIZE + tlv.len + sizeof(entry);
     entry.length = sizeof(model_payload);
-    crypto_hash_sha256(entry.sha256, model_payload, sizeof(model_payload));
     put(&file, &fixed, sizeof(fixed));
     put(&file, tlv.data, tlv.len);
     put(&file, &entry, sizeof(entry));

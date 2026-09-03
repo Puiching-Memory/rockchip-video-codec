@@ -21,7 +21,6 @@ _ADAPTERS = [
     ("SVT-AV1", "BSD-3-Clause-Clear", "third_party/SVT-AV1"),
     ("librga", "Apache-2.0", "third_party/librga"),
     ("rknn-runtime", "LicenseRef-Rockchip-RKNN", ""),
-    ("libsodium", "ISC", "third_party/libsodium"),
 ]
 
 # 许可证归集候选文件名（有界清单，按组件顺序）
@@ -29,7 +28,6 @@ _LEGAL_FILES = {
     "rockchip-mpp": ["LICENSES/Apache-2.0", "LICENSE"],
     "SVT-AV1": ["LICENSE.md", "LICENSE"],
     "librga": ["COPYING", "LICENSE"],
-    "libsodium": ["LICENSE"],
 }
 
 

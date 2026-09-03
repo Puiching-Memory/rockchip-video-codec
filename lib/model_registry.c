@@ -3,9 +3,9 @@
 
 /**
  * @file model_registry.c
- * @brief 模型注册表：在 context 创建时扫描可信目录中的 .rkmodel 候选。
+ * @brief 模型注册表：在 context 创建时扫描模型目录中的 .rkmodel 候选。
  *
- * 只读有界头部并做签名/兼容性过滤；载荷按需装载。扫描确定性：路径排序
+ * 只读有界头部并做格式/兼容性过滤；载荷按需装载。扫描确定性：路径排序
  * 后逐个解析，单个候选失败只淘汰该候选并计数（skips），不影响上下文创建。
  * 目录名只用于组织文件，不参与正确性。
  */
@@ -125,19 +125,9 @@ rkvc_status rkvc_model_registry_scan(rkvc_context *ctx) {
     for (i = 0; i < npaths; ++i) {
         char err[160] = {0};
         rkvc_rkmodel *m = &ctx->models[ctx->model_count];
-        if (rkvc_rkmodel_open(paths[i], m, rkvc_model_trust_verifier(), NULL,
-                              err, sizeof(err)) == RKVC_STATUS_OK) {
-            int reject = 0;
-            /* 签名存在但验证不通过的候选绝不可用；
-             * 生产模式额外要求生产 trust root 签名。 */
-            if (m->info.trust == RKVC_MODEL_TRUST_UNTRUSTED)
-                reject = 1;
-            if (rkvc_model_trust_production_mode() &&
-                m->info.trust != RKVC_MODEL_TRUST_PRODUCTION)
-                reject = 1;
+        if (rkvc_rkmodel_open(paths[i], m, err, sizeof(err)) ==
+            RKVC_STATUS_OK) {
             if (m->min_runtime_abi > RKVC_ABI_VERSION)
-                reject = 1;
-            if (reject)
                 ctx->model_skipped++;
             else
                 ctx->model_count++;
@@ -182,9 +172,6 @@ const rkvc_rkmodel *rkvc_model_registry_select(const rkvc_context *ctx,
             strncmp(m->info.rknn_target, ctx->caps.soc,
                     strlen(m->info.rknn_target)) != 0)
             continue;
-        if (m->info.trust == RKVC_MODEL_TRUST_PRODUCTION) score += 300;
-        else if (m->info.trust == RKVC_MODEL_TRUST_DEVELOPMENT) score += 200;
-        else score += 100;
         if (m->info.rknn_target[0] && ctx->caps.soc[0]) score += 50;
         if (!best || score > best_score ||
             (score == best_score && strcmp(m->info.id, best->info.id) < 0)) {

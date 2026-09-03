@@ -26,13 +26,6 @@ option(RKVC_BUILD_BACKEND_SVT
     "Build the SVT-AV1 software encoder backend DSO (requires SVT_AV1_INSTALL_PREFIX)" OFF)
 option(RKVC_BUILD_BACKEND_FFMPEG
     "Build the FFmpeg demux/mux backend DSO (requires an in-tree ffmpeg-rockchip build)" OFF)
-option(RKVC_ENABLE_MODEL_SIGN
-    "Enable .rkmodel Ed25519 signature verification" OFF)
-option(RKVC_TRUST_PRODUCTION
-    "Require an explicitly pinned production model trust root" OFF)
-set(RKVC_TRUST_PUBKEY_HEX "" CACHE STRING
-    "Ed25519 trust-root public key (64 hex chars)")
-
 option(RKVC_ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(RKVC_ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
 option(RKVC_ENABLE_COVERAGE "Enable gcov/llvm-cov instrumentation" OFF)

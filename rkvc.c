@@ -176,16 +176,6 @@ static int cmd_inspect_backends(int json) {
     return 0;
 }
 
-/** 信任级别转稳定字符串（文本与 JSON 输出共用）。 */
-static const char *trust_str(rkvc_model_trust t) {
-    switch (t) {
-    case RKVC_MODEL_TRUST_UNSIGNED:    return "unsigned";
-    case RKVC_MODEL_TRUST_DEVELOPMENT: return "development";
-    case RKVC_MODEL_TRUST_PRODUCTION:  return "production";
-    default:                           return "untrusted";
-    }
-}
-
 /** 输出一个模型候选的 JSON 对象（last 控制数组分隔符）。 */
 static void print_model_json(const rkvc_model_info *m, int last) {
     printf("{\"id\": ");
@@ -198,8 +188,6 @@ static void print_model_json(const rkvc_model_info *m, int last) {
     json_escape(stdout, m->version);
     printf(", \"rknn_target\": ");
     json_escape(stdout, m->rknn_target);
-    printf(", \"trust\": ");
-    json_escape(stdout, trust_str(m->trust));
     printf(", \"payload_mask\": %u}%s", m->payload_mask, last ? "" : ", ");
 }
 
@@ -224,15 +212,14 @@ static int cmd_inspect_models(int json) {
         printf("], \"status\": \"ok\"}\n");
     } else {
         if (n == 0)
-            puts("(模型注册表为空：可信目录中无有效 .rkmodel 候选)");
+            puts("(模型注册表为空：模型目录中无有效 .rkmodel 候选)");
         for (i = 0; i < n; ++i) {
             rkvc_model_info m;
             if (rkvc_model_info_at(ctx, i, &m) != RKVC_STATUS_OK)
                 continue;
-            printf("%s  family=%s role=%s version=%s target=%s trust=%s\n",
+            printf("%s  family=%s role=%s version=%s target=%s\n",
                    m.id, m.family, m.role, m.version,
-                   m.rknn_target[0] ? m.rknn_target : "-",
-                   trust_str(m.trust));
+                   m.rknn_target[0] ? m.rknn_target : "-");
         }
     }
     rkvc_context_destroy(ctx);

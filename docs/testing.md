@@ -18,8 +18,7 @@
 | test_frame_metadata | ROI/编码热控校验、元数据深拷贝与所有权         |
 | test_api_contract   | 初始化器、状态码、结构体前缀兼容与 ABI 主版本  |
 | test_backend_loader | DSO ABI 握手、坏候选隔离和可信目录             |
-| test_rkmodel        | 容器边界、摘要和模型注册表                     |
-| test_model_trust    | 可选 Ed25519 签名互操作                        |
+| test_rkmodel        | 容器结构边界、载荷读取和模型注册表             |
 | test_backend_rknn   | fake Runtime 下模型绑定、推理与 NV12 3× 输出   |
 | test_backend_mlvc   | fake RKNN 下 MLVC `.mlvc` 容器守恒与编解码往返 |
 

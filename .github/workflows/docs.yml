@@ -25,19 +25,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-      - name: Initialize libsodium
-        run: git submodule update --init --depth 1 third_party/libsodium
       - uses: actions/setup-python@v6
         with:
           python-version: 3.x
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf automake cmake doxygen libtool
+          sudo apt-get install -y -qq cmake doxygen
           pip install zensical
-      - name: Build libsodium and API docs
+      - name: Build API docs
         run: |
-          bash tools/install-libsodium.sh
           cmake -B .build/docs -DRKVC_BUILD_DOCS=ON
           cmake --build .build/docs --target docs
       - name: Build site

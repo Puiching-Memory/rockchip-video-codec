@@ -225,12 +225,10 @@ def convert_rknn(
     target: str,
     calibration_list: Path | None,
     quantize: bool,
-    encrypt: bool,
-    crypt_level: int,
     verbose: bool,
     input_w: int,
     input_h: int,
-) -> tuple[Path, Path | None]:
+) -> Path:
     try:
         from rknn.api import RKNN
     except ImportError as exc:
@@ -239,7 +237,6 @@ def convert_rknn(
         raise ExportError("INT8 转换需要 --calibration-list")
     output.parent.mkdir(parents=True, exist_ok=True)
     rknn = RKNN(verbose=verbose)
-    encrypted: Path | None = None
     try:
         ret = rknn.config(
             mean_values=[[0] * 12],
@@ -273,20 +270,13 @@ def convert_rknn(
         ret = rknn.export_rknn(str(output))
         if ret != 0:
             raise ExportError(f"rknn.export_rknn 失败: {ret}")
-        if encrypt:
-            encrypted = output.with_suffix(".crypt.rknn")
-            ret = rknn.export_encrypted_rknn_model(
-                str(output), output_model=str(encrypted), crypt_level=crypt_level
-            )
-            if ret != 0:
-                raise ExportError(f"RKNN 加密失败: {ret}")
     except ExportError:
         raise
     except Exception as exc:
         raise ExportError(f"rknn-toolkit2 转换异常: {exc}") from exc
     finally:
         rknn.release()
-    return output, encrypted
+    return output
 
 
 def write_bundle(
@@ -373,9 +363,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-height", type=int, default=360)
     parser.add_argument("--from-qat", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--quantize", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--encrypt", action=argparse.BooleanOptionalAction, default=False,
-                        help="可选 RKNN 加密；要求 wheel/主机提供 rknn_crypt_tool")
-    parser.add_argument("--crypt-level", type=int, choices=(1, 2, 3), default=2)
     parser.add_argument("--onnx-only", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     return parser
@@ -407,16 +394,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     artifacts = [onnx_path]
     if not args.onnx_only:
-        plain_rknn, encrypted_rknn = convert_rknn(
+        rknn_path = convert_rknn(
             onnx_path, output_dir / f"{MODEL_STEM}.rknn",
             target=args.target, calibration_list=args.calibration_list,
-            quantize=args.quantize, encrypt=args.encrypt,
-            crypt_level=args.crypt_level, verbose=args.verbose,
+            quantize=args.quantize, verbose=args.verbose,
             input_w=args.input_width, input_h=args.input_height,
         )
-        artifacts.append(plain_rknn)
-        if encrypted_rknn:
-            artifacts.append(encrypted_rknn)
+        artifacts.append(rknn_path)
     manifest = write_bundle(
         source_dir, output_dir, source_commit=commit, weight=args.weight,
         input_w=args.input_width, input_h=args.input_height,

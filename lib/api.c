@@ -51,12 +51,9 @@ const char *rkvc_status_str(rkvc_status status) {
     case RKVC_STATUS_FORMAT:          return "format mismatch";
     case RKVC_STATUS_NEGOTIATE:       return "graph negotiation failed";
     case RKVC_STATUS_PERMISSION:      return "permission denied";
-    case RKVC_STATUS_LICENSE:         return "license check failed";
-    case RKVC_STATUS_UNLICENSED:      return "unlicensed";
     case RKVC_STATUS_CANCELED:        return "canceled";
     case RKVC_STATUS_UNSUPPORTED:     return "unsupported";
     case RKVC_STATUS_INTERNAL:        return "internal error";
-    case RKVC_STATUS_INTEGRITY:       return "integrity check failed";
     default:                          return "unknown";
     }
 }

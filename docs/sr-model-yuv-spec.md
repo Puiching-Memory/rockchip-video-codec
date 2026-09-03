@@ -140,8 +140,7 @@ deploy graph 的全部可学习参数，拒绝缺失/错形状，然后导出不
 ```
 
 默认执行：静态单输入 ONNX → 契约校验 → INT8 RKNN → SHA-256 manifest →
-上游 MIT LICENSE/SOURCE 信息。`--encrypt` 可额外生成加密 RKNN，但要求当前主机的
-rknn-toolkit2 包含 `rknn_crypt_tool`（aarch64 wheel 通常不带）。常用变体：
+上游 MIT LICENSE/SOURCE 信息。常用变体：
 
 ```bash
 # 只导出并检查 ONNX
@@ -170,7 +169,6 @@ rknn-toolkit2 包含 `rknn_crypt_tool`（aarch64 wheel 通常不带）。常用�
 models/rkvc-sr/
 ├── phase_rlfn_sr_x3.onnx
 ├── phase_rlfn_sr_x3.rknn
-├── phase_rlfn_sr_x3.crypt.rknn       # 可选 --encrypt
 ├── sr_export_manifest.json
 ├── LICENSE.rknn-super-resolution-MIT
 └── SOURCE.md

@@ -1,7 +1,7 @@
 """Dependency adapter protocol.
 
 Each adapter describes one dependency (mpp, svt-av1, ffmpeg, librga, rknn,
-libsodium, ...).  Adapters implement ``probe/fetch/build/install`` and are
+...).  Adapters implement ``probe/fetch/build/install`` and are
 discovered by directory scan under ``tools/rkvc_build/adapters/`` -- the main
 orchestrator never maintains a dependency branch table.
 

@@ -6,7 +6,7 @@
  * @brief MLVC 神经视频编解码后端（RKNN NPU + rANS 熵编码）。
  *
  * 0.4 适配：模型（RKNN + 双 PMF 熵表 + 可选 QPPATCH）由核心经
- * bind_model() 多载荷视图交付，SHA-256/签名校验在装载期完成。
+ * bind_model() 多载荷视图交付。
  *
  * - mlvc.encode（ENCODE stage）：NV12 帧 → encoder NPU → rANS 码流，
  *   每帧输出一条完整 .mlvc 记录（首帧附 32B 容器头）的 BITSTREAM 帧；
@@ -999,7 +999,7 @@ struct mlvc_decoder {
     /* 绑定暂存：RKNN 惰性初始化（首帧容器头给出 qp 后） */
     const unsigned char *model_bytes;
     size_t model_size;
-    const rkvc_model_binding *binding; /* 多 QP 补丁按 qp 选择用 */
+    rkvc_model_binding binding; /* 多 QP 补丁按 qp 选择用 */
 
     mlvc_demuxer demux;
     uint32_t frame_count;
@@ -1145,11 +1145,12 @@ static int mlvc_dec_bind_model(rkvc_node *node,
     }
     d->rans_ready = 1;
 
-    /* 绑定暂存：多 QP 补丁须在容器头给出 qp 后才能选择，故保留
-     * binding 引用（核心保证载荷在节点 destroy 前有效）。 */
+    /* 绑定暂存：多 QP 补丁须在容器头给出 qp 后才能选择。
+     * binding 描述符由回调调用方在栈上构造，必须按值保存；其中的
+     * info/payload/payloads 指针仍借用核心存储，在节点 destroy 前有效。 */
     d->model_bytes = binding->payload;
     d->model_size = binding->payload_size;
-    d->binding = binding;
+    d->binding = *binding;
     return 0;
 }
 
@@ -1183,7 +1184,7 @@ static int dec_lazy_init(struct mlvc_decoder *d, rkvc_diag **diag,
                          const rkvc_node *node)
 {
     const rkvc_model_payload_view *patch =
-        find_qppatch_for_qp(d->binding, d->qp);
+        find_qppatch_for_qp(&d->binding, d->qp);
     int rc = rknn_model_init(&d->dec_model, d->model_bytes, d->model_size,
                              patch ? patch->data : NULL,
                              patch ? patch->size : 0, d->qp);

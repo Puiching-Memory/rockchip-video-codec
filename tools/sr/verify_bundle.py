@@ -79,8 +79,8 @@ def verify(bundle: Path) -> dict[str, Any]:
         if digest != expected.get("sha256"):
             raise BundleError(f"artifact SHA-256 不匹配: {name}")
 
-    # 避免一次 --encrypt/--no-encrypt 或不同 checkpoint 的残留文件被 cp -a
-    # 静默带入 portable 包，却不受当前 manifest 约束。
+    # 避免不同 checkpoint 的残留文件被 cp -a 静默带入 portable 包，
+    # 却不受当前 manifest 约束。
     declared = set(artifacts)
     for path in bundle.glob("phase_rlfn_sr_x3*"):
         if path.is_file() and path.name not in declared:
@@ -88,7 +88,7 @@ def verify(bundle: Path) -> dict[str, Any]:
     return manifest
 
 
-def finalize_portable(bundle: Path, *, encrypted: bool) -> dict[str, Any]:
+def finalize_portable(bundle: Path) -> dict[str, Any]:
     """Rewrite artifact metadata after packaging transforms the runtime bundle."""
     manifest_path = bundle / "sr_export_manifest.json"
     try:
@@ -98,15 +98,6 @@ def finalize_portable(bundle: Path, *, encrypted: bool) -> dict[str, Any]:
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, dict):
         raise BundleError("manifest.artifacts 必须是对象")
-    rknn_path = bundle / "phase_rlfn_sr_x3.rknn"
-    if encrypted:
-        try:
-            with rknn_path.open("rb") as stream:
-                magic = stream.read(8)
-        except OSError as exc:
-            raise BundleError(f"无法读取加密 RKNN: {exc}") from exc
-        if magic != b"RKVCENC1":
-            raise BundleError("声明 encrypted=true，但 RKNN 缺少 RKVCENC1 文件头")
     refreshed: dict[str, dict[str, Any]] = {}
     for name in artifacts:
         path = bundle / name
@@ -118,7 +109,6 @@ def finalize_portable(bundle: Path, *, encrypted: bool) -> dict[str, Any]:
     manifest["artifacts"] = refreshed
     manifest["distribution"] = {
         "artifact_policy": "runtime-only",
-        "encrypted": encrypted,
     }
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
@@ -132,11 +122,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("bundle", type=Path)
     parser.add_argument("--finalize-portable", action="store_true",
                         help="重写打包变换后的 runtime-only artifact 摘要")
-    parser.add_argument("--encrypted", action="store_true",
-                        help="与 --finalize-portable 一起记录 RKNN 已加密")
     args = parser.parse_args(argv)
     try:
-        manifest = finalize_portable(args.bundle, encrypted=args.encrypted) \
+        manifest = finalize_portable(args.bundle) \
             if args.finalize_portable else verify(args.bundle)
     except BundleError as exc:
         parser.exit(1, f"错误: {exc}\n")

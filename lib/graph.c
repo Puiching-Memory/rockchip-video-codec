@@ -143,7 +143,7 @@ static void release_model_payload(rkvc_graph *g) {
 /**
  * 为声明 bind_model 的节点选择并交付模型；载荷缓冲由图持有，节点销毁
  * 后释放。返回 NEGOTIATE 表示该候选应被淘汰（无兼容模型或节点拒绝
- * 契约）；INTEGRITY/IO 等原样上抛，不触发静默回退。
+ * 契约）；IO 等载荷读取错误原样上抛，不触发静默回退。
  *
  * 容器全部载荷均装载并按 kind 提供视图（MLVC 需 RKNN + 双 PMF 熵表
  * + 可选 QPPATCH）；缺省字段 payload 仍指向 RKNN（或首个）载荷，
@@ -196,7 +196,7 @@ static int bind_step_model(rkvc_graph *g, rkvc_node *n,
                 release_model_payload(g);
                 if (diag)
                     rkvc_diag_push(diag, st, 1, n->ops->id,
-                                   "model payload load/verify failed");
+                                   "model payload load failed");
                 return (int)st;
             }
             g->payload_views[i].kind = m->payloads[i].kind;

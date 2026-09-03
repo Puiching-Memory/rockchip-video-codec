@@ -19,8 +19,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <sodium.h>
-
 #include "rkvc/backend.h"
 #include "rkvc/context.h"
 #include "rkvc/job.h"
@@ -178,21 +176,19 @@ static void write_model(const char *path, const char *role,
     fixed.format_version = RKMODEL_VERSION;
     fixed.header_len = (uint32_t)tlv.len;
     fixed.payload_count = 3;
+    fixed.payload_entry_size = sizeof(rkmodel_payload_entry);
 
     entries_off = RKMODEL_FIXED_SIZE + tlv.len + sizeof(entries);
     memset(entries, 0, sizeof(entries));
     entries[0].kind = RKMODEL_PAYLOAD_RKNN;
     entries[0].offset = (uint32_t)entries_off;
     entries[0].length = (uint32_t)rknn_size;
-    crypto_hash_sha256(entries[0].sha256, rknn_payload, rknn_size);
     entries[1].kind = RKMODEL_PAYLOAD_PMF_GAUSSIAN;
     entries[1].offset = (uint32_t)(entries_off + rknn_size);
     entries[1].length = (uint32_t)pmf_g.len;
-    crypto_hash_sha256(entries[1].sha256, pmf_g.data, pmf_g.len);
     entries[2].kind = RKMODEL_PAYLOAD_PMF_BITEST;
     entries[2].offset = (uint32_t)(entries_off + rknn_size + pmf_g.len);
     entries[2].length = (uint32_t)pmf_b.len;
-    crypto_hash_sha256(entries[2].sha256, pmf_b.data, pmf_b.len);
 
     put(&file, &fixed, sizeof(fixed));
     put(&file, tlv.data, tlv.len);
@@ -237,6 +233,18 @@ static rkvc_context *make_context(void)
     assert_int_equal(rkvc_registry_add_backend(context, rkvc_backend_query()),
                      RKVC_STATUS_OK);
     return context;
+}
+
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+static void clobber_released_stack(void)
+{
+    volatile unsigned char scratch[4096];
+    size_t i;
+
+    for (i = 0; i < sizeof(scratch); ++i)
+        scratch[i] = (unsigned char)(i ^ 0xa5u);
 }
 
 /* ── 测试 1：encode 产出合法 .mlvc 容器记录 ── */
@@ -401,6 +409,8 @@ static void test_mlvc_encode_decode_roundtrip(void **state) {
     dec_req.model_id = "mlvc-dec-test";
     assert_int_equal(rkvc_job_create(context, &dec_req, &dec_diag, &dec_job),
                      RKVC_STATUS_OK);
+    /* bind_model() 的描述符只在回调期间有效；惰性初始化不得借用它。 */
+    clobber_released_stack();
     assert_int_equal(rkvc_job_start(dec_job, &dec_diag), RKVC_STATUS_OK);
     assert_int_equal(rkvc_job_push(dec_job, bitstream), RKVC_STATUS_OK);
     assert_int_equal(rkvc_job_push_eos(dec_job), RKVC_STATUS_OK);

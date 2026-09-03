@@ -70,8 +70,6 @@ def build_and_install(ctx, logger) -> Path:
         (rknn_prefix / "include" / "rknn_api.h").is_file()
         or (rknn_prefix / "include" / "rknn" / "rknn_api.h").is_file()
     )
-    sodium_prefix = ctx.target_prefix / "libsodium"
-    sodium_available = (sodium_prefix / "lib" / "libsodium.a").is_file()
 
     # SVT-AV1 / FFmpeg 容器依赖：软件编码器与 mp4/mkv 等 demux/mux。
     # 二者在项目内预构建（SVT 安装前缀 + ffmpeg-rockchip 源码树内产出的
@@ -124,8 +122,6 @@ def build_and_install(ctx, logger) -> Path:
         args += [
             f"-DRKNN_INSTALL_PREFIX={rknn_prefix}",
         ]
-    if sodium_available:
-        args.append(f"-DLIBSODIUM_PREFIX={sodium_prefix}")
     _run(args, env, logger)
 
     _run(["cmake", "--build", str(build_dir), "-j", str(ctx.jobs)],

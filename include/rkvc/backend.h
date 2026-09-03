@@ -101,7 +101,7 @@ typedef struct rkvc_node_ops {
  * 载荷视图按容器表序排列，节点用 RKMODEL_PAYLOAD_* 匹配 kind。
  */
 struct rkvc_model_binding {
-    const rkvc_model_info *info;  /**< 容器摘要（id/role/target/trust） */
+    const rkvc_model_info *info;  /**< 容器摘要（id/role/target） */
     const unsigned char   *payload; /**< 缺省载荷字节（见上方约定） */
     size_t                 payload_size; /**< 缺省载荷字节数 */
     const rkvc_model_payload_view *payloads; /**< 全部载荷视图；无载荷为 NULL */

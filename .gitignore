@@ -91,14 +91,3 @@ nohup.out
 
 # Office 文档（产品说明等，不入库）
 *.docx
-
-# 授权私钥 & license 文件（1机1码）- 切勿提交
-*.pem
-*.lic
-tools/keys/*secret*
-tools/keys/*.pem
-# 模型自研加密密钥（master.key 内嵌进 lib，data.key 随 model.key 签发）- 切勿提交
-tools/keys/master.key
-tools/keys/data.key
-# genkey 产出的中间文件（CMake 从 public.key 自动生成 license_pubkey.c，无需此头文件）
-tools/keys/public_key.h

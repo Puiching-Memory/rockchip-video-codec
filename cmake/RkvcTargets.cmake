@@ -13,7 +13,6 @@ set(RKVC_SOURCES
     lib/backend_dso.c
     lib/builtin_backends.c
     lib/node_fileio.c
-    lib/model_trust.c
 )
 
 function(rkvc_configure_library target)
@@ -23,14 +22,12 @@ function(rkvc_configure_library target)
             $<INSTALL_INTERFACE:include>
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
-            ${RKVC_SODIUM_INCLUDES}
     )
     target_compile_definitions(${target} PRIVATE
-        ${RKVC_VERSION_COMPILE_DEFS}
-        ${RKVC_MODEL_SIGN_DEFS})
+        ${RKVC_VERSION_COMPILE_DEFS})
     target_link_libraries(${target}
         PUBLIC Threads::Threads
-        PRIVATE rkvc_instrumentation ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS})
+        PRIVATE rkvc_instrumentation ${CMAKE_DL_LIBS})
     set_target_properties(${target} PROPERTIES
         OUTPUT_NAME rkvc
         POSITION_INDEPENDENT_CODE ON)

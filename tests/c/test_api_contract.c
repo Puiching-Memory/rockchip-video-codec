@@ -37,7 +37,7 @@ static void test_initializers_publish_current_abi(void **state) {
 static void test_status_strings_are_total(void **state) {
     int status;
     (void)state;
-    for (status = RKVC_STATUS_INTEGRITY; status <= RKVC_STATUS_OK; ++status)
+    for (status = RKVC_STATUS_INTERNAL; status <= RKVC_STATUS_OK; ++status)
         assert_non_null(rkvc_status_str((rkvc_status)status));
     assert_string_equal(rkvc_status_str((rkvc_status)-999), "unknown");
 }

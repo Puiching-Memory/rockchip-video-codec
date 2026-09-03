@@ -12,7 +12,7 @@
 | rkvc 语言 / ABI    | C17（gnu17）；ABI 0.4（`RKVC_ABI_VERSION`，后端装载时强校验，major/minor/patch 全等）        |
 | 参考宿主           | semantic-codec-sdk v0.1.x，C11 + C++17（视频适配层为 C++）                                   |
 | CMake 版本         | 内嵌 rkvc 需 ≥ 3.21（rkvc 自身 `cmake_minimum_required`）                                    |
-| 核心硬依赖         | libsodium（模型完整性校验，与后端组合无关）+ Threads + dl                                    |
+| 核心硬依赖         | Threads + dl                                                                                  |
 | 可选后端 DSO       | MPP（硬编/解）、SVT-AV1（软编）、RGA、FFmpeg、RKNN、MLVC                                     |
 | 上游集成的宿主接口 | 流式会话：open → send×N → flush → recv 至 EOF → close                                        |
 
@@ -93,15 +93,10 @@ endif()
 | `RKVC_BUILD_BACKEND_SVT`                        | OFF                             | 需 `SVT_AV1_INSTALL_PREFIX`（`lib/libSvtAv1Enc.so` + `include/svt-av1/`）                    |
 | `RKVC_BUILD_BACKEND_RGA`                        | OFF                             | 需 `RGA_INSTALL_PREFIX`（`lib/librga.so`；头缺失回退 `third_party/librga/include`）          |
 | `RKVC_BUILD_BACKEND_FFMPEG` / `_RKNN` / `_MLVC` | OFF                             | 对应前缀见 `cmake/RkvcDependencies.cmake`                                                    |
-| `LIBSODIUM_PREFIX`                              | `.build/deps/libsodium-install` | 任何组合都需要；见 §2.3                                                                      |
 
 ### 2.3 依赖前缀准备
 
 ```bash
-# libsodium（核心硬依赖，一次即可）
-git submodule update --init third_party/libsodium
-bash tools/install-libsodium.sh          # 产出 .build/deps/libsodium-install
-
 # MPP / SVT / RGA：用 rkvc-build 适配器装出前缀（含交叉场景），或使用
 # 板卡/系统自带安装（例如 /usr/local 下的 rockchip_mpp 满足
 # lib/librockchip_mpp.so + 头文件即可）。交叉时务必用目标架构的前缀，
@@ -145,9 +140,6 @@ cmake -B .build -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DRKVC_BUILD_EXAMPLES=OFF -DRKVC_BUILD_TESTS=OFF
 cmake --build .build && ctest --test-dir .build
 ```
-
-libsodium 前缀不在默认位置时，把装好的前缀放到 rkvc 树
-`.build/deps/libsodium-install/` 或用 `-DLIBSODIUM_PREFIX` 指定。
 
 ## 3. 运行时约定
 
@@ -255,7 +247,7 @@ flush 成功提交 EOS 后，worker 必然在 MPP 的 5 秒有限超时内到达
 
 见 §4.2。修复：`rkvc_graph_build` 边协商后注入 `req.input.fmt`（width/height
 字段级合并，冲突报 NEGOTIATE）到首节点输入端口、`req.output.fmt` 到末节点输出
-端口。状态：已修复（工作区，合入主线后更新此行）。错误签名见 §7。
+端口。状态：已修复（工作区，合入主线后更新此行）。错误特征见 §7。
 
 ### 5.2 MPP 拉取死锁与立即 EOF
 
@@ -342,7 +334,7 @@ decoded: 5 NV12 frames (64x64)
 
 ## 7. 故障排查速查
 
-| 错误签名                                                  | 根因                                                       | 处置                                                        |
+| 错误特征                                                  | 根因                                                       | 处置                                                        |
 | --------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------- |
 | `planner(required stage has no candidate): not found`     | 后端 DSO 未装载（目录无 .so / 路径非绝对 / dlopen 失败）   | gdb 断 `rkvc_registry_add_backend` 看装载流；确认 §3.1/§3.4 |
 | `undefined symbol: rkvc_node_emit`（dlopen）              | rkvc 核心符号未进宿主动态表（hidden 或静态宿主未导出）     | §2.1 可见性 + §3.2 `--export-dynamic`                       |
@@ -357,7 +349,7 @@ decoded: 5 NV12 frames (64x64)
 ## 8. 集成核对清单
 
 1. [ ] 宿主 CMake：选项 + 子项目强制项 + 目录属性隔离（§2.1）
-2. [ ] 依赖前缀：libsodium 必备；按需 MPP/SVT/RGA（§2.2/2.3）
+2. [ ] 依赖前缀：按需准备 MPP/SVT/RGA（§2.2/2.3）
 3. [ ] 构建：全量通过；后端 DSO 产出；`readelf --dyn-syms` 确认宿主 so 导出
        `rkvc_node_emit` 等核心符号（§3.2）
 4. [ ] 运行：backend_dir 绝对路径传参；DSO 依赖在目标机可解析（§3.3/3.4）

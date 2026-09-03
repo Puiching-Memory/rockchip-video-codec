@@ -1,10 +1,8 @@
 # 快速开始
 
-要求 Linux、CMake 3.21+、C17 编译器、Ninja、pthread/dl 和 autotools。
+要求 Linux、CMake 3.21+、C17 编译器、Ninja、pthread 和 dl。
 
 ~~~bash
-git submodule update --init third_party/libsodium
-bash tools/install-libsodium.sh
 cmake --preset default
 cmake --build --preset default
 ~~~

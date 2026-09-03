@@ -16,7 +16,6 @@ models/
 └── rkvc-sr/
     ├── phase_rlfn_sr_x3.onnx
     ├── phase_rlfn_sr_x3.rknn
-    ├── phase_rlfn_sr_x3.crypt.rknn  # 可选 --encrypt
     ├── sr_export_manifest.json
     ├── LICENSE.rknn-super-resolution-MIT
     └── SOURCE.md

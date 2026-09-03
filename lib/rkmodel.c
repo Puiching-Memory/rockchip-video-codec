@@ -3,11 +3,7 @@
 
 /**
  * @file rkmodel.c
- * @brief .rkmodel v1 容器读取器：有界头、TLV、载荷表、签名尾校验。
- *
- * 安全约束：任何长度字段在读前检查上界；TLV 遍历以 header_len 为界且
- * tag/len 头自身不得越界；载荷表 offset/length 不做读时跟踪（按需校验
- * 摘要时再 seek）；所有解析失败留下诊断字符串。
+ * @brief .rkmodel v1 容器读取器：有界头、TLV、载荷表和文件范围校验。
  */
 
 #include "rkmodel.h"
@@ -16,13 +12,11 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#include <sodium.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 
-/** 把解析失败原因格式化进调用方 errbuf（可为空）。 */
 static void fail(char *errbuf, size_t cap, const char *fmt, ...) {
     va_list ap;
     if (!errbuf || !cap)
@@ -32,20 +26,26 @@ static void fail(char *errbuf, size_t cap, const char *fmt, ...) {
     va_end(ap);
 }
 
-/** 拷贝 TLV 字符串值并按目标容量截断、补 NUL。 */
 static void tlv_str(const uint8_t *val, uint32_t len, char *dst, size_t cap) {
     size_t n = len < cap - 1 ? len : cap - 1;
     memcpy(dst, val, n);
     dst[n] = '\0';
 }
 
+static int payload_ranges_overlap(const rkmodel_payload_entry *a,
+                                  const rkmodel_payload_entry *b) {
+    return a->offset < b->offset + b->length &&
+           b->offset < a->offset + a->length;
+}
+
 rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
-                              rkvc_rkmodel_verify_fn verify, void *opaque,
                               char *errbuf, size_t errcap) {
     FILE *f = NULL;
     rkmodel_fixed fixed;
-    uint8_t *tlv = NULL;         /* TLV 区 + 载荷表 + 签名尾的签名输入缓冲 */
-    size_t table_bytes, sig_input_len;
+    uint8_t *tlv = NULL;
+    size_t table_bytes;
+    uint64_t data_start;
+    off_t file_end;
     rkvc_status rc = RKVC_STATUS_OK;
 
     if (!path || !out) {
@@ -53,8 +53,6 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
         return RKVC_STATUS_INVALID;
     }
     memset(out, 0, sizeof(*out));
-    out->info.trust = RKVC_MODEL_TRUST_UNSIGNED;
-    /* 记录来源路径（截断到字段容量），供后续按需装载载荷。 */
     {
         size_t plen = strlen(path);
         if (plen >= sizeof(out->path))
@@ -90,9 +88,16 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
         rc = RKVC_STATUS_INVALID;
         goto out;
     }
-    if (fixed.payload_count > RKMODEL_MAX_PAYLOADS) {
-        fail(errbuf, errcap, "payload_count %" PRIu32 " exceeds bound",
+    if (fixed.payload_count == 0 ||
+        fixed.payload_count > RKMODEL_MAX_PAYLOADS) {
+        fail(errbuf, errcap, "payload_count %" PRIu32 " outside bounds",
              fixed.payload_count);
+        rc = RKVC_STATUS_INVALID;
+        goto out;
+    }
+    if (fixed.payload_entry_size != sizeof(rkmodel_payload_entry)) {
+        fail(errbuf, errcap, "unsupported payload entry size %" PRIu32,
+             fixed.payload_entry_size);
         rc = RKVC_STATUS_INVALID;
         goto out;
     }
@@ -105,7 +110,7 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
     }
 
     table_bytes = (size_t)fixed.payload_count * sizeof(rkmodel_payload_entry);
-    sig_input_len = sizeof(fixed) + fixed.header_len + table_bytes;
+    data_start = (uint64_t)sizeof(fixed) + fixed.header_len + table_bytes;
     tlv = rkvc_g_calloc(1, fixed.header_len ? fixed.header_len : 1);
     if (!tlv) {
         fail(errbuf, errcap, "out of memory");
@@ -118,7 +123,6 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
         goto out;
     }
 
-    /* TLV 遍历：tag u16 + len u32 + value */
     {
         size_t pos = 0;
         while (pos + 6 <= fixed.header_len) {
@@ -127,13 +131,14 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
                            ((uint32_t)tlv[pos + 3] << 8) |
                            ((uint32_t)tlv[pos + 4] << 16) |
                            ((uint32_t)tlv[pos + 5] << 24);
-            const uint8_t *val = tlv + pos + 6;
+            const uint8_t *val;
             pos += 6;
             if (len > fixed.header_len - pos) {
                 fail(errbuf, errcap, "TLV tag %u overruns header", tag);
                 rc = RKVC_STATUS_INVALID;
                 goto out;
             }
+            val = tlv + pos;
             switch (tag) {
             case RKMODEL_TAG_FAMILY:
                 tlv_str(val, len, out->info.family, sizeof(out->info.family));
@@ -152,17 +157,18 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
                         sizeof(out->info.rknn_target));
                 break;
             case RKMODEL_TAG_MIN_ABI:
-                if (len == 4)
-                    out->min_runtime_abi = (uint32_t)val[0] |
-                                           ((uint32_t)val[1] << 8) |
-                                           ((uint32_t)val[2] << 16) |
-                                           ((uint32_t)val[3] << 24);
-                break;
-            case RKMODEL_TAG_KEY_SLOT:
-                tlv_str(val, len, out->key_slot, sizeof(out->key_slot));
+                if (len != 4) {
+                    fail(errbuf, errcap, "invalid min ABI TLV length");
+                    rc = RKVC_STATUS_INVALID;
+                    goto out;
+                }
+                out->min_runtime_abi = (uint32_t)val[0] |
+                                       ((uint32_t)val[1] << 8) |
+                                       ((uint32_t)val[2] << 16) |
+                                       ((uint32_t)val[3] << 24);
                 break;
             default:
-                break; /* 未知 tag：跳过 */
+                break;
             }
             pos += len;
         }
@@ -186,91 +192,60 @@ rkvc_status rkvc_rkmodel_open(const char *path, rkvc_rkmodel *out,
         rc = RKVC_STATUS_INVALID;
         goto out;
     }
+    if (fseeko(f, 0, SEEK_END) != 0 || (file_end = ftello(f)) < 0) {
+        fail(errbuf, errcap, "cannot determine file size");
+        rc = RKVC_STATUS_IO;
+        goto out;
+    }
+    if ((uint64_t)file_end < data_start) {
+        fail(errbuf, errcap, "payload table exceeds file size");
+        rc = RKVC_STATUS_INVALID;
+        goto out;
+    }
+
     out->payload_count = fixed.payload_count;
     for (uint32_t i = 0; i < fixed.payload_count; ++i) {
-        uint32_t kind = out->payloads[i].kind;
-        if (kind == 0 || kind > 31) {
-            fail(errbuf, errcap, "invalid payload kind %" PRIu32, kind);
+        const rkmodel_payload_entry *e = &out->payloads[i];
+        uint32_t kind_bit;
+        if (e->kind == 0 || e->kind > 31) {
+            fail(errbuf, errcap, "invalid payload kind %" PRIu32, e->kind);
             rc = RKVC_STATUS_INVALID;
             goto out;
         }
-        out->info.payload_mask |= (uint32_t)1 << kind;
+        kind_bit = (uint32_t)1 << e->kind;
+        if (out->info.payload_mask & kind_bit) {
+            fail(errbuf, errcap, "duplicate payload kind %" PRIu32, e->kind);
+            rc = RKVC_STATUS_INVALID;
+            goto out;
+        }
+        if (e->flags != 0) {
+            fail(errbuf, errcap, "unsupported payload flags 0x%08" PRIx32,
+                 e->flags);
+            rc = RKVC_STATUS_INVALID;
+            goto out;
+        }
+        if (e->offset < data_start || e->offset > (uint64_t)file_end ||
+            e->length > (uint64_t)file_end - e->offset ||
+            e->length > ((uint64_t)1 << 30)) {
+            fail(errbuf, errcap, "payload %" PRIu32 " outside file bounds",
+                 e->kind);
+            rc = RKVC_STATUS_INVALID;
+            goto out;
+        }
+        for (uint32_t j = 0; j < i; ++j) {
+            if (payload_ranges_overlap(e, &out->payloads[j])) {
+                fail(errbuf, errcap, "overlapping payload ranges");
+                rc = RKVC_STATUS_INVALID;
+                goto out;
+            }
+        }
+        out->info.payload_mask |= kind_bit;
     }
 
-    if (fixed.flags & RKMODEL_FLAG_SIGNED) {
-        rkmodel_sig_trailer trailer;
-        uint8_t *input;
-        out->has_signature = 1;
-        if (fread(&trailer, 1, sizeof(trailer), f) != sizeof(trailer)) {
-            fail(errbuf, errcap, "short signature trailer");
-            rc = RKVC_STATUS_INVALID;
-            goto out;
-        }
-        if (trailer.alg != RKMODEL_SIG_ED25519) {
-            fail(errbuf, errcap, "unsupported sig alg %" PRIu32, trailer.alg);
-            rc = RKVC_STATUS_INVALID;
-            goto out;
-        }
-        if (!verify) {
-            out->info.trust = RKVC_MODEL_TRUST_UNTRUSTED;
-            goto done;
-        }
-        input = rkvc_g_calloc(1, sig_input_len);
-        if (!input) {
-            rc = RKVC_STATUS_NOMEM;
-            goto out;
-        }
-        memcpy(input, &fixed, sizeof(fixed));
-        memcpy(input + sizeof(fixed), tlv, fixed.header_len);
-        memcpy(input + sizeof(fixed) + fixed.header_len, out->payloads,
-               table_bytes);
-        out->info.trust = RKVC_MODEL_TRUST_UNTRUSTED;
-        if (verify(trailer.key_id, trailer.sig, input, sig_input_len,
-                   &out->info.trust, opaque) != 0)
-            out->info.trust = RKVC_MODEL_TRUST_UNTRUSTED;
-        rkvc_g_free(input);
-    }
-
-done:
 out:
     rkvc_g_free(tlv);
     fclose(f);
     return rc;
-}
-
-rkvc_status rkvc_rkmodel_check_payload(FILE *f, const rkvc_rkmodel *m,
-                                       uint32_t kind) {
-    const rkmodel_payload_entry *e = NULL;
-    crypto_hash_sha256_state st;
-    uint8_t digest[32];
-    uint8_t buf[8192];
-
-    for (uint32_t i = 0; i < m->payload_count; ++i) {
-        if (m->payloads[i].kind == kind) {
-            e = &m->payloads[i];
-            break;
-        }
-    }
-    if (!e)
-        return RKVC_STATUS_NOT_FOUND;
-    if (e->length > (uint64_t)1 << 40) /* 1 TiB 防呆 */
-        return RKVC_STATUS_INVALID;
-    if (fseeko(f, (off_t)e->offset, SEEK_SET) != 0)
-        return RKVC_STATUS_IO;
-
-    crypto_hash_sha256_init(&st);
-    uint64_t left = e->length;
-    while (left) {
-        size_t want = left < sizeof(buf) ? (size_t)left : sizeof(buf);
-        size_t got = fread(buf, 1, want, f);
-        if (got == 0)
-            return RKVC_STATUS_IO;
-        crypto_hash_sha256_update(&st, buf, got);
-        left -= got;
-    }
-    crypto_hash_sha256_final(&st, digest);
-    return memcmp(digest, e->sha256, 32) == 0 ? RKVC_STATUS_OK
-                                              : RKVC_STATUS_INTEGRITY;
 }
 
 rkvc_status rkvc_rkmodel_load_payload(const rkvc_rkmodel *m, uint32_t kind,
@@ -278,7 +253,6 @@ rkvc_status rkvc_rkmodel_load_payload(const rkvc_rkmodel *m, uint32_t kind,
     const rkmodel_payload_entry *e = NULL;
     FILE *f;
     uint8_t *data;
-    rkvc_status rc;
 
     if (!m || !buf || !size || !m->path[0])
         return RKVC_STATUS_INVALID;
@@ -292,17 +266,10 @@ rkvc_status rkvc_rkmodel_load_payload(const rkvc_rkmodel *m, uint32_t kind,
     }
     if (!e)
         return RKVC_STATUS_NOT_FOUND;
-    if (e->length > (uint64_t)1 << 30) /* 1 GiB 防呆 */
-        return RKVC_STATUS_INVALID;
 
     f = fopen(m->path, "rb");
     if (!f)
         return RKVC_STATUS_IO;
-    rc = rkvc_rkmodel_check_payload(f, m, kind);
-    if (rc != RKVC_STATUS_OK) {
-        fclose(f);
-        return rc;
-    }
     if (fseeko(f, (off_t)e->offset, SEEK_SET) != 0) {
         fclose(f);
         return RKVC_STATUS_IO;

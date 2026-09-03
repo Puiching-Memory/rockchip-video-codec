@@ -57,12 +57,9 @@ typedef enum rkvc_status {
     RKVC_STATUS_FORMAT          = -8,  /**< 输入/输出格式约束不匹配 */
     RKVC_STATUS_NEGOTIATE       = -9,  /**< 图格式协商失败 */
     RKVC_STATUS_PERMISSION      = -10, /**< 设备节点权限不足 */
-    RKVC_STATUS_LICENSE         = -11, /**< 产品授权校验失败 */
-    RKVC_STATUS_UNLICENSED      = -12, /**< 未找到产品授权 */
-    RKVC_STATUS_CANCELED        = -13, /**< 执行被取消 */
-    RKVC_STATUS_UNSUPPORTED     = -14, /**< 请求在当前设备/构建上不受支持 */
-    RKVC_STATUS_INTERNAL        = -15, /**< 内部错误 */
-    RKVC_STATUS_INTEGRITY       = -16, /**< 完整性校验失败（如模型载荷摘要不符） */
+    RKVC_STATUS_CANCELED        = -11, /**< 执行被取消 */
+    RKVC_STATUS_UNSUPPORTED     = -12, /**< 请求在当前设备/构建上不受支持 */
+    RKVC_STATUS_INTERNAL        = -13, /**< 内部错误 */
 } rkvc_status;
 
 /* ── 头部约定 ─────────────────────────────────────────────────────── */

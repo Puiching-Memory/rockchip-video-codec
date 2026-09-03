@@ -41,20 +41,6 @@ def _cmd_package(args: argparse.Namespace) -> int:
         dest = c.work / "sysroots" / "ubuntu-20.04-arm64"
         c.target.sysroot = ensure_sysroot(dest, refresh=args.refresh_sysroot)
 
-    def _deps_sodium(c):
-        from .adapters.sodium import SodiumAdapter
-        adapter = SodiumAdapter(c.work, logger)
-        dep = adapter.probe(c.target)
-        if dep is None:
-            logger.info("deps-sodium: not applicable; skipped")
-            return
-        result = adapter.fetch(dep)
-        if not result.ok:
-            raise StageError(f"deps-sodium fetch failed: {result.message}")
-        result = adapter.build(dep, c.host_prefix, c.target_prefix)
-        if not result.ok:
-            raise StageError(f"deps-sodium build failed: {result.message}")
-
     def _deps_mpp(c):
         import os
         from .adapters.mpp import MppAdapter
@@ -140,8 +126,6 @@ def _cmd_package(args: argparse.Namespace) -> int:
     # sysroot 幂等由其 stamp 文件承担，归档每次重算以暴露非确定性。
     pipeline = Pipeline(ctx, logger=logger)
     pipeline.add(Stage("sysroot", _sysroot, always_run=True,
-                       inputs={"target": ctx.target.name}))
-    pipeline.add(Stage("deps-sodium", _deps_sodium, always_run=True,
                        inputs={"target": ctx.target.name}))
     if not args.no_mpp:
         pipeline.add(Stage("deps-mpp", _deps_mpp, always_run=True,

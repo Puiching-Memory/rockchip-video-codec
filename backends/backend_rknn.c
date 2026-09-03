@@ -5,9 +5,8 @@
  * @file backend_rknn.c
  * @brief Phase-RLFN RKNN transform backend for the 0.4 backend ABI.
  *
- * The model is supplied by the core through bind_model(), after the
- * containing .rkmodel payload has passed its SHA-256/signature checks.  The
- * backend never re-opens a model path and never writes model bytes to disk.
+ * The model is supplied by the core through bind_model(). The backend never
+ * re-opens a model path and never writes model bytes to disk.
  *
  * Supported contract:
  *   uint8  NHWC  1 x H x W x 12

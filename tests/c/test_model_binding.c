@@ -6,9 +6,9 @@
  * @brief transform 节点模型绑定链路回归（无硬件，x86 可跑）。
  *
  * 覆盖核心 bind_model 交付契约：
- *  - 图构建期按请求选择模型，载荷经 SHA-256 校验后交给优先候选；
+ *  - 图构建期按请求选择模型，载荷字节交给优先候选；
  *  - 注册表无兼容模型时首选被淘汰并回退到无模型 transform；
- *  - 载荷摘要被篡改时不回退，job 创建以 INTEGRITY 失败。
+ *  - 注册表扫描后载荷文件被截断时不回退，job 创建以 IO 失败。
  */
 
 #include <stdarg.h>
@@ -23,8 +23,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#include <sodium.h>
 
 #include "graph_internal.h"
 #include "context_internal.h"
@@ -58,7 +56,7 @@ static void blob_tlv(blob *b, uint16_t tag, const char *s) {
 
 #define MODEL_PAYLOAD_LEN 128u
 
-/** 单 RKNN 载荷容器；返回载荷数据区文件偏移（供篡改用例定位）。 */
+/** 单 RKNN 载荷容器；返回载荷数据区文件偏移。 */
 static size_t build_container(blob *out, const uint8_t payload[MODEL_PAYLOAD_LEN]) {
     blob tlv = {0};
     rkmodel_fixed fx;
@@ -75,14 +73,13 @@ static size_t build_container(blob *out, const uint8_t payload[MODEL_PAYLOAD_LEN
     fx.format_version = RKMODEL_VERSION;
     fx.header_len = (uint32_t)tlv.len;
     fx.payload_count = 1;
+    fx.payload_entry_size = sizeof(rkmodel_payload_entry);
 
     table_off = RKMODEL_FIXED_SIZE + tlv.len + sizeof(entry);
     memset(&entry, 0, sizeof(entry));
     entry.kind = RKMODEL_PAYLOAD_RKNN;
     entry.offset = table_off;
     entry.length = MODEL_PAYLOAD_LEN;
-    crypto_hash_sha256(entry.sha256, payload, MODEL_PAYLOAD_LEN);
-
     memset(out, 0, sizeof(*out));
     blob_put(out, &fx, sizeof(fx));
     blob_put(out, tlv.bytes, tlv.len);
@@ -289,7 +286,7 @@ static rkvc_frame *mkframe(void) {
 /* ── 用例 ─────────────────────────────────────────────────────────── */
 
 /** 有兼容模型：首选工厂在 create 期收到校验过的载荷与摘要。 */
-static void test_bind_model_receives_verified_payload(void **state) {
+static void test_bind_model_receives_payload(void **state) {
     uint8_t payload[MODEL_PAYLOAD_LEN];
     blob container = {0};
     rkvc_context *ctx;
@@ -374,8 +371,8 @@ static void test_fallback_when_no_model(void **state) {
     rkvc_context_destroy(ctx);
 }
 
-/** 载荷被篡改：不静默回退，job 创建以 INTEGRITY 失败。 */
-static void test_tampered_payload_rejected(void **state) {
+/** 扫描后载荷文件被截断：不静默回退，job 创建以 IO 失败。 */
+static void test_truncated_payload_rejected(void **state) {
     uint8_t payload[MODEL_PAYLOAD_LEN];
     blob container = {0};
     rkvc_context *ctx;
@@ -388,17 +385,20 @@ static void test_tampered_payload_rejected(void **state) {
     fill_payload(payload);
     data_off = build_container(&container, payload);
     container.bytes[data_off + 7] ^= 0xff; /* 破坏载荷区一个字节 */
-    mkdir("/tmp/rkvc_test_binding_tamper", 0755);
-    mkdir("/tmp/rkvc_test_binding_tamper/models", 0755);
-    write_file("/tmp/rkvc_test_binding_tamper/models/bad.rkmodel",
+    const char *path = "/tmp/rkvc_test_binding_truncated/models/bad.rkmodel";
+    mkdir("/tmp/rkvc_test_binding_truncated", 0755);
+    mkdir("/tmp/rkvc_test_binding_truncated/models", 0755);
+    write_file(path,
                container.bytes, container.len);
 
     g_bind_count = 0;
-    ctx = make_context("/tmp/rkvc_test_binding_tamper/models");
+    ctx = make_context("/tmp/rkvc_test_binding_truncated/models");
+    assert_int_equal(rkvc_model_count(ctx), 1);
+    assert_int_equal(truncate(path, (off_t)(data_off + 7)), 0);
     assert_int_equal(rkvc_registry_add_backend(ctx, &sr_backend),
                      RKVC_STATUS_OK); /* 仅有模型工厂：无处回退 */
     assert_int_equal(rkvc_job_create(ctx, &req, &diag, &job),
-                     RKVC_STATUS_INTEGRITY);
+                     RKVC_STATUS_IO);
     assert_int_equal(g_bind_count, 0);
     assert_null(job);
 
@@ -409,9 +409,9 @@ static void test_tampered_payload_rejected(void **state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_bind_model_receives_verified_payload),
+        cmocka_unit_test(test_bind_model_receives_payload),
         cmocka_unit_test(test_fallback_when_no_model),
-        cmocka_unit_test(test_tampered_payload_rejected),
+        cmocka_unit_test(test_truncated_payload_rejected),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

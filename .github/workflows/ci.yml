@@ -16,14 +16,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-      - name: Initialize libsodium
-        run: git submodule update --init --depth 1 third_party/libsodium
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf automake clang-tidy cmake libtool ninja-build
-      - name: Build libsodium
-        run: bash tools/install-libsodium.sh
+          sudo apt-get install -y -qq clang-tidy cmake ninja-build
       - name: Configure
         run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug
       - name: Run clang-tidy
@@ -41,14 +37,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Initialize libsodium
-        run: git submodule update --init --depth 1 third_party/libsodium
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf automake cmake gcc libcmocka-dev libtool ninja-build pkg-config
-      - name: Build libsodium
-        run: bash tools/install-libsodium.sh
+          sudo apt-get install -y -qq cmake gcc libcmocka-dev ninja-build pkg-config
       - name: Configure and run C tests
         run: |
           cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_SHARED=ON -DRKVC_BUILD_STATIC=ON -DRKVC_BUILD_TESTS=ON
@@ -68,14 +60,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
-      - name: Initialize libsodium
-        run: git submodule update --init --depth 1 third_party/libsodium
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf automake cmake gcc libcmocka-dev libtool ninja-build pkg-config
-      - name: Build libsodium
-        run: bash tools/install-libsodium.sh
+          sudo apt-get install -y -qq cmake gcc libcmocka-dev ninja-build pkg-config
       - name: Run ASan and UBSan tests
         run: |
           cmake -B .build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_TESTS=ON -DRKVC_ENABLE_ASAN=ON -DRKVC_ENABLE_UBSAN=ON
@@ -89,11 +77,11 @@ jobs:
         with:
           fetch-depth: 1
       - name: Initialize release dependencies
-        run: git submodule update --init --depth 1 third_party/libsodium third_party/mpp
+        run: git submodule update --init --depth 1 third_party/mpp
       - name: Install cross-build tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf automake binutils cmake curl gcc g++-aarch64-linux-gnu git libtool make ninja-build patchelf pkg-config python3 qemu-user gcc-aarch64-linux-gnu
+          sudo apt-get install -y -qq binutils cmake curl gcc g++-aarch64-linux-gnu git make ninja-build patchelf pkg-config python3 qemu-user gcc-aarch64-linux-gnu
       - name: Build, verify and smoke-test portable package
         run: python3 tools/rkvc-build package --jobs 6
       - uses: actions/upload-artifact@v7

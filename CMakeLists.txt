@@ -45,21 +45,18 @@ if(RKVC_BUILD_TESTS)
         lib/model_registry.c
         lib/backend_dso.c
         lib/builtin_backends.c
-        lib/node_fileio.c
-        lib/model_trust.c)
+        lib/node_fileio.c)
 
     function(rkvc_add_core_test name source)
         add_executable(${name} ${source} ${RKVC_STANDALONE_SOURCES})
         target_compile_definitions(${name} PRIVATE
-            RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE
-            ${RKVC_MODEL_SIGN_DEFS})
+            RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE)
         target_include_directories(${name} PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
-            ${RKVC_SODIUM_INCLUDES}
             ${CMOCKA_INCLUDE_DIRS})
         target_link_libraries(${name} PRIVATE
-            cmocka pthread ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS}
+            cmocka pthread ${CMAKE_DL_LIBS}
             rkvc_instrumentation)
         add_test(NAME ${name} COMMAND ${name})
         set_tests_properties(${name} PROPERTIES LABELS "c;unit")
@@ -81,16 +78,14 @@ if(RKVC_BUILD_TESTS)
         backends/backend_rknn.c
         ${RKVC_STANDALONE_SOURCES})
     target_compile_definitions(test_backend_rknn PRIVATE
-        RKVC_STANDALONE_TEST=1 RKVC_RKNN_TESTING=1 _DEFAULT_SOURCE
-        ${RKVC_MODEL_SIGN_DEFS})
+        RKVC_STANDALONE_TEST=1 RKVC_RKNN_TESTING=1 _DEFAULT_SOURCE)
     target_include_directories(test_backend_rknn PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/c/fake_rknn
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${RKVC_SODIUM_INCLUDES}
         ${CMOCKA_INCLUDE_DIRS})
     target_link_libraries(test_backend_rknn PRIVATE
-        cmocka pthread m ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS}
+        cmocka pthread m ${CMAKE_DL_LIBS}
         rkvc_instrumentation)
     add_test(NAME test_backend_rknn COMMAND test_backend_rknn)
     set_tests_properties(test_backend_rknn PROPERTIES LABELS "c;unit;backend")
@@ -108,17 +103,15 @@ if(RKVC_BUILD_TESTS)
         backends/mlvc/container.c
         ${RKVC_STANDALONE_SOURCES})
     target_compile_definitions(test_backend_mlvc PRIVATE
-        RKVC_STANDALONE_TEST=1 RKVC_MLVC_TESTING=1 _DEFAULT_SOURCE
-        ${RKVC_MODEL_SIGN_DEFS})
+        RKVC_STANDALONE_TEST=1 RKVC_MLVC_TESTING=1 _DEFAULT_SOURCE)
     target_include_directories(test_backend_mlvc PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/c/fake_rknn
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
         ${CMAKE_CURRENT_SOURCE_DIR}/backends
-        ${RKVC_SODIUM_INCLUDES}
         ${CMOCKA_INCLUDE_DIRS})
     target_link_libraries(test_backend_mlvc PRIVATE
-        cmocka pthread m ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS}
+        cmocka pthread m ${CMAKE_DL_LIBS}
         rkvc_instrumentation)
     add_test(NAME test_backend_mlvc COMMAND test_backend_mlvc)
     set_tests_properties(test_backend_mlvc PROPERTIES LABELS "c;unit;backend")
@@ -152,37 +145,18 @@ if(RKVC_BUILD_TESTS)
         tests/c/test_backend_loader.c ${RKVC_BACKEND_LOADER_SOURCES})
     target_compile_definitions(test_backend_loader PRIVATE
         RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE
-        RKVC_TEST_BACKEND_DIR="${CMAKE_CURRENT_BINARY_DIR}/fixture_backends"
-        ${RKVC_MODEL_SIGN_DEFS})
+        RKVC_TEST_BACKEND_DIR="${CMAKE_CURRENT_BINARY_DIR}/fixture_backends")
     target_include_directories(test_backend_loader PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
-        ${RKVC_SODIUM_INCLUDES}
         ${CMOCKA_INCLUDE_DIRS})
     target_link_libraries(test_backend_loader PRIVATE
-        cmocka pthread ${CMAKE_DL_LIBS} ${RKVC_SODIUM_LIBS}
+        cmocka pthread ${CMAKE_DL_LIBS}
         rkvc_instrumentation)
     add_dependencies(test_backend_loader
         rkvc_fixture_backend_good rkvc_fixture_backend_badabi)
     add_test(NAME test_backend_loader COMMAND test_backend_loader)
     set_tests_properties(test_backend_loader PROPERTIES LABELS "c;unit")
-
-    if(RKVC_ENABLE_MODEL_SIGN)
-        add_executable(test_model_trust
-            tests/c/test_model_trust.c lib/rkmodel.c lib/model_trust.c)
-        target_compile_definitions(test_model_trust PRIVATE
-            RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE _FILE_OFFSET_BITS=64
-            ${RKVC_MODEL_SIGN_DEFS})
-        target_include_directories(test_model_trust PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${CMAKE_CURRENT_SOURCE_DIR}/lib
-            ${RKVC_SODIUM_INCLUDES}
-            ${CMOCKA_INCLUDE_DIRS})
-        target_link_libraries(test_model_trust PRIVATE
-            cmocka ${RKVC_SODIUM_LIBS})
-        add_test(NAME test_model_trust COMMAND test_model_trust)
-        set_tests_properties(test_model_trust PROPERTIES LABELS "c;unit")
-    endif()
 
     set(RKVC_CHECK_TARGETS
         test_graph_executor test_job test_rkmodel
@@ -195,9 +169,6 @@ if(RKVC_BUILD_TESTS)
             example_stream_ports example_roi_encode example_adaptive_bitrate
             example_live_capture example_net_loopback
             example_live_transcode_ports example_upscale_ctx)
-    endif()
-    if(TARGET test_model_trust)
-        list(APPEND RKVC_CHECK_TARGETS test_model_trust)
     endif()
     if(TARGET rkvc_cli)
         add_dependencies(rkvc_cli rkvc_fixture_media_backend)

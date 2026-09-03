@@ -12,14 +12,12 @@ context / request / job / frame / diagnostic 公共 API、一个 rkvc CLI
 - RGA 缩放与 Phase-RLFN RKNN 3× 超分后端 DSO
 - DMA-BUF/HOST 帧所有权
 - 逐帧 ROI、运行时码率/GOP 更新与强制 IDR
-- .rkmodel 容器、注册表和可选 Ed25519 信任根
+- .rkmodel 容器与模型注册表
 - AArch64/glibc 2.31 可复现打包、ELF 验证和 QEMU 冒烟
 
 ## 构建
 
 ~~~bash
-git submodule update --init third_party/libsodium
-bash tools/install-libsodium.sh
 cmake --preset default
 cmake --build --preset default
 
