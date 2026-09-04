@@ -65,8 +65,10 @@ endif()
 
 if(RKVC_BUILD_CLI)
     add_executable(rkvc_cli rkvc.c)
+    # 静态链接时导出 rkvc_* 符号，供 dlopen 的后端 DSO 解析
     set_target_properties(rkvc_cli PROPERTIES
         OUTPUT_NAME rkvc
+        ENABLE_EXPORTS ON
         INSTALL_RPATH "$ORIGIN/../lib"
         BUILD_RPATH "${CMAKE_CURRENT_BINARY_DIR}")
     target_link_libraries(rkvc_cli PRIVATE rkvc rkvc_instrumentation)

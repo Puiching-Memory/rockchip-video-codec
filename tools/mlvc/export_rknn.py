@@ -231,6 +231,8 @@ def export_models(
                     rknn_path = out_dir / f"{platform}_qp_models" / f"qp{qp}" / rknn_rel
 
                 qp_entry: dict[str, Any] = {
+                    "rknn_precision": "fp16",
+                    "quantized": False,
                     "inputs": [{"name": t.name, "shape": t.shape, "dtype": t.dtype} for t in info.inputs],
                     "outputs": [{"name": t.name, "shape": t.shape, "dtype": t.dtype} for t in info.outputs],
                     "rewrite": {
@@ -465,6 +467,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "qp_list": qp_list,
         "rewrite": not args.no_rewrite,
         "fold_qp": not args.no_fold_qp,
+        "rknn_export": {
+            "precision": "fp16",
+            "do_quantization": False,
+            "skipped": args.skip_rknn,
+        },
         "pmf": pmf_meta,
         "models": models_meta,
         "qppatch": patch_meta,

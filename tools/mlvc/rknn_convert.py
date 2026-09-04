@@ -11,6 +11,8 @@ from typing import Any, Sequence, Union
 PathLike = Union[str, Path]
 
 DEFAULT_PLATFORMS = ("rk3588", "rv1126b", "rk3576", "rk3568", "rk3566")
+RKNN_FLOAT_DTYPE = "float16"
+RKNN_DO_QUANTIZATION = False
 
 
 class RknnConvertError(RuntimeError):
@@ -67,17 +69,21 @@ def convert_onnx_to_rknn(
         cfg_kw: dict[str, Any] = {
             "target_platform": target,
             "optimization_level": optimization_level,
-            "float_dtype": "float16",
+            "float_dtype": RKNN_FLOAT_DTYPE,
         }
         try:
             ret = rknn.config(**cfg_kw)
         except TypeError:
-            cfg_kw.pop("float_dtype", None)
+            # 旧 toolkit 可能不认 optimization_level，但绝不能通过删掉
+            # float_dtype 来“兼容”：MLVC 只允许非量化 FP16。
+            cfg_kw.pop("optimization_level", None)
             try:
                 ret = rknn.config(**cfg_kw)
-            except TypeError:
-                cfg_kw.pop("optimization_level", None)
-                ret = rknn.config(**cfg_kw)
+            except TypeError as exc:
+                raise RknnConvertError(
+                    "当前 rknn-toolkit2 不支持显式 float_dtype=float16；"
+                    "MLVC 拒绝回退到 INT8 或未指定精度"
+                ) from exc
         if ret not in (None, 0):
             raise RknnConvertError(f"rknn.config 失败: {ret} ({src.name})")
 
@@ -95,7 +101,7 @@ def convert_onnx_to_rknn(
         if ret != 0:
             raise RknnConvertError(f"rknn.load_onnx 失败: {ret} ({src.name})")
 
-        ret = rknn.build(do_quantization=False)
+        ret = rknn.build(do_quantization=RKNN_DO_QUANTIZATION)
         if ret != 0:
             raise RknnConvertError(f"rknn.build 失败: {ret} ({src.name})")
 

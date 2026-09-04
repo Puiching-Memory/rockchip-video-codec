@@ -114,11 +114,16 @@ static inline float mlvc_px_f16_to_f32(uint16_t h)
 /**
  * @brief z_raw → 棋盘格尺度表 s0/s1（MLVC 熵编码的分布索引）。
  *
- * 每个尺度覆盖 4×4 的 y 像素块（MLVC 通道重复 4 / 空间重复 4），
- * 块内 v0/v1 不变、棋盘模式固定，按块展开消除逐元素除法。
+ * 标准 MLVC 使用 channel_repeat=2 / spatial_repeat=8，MLVC-S 使用
+ * 4 / 4。参数必须与导出模型一致；函数会校验 z 通道上界，并把
+ * 空间坐标夹到 z 边界，与上游 repeat_interleave 语义一致。
+ *
+ * @return 0 成功，-1 表示指针、尺寸或尺度配置无效。
  */
-void mlvc_px_extract_scales(const int32_t *z_r, int32_t *s0, int32_t *s1,
-                            int YC, int YH, int YW, int ZH, int ZW);
+int mlvc_px_extract_scales(const int32_t *z_r, int32_t *s0, int32_t *s1,
+                           int YC, int YH, int YW, int ZC, int ZH, int ZW,
+                           int channel_repeat, int spatial_repeat,
+                           int scale_max_index);
 
 /**
  * @brief NC1HWC2(C2=8) fp16 → NCHW int32（lrintf 舍入）。

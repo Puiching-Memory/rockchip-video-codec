@@ -164,7 +164,9 @@ const rkvc_rkmodel *rkvc_model_registry_select(const rkvc_context *ctx,
         int score = 0;
         if (req->model_id && strcmp(req->model_id, m->info.id) != 0)
             continue;
-        if (!req->model_id && role && strcmp(role, m->info.role) != 0)
+        /* 显式 model_id 也必须过 role 过滤：同 id 的 encoder/decoder 模型
+         * 并存时，跳过 role 会按扫描序选中错误角色的模型。 */
+        if (role && strcmp(role, m->info.role) != 0)
             continue;
         /* rknn_target 是 SoC 族名（如 rk3576），而 caps.soc 来自设备树
          * compatible，可能带板级后缀（rk3576-evb1-v10）：按前缀匹配。 */

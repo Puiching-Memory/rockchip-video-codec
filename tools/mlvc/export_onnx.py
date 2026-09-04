@@ -488,8 +488,11 @@ def ensure_project_venv(mlvc_dir: Path) -> Path:
     return py
 
 
-def find_exported_onnx(export_root: Path) -> Path:
+def find_exported_onnx(export_root: Path, expected: str | None = None) -> Path:
     hits = sorted(p for p in export_root.rglob("MLVCEncoder.onnx") if p.is_file())
+    if expected:
+        # 多变体同树导出时，只接受属于 {model_version}-{weights_version} 的产物
+        hits = [p for p in hits if expected in p.parts]
     if not hits:
         raise OnnxExportError(f"未找到 MLVCEncoder.onnx（在 {export_root}）")
     return hits[0].parent
@@ -520,9 +523,11 @@ def export_onnx(
     py = ensure_project_venv(mlvc_dir)
 
     out = (output_path or (mlvc_dir / "video" / "output" / "models")).resolve()
+    wv = weights_version or default_weights_version(model_version)
+    expected = f"{model_version}-{wv}"
     if skip_if_exists:
         try:
-            existing = find_exported_onnx(out)
+            existing = find_exported_onnx(out, expected)
             if (existing / "MLVCDecoder.onnx").is_file() and (existing / "gaussian_pmf.json").is_file():
                 print(f"已有 ONNX，跳过 convert.py: {existing}")
                 return existing
@@ -543,13 +548,13 @@ def export_onnx(
         "--frame-count", str(frame_count),
         "--output-path", str(out),
         "--weights-path", str(ckpt.resolve()),
-        "--weights-version", weights_version or default_weights_version(model_version),
+        "--weights-version", wv,
         "--skip-if-exists",
         "--no-validate-conversion",
     ]
     print("运行 microsoft/mlvc convert.py …")
     _run(cmd, cwd=mlvc_dir / "video")
-    return find_exported_onnx(out)
+    return find_exported_onnx(out, expected)
 
 
 def build_parser() -> argparse.ArgumentParser:

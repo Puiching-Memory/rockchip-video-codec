@@ -25,6 +25,7 @@
 #include "context_internal.h"
 #include "rkmodel_layout.h"
 #include "mlvc/container.h"
+#include "mlvc/mlvc_pixel.h"
 
 #define TEST_ROOT "/tmp/rkvc_test_backend_mlvc"
 #define MODEL_DIR TEST_ROOT "/models"
@@ -36,9 +37,9 @@ extern const rkvc_backend *rkvc_backend_query(void);
 #define IMG_W 64
 #define IMG_H 64
 #define ZC 24
-#define ZH 16
-#define ZW 16
-#define YC 96
+#define ZH 8
+#define ZW 8
+#define YC 24
 #define YH 64
 #define YW 64
 
@@ -247,6 +248,46 @@ static void clobber_released_stack(void)
         scratch[i] = (unsigned char)(i ^ 0xa5u);
 }
 
+/* 标准 MLVC 和 MLVC-S 的 channel/spatial repeat 不同，两者都必须
+ * 保持与上游 repeat_interleave + 棋盘格展开一致。 */
+static void test_mlvc_scale_profiles(void **state)
+{
+    int32_t z_standard[2 * 2 * 2] = {1, 2, 3, 4, 5, 6, 7, INT32_MIN};
+    int32_t standard_s0[2 * 9 * 9];
+    int32_t standard_s1[2 * 9 * 9];
+    int32_t z_small[2 * 2 * 2] = {-2, -3, -4, -5, 9, 10, 11, 12};
+    int32_t small_s0[4 * 5 * 5];
+    int32_t small_s1[4 * 5 * 5];
+    size_t standard_plane = 9 * 9;
+    size_t small_plane = 5 * 5;
+    (void)state;
+
+    assert_int_equal(
+        mlvc_px_extract_scales(z_standard, standard_s0, standard_s1,
+                               2, 9, 9, 2, 2, 2, 2, 8, 7),
+        0);
+    assert_int_equal(standard_s0[0], 1);
+    assert_int_equal(standard_s1[0], 5);
+    assert_int_equal(standard_s0[1], 5);
+    assert_int_equal(standard_s1[1], 1);
+    assert_int_equal(standard_s0[8 * 9 + 8], 4);
+    assert_int_equal(standard_s1[8 * 9 + 8], 7);
+    assert_int_equal(standard_s0[standard_plane + 8 * 9 + 8], 4);
+    assert_int_equal(
+        mlvc_px_extract_scales(z_standard, standard_s0, standard_s1,
+                               2, 9, 9, 1, 2, 2, 2, 8, 7),
+        -1);
+
+    assert_int_equal(
+        mlvc_px_extract_scales(z_small, small_s0, small_s1,
+                               4, 5, 5, 2, 2, 2, 4, 4, 10),
+        0);
+    assert_int_equal(small_s0[4 * 5 + 4], 5);
+    assert_int_equal(small_s1[4 * 5 + 4], 10);
+    assert_int_equal(small_s0[3 * small_plane + 4 * 5 + 4], 5);
+    assert_int_equal(small_s1[3 * small_plane + 4 * 5 + 4], 10);
+}
+
 /* ── 测试 1：encode 产出合法 .mlvc 容器记录 ── */
 
 static void test_mlvc_encode_writes_container_records(void **state) {
@@ -440,10 +481,107 @@ static void test_mlvc_encode_decode_roundtrip(void **state) {
     /* input/bitstream 帧所有权已随 job_push 转移给执行器 */
 }
 
+/* 解码器必须验证 rANS 严格 EOF，不能把带尾随机数据的载荷当成成功帧。 */
+static void test_mlvc_decode_rejects_trailing_rans_data(void **state)
+{
+    rkvc_context *context;
+    rkvc_request enc_req, dec_req;
+    rkvc_job *enc_job = NULL, *dec_job = NULL;
+    rkvc_diag *enc_diag = NULL, *dec_diag = NULL;
+    rkvc_frame_spec spec;
+    rkvc_frame *input = NULL, *bitstream = NULL, *corrupt_frame = NULL;
+    rkvc_frame_desc desc;
+    uint8_t *nv12, *corrupt;
+    uint32_t payload_size;
+    size_t corrupt_size;
+    (void)state;
+
+    write_models();
+    context = make_context();
+
+    rkvc_request_init(&enc_req, sizeof(enc_req));
+    enc_req.operation = RKVC_OPERATION_ENCODE;
+    enc_req.codec = RKVC_CODEC_MLVC;
+    enc_req.input.kind = RKVC_ENDPOINT_FRAME_SINK;
+    enc_req.input.fmt = RKVC_FRAME_FMT_NV12;
+    enc_req.output.kind = RKVC_ENDPOINT_FRAME_SINK;
+    enc_req.output.fmt = RKVC_FRAME_FMT_BITSTREAM;
+    enc_req.width = IMG_W;
+    enc_req.height = IMG_H;
+    enc_req.quality.qp = 21;
+    enc_req.model_id = "mlvc-enc-test";
+    assert_int_equal(rkvc_job_create(context, &enc_req, &enc_diag, &enc_job),
+                     RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_start(enc_job, &enc_diag), RKVC_STATUS_OK);
+
+    nv12 = malloc((size_t)IMG_W * IMG_H * 3 / 2);
+    assert_non_null(nv12);
+    memset(nv12, 90, (size_t)IMG_W * IMG_H);
+    memset(nv12 + (size_t)IMG_W * IMG_H, 128,
+           (size_t)IMG_W * IMG_H / 2);
+    memset(&spec, 0, sizeof(spec));
+    spec.width = IMG_W;
+    spec.height = IMG_H;
+    spec.fmt = RKVC_FRAME_FMT_NV12;
+    spec.domain = RKVC_MEM_DOMAIN_HOST;
+    spec.stride = IMG_W;
+    spec.ver_stride = IMG_H;
+    assert_int_equal(rkvc_frame_wrap_host(
+                         &spec, nv12, (size_t)IMG_W * IMG_H * 3 / 2, &input),
+                     RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_push(enc_job, input), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_push_eos(enc_job), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_pull(enc_job, &bitstream), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_frame_get_desc(bitstream, &desc), RKVC_STATUS_OK);
+
+    corrupt_size = desc.size + 1;
+    corrupt = malloc(corrupt_size);
+    assert_non_null(corrupt);
+    memcpy(corrupt, desc.data, desc.size);
+    corrupt[desc.size] = 0xa5;
+    memcpy(&payload_size, corrupt + MLVC_HDR_SIZE, sizeof(payload_size));
+    payload_size++;
+    memcpy(corrupt + MLVC_HDR_SIZE, &payload_size, sizeof(payload_size));
+    rkvc_frame_release(bitstream);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.fmt = RKVC_FRAME_FMT_BITSTREAM;
+    spec.domain = RKVC_MEM_DOMAIN_HOST;
+    assert_int_equal(rkvc_frame_wrap_host(&spec, corrupt, corrupt_size,
+                                          &corrupt_frame),
+                     RKVC_STATUS_OK);
+
+    rkvc_request_init(&dec_req, sizeof(dec_req));
+    dec_req.operation = RKVC_OPERATION_DECODE;
+    dec_req.codec = RKVC_CODEC_MLVC;
+    dec_req.input.kind = RKVC_ENDPOINT_FRAME_SINK;
+    dec_req.input.fmt = RKVC_FRAME_FMT_BITSTREAM;
+    dec_req.output.kind = RKVC_ENDPOINT_FRAME_SINK;
+    dec_req.output.fmt = RKVC_FRAME_FMT_NV12;
+    dec_req.model_id = "mlvc-dec-test";
+    assert_int_equal(rkvc_job_create(context, &dec_req, &dec_diag, &dec_job),
+                     RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_start(dec_job, &dec_diag), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_push(dec_job, corrupt_frame), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_push_eos(dec_job), RKVC_STATUS_OK);
+    assert_int_equal(rkvc_job_wait(dec_job), RKVC_STATUS_FORMAT);
+    assert_int_equal(rkvc_job_wait(enc_job), RKVC_STATUS_OK);
+
+    rkvc_job_destroy(enc_job);
+    rkvc_job_destroy(dec_job);
+    rkvc_diag_release(enc_diag);
+    rkvc_diag_release(dec_diag);
+    rkvc_context_destroy(context);
+    free(corrupt);
+    free(nv12);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_mlvc_scale_profiles),
         cmocka_unit_test(test_mlvc_encode_writes_container_records),
         cmocka_unit_test(test_mlvc_encode_decode_roundtrip),
+        cmocka_unit_test(test_mlvc_decode_rejects_trailing_rans_data),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

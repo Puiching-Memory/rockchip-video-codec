@@ -14,75 +14,95 @@
 #include <stdlib.h>
 
 /* ════════════════════════════════════════════════════════════════════ */
-/*  extract_scales：z → s0/s1（按 4×4 块展开）                          */
+/*  extract_scales：z → s0/s1（按模型指定的块展开）                   */
 /* ════════════════════════════════════════════════════════════════════ */
 
-#define MLVC_PX_SCALE_MAX_IDX     127
-#define MLVC_PX_CHANNEL_REPEAT    4
-#define MLVC_PX_SPATIAL_REPEAT    4
-
-void mlvc_px_extract_scales(const int32_t *z_r, int32_t *s0, int32_t *s1,
-                            int YC, int YH, int YW, int ZH, int ZW)
+static int clamp_abs_scale(int32_t value, int max_index)
 {
+    int64_t magnitude = value < 0 ? -(int64_t)value : (int64_t)value;
+    return magnitude > max_index ? max_index : (int)magnitude;
+}
+
+int mlvc_px_extract_scales(const int32_t *z_r, int32_t *s0, int32_t *s1,
+                           int YC, int YH, int YW, int ZC, int ZH, int ZW,
+                           int channel_repeat, int spatial_repeat,
+                           int scale_max_index)
+{
+    int64_t required_z_channels;
+
+    if (!z_r || !s0 || !s1 || YC <= 0 || YH <= 0 || YW <= 0 ||
+        ZC <= 0 || ZH <= 0 || ZW <= 0 || channel_repeat <= 0 ||
+        spatial_repeat <= 0 || scale_max_index < 0)
+        return -1;
+    required_z_channels = ((int64_t)2 * YC + channel_repeat - 1) /
+                          channel_repeat;
+    if (required_z_channels > ZC)
+        return -1;
+
     for (int c = 0; c < YC; c++) {
         const int32_t *z0 = z_r +
-            (size_t)(c / MLVC_PX_CHANNEL_REPEAT) * ZH * ZW;
+            (size_t)(c / channel_repeat) * ZH * ZW;
         const int32_t *z1 = z_r +
-            (size_t)((c + YC) / MLVC_PX_CHANNEL_REPEAT) * ZH * ZW;
+            (size_t)((c + YC) / channel_repeat) * ZH * ZW;
         int32_t *p0 = s0 + (size_t)c * YH * YW;
         int32_t *p1 = s1 + (size_t)c * YH * YW;
 
-        for (int zy = 0; zy * MLVC_PX_SPATIAL_REPEAT < YH; zy++) {
-            int y0 = zy * MLVC_PX_SPATIAL_REPEAT;
-            int ye = y0 + MLVC_PX_SPATIAL_REPEAT;
+        for (int y0 = 0; y0 < YH; y0 += spatial_repeat) {
+            int zy = y0 / spatial_repeat;
+            int ye = y0 + spatial_repeat;
             if (ye > YH) ye = YH;
+            if (zy >= ZH) zy = ZH - 1;
             const int32_t *z0r = z0 + (size_t)zy * ZW;
             const int32_t *z1r = z1 + (size_t)zy * ZW;
 
-            for (int zx = 0; zx * MLVC_PX_SPATIAL_REPEAT < YW; zx++) {
-                int x0 = zx * MLVC_PX_SPATIAL_REPEAT;
-                int xe = x0 + MLVC_PX_SPATIAL_REPEAT;
+            for (int x0 = 0; x0 < YW; x0 += spatial_repeat) {
+                int zx = x0 / spatial_repeat;
+                int xe = x0 + spatial_repeat;
                 if (xe > YW) xe = YW;
-                /* v0/v1 在 4×4 块内不变：每块算一次（原实现逐元素除法）*/
-                int v0 = abs(z0r[zx]);
-                int v1 = abs(z1r[zx]);
-                if (v0 > MLVC_PX_SCALE_MAX_IDX) v0 = MLVC_PX_SCALE_MAX_IDX;
-                if (v1 > MLVC_PX_SCALE_MAX_IDX) v1 = MLVC_PX_SCALE_MAX_IDX;
+                if (zx >= ZW) zx = ZW - 1;
+                /* v0/v1 在重复块内不变；INT32_MIN 也可安全取绝对值。 */
+                int v0 = clamp_abs_scale(z0r[zx], scale_max_index);
+                int v1 = clamp_abs_scale(z1r[zx], scale_max_index);
 
-                /* 满宽块（4 元素整行）：棋盘模式固定，向量化整行写入 */
 #ifdef MLVC_PX_NEON
-                if (xe - x0 == MLVC_PX_SPATIAL_REPEAT) {
-                    int32x2_t h01 = vset_lane_s32(v1, vdup_n_s32(v0), 1);
-                    int32x2_t h10 = vset_lane_s32(v0, vdup_n_s32(v1), 1);
-                    int32x4_t pat01 = vcombine_s32(h01, h01);
-                    int32x4_t pat10 = vcombine_s32(h10, h10);
-                    for (int y = y0; y < ye; y++) {
-                        int32_t *r0 = p0 + (size_t)y * YW + x0;
-                        int32_t *r1 = p1 + (size_t)y * YW + x0;
-                        if ((y & 1) == 0) {
-                            vst1q_s32(r0, pat01);
-                            vst1q_s32(r1, pat10);
-                        } else {
-                            vst1q_s32(r0, pat10);
-                            vst1q_s32(r1, pat01);
-                        }
-                    }
-                    continue;
-                }
-#endif
+                int32x2_t h01 = vset_lane_s32(v1, vdup_n_s32(v0), 1);
+                int32x2_t h10 = vset_lane_s32(v0, vdup_n_s32(v1), 1);
+                int32x4_t pat01 = vcombine_s32(h01, h01);
+                int32x4_t pat10 = vcombine_s32(h10, h10);
                 for (int y = y0; y < ye; y++) {
                     int32_t *r0 = p0 + (size_t)y * YW;
                     int32_t *r1 = p1 + (size_t)y * YW;
-                    int par = y & 1;
-                    for (int x = x0; x < xe; x++) {
-                        int chk = (par == (x & 1));
+                    int x = x0;
+                    for (; x + 4 <= xe; x += 4) {
+                        if (((y ^ x) & 1) == 0) {
+                            vst1q_s32(r0 + x, pat01);
+                            vst1q_s32(r1 + x, pat10);
+                        } else {
+                            vst1q_s32(r0 + x, pat10);
+                            vst1q_s32(r1 + x, pat01);
+                        }
+                    }
+                    for (; x < xe; x++) {
+                        int chk = ((y & 1) == (x & 1));
                         r0[x] = chk ? v0 : v1;
                         r1[x] = chk ? v1 : v0;
                     }
                 }
+#else
+                for (int y = y0; y < ye; y++) {
+                    int32_t *r0 = p0 + (size_t)y * YW;
+                    int32_t *r1 = p1 + (size_t)y * YW;
+                    for (int x = x0; x < xe; x++) {
+                        int chk = ((y & 1) == (x & 1));
+                        r0[x] = chk ? v0 : v1;
+                        r1[x] = chk ? v1 : v0;
+                    }
+                }
+#endif
             }
         }
     }
+    return 0;
 }
 
 /* ════════════════════════════════════════════════════════════════════ */

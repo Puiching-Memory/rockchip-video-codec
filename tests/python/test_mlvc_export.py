@@ -160,6 +160,84 @@ class TestCli(unittest.TestCase):
             rknn_convert.require_rknn()
         self.assertIn("rknn-toolkit2", str(ctx.exception))
 
+    def test_rknn_conversion_is_strict_fp16_without_quantization(self) -> None:
+        calls: dict[str, object] = {}
+
+        class FakeRKNN:
+            def __init__(self, *, verbose: bool) -> None:
+                calls["verbose"] = verbose
+
+            def config(self, **kwargs: object) -> int:
+                calls["config"] = kwargs
+                return 0
+
+            def load_onnx(self, **kwargs: object) -> int:
+                calls["load"] = kwargs
+                return 0
+
+            def build(self, **kwargs: object) -> int:
+                calls["build"] = kwargs
+                return 0
+
+            def export_rknn(self, path: str) -> int:
+                Path(path).write_bytes(b"RKNN")
+                return 0
+
+            def release(self) -> None:
+                calls["released"] = True
+
+        original = rknn_convert.require_rknn
+        rknn_convert.require_rknn = lambda: FakeRKNN
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                src = Path(tmp) / "model.onnx"
+                dst = Path(tmp) / "model.rknn"
+                src.write_bytes(b"ONNX")
+                self.assertEqual(
+                    rknn_convert.convert_onnx_to_rknn(src, dst), dst
+                )
+        finally:
+            rknn_convert.require_rknn = original
+
+        self.assertEqual(calls["config"]["float_dtype"], "float16")  # type: ignore[index]
+        self.assertEqual(calls["build"], {"do_quantization": False})
+        self.assertTrue(calls["released"])
+
+    def test_rknn_conversion_never_drops_fp16_for_old_toolkit(self) -> None:
+        configs: list[dict[str, object]] = []
+
+        class FakeOldRKNN:
+            def __init__(self, *, verbose: bool) -> None:
+                del verbose
+
+            def config(self, **kwargs: object) -> int:
+                configs.append(kwargs)
+                if "optimization_level" in kwargs:
+                    raise TypeError("old optimization API")
+                if "float_dtype" in kwargs:
+                    raise TypeError("no float_dtype")
+                return 0
+
+            def release(self) -> None:
+                pass
+
+        original = rknn_convert.require_rknn
+        rknn_convert.require_rknn = lambda: FakeOldRKNN
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                src = Path(tmp) / "model.onnx"
+                src.write_bytes(b"ONNX")
+                with self.assertRaises(rknn_convert.RknnConvertError) as ctx:
+                    rknn_convert.convert_onnx_to_rknn(
+                        src, Path(tmp) / "model.rknn"
+                    )
+        finally:
+            rknn_convert.require_rknn = original
+
+        self.assertIn("float_dtype=float16", str(ctx.exception))
+        self.assertEqual(len(configs), 2)
+        self.assertTrue(all(c.get("float_dtype") == "float16" for c in configs))
+
 
 @unittest.skipUnless(HAS_ONNX, "需要 pip install onnx（图重写测试）")
 class TestOnnxRewrite(unittest.TestCase):
@@ -350,6 +428,17 @@ class TestOnnxRewrite(unittest.TestCase):
             self.assertTrue(onnx_out.is_file(), proc.stdout)
             manifest = out_dir / "mlvc_rknn_export_manifest.json"
             self.assertTrue(manifest.is_file())
+            manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(manifest_data["rknn_export"]["precision"], "fp16")
+            self.assertFalse(manifest_data["rknn_export"]["do_quantization"])
+            self.assertTrue(manifest_data["rknn_export"]["skipped"])
+            self.assertEqual(
+                manifest_data["models"]["encoder"]["qps"]["21"]["rknn_precision"],
+                "fp16",
+            )
+            self.assertFalse(
+                manifest_data["models"]["encoder"]["qps"]["21"]["quantized"]
+            )
 
 
 class TestQppatch(unittest.TestCase):

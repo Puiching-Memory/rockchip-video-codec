@@ -27,6 +27,7 @@
 #include "mlvc/rans.h"
 #include "rkvc/backend.h"
 
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -186,6 +187,17 @@ static int rknn_find_output(const mlvc_rknn_model *m, const char *key)
         if (strstr(m->out_attr[i].name, key))
             return (int)i;
     return -1;
+}
+
+static int tensor_is_unquantized_fp16(const rknn_tensor_attr *a)
+{
+    if (!a || a->type != RKNN_TENSOR_FLOAT16)
+        return 0;
+    if (a->qnt_type == RKNN_TENSOR_QNT_NONE)
+        return 1;
+    /* rknn-toolkit2 对 FP16 非量化模型也打 AFFINE 标记（zp=0/scale=1 无损） */
+    return a->qnt_type == RKNN_TENSOR_QNT_AFFINE_ASYMMETRIC &&
+           a->zp == 0 && a->scale == 1.0f;
 }
 
 static int tensor_is_pixel_input(const rknn_tensor_attr *a)
@@ -388,13 +400,66 @@ static const rkvc_model_payload_view *find_qppatch_for_qp(
     return NULL;
 }
 
+typedef struct {
+    int scale_max_index;
+    uint32_t qp_num;
+    uint32_t z_channels;
+    int channel_repeat;
+    int spatial_repeat;
+} mlvc_entropy_config;
+
+static int ceil_div_positive(int value, int divisor)
+{
+    return (int)(((int64_t)value + divisor - 1) / divisor);
+}
+
+/**
+ * 上游两种变体的尺度展开契约不同：标准版为 2/8，S 版为
+ * 4/4。它们的 hyperprior 空间形状能唯一确定该契约，因此不依赖
+ * 目录名或可自由填写的模型 ID。
+ */
+static int resolve_entropy_geometry(mlvc_entropy_config *config, int qp,
+                                    int ZC, int ZH, int ZW,
+                                    int YC, int YH, int YW)
+{
+    int64_t required_z_channels;
+
+    if (!config || qp < 0 || (uint32_t)qp >= config->qp_num ||
+        ZC <= 0 || ZH <= 0 || ZW <= 0 || YC <= 0 || YH <= 0 || YW <= 0 ||
+        (uint32_t)ZC != config->z_channels)
+        return (int)RKVC_STATUS_FORMAT;
+
+    if (ZH == ceil_div_positive(YH, 8) &&
+        ZW == ceil_div_positive(YW, 8)) {
+        config->channel_repeat = 2;
+        config->spatial_repeat = 8;
+    } else if (ZH == ceil_div_positive(YH, 4) &&
+               ZW == ceil_div_positive(YW, 4)) {
+        config->channel_repeat = 4;
+        config->spatial_repeat = 4;
+    } else {
+        return (int)RKVC_STATUS_FORMAT;
+    }
+
+    required_z_channels = ((int64_t)2 * YC + config->channel_repeat - 1) /
+                          config->channel_repeat;
+    if (required_z_channels > ZC)
+        return (int)RKVC_STATUS_FORMAT;
+    return 0;
+}
+
 static int init_rans_from_binding(const rkvc_model_binding *binding,
                                   rkvc_rans_coder *g, rkvc_rans_coder *b,
-                                  int require_gaussian_index_space)
+                                  int require_gaussian_index_space,
+                                  mlvc_entropy_config *config)
 {
     const rkvc_model_payload_view *gv, *bv;
     mlvc_pmf gpmf, bpmf;
     int rc;
+
+    if (!config)
+        return (int)RKVC_STATUS_INVALID;
+    memset(config, 0, sizeof(*config));
 
     gv = find_payload(binding, RKMODEL_PAYLOAD_PMF_GAUSSIAN);
     if (!gv)
@@ -411,7 +476,11 @@ static int init_rans_from_binding(const rkvc_model_binding *binding,
         mlvc_pmf_free(&gpmf);
         return rc;
     }
-    if (require_gaussian_index_space && !gpmf.index_space) {
+    if ((require_gaussian_index_space && !gpmf.index_space) ||
+        gpmf.scale_levels == 0 || gpmf.scale_levels > INT_MAX ||
+        gpmf.scale_levels > gpmf.num_lengths || bpmf.qp_num == 0 ||
+        bpmf.channels == 0 ||
+        (uint64_t)bpmf.qp_num * bpmf.channels != bpmf.num_lengths) {
         mlvc_pmf_free(&gpmf);
         mlvc_pmf_free(&bpmf);
         return (int)RKVC_STATUS_FORMAT;
@@ -426,6 +495,13 @@ static int init_rans_from_binding(const rkvc_model_binding *binding,
                                   bpmf.num_lengths, bpmf.offsets,
                                   bpmf.num_offsets, bpmf.table, bpmf.num_table,
                                   16, 2);
+    if (rc == RKVC_RANS_OK) {
+        config->scale_max_index = (int)gpmf.scale_levels - 1;
+        config->qp_num = bpmf.qp_num;
+        config->z_channels = bpmf.channels;
+    } else {
+        rkvc_rans_coder_free(g);
+    }
     mlvc_pmf_free(&gpmf);
     mlvc_pmf_free(&bpmf);
     return rc == RKVC_RANS_OK ? 0 : (int)RKVC_STATUS_FORMAT;
@@ -439,6 +515,7 @@ struct mlvc_encoder {
     rkvc_request request;
     mlvc_rknn_model enc_model;
     rkvc_rans_coder g_coder, b_coder;
+    mlvc_entropy_config entropy;
     int rans_ready;
     int qp;
 
@@ -479,12 +556,12 @@ static int enc_resolve_geom(struct mlvc_encoder *e)
     if (e->enc_feat_out < 0 || e->enc_z_out < 0 ||
         e->enc_y0_out < 0 || e->enc_y1_out < 0)
         return (int)RKVC_STATUS_FORMAT;
-    if (enc->in_attr[e->enc_x_in].type != RKNN_TENSOR_FLOAT16 ||
-        enc->in_attr[e->enc_ref_in].type != RKNN_TENSOR_FLOAT16 ||
-        enc->out_attr[e->enc_feat_out].type != RKNN_TENSOR_FLOAT16 ||
-        enc->out_attr[e->enc_z_out].type != RKNN_TENSOR_FLOAT16 ||
-        enc->out_attr[e->enc_y0_out].type != RKNN_TENSOR_FLOAT16 ||
-        enc->out_attr[e->enc_y1_out].type != RKNN_TENSOR_FLOAT16)
+    if (!tensor_is_unquantized_fp16(&enc->in_attr[e->enc_x_in]) ||
+        !tensor_is_unquantized_fp16(&enc->in_attr[e->enc_ref_in]) ||
+        !tensor_is_unquantized_fp16(&enc->out_attr[e->enc_feat_out]) ||
+        !tensor_is_unquantized_fp16(&enc->out_attr[e->enc_z_out]) ||
+        !tensor_is_unquantized_fp16(&enc->out_attr[e->enc_y0_out]) ||
+        !tensor_is_unquantized_fp16(&enc->out_attr[e->enc_y1_out]))
         return (int)RKVC_STATUS_FORMAT;
 
     /* encoder 标准输出 API 返回逻辑 NCHW。 */
@@ -516,7 +593,7 @@ static int enc_zero_copy_requested(void)
 static int enc_native_x_compatible(const struct mlvc_encoder *e,
                                    const rknn_tensor_attr *a)
 {
-    if (!e || !a || a->n_dims != 4 || a->type != RKNN_TENSOR_FLOAT16 ||
+    if (!e || !a || a->n_dims != 4 || !tensor_is_unquantized_fp16(a) ||
         a->fmt != RKNN_TENSOR_NHWC)
         return 0;
     uint32_t h = a->dims[1], w = a->dims[2], c = a->dims[3];
@@ -532,7 +609,7 @@ static int enc_native_x_compatible(const struct mlvc_encoder *e,
 static int enc_native_ref_compatible(const struct mlvc_encoder *e,
                                      const rknn_tensor_attr *a)
 {
-    if (!e || !a || a->n_dims < 5 || a->type != RKNN_TENSOR_FLOAT16)
+    if (!e || !a || a->n_dims < 5 || !tensor_is_unquantized_fp16(a))
         return 0;
     uint32_t c1 = a->dims[1], h = a->dims[2], w = a->dims[3], c2 = a->dims[4];
     uint32_t ws = a->w_stride ? a->w_stride : w;
@@ -661,7 +738,8 @@ static int mlvc_enc_bind_model(rkvc_node *node,
         return (int)RKVC_STATUS_INVALID;
     }
 
-    rc = init_rans_from_binding(binding, &e->g_coder, &e->b_coder, 1);
+    rc = init_rans_from_binding(binding, &e->g_coder, &e->b_coder, 1,
+                                &e->entropy);
     if (rc != 0) {
         push_reason(diag, (rkvc_status)rc, node, "PMF/rANS init failed");
         return rc;
@@ -710,6 +788,13 @@ static int mlvc_enc_open(rkvc_node *node, rkvc_diag **diag)
     if (rc != 0) {
         push_reason(diag, RKVC_STATUS_FORMAT, node,
                     "encoder tensor contract mismatch");
+        return rc;
+    }
+    rc = resolve_entropy_geometry(&e->entropy, e->qp, e->ZC, e->ZH, e->ZW,
+                                  e->YC, e->YH, e->YW);
+    if (rc != 0) {
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "encoder PMF/model entropy geometry mismatch");
         return rc;
     }
     rc = enc_init_zero_copy_inputs(e);
@@ -874,8 +959,16 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     (void)profile_unused;
 
     /* 熵编码：y1, y0, z 三段流 */
-    mlvc_px_extract_scales(e->z_r, e->s0, e->s1, e->YC, e->YH, e->YW,
-                           e->ZH, e->ZW);
+    if (mlvc_px_extract_scales(e->z_r, e->s0, e->s1,
+                               e->YC, e->YH, e->YW,
+                               e->ZC, e->ZH, e->ZW,
+                               e->entropy.channel_repeat,
+                               e->entropy.spatial_repeat,
+                               e->entropy.scale_max_index) != 0) {
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "encoder scale extraction contract mismatch");
+        return (int)RKVC_STATUS_FORMAT;
+    }
     rkvc_rans_enc_stream_init(&stream, RKVC_RANS_BYTE, 65536);
     rc = rkvc_rans_enc_stream_encode(&stream, &e->g_coder, e->s1, e->y1_r,
                                      (size_t)e->YC * e->YH * e->YW);
@@ -980,6 +1073,7 @@ struct mlvc_decoder {
     rkvc_request request;
     mlvc_rknn_model dec_model;
     rkvc_rans_coder g_coder, b_coder;
+    mlvc_entropy_config entropy;
     int rans_ready;
     int model_ready;
     int qp;
@@ -1016,6 +1110,19 @@ static int dec_resolve_geom(struct mlvc_decoder *d)
     d->dec_ref_out = rknn_find_output(dec, "feature");
     if (d->dec_z_in < 0 || d->dec_y0_in < 0 || d->dec_y1_in < 0 ||
         d->dec_ref_in < 0 || d->dec_x_out < 0 || d->dec_ref_out < 0)
+        return (int)RKVC_STATUS_FORMAT;
+    if (!tensor_is_unquantized_fp16(&dec->in_attr[d->dec_z_in]) ||
+        !tensor_is_unquantized_fp16(&dec->in_attr[d->dec_y0_in]) ||
+        !tensor_is_unquantized_fp16(&dec->in_attr[d->dec_y1_in]) ||
+        !tensor_is_unquantized_fp16(&dec->in_attr[d->dec_ref_in]) ||
+        !tensor_is_unquantized_fp16(&dec->out_attr[d->dec_x_out]) ||
+        !tensor_is_unquantized_fp16(&dec->out_attr[d->dec_ref_out]) ||
+        !tensor_is_unquantized_fp16(&dec->in_mem_attr[d->dec_z_in]) ||
+        !tensor_is_unquantized_fp16(&dec->in_mem_attr[d->dec_y0_in]) ||
+        !tensor_is_unquantized_fp16(&dec->in_mem_attr[d->dec_y1_in]) ||
+        !tensor_is_unquantized_fp16(&dec->in_mem_attr[d->dec_ref_in]) ||
+        !tensor_is_unquantized_fp16(&dec->native_out_attr[d->dec_x_out]) ||
+        !tensor_is_unquantized_fp16(&dec->native_out_attr[d->dec_ref_out]))
         return (int)RKVC_STATUS_FORMAT;
 
     int C1 = (int)dec->native_out_attr[d->dec_x_out].dims[1];
@@ -1138,7 +1245,8 @@ static int mlvc_dec_bind_model(rkvc_node *node,
         return (int)RKVC_STATUS_FORMAT;
     }
 
-    rc = init_rans_from_binding(binding, &d->g_coder, &d->b_coder, 1);
+    rc = init_rans_from_binding(binding, &d->g_coder, &d->b_coder, 1,
+                                &d->entropy);
     if (rc != 0) {
         push_reason(diag, (rkvc_status)rc, node, "PMF/rANS init failed");
         return rc;
@@ -1206,6 +1314,13 @@ static int dec_lazy_init(struct mlvc_decoder *d, rkvc_diag **diag,
                     "decoder tensor contract mismatch");
         return rc;
     }
+    rc = resolve_entropy_geometry(&d->entropy, d->qp, d->ZC, d->ZH, d->ZW,
+                                  d->YC, d->YH, d->YW);
+    if (rc != 0) {
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "decoder PMF/model entropy geometry mismatch");
+        return rc;
+    }
     return dec_alloc_bufs(d);
 }
 
@@ -1233,10 +1348,17 @@ static int dec_decode_frame(struct mlvc_decoder *d, rkvc_node *node,
     rc = rkvc_rans_dec_stream_decode(&ds, &d->b_coder, d->z_d, d->z_idx,
                                      z_n);
     if (rc == RKVC_RANS_OK) {
-        mlvc_px_extract_scales(d->z_d, d->s0, d->s1, d->YC, d->YH, d->YW,
-                               d->ZH, d->ZW);
-        rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y0_d, d->s0,
-                                         y_n);
+        if (mlvc_px_extract_scales(d->z_d, d->s0, d->s1,
+                                   d->YC, d->YH, d->YW,
+                                   d->ZC, d->ZH, d->ZW,
+                                   d->entropy.channel_repeat,
+                                   d->entropy.spatial_repeat,
+                                   d->entropy.scale_max_index) != 0) {
+            rc = RKVC_RANS_ERR_PARAMS;
+        } else {
+            rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y0_d,
+                                             d->s0, y_n);
+        }
     }
     if (rc == RKVC_RANS_OK)
         rc = rkvc_rans_dec_stream_decode(&ds, &d->g_coder, d->y1_d, d->s1,
@@ -1245,6 +1367,12 @@ static int dec_decode_frame(struct mlvc_decoder *d, rkvc_node *node,
         rkvc_rans_dec_stream_close(&ds);
         push_reason(diag, RKVC_STATUS_FORMAT, node,
                     "rANS decode failed (corrupt stream?)");
+        return (int)RKVC_STATUS_FORMAT;
+    }
+    if (!rkvc_rans_dec_stream_check_eof(&ds)) {
+        rkvc_rans_dec_stream_close(&ds);
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "rANS payload has trailing or invalid data");
         return (int)RKVC_STATUS_FORMAT;
     }
     rkvc_rans_dec_stream_close(&ds);

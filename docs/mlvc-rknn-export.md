@@ -45,7 +45,10 @@ uv sync          # 仓库根目录；Python 3.12，版本见 pyproject.toml
 
 请使用仓库根目录 `pyproject.toml` + `uv.lock` 安装，不要直接 `pip install rknn-toolkit2`。配置已去掉无 ARM wheel、且转换不需要的 `onnxoptimizer`，并把 torch / torchvision 绑定到 PyTorch CPU-only index。
 
-`do_quantization=False`，`float_dtype=float16`。不要套 YOLO 那套 `mean/std=255` 图像预处理。
+`do_quantization=False`，`float_dtype=float16`。MLVC 不支持 INT8 量化；转换脚本会在
+Toolkit 无法显式接受 FP16 时直接失败，不会删掉精度参数继续导出。
+运行时同样拒绝任何非 FP16 或带量化标记的模型 I/O。不要套 YOLO 那套
+`mean/std=255` 图像预处理。
 
 ## 上游 ONNX
 

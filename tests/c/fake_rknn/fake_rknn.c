@@ -16,9 +16,9 @@
 #define MLVC_REF_H 16u
 #define MLVC_REF_W 16u
 #define MLVC_ZC 24u
-#define MLVC_ZH 16u
-#define MLVC_ZW 16u
-#define MLVC_YC 96u
+#define MLVC_ZH 8u
+#define MLVC_ZW 8u
+#define MLVC_YC 24u
 #define MLVC_YH 64u
 #define MLVC_YW 64u
 #define MLVC_BS 8u
