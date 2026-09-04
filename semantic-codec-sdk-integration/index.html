@@ -1,0 +1,1371 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/semantic-codec-sdk-integration/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.59">
+    
+    
+      
+        <title>semantic-codec-sdk 向上集成指南 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#semantic-codec-sdk" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              semantic-codec-sdk 向上集成指南
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        0. 快速事实
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 集成模型
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 构建集成
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 构建集成">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.1 宿主侧 CMake（参考实现）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-rkvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.2 rkvc 侧构建开关
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.3 依赖前缀准备
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.4 三种典型配置
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 运行时约定
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 运行时约定">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-dso" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.1 后端 DSO 搜索顺序
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.2 宿主符号导出要求
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-dso-runpath" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.3 DSO RUNPATH 与部署
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-backend_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.4 backend_dir 传参
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. API 对接
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. API 对接">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-rkvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.1 流式会话 → rkvc 调用序列
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.2 端点与格式
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.3 状态码语义（宿主映射依据）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-recv" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.4 背压与拉取语义（宿主 recv 的正确姿势）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. 已知约束与陷阱
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. 已知约束与陷阱">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-frame_sink" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.1 FRAME_SINK 单节点图格式注入
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-mpp-eof" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.2 MPP 拉取死锁与立即 EOF
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.3 配置初始化与质量参数
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-dmabuf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.4 线性 DMABUF 解码输出
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.5 帧载荷生命周期
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#56-caps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.6 caps 的硬件语义
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#57-mpp-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.7 MPP probe 条件
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 端到端验证
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 端到端验证">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.1 命令与预期输出
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-rk3576-evb1-v102026-09-03" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.2 实测基线（RK3576-evb1-v10，2026-09-03）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.3 板级回归矩阵
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. 故障排查速查
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. 集成核对清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        9. 版本与变更记录
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="semantic-codec-sdk">semantic-codec-sdk 向上集成指南<a class="headerlink" href="#semantic-codec-sdk" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>面向把 rkvc（本仓库）内嵌进上层 SDK 的集成者——以 <code>semantic-codec-sdk</code>（ais SDK）为参考宿主。
+覆盖：集成模型、构建配置、运行时约定、API 对接、已知陷阱、验证方法与故障排查。
+内容基于 x86 容器与 RK3576 实板的端到端验证，随集成实践持续更新。</p>
+</blockquote>
+<h2 id="0">0. 快速事实<a class="headerlink" href="#0" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>集成形态</td>
+<td>宿主 CMake <code>add_subdirectory(rkvc)</code> + 链接 <code>rkvc_static</code>（纯 C 归档）；后端以 DSO 运行时发现</td>
+</tr>
+<tr>
+<td>rkvc 语言 / ABI</td>
+<td>C17（gnu17）；ABI 0.4（<code>RKVC_ABI_VERSION</code>，后端装载时强校验，major/minor/patch 全等）</td>
+</tr>
+<tr>
+<td>参考宿主</td>
+<td>semantic-codec-sdk v0.1.x，C11 + C++17（视频适配层为 C++）</td>
+</tr>
+<tr>
+<td>CMake 版本</td>
+<td>内嵌 rkvc 需 ≥ 3.21（rkvc 自身 <code>cmake_minimum_required</code>）</td>
+</tr>
+<tr>
+<td>核心硬依赖</td>
+<td>Threads + dl</td>
+</tr>
+<tr>
+<td>可选后端 DSO</td>
+<td>MPP（硬编/解）、SVT-AV1（软编）、RGA、FFmpeg、RKNN、MLVC</td>
+</tr>
+<tr>
+<td>上游集成的宿主接口</td>
+<td>流式会话：open → send×N → flush → recv 至 EOF → close</td>
+</tr>
+</tbody>
+</table>
+<h2 id="1">1. 集成模型<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart LR
+    App[宿主应用] --&gt;|"ais_video_send / recv"| HostSo["libais_semantic_codec.so&lt;br/&gt;(C++ 适配层)"]
+    subgraph HostSo
+        RC[rkvc_static 核心符号&lt;br/&gt;(GLOBAL/DEFAULT 导出)]
+    end
+    RC --&gt;|"dlopen + ABI 握手&lt;br/&gt;搜索 backend_dir"| BE1[rkvc_backend_mpp.so]
+    RC --&gt; BE2[rkvc_backend_svt.so]
+    BE1 --&gt; MPP["librockchip_mpp.so.1"]
+    BE2 --&gt; SVT["libSvtAv1Enc.so.4"]</code></pre>
+<p>要点：</p>
+<ol>
+<li><strong>核心静态内嵌、后端动态发现</strong>。rkvc 核心编译进宿主库；MPP/SVT 等后端构建为独立
+   DSO，由 <code>rkvc_context_create</code> 触发 <code>rkvc_backend_dso_scan()</code> 装载（dlopen +
+   <code>rkvc_backend_query()</code> ABI 握手 + probe 设备探测）。</li>
+<li><strong>宿主库必须导出 rkvc 核心符号</strong>。后端 DSO 引用 <code>rkvc_node_emit</code> 等核心符号，
+   期望由宿主进程的动态符号表解析（见 §3.2）。</li>
+<li><strong>规划器按需选后端</strong>。宿主只描述"要做什么"（operation/codec/policy），图规划器
+   在已装载后端的工厂表中挑选候选并按优先级/得分排序，open 失败自动回退次优候选。</li>
+</ol>
+<h2 id="2">2. 构建集成<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<h3 id="21-cmake">2.1 宿主侧 CMake（参考实现）<a class="headerlink" href="#21-cmake" title="Permanent link">&para;</a></h3>
+<div class="language-cmake highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">option</span><span class="p">(</span><span class="s">AIS_VIDEO_CODEC_RKVC</span><span class="w"> </span><span class="s2">"Video codec backed by rkvc"</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">set</span><span class="p">(</span><span class="s">AIS_RKVC_SOURCE_DIR</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">CACHE</span><span class="w"> </span><span class="s">PATH</span><span class="w"> </span><span class="s2">"rkvc source tree (&gt;= CMake 3.21)"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nb">if</span><span class="p">(</span><span class="s">AIS_VIDEO_CODEC_RKVC</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="c"># ... 校验 ${AIS_RKVC_SOURCE_DIR}/CMakeLists.txt 存在 ...</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="c"># 只取核心静态库：关掉 rkvc 自身的 CLI/示例/测试与共享库</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_SHARED</span><span class="w"> </span><span class="s">OFF</span><span class="w"> </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_STATIC</span><span class="w"> </span><span class="s">ON</span><span class="w">  </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_CLI</span><span class="w"> </span><span class="s">OFF</span><span class="w">        </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_EXAMPLES</span><span class="w"> </span><span class="s">OFF</span><span class="w">   </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_TESTS</span><span class="w"> </span><span class="s">OFF</span><span class="w">      </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="c"># 目录属性隔离：宿主顶层若是严格 C11/-std=c 与 hidden 可见性，</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="c"># 会污染 rkvc 子目录（gnu17 与 DSO 符号导出都依赖宽松设置）。</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="c"># 进子目录前保存 C_STANDARD/C_EXTENSIONS/CXX_EXTENSIONS，设为宽松值，</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="c"># add_subdirectory 后恢复。</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_C_STANDARD</span><span class="w"> </span><span class="s">17</span><span class="p">)</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_C_EXTENSIONS</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_CXX_EXTENSIONS</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="nb">add_subdirectory</span><span class="p">(</span><span class="o">${</span><span class="nv">AIS_RKVC_SOURCE_DIR</span><span class="o">}</span><span class="w"> </span><span class="s">rkvc</span><span class="p">)</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">    </span><span class="c"># ... 恢复保存的属性 ...</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nb">endif</span><span class="p">()</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="c"># 视频适配层链入核心归档</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="nb">target_link_libraries</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">PRIVATE</span><span class="w"> </span><span class="s">rkvc_static</span><span class="w"> </span><span class="s">rkvc_instrumentation</span><span class="p">)</span>
+</span><span id="__span-0-27"><a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="nb">if</span><span class="p">(</span><span class="s">NOT</span><span class="w"> </span><span class="s">AIS_BUILD_SHARED</span><span class="w"> </span><span class="s">AND</span><span class="w"> </span><span class="s">UNIX</span><span class="p">)</span>
+</span><span id="__span-0-28"><a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="w">    </span><span class="nb">target_link_options</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">INTERFACE</span><span class="w"> </span><span class="s">-Wl,--export-dynamic</span><span class="p">)</span>
+</span><span id="__span-0-29"><a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="nb">endif</span><span class="p">()</span>
+</span></code></pre></div>
+<p>两个历史踩坑（均已在本仓/参考宿主修复，集成时勿回退）：</p>
+<ul>
+<li>rkvc 依赖脚本全部使用 <code>CMAKE_CURRENT_SOURCE_DIR</code>（而非 <code>CMAKE_SOURCE_DIR</code>）,
+  <code>add_subdirectory</code> 内嵌时路径才不会错位；</li>
+<li>rkvc 顶层显式 <code>set(CMAKE_C_VISIBILITY_PRESET default)</code>，中和宿主全局 hidden
+  设置，保证核心符号进入动态符号表。改可见性后必须<strong>全量重建</strong>。</li>
+</ul>
+<h3 id="22-rkvc">2.2 rkvc 侧构建开关<a class="headerlink" href="#22-rkvc" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>默认</th>
+<th>说明 / 所需前缀</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKVC_BUILD_SHARED</code> / <code>RKVC_BUILD_STATIC</code></td>
+<td>OFF / ON</td>
+<td>内嵌取 STATIC</td>
+</tr>
+<tr>
+<td><code>RKVC_BUILD_CLI</code> / <code>_EXAMPLES</code> / <code>_TESTS</code></td>
+<td>—</td>
+<td>内嵌全关</td>
+</tr>
+<tr>
+<td><code>RKVC_BUILD_BACKEND_MPP</code></td>
+<td>OFF</td>
+<td>需 <code>MPP_INSTALL_PREFIX</code>（<code>lib/librockchip_mpp.so</code> + 头；头缺失时回退 <code>third_party/mpp/inc</code>）</td>
+</tr>
+<tr>
+<td><code>RKVC_BUILD_BACKEND_SVT</code></td>
+<td>OFF</td>
+<td>需 <code>SVT_AV1_INSTALL_PREFIX</code>（<code>lib/libSvtAv1Enc.so</code> + <code>include/svt-av1/</code>）</td>
+</tr>
+<tr>
+<td><code>RKVC_BUILD_BACKEND_RGA</code></td>
+<td>OFF</td>
+<td>需 <code>RGA_INSTALL_PREFIX</code>（<code>lib/librga.so</code>；头缺失回退 <code>third_party/librga/include</code>）</td>
+</tr>
+<tr>
+<td><code>RKVC_BUILD_BACKEND_FFMPEG</code> / <code>_RKNN</code> / <code>_MLVC</code></td>
+<td>OFF</td>
+<td>对应前缀见 <code>cmake/RkvcDependencies.cmake</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="23">2.3 依赖前缀准备<a class="headerlink" href="#23" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># MPP / SVT / RGA：用 rkvc-build 适配器装出前缀（含交叉场景），或使用</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="c1"># 板卡/系统自带安装（例如 /usr/local 下的 rockchip_mpp 满足</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># lib/librockchip_mpp.so + 头文件即可）。交叉时务必用目标架构的前缀，</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># 混入宿主架构库会在运行期才暴露。</span>
+</span></code></pre></div>
+<h3 id="24">2.4 三种典型配置<a class="headerlink" href="#24" title="Permanent link">&para;</a></h3>
+<p><strong>A. x86 开发验证（SVT 软编路径，无硬件依赖）</strong></p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cmake<span class="w"> </span>-B<span class="w"> </span>.build<span class="w"> </span>-G<span class="w"> </span>Ninja<span class="w"> </span>-DAIS_VIDEO_CODEC_RKVC<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>-DAIS_RKVC_SOURCE_DIR<span class="o">=</span>/path/to/rkvc<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_SVT<span class="o">=</span>ON<span class="w"> </span>-DSVT_AV1_INSTALL_PREFIX<span class="o">=</span>/path/to/svt-install<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_MPP<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_BACKEND_RGA<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_FFMPEG<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_BACKEND_RKNN<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_MLVC<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_CLI<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span>-DRKVC_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_TESTS<span class="o">=</span>OFF
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>cmake<span class="w"> </span>--build<span class="w"> </span>.build
+</span></code></pre></div>
+<p><strong>B. aarch64 交叉（纯 C 目标适用）</strong></p>
+<ul>
+<li>工具链文件：<code>cmake/toolchains/aarch64-linux-gnu.cmake</code> + sysroot；</li>
+<li>rkvc 本体纯 C，交叉无碍；<strong>若宿主含 C++（如 ais SDK 适配层），宿主交叉
+  工具链的 libstdc++ 必须与目标机 glibc 兼容</strong>——高版本宿主交叉 GCC 的
+  libstdc++ 常要求 GLIBC ≥ 2.36/2.38，低版本 sysroot 链接会引用
+  <code>__isoc23_strtoul</code>/<code>arc4random</code> 等新符号而失败。此时优先方案 C。</li>
+</ul>
+<p><strong>C. 目标板本地编译（含 C++ 宿主的推荐路径，RK3576 实测）</strong></p>
+<p>板载 Ubuntu 22.04 + g++-11（libstdc++ 3.4.30 与系统运行库完全匹配）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmake<span class="w"> </span>-B<span class="w"> </span>.build<span class="w"> </span>-G<span class="w"> </span>Ninja<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>-DAIS_VIDEO_CODEC_RKVC<span class="o">=</span>ON<span class="w"> </span>-DAIS_RKVC_SOURCE_DIR<span class="o">=</span>/data/sdk-test/rockchip-video-codec<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_MPP<span class="o">=</span>ON<span class="w"> </span>-DMPP_INSTALL_PREFIX<span class="o">=</span>&lt;mpp前缀&gt;<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_SVT<span class="o">=</span>ON<span class="w"> </span>-DSVT_AV1_INSTALL_PREFIX<span class="o">=</span>&lt;svt前缀&gt;<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_FFMPEG<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_BACKEND_RKNN<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>-DRKVC_BUILD_BACKEND_MLVC<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_CLI<span class="o">=</span>OFF<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>-DRKVC_BUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_TESTS<span class="o">=</span>OFF
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>cmake<span class="w"> </span>--build<span class="w"> </span>.build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ctest<span class="w"> </span>--test-dir<span class="w"> </span>.build
+</span></code></pre></div>
+<h2 id="3">3. 运行时约定<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31-dso">3.1 后端 DSO 搜索顺序<a class="headerlink" href="#31-dso" title="Permanent link">&para;</a></h3>
+<p><code>rkvc_context_create</code> 时按以下目录顺序收集 <code>*.so</code>（排序后逐个尝试，失败只记诊断）：</p>
+<ol>
+<li>包内目录：<code>&lt;librkvc 映射所在目录&gt;/rkvc/backends</code>（dladdr 定位，适配可重定位安装布局 <code>lib/rkvc/backends/</code>）；</li>
+<li><code>/usr/local/lib/rkvc/backends</code>；</li>
+<li><code>/usr/lib/rkvc/backends</code>；</li>
+<li>调用方经 <code>rkvc_context_options.paths.backend_dirs</code> 传入的可信目录
+   （宿主应把用户参数透传到此，参考宿主的 <code>cfg.backend_dir</code>）</li>
+</ol>
+<p>装载失败的最近一条诊断记录在 context 内部（<code>backend_diag</code>），排除问题时可 gdb
+断点 <code>rkvc_registry_add_backend</code> 观察。</p>
+<h3 id="32">3.2 宿主符号导出要求<a class="headerlink" href="#32" title="Permanent link">&para;</a></h3>
+<ul>
+<li>后端 DSO 以 <code>RTLD_NOW | RTLD_LOCAL</code> 装载，其未定义核心符号（<code>rkvc_node_emit</code>
+  等）要求<strong>装载时刻</strong>能在宿主进程全局符号域解析；</li>
+<li>常规做法：rkvc 链入<strong>宿主共享库</strong>（visibility default 保证符号进入 <code>.dynsym</code>
+  GLOBAL/DEFAULT，实测导出 80+ 核心符号）；</li>
+<li>静态 SDK 必须向最终可执行文件传播 <code>-Wl,--export-dynamic</code>；参考宿主已通过
+  <code>target_link_options(... INTERFACE ...)</code> 实现。遗漏时 dlopen 会报
+  <code>undefined symbol: rkvc_node_emit</code>。</li>
+</ul>
+<h3 id="33-dso-runpath">3.3 DSO RUNPATH 与部署<a class="headerlink" href="#33-dso-runpath" title="Permanent link">&para;</a></h3>
+<p>后端 DSO 构建时把依赖前缀的 <code>lib/</code> 写入 RUNPATH（如 MPP 前缀
+<code>.../target/mpp/lib</code>）。部署到目标机时三选一：</p>
+<ol>
+<li>前缀按配置期路径原样存在（构建机即目标机/板载编译场景天然满足）；</li>
+<li>目标机系统路径可解析依赖（如 <code>/usr/local/lib</code> 下的 <code>librockchip_mpp.so.1</code>）；</li>
+<li>运行时 <code>LD_LIBRARY_PATH</code> 指向依赖库目录。</li>
+</ol>
+<h3 id="34-backend_dir">3.4 backend_dir 传参<a class="headerlink" href="#34-backend_dir" title="Permanent link">&para;</a></h3>
+<p>传给宿主/<code>rkvc_context_options</code> 的目录须为<strong>绝对路径</strong>；脚本内变量未展开
+（如 <code>$PWD/rkvc</code> 字面量）会得到"planner 无候选"的误导性报错。</p>
+<h2 id="4-api">4. API 对接<a class="headerlink" href="#4-api" title="Permanent link">&para;</a></h2>
+<h3 id="41-rkvc">4.1 流式会话 → rkvc 调用序列<a class="headerlink" href="#41-rkvc" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>宿主（参考实现）</th>
+<th>rkvc 调用</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open(cfg)</code></td>
+<td><code>rkvc_context_options_init/create</code>（透传 backend_dirs/model_dirs）→ <code>rkvc_request_init</code>（operation/codec/policy/quality/端点/宽高）→ <code>rkvc_job_create</code>（带 diag）→ <code>rkvc_job_start</code></td>
+<td>open 失败时用 <code>rkvc_diag_fmt_text</code> 输出诊断链</td>
+</tr>
+<tr>
+<td><code>send(frame)</code></td>
+<td>深拷贝载荷 → <code>rkvc_backend_frame_create</code>（挂释放回调，见 §5.5）→ <code>rkvc_job_push</code></td>
+<td>push 为非阻塞 try 语义；AGAIN 处理见 §4.4</td>
+</tr>
+<tr>
+<td><code>recv(&amp;pkt)</code></td>
+<td>flush 前 <code>rkvc_job_try_pull</code>（有限等待）；flush 后 <code>rkvc_job_pull</code>（阻塞排空）→ <code>rkvc_frame_get_desc</code> → 取 <code>data/size/flags</code></td>
+<td>AGAIN / EOF 判定见 §4.4</td>
+</tr>
+<tr>
+<td><code>flush()</code></td>
+<td><code>rkvc_job_push_eos</code></td>
+<td>之后 recv 排空至 EOF</td>
+</tr>
+<tr>
+<td><code>close()</code></td>
+<td><code>rkvc_job_destroy</code> → <code>rkvc_context_destroy</code></td>
+<td>先销毁 job 再释放 context，防止帧引用越过核心生命周期</td>
+</tr>
+<tr>
+<td><code>query_caps()</code></td>
+<td>按 backend_dir 创建临时 context → <code>rkvc_probe_device</code></td>
+<td>见 §5.6</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42">4.2 端点与格式<a class="headerlink" href="#42" title="Permanent link">&para;</a></h3>
+<ul>
+<li>流式会话使用 <code>RKVC_ENDPOINT_FRAME_SINK</code> 双端点：输入格式写入
+  <code>req.input.fmt</code>（如 NV12），输出 <code>req.output.fmt</code>（位流端写
+  <code>RKVC_FRAME_FMT_BITSTREAM</code>），宽高写 <code>req.width/height</code>；</li>
+<li>FRAME_SINK 是<strong>单节点图</strong>（无 fileio source），<code>rkvc_graph_build</code> 在边协商后
+  把端点声明的 fmt/宽高注入首/末节点端口（本仓 <code>lib/graph.c</code> 已含该注入段；
+  早于该修复的检出会在 MPP 硬编 open 时报 FORMAT，见 §7）。FILE 端点路径由
+  fileio source 声明格式经边协商传递，不受影响；</li>
+<li>MPP 编码接受 NV12 / YUV420P（HOST 域拷入或 DMABUF 导入）；解码输出为
+  NV12 <strong>DMABUF</strong> 帧（HOST 回读见 §5.4）；</li>
+<li>外部文件/网络码流先经 <code>ais_buffer_bitstream()</code> 深拷贝为带 PTS/DTS/flags 的
+  SDK buffer，再交给 decoder send，禁止调用私有 <code>ais_buffer_create</code>。</li>
+</ul>
+<h3 id="43">4.3 状态码语义（宿主映射依据）<a class="headerlink" href="#43" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>rkvc 状态</th>
+<th>流式语义</th>
+<th>参考宿主映射</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OK</code></td>
+<td>成功</td>
+<td><code>AIS_OK</code></td>
+</tr>
+<tr>
+<td><code>AGAIN</code></td>
+<td>队列满/空，稍后重试</td>
+<td><code>AIS_ERR_AGAIN</code>（宿主 send 内部消化，recv 可对外暴露）</td>
+</tr>
+<tr>
+<td><code>EOF</code></td>
+<td>流结束（flush 排空后）</td>
+<td><code>AIS_ERR_EOF</code></td>
+</tr>
+<tr>
+<td><code>FORMAT</code> / <code>UNSUPPORTED</code> / <code>NOT_FOUND</code></td>
+<td>格式约束 / 无可用候选</td>
+<td><code>AIS_ERR_UNSUPPORTED</code></td>
+</tr>
+<tr>
+<td><code>IO</code> / <code>HW</code> / <code>CANCELED</code></td>
+<td>会话初始化或运行失败</td>
+<td>按 mode 映射 <code>AIS_ERR_ENCODE</code> / <code>AIS_ERR_DECODE</code></td>
+</tr>
+<tr>
+<td><code>NOMEM</code> / <code>INVALID</code></td>
+<td>资源 / 参数</td>
+<td><code>AIS_ERR_NO_MEMORY</code> / <code>AIS_ERR_INVALID_ARG</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="44-recv">4.4 背压与拉取语义（宿主 recv 的正确姿势）<a class="headerlink" href="#44-recv" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>rkvc_job_push</code>：非阻塞。队列默认容量 4（<code>rkvc_graph_set_queue_capacity</code> 可调，
+  须在 build 前），满返回 <code>AGAIN</code>；</li>
+<li><code>rkvc_job_pull</code>：<strong>阻塞</strong>至有帧或 EOS；</li>
+<li><code>rkvc_job_try_pull</code>：非阻塞，空且未 EOS 返回 <code>AGAIN</code>（与 try_push 对称，上游
+  已发布，map/头文件一致由 <code>tools/check-exported-symbols.sh</code> 校验）</li>
+</ul>
+<p><strong>死锁反模式</strong>（gdb 实证）：调用方"send 数帧后进入 <code>while (recv==OK)</code> 排空"。
+硬件编码器可能攒多帧才产包，阻塞 recv 永等输出，而后端在等新输入——三线程互等
+（主线程 <code>rkvc_exec_pull</code> 内 <code>pthread_cond_wait</code>、worker <code>queue_pop</code>、MPP 线程
+<code>mpp_thread_wait</code>）</p>
+<p><strong>已实现模式</strong>：flush 前，宿主 recv 使用 <code>try_pull</code> + 有界自旋（100×1ms），
+无产出且未 EOF 时返回 <code>AIS_ERR_AGAIN</code>，让调用方继续 send 或稍后重试。send 遇
+AGAIN 时先 <code>try_pull</code> 排空已产出帧到待取缓冲，再重试 push，对外保持同步发送。
+flush 成功提交 EOS 后，worker 必然在 MPP 的 5 秒有限超时内到达尾包、EOS 或错误，
+此时 recv 改用阻塞 pull，保证尾包完整排空且不对外产生伪 AGAIN。</p>
+<p><code>try_pull</code> 曾有一个独立的立即 EOF 缺陷：<code>rkvc_queue_try_pop()</code> 成功移除帧后未把
+局部返回值从默认 <code>0</code> 改成 <code>1</code>，上层把该次成功弹帧误判为 EOS。修复后成功、EOS、
+暂空分别严格返回 <code>1</code>、<code>0</code>、<code>RKVC_STATUS_AGAIN</code>，并由 queue/job 两层单测覆盖。</p>
+<h2 id="5">5. 已知约束与陷阱<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<h3 id="51-frame_sink">5.1 FRAME_SINK 单节点图格式注入<a class="headerlink" href="#51-frame_sink" title="Permanent link">&para;</a></h3>
+<p>见 §4.2。修复：<code>rkvc_graph_build</code> 边协商后注入 <code>req.input.fmt</code>（width/height
+字段级合并，冲突报 NEGOTIATE）到首节点输入端口、<code>req.output.fmt</code> 到末节点输出
+端口。状态：已修复（工作区，合入主线后更新此行）。错误特征见 §7。</p>
+<h3 id="52-mpp-eof">5.2 MPP 拉取死锁与立即 EOF<a class="headerlink" href="#52-mpp-eof" title="Permanent link">&para;</a></h3>
+<p>两类问题均已修复并完成 RK3576 板测：</p>
+<ul>
+<li>MPP 正常 process 路径把输出超时设为 <code>MPP_TIMEOUT_NON_BLOCK</code>，避免编码器尚未
+  产包时把 worker 永久卡在 <code>encode_get_packet</code>；输入沿用同步 task/frame 所有权
+  语义，但设 5000ms 有限超时，硬件异常时可失败退出；</li>
+<li>flush 成功提交 EOS 后把输出超时切到 5000ms，持续排包直到 MPP EOS，既保留
+  B 帧/GOP 尾包又避免永久等待；</li>
+<li>宿主采用 §4.4 的 flush 前非阻塞、flush 后阻塞状态机；</li>
+<li>rkvc 修正 <code>rkvc_queue_try_pop()</code> 成功返回值，并确保队列中已有帧先于 cancel/error
+  状态交付；process/flush 错误最终透传给 pull，不再表现成正常 EOF。</li>
+</ul>
+<p>旧版 MPP 的空非阻塞输出可能以 <code>MPP_NOK</code> 表示而不是 <code>MPP_OK + NULL packet</code>；
+process 路径将这两种形式都视为“当前无包”，flush 路径仍把它视为硬件错误。</p>
+<h3 id="53">5.3 配置初始化与质量参数<a class="headerlink" href="#53" title="Permanent link">&para;</a></h3>
+<p>宿主配置必须由 <code>ais_video_config_init()</code> 初始化，结构中的 <code>struct_size</code> 用于拒绝
+旧式 <code>memset</code> 零初始化。默认 <code>qp=-1</code>、<code>fps=30/1</code>、策略为 BALANCED；QP 只接受
+<code>-1..51</code>，码率不得超过 <code>INT32_MAX</code>。rkvc 当前固定 30 fps，其他帧率由宿主在
+open 前明确返回 UNSUPPORTED，不再静默忽略。</p>
+<h3 id="54-dmabuf">5.4 线性 DMABUF 解码输出<a class="headerlink" href="#54-dmabuf" title="Permanent link">&para;</a></h3>
+<p>MPP 解码输出为 DMABUF 帧（含 FBC/瓦片布局需 DRM modifier 契约，后端刻意只暴露
+线性帧）。Linux 宿主对 fd 做只读 <code>mmap</code>，按 <code>stride</code> / <code>ver_stride</code> 分平面复制，
+产出紧凑 HOST NV12/YUV420P/RGB 缓冲；映射、边界或布局检查失败返回 DECODE，
+绝不返回全零的伪成功帧。非线性 modifier 仍拒绝，后续应经 RGA 显式转换。</p>
+<h3 id="55">5.5 帧载荷生命周期<a class="headerlink" href="#55" title="Permanent link">&para;</a></h3>
+<p>rkvc 帧只借用内存。宿主 send 深拷贝后经 <code>rkvc_backend_frame_create(&amp;desc, free,
+copy, &amp;frame)</code> 挂释放回调：最后一个帧引用释放时副本自动 free。<strong>禁止</strong>会话级
+<code>owned_</code> 指针数组驻留（长流内存线性增长，已在参考宿主移除）</p>
+<h3 id="56-caps">5.6 caps 的硬件语义<a class="headerlink" href="#56-caps" title="Permanent link">&para;</a></h3>
+<p><code>rkvc_probe_device</code> 的 <code>has_mpp_encoder/decoder</code> 仅统计 MPP 能力；SVT 等软件后端
+不体现。宿主的 <code>ais_video_query_caps(backend_dir, ...)</code> 原样采用该语义；
+<code>has_encoder</code> / <code>has_decoder</code> 明确表示 MPP 硬件能力，<code>has_rknn</code> 不再冒充解码能力。</p>
+<h3 id="57-mpp-probe">5.7 MPP probe 条件<a class="headerlink" href="#57-mpp-probe" title="Permanent link">&para;</a></h3>
+<p>MPP 后端装载探测 = <code>access("/dev/mpp_service", R_OK|W_OK)</code>（旧节点名
+<code>/dev/mpp-service</code> 兼容）+ <code>mpp_check_support_format</code> AVC 编/解任一支持。
+RK3576 实测：DEC AVC/HEVC/AV1/VP9 均可，ENC 仅 AVC/HEVC（AV1/VP9 编码返回
+不支持，属硬件能力，非缺陷）</p>
+<h2 id="6">6. 端到端验证<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<h3 id="61">6.1 命令与预期输出<a class="headerlink" href="#61" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># backend_dir 必须绝对路径</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>./examples/ais_video_example<span class="w"> </span>/abs/path/to/.build/rkvc
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>device: soc=rk3576-evb1-v10 mpp-enc=1 mpp-dec=1 npu=0
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>encoded: 5 frames -&gt; 5 packets, 386 bytes
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>decoded: 5 NV12 frames (64x64)
+</span></code></pre></div>
+<h3 id="62-rk3576-evb1-v102026-09-03">6.2 实测基线（RK3576-evb1-v10，2026-09-03）<a class="headerlink" href="#62-rk3576-evb1-v102026-09-03" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>环境</th>
+<th>Ubuntu 22.04 / glibc 2.35 / RKNPU v0.9.8 / 板载 g++-11 11.4.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>构建</td>
+<td>板载增量编译 29 目标全过；宿主 SDK 单测 7/7</td>
+</tr>
+<tr>
+<td>SVT AV1 软编</td>
+<td>32×32×5 帧 → 174B；flush→EOF 语义正常</td>
+</tr>
+<tr>
+<td>MPP H264 硬编</td>
+<td>640×480×5 帧 → 5 包 1204B；500 帧 → 500 包 18237B（CBR）</td>
+</tr>
+<tr>
+<td>MPP H264 回环</td>
+<td>64×64×5 帧 → 5 包 386B → 5 个 NV12 HOST 帧</td>
+</tr>
+<tr>
+<td>交错 send/recv</td>
+<td>50/500 帧均正常 EOF；flush 前 AGAIN、flush 后完整阻塞排空</td>
+</tr>
+<tr>
+<td>长流内存</td>
+<td>500 帧 VmRSS 增量约 0.9MiB（复跑 5200→6112KiB）；无 MPP 泄漏告警</td>
+</tr>
+</tbody>
+</table>
+<h3 id="63">6.3 板级回归矩阵<a class="headerlink" href="#63" title="Permanent link">&para;</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> example：H.264 MPP 编码 + 真实逐包回环解码（backend_dir 绝对路径）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> H264 硬编 500 帧 + RSS 前后对比（验证 §5.5 回调释放）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 交错 send/recv 压力（§4.4 模式，50/500 帧）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 解码逐帧尺寸/数量校验；线性 DMABUF 去 stride 回读为 HOST NV12</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> caps 输出（soc / mpp-enc / mpp-dec / npu）</li>
+</ul>
+<h2 id="7">7. 故障排查速查<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>错误特征</th>
+<th>根因</th>
+<th>处置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planner(required stage has no candidate): not found</code></td>
+<td>后端 DSO 未装载（目录无 .so / 路径非绝对 / dlopen 失败）</td>
+<td>gdb 断 <code>rkvc_registry_add_backend</code> 看装载流；确认 §3.1/§3.4</td>
+</tr>
+<tr>
+<td><code>undefined symbol: rkvc_node_emit</code>（dlopen）</td>
+<td>rkvc 核心符号未进宿主动态表（hidden 或静态宿主未导出）</td>
+<td>§2.1 可见性 + §3.2 <code>--export-dynamic</code></td>
+</tr>
+<tr>
+<td><code>job_start failed: format (-8)</code>（MPP 硬编）</td>
+<td>旧检出无 FRAME_SINK 格式注入，<code>mpp_enc_open</code> 读到 UNKNOWN</td>
+<td>§5.1 修复（graph.c 注入段）</td>
+</tr>
+<tr>
+<td>三线程互等挂死（exec_pull / queue_pop / mpp_thread_wait）</td>
+<td>宿主 recv 阻塞 pull + "排空到没有为止"反模式</td>
+<td>§4.4 try_pull 有界自旋 / AGAIN 语义</td>
+</tr>
+<tr>
+<td>worker 已 emit 包，但首次 <code>try_pull</code> 立即 EOF</td>
+<td>旧版 <code>rkvc_queue_try_pop</code> 成功弹帧后仍返回 0，被误判成 EOS</td>
+<td>更新 rkvc executor；用 queue/job 非阻塞回归测试确认</td>
+</tr>
+<tr>
+<td><code>caps enc=0</code> 但软件编码成功</td>
+<td>caps 按契约只统计 MPP，软编后端不体现</td>
+<td>§5.6（非故障）</td>
+</tr>
+<tr>
+<td>mpp 日志 <code>set rc fixqp</code> 而预期 CBR</td>
+<td>配置未通过 <code>ais_video_config_init</code> 初始化</td>
+<td>§5.3</td>
+</tr>
+<tr>
+<td>编译报 <code>CLOCK_MONOTONIC</code> 未声明等</td>
+<td>宿主目录属性（严格 -std=c）污染 rkvc 子目录</td>
+<td>§2.1 属性隔离</td>
+</tr>
+<tr>
+<td>链接失败引用 <code>__isoc23_strtoul</code> / <code>arc4random</code></td>
+<td>交叉 libstdc++ 与低版本 sysroot glibc 不兼容</td>
+<td>§2.4-B/C 换板载编译</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8">8. 集成核对清单<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<ol class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 宿主 CMake：选项 + 子项目强制项 + 目录属性隔离（§2.1）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 依赖前缀：按需准备 MPP/SVT/RGA（§2.2/2.3）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 构建：全量通过；后端 DSO 产出；<code>readelf --dyn-syms</code> 确认宿主 so 导出
+       <code>rkvc_node_emit</code> 等核心符号（§3.2）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 运行：backend_dir 绝对路径传参；DSO 依赖在目标机可解析（§3.3/3.4）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 适配层：send 深拷贝 + 释放回调（§5.5）；recv 分阶段拉取（§4.4）；
+       线性 DMABUF 去 stride 回读（§5.4）；配置初始化（§5.3）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 回归：§6.3 矩阵全绿</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> 新增导出符号时同步 <code>include/rkvc/*.h</code> 与 <code>librkvc.map</code>
+       （<code>tools/check-exported-symbols.sh</code> 校验）</li>
+</ol>
+<h2 id="9">9. 版本与变更记录<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>变更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-03</td>
+<td>宿主公共 API 收口；补真实 H.264 编解码、线性 DMABUF 回读及静态安装包下游验证</td>
+</tr>
+<tr>
+<td>2026-09-03</td>
+<td>RK3576 收尾：修复 try_pop 误报 EOF 与 MPP 有界排空；50/500 帧硬编、RSS 和无泄漏回归通过</td>
+</tr>
+<tr>
+<td>2026-09-03</td>
+<td>重写为长期集成指南：并入 RK3576 实板结论（FRAME_SINK 注入修复、阻塞 pull 死锁模式、部署 RUNPATH 约定、故障速查表）</td>
+</tr>
+<tr>
+<td>2026-08</td>
+<td>初版：x86 容器验证（SVT 软编 E2E）与最小修改提案（内嵌构建修复、try_pull 对称原语）——均已落地本仓与参考宿主</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.6970bfe9.min.js"></script>
+      
+    
+  </body>
+</html>

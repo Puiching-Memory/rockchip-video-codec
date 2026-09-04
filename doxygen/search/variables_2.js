@@ -1,0 +1,16 @@
+var searchData=
+[
+  ['candidate_5fcount_0',['candidate_count',['../structrkvc__plan__step.html#a952e31d5d6770e2529396829439a1c3d',1,'rkvc_plan_step']]],
+  ['candidate_5findex_1',['candidate_index',['../structrkvc__plan__step.html#af93d5c272052809a476f4758d4849533',1,'rkvc_plan_step']]],
+  ['candidates_2',['candidates',['../structrkvc__plan__step.html#a1559c2da0cb66c5764d45febf94e163a',1,'rkvc_plan_step']]],
+  ['capability_5fflags_3',['capability_flags',['../structrkvc__backend.html#a6414d7e26b3bb091ca7dd8478a1eeabd',1,'rkvc_backend']]],
+  ['caps_4',['caps',['../structrkvc__context.html#a2c1b4b68f6a6e27f73558ad474a9f3fa',1,'rkvc_context']]],
+  ['close_5',['close',['../structrkvc__node__ops.html#a272abfa3c2c34b91ab97afc1efbe3049',1,'rkvc_node_ops']]],
+  ['codec_6',['codec',['../structrkvc__request.html#a0d6ef327270e5fbdf2f14c52dad41155',1,'rkvc_request']]],
+  ['configure_7',['configure',['../structrkvc__node__ops.html#a2c164f2983ab266e3d44214c6211440a',1,'rkvc_node_ops']]],
+  ['create_8',['create',['../structrkvc__node__factory.html#ac0d7e8d4e2d12f8d8556b291d95aeaf6',1,'rkvc_node_factory']]],
+  ['create_5fctx_9',['create_ctx',['../structrkvc__node__factory.html#a0b44dc61f5ab25947a27b015b83ae0a1',1,'rkvc_node_factory']]],
+  ['critical_5finterval_5fms_10',['critical_interval_ms',['../structrkvc__quality.html#a84e541fd8b239feac024b4ae1d832633',1,'rkvc_quality']]],
+  ['crop_5fto_5f16_11',['crop_to_16',['../structrkvc__quality.html#aed773e19f7aea365933669740503065c',1,'rkvc_quality']]],
+  ['ctx_12',['ctx',['../structrkvc__graph.html#a0d245d1f66f3c55995af10489e43a1a4',1,'rkvc_graph']]]
+];

@@ -1,0 +1,1001 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/mlvc-npu-profile/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.59">
+    
+    
+      
+        <title>MLVC NPU 执行 Profile 报告 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mlvc-npu-profile" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MLVC NPU 执行 Profile 报告
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 结论
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 硬件、软件与模型
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 测量方法
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-encoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. Encoder 分阶段
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-decoder" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. Decoder 分阶段
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 正确性与确定性
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. 当前优化优先级
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#a-rk3588" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        附录 A：旧 RK3588 数据（仅作历史参考）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="mlvc-npu-profile">MLVC NPU 执行 Profile 报告<a class="headerlink" href="#mlvc-npu-profile" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>更新日期：2026-08-24 ｜ 当前数据：RK3576 ｜ 标准 MLVC 与 MLVC-S 使用同一测量口径</p>
+<p>历史性能记录（2026-08-24，RK3576）。数据来自归档版 <code>rkvc_transcode</code>。</p>
+</blockquote>
+<h2 id="1">1. 结论<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>标准 host I/O 修复了第二帧 NaN/Inf；在此正确性基线上，encoder 进一步
+改为“native 零拷贝输入 + 逻辑 NCHW 输出”的混合 I/O。MLVC 和 MLVC-S 各
+70 帧、3 轮连续编码的码流均与标准 I/O 逐字节一致，解码输出也保持
+既有基线哈希。</p>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>编码节点 (ms/帧)</th>
+<th>编码节点吞吐</th>
+<th>解码节点 (ms/帧)</th>
+<th>解码节点吞吐</th>
+<th>70 帧码流</th>
+<th>bpp</th>
+<th>Y MS-SSIM</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLVC</td>
+<td><strong>95.293±0.136</strong></td>
+<td>10.49 fps</td>
+<td><strong>81.225±0.122</strong></td>
+<td>12.31 fps</td>
+<td>18,207 B</td>
+<td>0.008835</td>
+<td>0.974157</td>
+</tr>
+<tr>
+<td>MLVC-S</td>
+<td><strong>47.781±0.265</strong></td>
+<td>20.93 fps</td>
+<td><strong>40.475±0.035</strong></td>
+<td>24.71 fps</td>
+<td>11,898 B</td>
+<td>0.005773</td>
+<td>0.970691</td>
+</tr>
+</tbody>
+</table>
+<p>这里的“节点”只统计 MLVC 节点内完成一帧所需的所有阶段，不含模型初始化、容器输入解析和进程退出。以下完整 CLI 墙钟是混合 I/O 落地前的标准 I/O 基线，仅作对照：</p>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>编码墙钟</th>
+<th>编码整程吞吐</th>
+<th>解码墙钟</th>
+<th>解码整程吞吐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLVC</td>
+<td>9.253±0.020 s</td>
+<td>7.57 fps</td>
+<td>6.177±0.069 s</td>
+<td>11.33 fps</td>
+</tr>
+<tr>
+<td>MLVC-S</td>
+<td>5.071±0.010 s</td>
+<td>13.80 fps</td>
+<td>3.202±0.078 s</td>
+<td>21.86 fps</td>
+</tr>
+</tbody>
+</table>
+<p>混合 I/O 不传递 producer 的 native feature：它仍从 <code>rknn_outputs_get</code> 取逻辑
+NCHW，然后按 consumer 的 native input attr 显式打包。因此既保留了修复的布局
+契约，又去掉了每帧约 28/18 ms 的 runtime input conversion。</p>
+<h2 id="2">2. 硬件、软件与模型<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SoC / 板卡</td>
+<td>Rockchip RK3576 EVB1 v1.0</td>
+</tr>
+<tr>
+<td>内核</td>
+<td>Linux 6.1.118，aarch64</td>
+</tr>
+<tr>
+<td>NPU</td>
+<td>2 核，采样时 950 MHz，<code>rknpu_ondemand</code></td>
+</tr>
+<tr>
+<td>CPU / 绑核</td>
+<td>policy0 / policy4 均为 <code>performance</code>；进程固定 CPU4–7（2.208 GHz 大核簇）</td>
+</tr>
+<tr>
+<td>RKNN Runtime</td>
+<td>2.3.2 (<code>429f97ae6b</code>)</td>
+</tr>
+<tr>
+<td>RKNN Driver</td>
+<td>0.9.8</td>
+</tr>
+<tr>
+<td>分辨率 / 类型</td>
+<td>640×368 / FP16</td>
+</tr>
+<tr>
+<td>QP</td>
+<td>21</td>
+</tr>
+<tr>
+<td>采样末温度</td>
+<td>SoC 44.4 °C / NPU 43.5 °C</td>
+</tr>
+</tbody>
+</table>
+<p>本次模型指纹：</p>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>模型</th>
+<th>SHA-256</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLVC</td>
+<td>encoder</td>
+<td><code>f8212344e56fad866fa2d16903e7a70abc09ef6cbef43d5ba2748f359ef6921f</code></td>
+</tr>
+<tr>
+<td>MLVC</td>
+<td>decoder</td>
+<td><code>cbe3c50788717f9aed2528b0e0f8fe9d59d4fe45e92e78307855ded323c88e33</code></td>
+</tr>
+<tr>
+<td>MLVC-S</td>
+<td>encoder</td>
+<td><code>1e817c4314f26d2b08f31006f05b45c5d7b08de96d9ce7307d51451b8445efdc</code></td>
+</tr>
+<tr>
+<td>MLVC-S</td>
+<td>decoder</td>
+<td><code>f4e78cc506b554f048dfdf370a787365dbb82d98b101cc32d218f2c85492d2fd</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="3">3. 测量方法<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<ul>
+<li>输入是同一个 640×368、YUV420、60 fps 的 3 帧验证片段循环到 70 帧；两种变体均使用 QP 21。</li>
+<li>使用 Release 构建（<code>-O3 -DNDEBUG</code>），并以 <code>taskset -c 4-7</code> 固定在大核簇，避免单线程 CPU 阶段在大小核之间迁移。</li>
+<li>每个变体的 encoder 和 decoder 各启动 3 个独立进程。每轮先预热 10 帧，再对后 60 帧做节点内分阶段聚合。</li>
+<li>表中 <code>±</code> 是三轮“每轮均值”的样本标准差，而不是 180 个单帧样本混算后的标准差。</li>
+<li>码流和解码 YUV 写入 <code>/dev/shm</code>。整程墙钟包含模型初始化、输入解析和文件 I/O；节点计时不包含这些项目。</li>
+<li>encoder 默认使用混合 I/O（native 输入、逻辑 NCHW 输出）；decoder 保持 native NC1HWC2 零拷贝 I/O。</li>
+<li>质量值是 70 帧 Y 通道 5-scale MS-SSIM。输入由 3 帧循环得到，适合回归与性能复测，不应当作为自然视频 RD 曲线结论。</li>
+</ul>
+<p>节点内 profile 默认关闭。启用后只增加分段时间戳，并在节点关闭时打印聚合值：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">RKVC_MLVC_PROFILE</span><span class="o">=</span><span class="m">1</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">RKVC_MLVC_PROFILE_WARMUP</span><span class="o">=</span><span class="m">10</span>
+</span></code></pre></div>
+<p>encoder profile 会额外打印 <code>io=standard|hybrid</code>，原 <code>inputs_set</code> 阶段在日志中
+统一记为 <code>input_prepare</code>。可用以下方式回退复测标准 I/O：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">RKVC_MLVC_ENCODER_ZERO_COPY</span><span class="o">=</span><span class="m">0</span>
+</span></code></pre></div>
+<p>混合路径默认开启；将开关设为 0 才使用 <code>io=standard</code>。</p>
+<p><code>RKVC_MLVC_PROFILE_WARMUP</code> 缺省为 10；设为 0 可统计所有帧。以标准 MLVC 为例：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">RKVC_BIN</span><span class="o">=</span>/path/to/archived/rkvc_transcode
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">MLVC_DIR</span><span class="o">=</span>models/mlvc
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nv">INPUT_70F</span><span class="o">=</span>/path/to/640x368-70f.y4m
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>taskset<span class="w"> </span>-c<span class="w"> </span><span class="m">4</span>-7<span class="w"> </span><span class="s2">"</span><span class="nv">$RKVC_BIN</span><span class="s2">"</span><span class="w"> </span>-i<span class="w"> </span><span class="s2">"</span><span class="nv">$INPUT_70F</span><span class="s2">"</span><span class="w"> </span>-o<span class="w"> </span>/dev/shm/profile.mlvc<span class="w"> </span>-c<span class="w"> </span>mlvc<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span>--mlvc-enc<span class="w"> </span><span class="s2">"</span><span class="nv">$MLVC_DIR</span><span class="s2">/MLVCEncoder_rk3576.rknn"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span>--mlvc-gaussian-pmf<span class="w"> </span><span class="s2">"</span><span class="nv">$MLVC_DIR</span><span class="s2">/gaussian.bin"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span>--mlvc-bitest-pmf<span class="w"> </span><span class="s2">"</span><span class="nv">$MLVC_DIR</span><span class="s2">/bitest.bin"</span><span class="w"> </span>--mlvc-qp<span class="w"> </span><span class="m">21</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>taskset<span class="w"> </span>-c<span class="w"> </span><span class="m">4</span>-7<span class="w"> </span><span class="s2">"</span><span class="nv">$RKVC_BIN</span><span class="s2">"</span><span class="w"> </span>-i<span class="w"> </span>/dev/shm/profile.mlvc<span class="w"> </span>-o<span class="w"> </span>/dev/shm/profile.yuv<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span>--mlvc-dec<span class="w"> </span><span class="s2">"</span><span class="nv">$MLVC_DIR</span><span class="s2">/MLVCDecoder_rk3576.rknn"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span>--mlvc-gaussian-pmf<span class="w"> </span><span class="s2">"</span><span class="nv">$MLVC_DIR</span><span class="s2">/gaussian.bin"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span>--mlvc-bitest-pmf<span class="w"> </span><span class="s2">"</span><span class="nv">$MLVC_DIR</span><span class="s2">/bitest.bin"</span>
+</span></code></pre></div>
+<p>复测 MLVC-S 时只把 <code>MLVC_DIR</code> 改成 <code>models/mlvc-s</code>，不能跨 bundle 混用模型、PMF 或 QP patch。</p>
+<h2 id="4-encoder">4. Encoder 分阶段<a class="headerlink" href="#4-encoder" title="Permanent link">&para;</a></h2>
+<p>以下是修复 NaN 后的标准 I/O 基线，用于展示原始优化目标：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>MLVC (ms)</th>
+<th>MLVC 占比</th>
+<th>MLVC-S (ms)</th>
+<th>MLVC-S 占比</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>YUV→fp16 NHWC</td>
+<td>0.611</td>
+<td>0.5%</td>
+<td>0.613</td>
+<td>0.9%</td>
+<td>两种变体输入尺寸相同</td>
+</tr>
+<tr>
+<td><code>rknn_inputs_set</code></td>
+<td>28.026</td>
+<td>22.3%</td>
+<td>18.289</td>
+<td>27.3%</td>
+<td>host copy + runtime layout 处理</td>
+</tr>
+<tr>
+<td><strong><code>rknn_run</code></strong></td>
+<td><strong>88.014</strong></td>
+<td><strong>70.0%</strong></td>
+<td><strong>44.162</strong></td>
+<td><strong>66.0%</strong></td>
+<td>模型执行</td>
+</tr>
+<tr>
+<td><code>rknn_outputs_get</code></td>
+<td>1.923</td>
+<td>1.5%</td>
+<td>1.258</td>
+<td>1.9%</td>
+<td>取逻辑 NCHW 输出</td>
+</tr>
+<tr>
+<td>输出后处理</td>
+<td>5.684</td>
+<td>4.5%</td>
+<td>1.965</td>
+<td>2.9%</td>
+<td>finite 校验、latent 转换、feature NCHW→NHWC</td>
+</tr>
+<tr>
+<td><code>extract_scales</code></td>
+<td>0.162</td>
+<td>0.1%</td>
+<td>0.064</td>
+<td>0.1%</td>
+<td>熵模型索引</td>
+</tr>
+<tr>
+<td>rANS + packet</td>
+<td>1.359</td>
+<td>1.1%</td>
+<td>0.540</td>
+<td>0.8%</td>
+<td>熵编码与帧包分配</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td><strong>125.778</strong></td>
+<td><strong>100%</strong></td>
+<td><strong>66.891</strong></td>
+<td><strong>100%</strong></td>
+<td>三轮均值；分项显示值有舍入</td>
+</tr>
+</tbody>
+</table>
+<p>标准 MLVC 的 <code>inputs_set + outputs_get + 输出后处理</code> 为 35.63 ms/帧，是混合 I/O 的主要优化来源。混合路径显式保留逻辑 feature 边界并通过 70 帧递归一致性测试；仍不能仅凭 <code>n_elems</code> 或 native shape 相同直接 <code>memcpy</code>。</p>
+<p>混合 I/O 与同轮标准 I/O A/B 如下（均为 3 轮均值的样本统计）：</p>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>标准 I/O (ms/帧)</th>
+<th>混合 I/O (ms/帧)</th>
+<th>节省</th>
+<th><code>input_prepare</code> 代表值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MLVC</td>
+<td>125.607±0.571</td>
+<td><strong>95.293±0.136</strong></td>
+<td><strong>23.0%</strong></td>
+<td>27.96 → 0.29 ms</td>
+</tr>
+<tr>
+<td>MLVC-S</td>
+<td>66.660±0.299</td>
+<td><strong>47.781±0.265</strong></td>
+<td><strong>28.3%</strong></td>
+<td>18.27 → 0.29 ms</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-decoder">5. Decoder 分阶段<a class="headerlink" href="#5-decoder" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>MLVC (ms)</th>
+<th>MLVC 占比</th>
+<th>MLVC-S (ms)</th>
+<th>MLVC-S 占比</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rANS + <code>extract_scales</code></td>
+<td>2.200</td>
+<td>2.7%</td>
+<td>0.862</td>
+<td>2.1%</td>
+<td>熵解码</td>
+</tr>
+<tr>
+<td>NCHW→NC1HWC2 fp16</td>
+<td>0.247</td>
+<td>0.3%</td>
+<td>0.099</td>
+<td>0.2%</td>
+<td>latent 打包</td>
+</tr>
+<tr>
+<td>输入写入 + sync</td>
+<td>0.716</td>
+<td>0.9%</td>
+<td>0.301</td>
+<td>0.7%</td>
+<td>4 个 native tensor</td>
+</tr>
+<tr>
+<td><strong><code>rknn_run</code></strong></td>
+<td><strong>73.692</strong></td>
+<td><strong>90.7%</strong></td>
+<td><strong>36.005</strong></td>
+<td><strong>89.0%</strong></td>
+<td>模型执行</td>
+</tr>
+<tr>
+<td>x_hat→NV12</td>
+<td>2.558</td>
+<td>3.1%</td>
+<td>2.562</td>
+<td>6.3%</td>
+<td>CPU DepthToSpace DCR + NV12</td>
+</tr>
+<tr>
+<td>feature sync + copy</td>
+<td>1.811</td>
+<td>2.2%</td>
+<td>0.647</td>
+<td>1.6%</td>
+<td>下一帧 native reference</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td><strong>81.225</strong></td>
+<td><strong>100%</strong></td>
+<td><strong>40.475</strong></td>
+<td><strong>100%</strong></td>
+<td>三轮均值；分项显示值有舍入</td>
+</tr>
+</tbody>
+</table>
+<p>decoder 的 native feature 输出与下一帧 native reference 已经由当前模型链路验证可直接递归；它与发生问题的 encoder producer/consumer 对不是同一接口契约。标准 decoder 的首要瓶颈仍是模型执行，其次是 CPU 侧 <code>x_hat→NV12</code>。</p>
+<h2 id="6">6. 正确性与确定性<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>检查</th>
+<th>MLVC</th>
+<th>MLVC-S</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>70 帧连续 encode/decode</td>
+<td>通过</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>第二帧及后续 finite 检查</td>
+<td>通过</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>三轮码流逐字节一致</td>
+<td>通过</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>三轮解码 YUV 逐字节一致</td>
+<td>通过</td>
+<td>通过</td>
+</tr>
+<tr>
+<td>码流 SHA-256</td>
+<td><code>ff9f19261e028107ca9c2afbe94ac173cdadaf9c8ec40d19f33ba6a6c4ed1196</code></td>
+<td><code>fb6c1710718e000da8fce7f8c5616c643ff7f0e9cf5414e4ff5a4536b0a36dd2</code></td>
+</tr>
+<tr>
+<td>解码 YUV SHA-256</td>
+<td><code>3b8c4971da0d34f576d8d57aa4162808b3dc745aa8de9cc0f8f02bd528678d0f</code></td>
+<td><code>1fb39dee2c2e36bb520e1b1d0e942ec3d02094499108e11a911dd8175463cb26</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="7">7. 当前优化优先级<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>NPU 模型执行（混合 I/O 后 MLVC encoder 约 91%）</strong>：继续从 ONNX/RKNN 算子分配和网络结构入手；这已成为 encoder 的绝对主瓶颈。</li>
+<li><strong>Encoder 输出逻辑化</strong>：若继续优化，需在导出图边界显式证明 producer 到 consumer 的 native 映射；不能回退到 native <code>memcpy</code>。</li>
+<li><strong>Decoder x_hat→NV12（MLVC/MLVC-S 均约 2.56 ms）</strong>：两种变体固定成本几乎相同，可继续做 SIMD/并行化，但优先级低于 encoder I/O 和 NPU 模型本体。</li>
+</ol>
+<h2 id="a-rk3588">附录 A：旧 RK3588 数据（仅作历史参考）<a class="headerlink" href="#a-rk3588" title="Permanent link">&para;</a></h2>
+<p>2026-08-13 的旧报告使用 RK3588、RKNN API 2.4.2a2、三 NPU 核和旧 encoder native I/O。平台、模型产物、运行时和 I/O 路径均与本次不同，不能用来计算本次修复的性能回退比例。</p>
+<table>
+<thead>
+<tr>
+<th>旧指标</th>
+<th>Encoder</th>
+<th>Decoder</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>独立 <code>rknn_run</code></td>
+<td>88.0 ms</td>
+<td>178.2 ms</td>
+</tr>
+<tr>
+<td>旧端到端节点</td>
+<td>98.4 ms</td>
+<td>188.4 ms</td>
+</tr>
+<tr>
+<td>PERF_DETAIL 采集开销</td>
+<td>+15.1%</td>
+<td>+27.9%</td>
+</tr>
+</tbody>
+</table>
+<p>旧 PERF_DETAIL 的相对分布显示 encoder CPU fallback 约 36.5%（主要为 SpaceToDepth、Max、Div），decoder 约 58.8% 的算子时间位于 NPU ConvTranspose。它们只用于解释当时的模型，不代表当前 RK3576 模型的算子分布；当前模型若要作相同结论，必须重新以 <code>RKNN_QUERY_PERF_DETAIL</code> 采样。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.6970bfe9.min.js"></script>
+      
+    
+  </body>
+</html>

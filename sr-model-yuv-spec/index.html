@@ -1,0 +1,788 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/sr-model-yuv-spec/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.59">
+    
+    
+      
+        <title>Phase-RLFN 超分模型：ONNX → RKNN → bundle - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#phase-rlfn-onnx-rknn-bundle" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Phase-RLFN 超分模型：ONNX → RKNN → bundle
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 参考
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  打包与分发
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        固定运行时契约
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="固定运行时契约">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rga" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RGA 基座与训练假设的一致性（实测）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fp16-int8kl" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        FP16 与 INT8（KL 校准）实机对照
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 准备项目 Python 环境
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-checkpoint" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 准备 checkpoint
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-rknn" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 生成 RKNN 校准集
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-onnxrknn-bundle" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. 一键导出 ONNX、RKNN 和 bundle
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. 构建、打包与实机门禁
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="phase-rlfn-onnx-rknn-bundle">Phase-RLFN 超分模型：ONNX → RKNN → bundle<a class="headerlink" href="#phase-rlfn-onnx-rknn-bundle" title="Permanent link">&para;</a></h1>
+<p>RKVC 的 <code>rkvc_sr</code> 仅支持开源项目
+<a href="https://github.com/Puiching-Memory/rknn-super-resolution">Puiching-Memory/rknn-super-resolution</a>
+的 3×、单输入 fallback 部署 core。旧 RGB 端到端 RKNN 与 codec-aware 双输入模型均不兼容。</p>
+<h2 id="_1">固定运行时契约<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>约定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>颜色空间</td>
+<td>MLVC BT.709 full-range YCbCr444 <code>[0,255]</code></td>
+</tr>
+<tr>
+<td>输入</td>
+<td><code>phases</code>: uint8 <strong>NHWC</strong> 字节流 <code>1×180×320×12</code>（逻辑 <code>1×12×180×320</code>，640×360 经 PixelUnshuffle(2)）</td>
+</tr>
+<tr>
+<td>输出</td>
+<td><code>phase_residual</code>: <strong>NCHW</strong> 平面字节流 <code>1×108×180×320</code>（PixelShuffle(6) 后为 1920×1080）</td>
+</tr>
+<tr>
+<td>倍率</td>
+<td>固定 3×</td>
+</tr>
+<tr>
+<td>codec context</td>
+<td>关闭；必须导出 <code>--no-codec-context</code> 的单输入 fallback core</td>
+</tr>
+<tr>
+<td>RKNN target</td>
+<td>默认 <code>rk3588</code></td>
+</tr>
+</tbody>
+</table>
+<p>运行时流程：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>NV12 640×360
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ├─ Y/UV → YCbCr444 → PixelUnshuffle(2) → RKNN Phase-RLFN core ─┐
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  └─ RGA bicubic → NV12 1920×1080                              │
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                                                               ↓
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                PixelShuffle(6) residual → Y 逐点相加 / UV 2×2 平均 → NV12
+</span></code></pre></div>
+<p>实现位于 <code>lib/node_rkvc_sr.c</code> 与 <code>lib/rkvc_sr_phase.c</code>。创建上下文时会检查模型
+恰好为单输入/单输出、<code>12→108</code> 通道契约；宿主输入属性被工具链记为 NHWC
+（dims <code>1×180×320×12</code>，rknn-toolkit2 对 NCHW 图的常见记法）时同样接受。旧 3 通道模型或双输入模型直接失败。</p>
+<blockquote>
+<p><strong>布局契约（实机测定，勿凭直觉修改）</strong>：rknn 驱动直接按属性 <code>dims</code> 解释宿主
+缓冲的线性字节序，<strong>不做自动转置</strong>，且输入/输出属性不对称：输入记为 NHWC
+（<code>1×H×W×12</code>）、输出记为 NCHW（<code>1×108×H×W</code>）。因此 <code>rkvc_sr_phase_pack_nv12</code>
+必须逐像素交错打包，而 <code>rkvc_sr_phase_add_residual_nv12</code> 必须按平面主序读取。
+用恒等模型（<code>out = x * 1.0</code>，输入值编码线性索引）+ x86 模拟器可交叉验证：
+错误字节序会使 NPU 输出与 ONNX 参考差到 rms≈10 的量级，看起来像“FP16 精度
+不足”，实为布局问题。</p>
+</blockquote>
+<h3 id="rga">RGA 基座与训练假设的一致性（实测）<a class="headerlink" href="#rga" title="Permanent link">&para;</a></h3>
+<p>训练基座为 <code>F.interpolate(bicubic, align_corners=False)</code>（见上游 <code>PhaseRLFNSR.bicubic_base</code>）；
+运行时基座为 RGA 硬件 <code>imresize INTER_CUBIC</code>（NV12 3×，同一 <code>node_rga.c</code> 路径）。
+RK3576 实机实测（librga 1.10.6_[3]，Johnny 640×360→1920×1080）：</p>
+<table>
+<thead>
+<tr>
+<th>平面</th>
+<th>MAE</th>
+<th>MAX</th>
+<th>PSNR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Y</td>
+<td>0.82</td>
+<td>38</td>
+<td>41.2dB</td>
+</tr>
+<tr>
+<td>U</td>
+<td>0.34</td>
+<td>29</td>
+<td>48.1dB</td>
+</tr>
+<tr>
+<td>V</td>
+<td>0.29</td>
+<td>15</td>
+<td>49.8dB</td>
+</tr>
+</tbody>
+</table>
+<p>1px 细线合成帧线能量比 0.98（无细节丢失）。差异来自两种 bicubic 实现的
+系数精度/裁剪差异，属预期范围；模型残差学习对此鲁棒。
+注意：RGA 的 RGB→YUV420 CSC 存在色度下采样取 2×2 块左上角而非均值的已知问题
+（<a href="https://github.com/airockchip/librga/issues/122">librga#122</a>，1.10.6_[3] 实测复现，
+细线场景色度严重失真）；本项目管线全 NV12 域、无 RGB→YUV420 CSC 调用，
+不受影响；若未来新增该方向转换，勿用 RGA 硬件 CSC 处理含细线/文字内容。</p>
+<h3 id="fp16-int8kl">FP16 与 INT8（KL 校准）实机对照<a class="headerlink" href="#fp16-int8kl" title="Permanent link">&para;</a></h3>
+<p>均在上述<strong>正确宿主字节序</strong>下重测（早期所有“INT8 误差大于信号”的结论
+均因输入被转置而失效）：</p>
+<table>
+<thead>
+<tr>
+<th>配置</th>
+<th>模型体积</th>
+<th>Y-PSNR</th>
+<th>SSIM Y</th>
+<th>NPU 侧 ms/帧（inputs_set+run+outputs_get）</th>
+<th>30 帧端到端</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RGA bicubic 基线</td>
+<td>—</td>
+<td>25.33</td>
+<td>0.857</td>
+<td>—</td>
+<td>1.4s</td>
+</tr>
+<tr>
+<td>FP16（<code>--no-quantize</code>）</td>
+<td>601KB</td>
+<td>26.30</td>
+<td>0.879</td>
+<td>9.4+20.7+19.5 = 49.6</td>
+<td>3.9s</td>
+</tr>
+<tr>
+<td>INT8 + KL 校准</td>
+<td>375KB</td>
+<td>26.25</td>
+<td>0.878</td>
+<td>6.8+11.1+15.2 = 33.1</td>
+<td>3.3s</td>
+</tr>
+</tbody>
+</table>
+<p>测试条件：RK3576，Johnny 640×360→1920×1080，30 帧，rknnrt 2.3.2 / NPU 驱动 0.9.8。
+INT8 相对 FP16 仅 −0.05dB / −0.001 SSIM，但 NPU 侧快约 1.5×、体积小 38%；
+<code>export_model.py</code> 单独运行时默认导出 INT8，FP16 可用于排查量化回归。自动打包路径当前固定传入 <code>--no-quantize</code>，因此可移植包默认携带 FP16 模型，避免在没有代表性校准集时生成误导性的 PTQ 产物；交付 INT8 前应准备校准集并显式导出到 <code>.build/models/&lt;platform&gt;/rkvc-sr/</code>。</p>
+<p>其他实测要点：</p>
+<ul>
+<li>融合阶段（<code>rkvc_sr_phase_add_residual_nv12</code>）是单线程 CPU 热路径，对大小核
+  敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 按 <code>docs/mlvc-npu-profile.md</code> 的
+  约定用 <code>taskset -c 4-7</code> 固定到大核簇。</li>
+<li><code>rknn_outputs_get(want_float=1)</code> 的 FP32 转换要占 15–20ms/帧（输出 6.2M 元素）；
+  改为 <code>want_float=0</code> 取回原生布局可再省 7ms（FP16）/11ms（INT8），但融合
+  路径需自行反量化。</li>
+<li>ONNX float32 参考（x86，onnxruntime）与板端 FP16 输出在正确布局下一致到
+  rms 0.004 / max 0.09，与理想融合（ONNX 残差 + 管线 RGA 基座）的一致性 73.5dB，
+  即可认为 NPU 路径无额外损失。</li>
+</ul>
+<h2 id="1-python">1. 准备项目 Python 环境<a class="headerlink" href="#1-python" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>sync
+</span></code></pre></div>
+<p>本仓将上游源码固定到 <code>tools/sr/export_model.py</code> 中的 commit，并默认浅克隆到
+<code>.build/deps/rknn-super-resolution/</code>。上游训练环境绑定 Python 3.13/CUDA，RKNN
+Toolkit 与其 Torch 版本冲突；本适配器只导入上游模型定义，在本仓 Python 3.12
+环境中完成静态 ONNX 导出和 RKNN 转换。</p>
+<h2 id="2-checkpoint">2. 准备 checkpoint<a class="headerlink" href="#2-checkpoint" title="Permanent link">&para;</a></h2>
+<p>传入上游训练生成的 <code>best_ema.pth</code>（默认按 codec-aware QAT checkpoint 读取）：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/path/to/checkpoints/phase-rlfn-codec-v1/best_ema.pth
+</span></code></pre></div>
+<p>官方 QAT checkpoint 已托管在 HuggingFace
+<a href="https://huggingface.co/Sail2Dream/phase-rlfn-codec-v1">Sail2Dream/phase-rlfn-codec-v1</a>（<code>best_ema.pth</code>，
+SHA-256 <code>0cf78cee...c84070</code>）。当前需由导出工具显式下载或传入该权重；
+手动导出也可直接下载后传给 <code>--weight</code>。若使用 float checkpoint（仓内 <code>float/best.pth</code>），
+导出时加 <code>--no-from-qat</code>。</p>
+<p>QAT checkpoint 除可学习权重外还包含 observer/fake-quant 状态；这些训练算子不能由
+本仓固定的 Torch 2.2 legacy ONNX exporter 导出。适配器会按名称和 shape 严格提取
+deploy graph 的全部可学习参数，拒绝缺失/错形状，然后导出不含训练观测器的干净
+单输入 core。未传 <code>codec_feature</code>，其 adapter 分支不会进入 ONNX。</p>
+<h2 id="3-rknn">3. 生成 RKNN 校准集<a class="headerlink" href="#3-rknn" title="Permanent link">&para;</a></h2>
+<p>从代表实际低分辨率解码分布的图片生成单输入 <code>.npy</code>。工具会先模拟 NV12
+4:2:0 色度采样，再使用与 C 运行时相同的双线性 4:4:4 扩展和 PixelUnshuffle：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>.venv/bin/python<span class="w"> </span>tools/sr/build_calibration.py<span class="w"> </span>/path/to/lr-images<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>--output-dir<span class="w"> </span>.build/sr-calibration/tensors<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--output-list<span class="w"> </span>.build/sr-calibration/calibration.txt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--width<span class="w"> </span><span class="m">640</span><span class="w"> </span>--height<span class="w"> </span><span class="m">360</span><span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
+</span></code></pre></div>
+<p>生产转换应优先使用真实“编码→解码”后的 LR 帧。上游自带的
+<code>rknn-super-resolution-build-rknn-calibration</code> 也可生成 MLVC 重建分布；本项目
+只消费其单输入 calibration list，不消费 <code>codec_feature</code> 第二列。</p>
+<h2 id="4-onnxrknn-bundle">4. 一键导出 ONNX、RKNN 和 bundle<a class="headerlink" href="#4-onnxrknn-bundle" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>.venv/bin/python<span class="w"> </span>tools/sr/export_model.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--weight<span class="w"> </span>/path/to/best_ema.pth<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--calibration-list<span class="w"> </span>.build/sr-calibration/calibration.txt<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--target<span class="w"> </span>rk3588<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--output-dir<span class="w"> </span>models/rkvc-sr
+</span></code></pre></div>
+<p>默认执行：静态单输入 ONNX → 契约校验 → INT8 RKNN → SHA-256 manifest →
+上游 MIT LICENSE/SOURCE 信息。常用变体：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 只导出并检查 ONNX</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>.venv/bin/python<span class="w"> </span>tools/sr/export_model.py<span class="w"> </span>--weight<span class="w"> </span>/path/to/best_ema.pth<span class="w"> </span>--onnx-only
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># 从 HF QAT checkpoint 免校准导出（打包自动流程同款，不做 PTQ，无需校准集）</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>.venv/bin/python<span class="w"> </span>tools/sr/export_model.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span>--weight<span class="w"> </span>/path/to/best_ema.pth<span class="w"> </span>--no-quantize<span class="w"> </span>--target<span class="w"> </span>rk3576
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># 从已审核 ONNX 开始转换</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>.venv/bin/python<span class="w"> </span>tools/sr/export_model.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span>--onnx<span class="w"> </span>/path/to/phase_rlfn_sr_x3.onnx<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span>--calibration-list<span class="w"> </span>.build/sr-calibration/calibration.txt
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># FP16 调试模型，不量化</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>.venv/bin/python<span class="w"> </span>tools/sr/export_model.py<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">  </span>--weight<span class="w"> </span>/path/to/float.pth<span class="w"> </span>--no-from-qat<span class="w"> </span>--no-quantize
+</span></code></pre></div>
+<blockquote>
+<p>自动下载 HF QAT checkpoint 并用 <code>--no-quantize</code> 转换，无需校准集；手动
+INT8 校准变体（§3）可用于自定义校准分布。</p>
+</blockquote>
+<p>完整 bundle：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>models/rkvc-sr/
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>├── phase_rlfn_sr_x3.onnx
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>├── phase_rlfn_sr_x3.rknn
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>├── sr_export_manifest.json
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>├── LICENSE.rknn-super-resolution-MIT
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>└── SOURCE.md
+</span></code></pre></div>
+<p>模型产物默认被 Git 忽略，manifest、LICENSE 与 SOURCE 由每次导出刷新。不要混用
+不同 checkpoint、ONNX、RKNN 或 manifest。</p>
+<p>可单独校验 bundle；模型适配器必须执行同一大小/SHA-256 门禁：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python3<span class="w"> </span>tools/sr/verify_bundle.py<span class="w"> </span>models/rkvc-sr
+</span></code></pre></div>
+<h2 id="5">5. 构建、打包与实机门禁<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>SR 模型必须进入 <code>.rkmodel</code> 注册表，由 request 约束选择。实机门禁要求
+RKNN NPU 与 RGA，并建立正确性、性能和长稳基线。</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.6970bfe9.min.js"></script>
+      
+    
+  </body>
+</html>
