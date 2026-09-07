@@ -48,7 +48,12 @@ if(NOT _rkvc_sysroot STREQUAL "")
     # 时自动创建（幂等），路径可用环境变量覆盖。
     set(_rkvc_cross_cache "$ENV{RKVC_CROSS_CACHE}")
     if(_rkvc_cross_cache STREQUAL "")
-        set(_rkvc_cross_cache "/root/.rkvc-cross")
+        # 不写项目文件夹之外（CI runner 非 root、无权写 /root）：默认落在
+        # 项目内 .build/（已被 .gitignore 忽略），与构建树同生命周期；
+        # RKVC_CROSS_CACHE 仍可显式覆盖。
+        get_filename_component(_rkvc_proj_root
+                               "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+        set(_rkvc_cross_cache "${_rkvc_proj_root}/.build/rkvc-cross")
     endif()
     set(_rkvc_gcc_builtin_inc "$ENV{RKVC_GCC_BUILTIN_INC}")
     if(_rkvc_gcc_builtin_inc STREQUAL "")

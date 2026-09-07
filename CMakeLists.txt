@@ -22,6 +22,8 @@ if(RKVC_BUILD_TESTS)
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(CMOCKA REQUIRED cmocka)
     enable_testing()
+    # 测试夹具统一写项目内 .temp/（不写 /tmp，CI 与本地一致且可被 gitignore）。
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/.temp")
 
     find_package(Git QUIET)
     if(Git_FOUND AND EXISTS
@@ -50,7 +52,8 @@ if(RKVC_BUILD_TESTS)
     function(rkvc_add_core_test name source)
         add_executable(${name} ${source} ${RKVC_STANDALONE_SOURCES})
         target_compile_definitions(${name} PRIVATE
-            RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE)
+            RKVC_STANDALONE_TEST=1 _DEFAULT_SOURCE
+            RKVC_TEST_TMPDIR="${CMAKE_CURRENT_SOURCE_DIR}/.temp")
         target_include_directories(${name} PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${CMAKE_CURRENT_SOURCE_DIR}/lib
@@ -78,7 +81,8 @@ if(RKVC_BUILD_TESTS)
         backends/backend_rknn.c
         ${RKVC_STANDALONE_SOURCES})
     target_compile_definitions(test_backend_rknn PRIVATE
-        RKVC_STANDALONE_TEST=1 RKVC_RKNN_TESTING=1 _DEFAULT_SOURCE)
+        RKVC_STANDALONE_TEST=1 RKVC_RKNN_TESTING=1 _DEFAULT_SOURCE
+        RKVC_TEST_TMPDIR="${CMAKE_CURRENT_SOURCE_DIR}/.temp")
     target_include_directories(test_backend_rknn PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/c/fake_rknn
         ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -103,7 +107,8 @@ if(RKVC_BUILD_TESTS)
         backends/mlvc/container.c
         ${RKVC_STANDALONE_SOURCES})
     target_compile_definitions(test_backend_mlvc PRIVATE
-        RKVC_STANDALONE_TEST=1 RKVC_MLVC_TESTING=1 _DEFAULT_SOURCE)
+        RKVC_STANDALONE_TEST=1 RKVC_MLVC_TESTING=1 _DEFAULT_SOURCE
+        RKVC_TEST_TMPDIR="${CMAKE_CURRENT_SOURCE_DIR}/.temp")
     target_include_directories(test_backend_mlvc PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/c/fake_rknn
         ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -172,7 +172,10 @@ def export_models(
     default_qp: int | None = None,
 ) -> dict[str, Any]:
     keep_prepared = keep_onnx or skip_rknn
-    work = Path(tempfile.mkdtemp(prefix="rkvc_mlvc_onnx_"))
+    # 中间产物统一放项目内 .temp/（不写系统 /tmp），用完仍由 finally 清理。
+    _tmp_root = Path(__file__).resolve().parents[2] / ".temp"
+    _tmp_root.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix="rkvc_mlvc_onnx_", dir=_tmp_root))
     models_meta: dict[str, Any] = {}
     try:
         for part in ("encoder", "decoder"):

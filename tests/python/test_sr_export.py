@@ -10,6 +10,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+# 测试临时目录统一落项目内 .temp/，不写系统临时目录。
+_TMP_ROOT = ROOT / ".temp"
+_TMP_ROOT.mkdir(exist_ok=True)
+tempfile.tempdir = str(_TMP_ROOT)
 TOOLS = ROOT / "tools" / "sr"
 sys.path.insert(0, str(TOOLS))
 

@@ -242,7 +242,8 @@ static const rkvc_backend scale_backend = {
 
 /* ── 公共夹具 ─────────────────────────────────────────────────────── */
 
-#define MODEL_DIR "/tmp/rkvc_test_binding/models"
+#define TEST_ROOT RKVC_TEST_TMPDIR "/rkvc_test_binding"
+#define MODEL_DIR TEST_ROOT "/models"
 
 /** 生成确定性的 RKNN 载荷内容。 */
 static void fill_payload(uint8_t payload[MODEL_PAYLOAD_LEN]) {
@@ -299,7 +300,7 @@ static void test_bind_model_receives_payload(void **state) {
 
     fill_payload(payload);
     build_container(&container, payload);
-    mkdir("/tmp/rkvc_test_binding", 0755);
+    mkdir(TEST_ROOT, 0755);
     mkdir(MODEL_DIR, 0755);
     write_file(MODEL_DIR "/sr-x3.rkmodel", container.bytes, container.len);
 
@@ -347,9 +348,9 @@ static void test_fallback_when_no_model(void **state) {
     rkvc_frame *out = NULL;
     (void)state;
 
-    mkdir("/tmp/rkvc_test_binding_empty", 0755);
+    mkdir(TEST_ROOT "/_empty", 0755);
     g_bind_count = 0;
-    ctx = make_context("/tmp/rkvc_test_binding_empty");
+    ctx = make_context(TEST_ROOT "/_empty");
     assert_int_equal(rkvc_registry_add_backend(ctx, &sr_backend),
                      RKVC_STATUS_OK);
     assert_int_equal(rkvc_registry_add_backend(ctx, &scale_backend),
@@ -385,14 +386,14 @@ static void test_truncated_payload_rejected(void **state) {
     fill_payload(payload);
     data_off = build_container(&container, payload);
     container.bytes[data_off + 7] ^= 0xff; /* 破坏载荷区一个字节 */
-    const char *path = "/tmp/rkvc_test_binding_truncated/models/bad.rkmodel";
-    mkdir("/tmp/rkvc_test_binding_truncated", 0755);
-    mkdir("/tmp/rkvc_test_binding_truncated/models", 0755);
+    const char *path = TEST_ROOT "/_truncated/models/bad.rkmodel";
+    mkdir(TEST_ROOT "/_truncated", 0755);
+    mkdir(TEST_ROOT "/_truncated/models", 0755);
     write_file(path,
                container.bytes, container.len);
 
     g_bind_count = 0;
-    ctx = make_context("/tmp/rkvc_test_binding_truncated/models");
+    ctx = make_context(TEST_ROOT "/_truncated/models");
     assert_int_equal(rkvc_model_count(ctx), 1);
     assert_int_equal(truncate(path, (off_t)(data_off + 7)), 0);
     assert_int_equal(rkvc_registry_add_backend(ctx, &sr_backend),

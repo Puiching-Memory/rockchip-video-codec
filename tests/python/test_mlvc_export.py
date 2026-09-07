@@ -12,6 +12,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+# 测试临时目录统一落项目内 .temp/，不写系统临时目录。
+_TMP_ROOT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    ".temp")
+os.makedirs(_TMP_ROOT, exist_ok=True)
+tempfile.tempdir = _TMP_ROOT
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]

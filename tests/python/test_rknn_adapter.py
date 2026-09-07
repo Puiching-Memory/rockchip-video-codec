@@ -10,6 +10,11 @@ from unittest import mock
 
 from tools.rkvc_build.adapters.rknn import RknnAdapter
 from tools.rkvc_build import cmake_stage
+
+# 测试临时目录统一落项目内 .temp/，不写系统临时目录。
+_TMP_ROOT = pathlib.Path(__file__).resolve().parents[2] / ".temp"
+_TMP_ROOT.mkdir(exist_ok=True)
+tempfile.tempdir = str(_TMP_ROOT)
 from tools.rkvc_build.sbom import aggregate_legal, write_sbom
 
 

@@ -19,7 +19,7 @@
 #include "context_internal.h"
 #include "rkmodel_layout.h"
 
-#define TEST_ROOT "/tmp/rkvc_test_backend_rknn"
+#define TEST_ROOT RKVC_TEST_TMPDIR "/rkvc_test_backend_rknn"
 #define MODEL_DIR TEST_ROOT "/models"
 #define MODEL_PATH MODEL_DIR "/phase.rkmodel"
 

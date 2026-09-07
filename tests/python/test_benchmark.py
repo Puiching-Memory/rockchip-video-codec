@@ -9,6 +9,11 @@ import unittest
 
 from tools.bench import benchmark
 
+# 测试临时目录统一落项目内 .temp/，不写系统临时目录。
+_TMP_ROOT = pathlib.Path(__file__).resolve().parents[2] / ".temp"
+_TMP_ROOT.mkdir(exist_ok=True)
+tempfile.tempdir = str(_TMP_ROOT)
+
 
 class BenchmarkCaseTests(unittest.TestCase):
     def test_decode_dimensions_are_metrics_only(self) -> None:

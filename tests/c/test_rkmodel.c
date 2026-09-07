@@ -115,9 +115,9 @@ static void test_roundtrip(void **state) {
     (void)state;
 
     build_container(&container, 0x77, payloads, 2);
-    write_file("/tmp/rkvc_test_roundtrip.rkmodel",
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_roundtrip.rkmodel",
                container.bytes, container.len);
-    assert_int_equal(rkvc_rkmodel_open("/tmp/rkvc_test_roundtrip.rkmodel",
+    assert_int_equal(rkvc_rkmodel_open(RKVC_TEST_TMPDIR "/rkvc_test_roundtrip.rkmodel",
                                        &model, error, sizeof(error)),
                      RKVC_STATUS_OK);
     assert_string_equal(model.info.id, "sr-x2-test");
@@ -150,9 +150,9 @@ static void test_bad_magic(void **state) {
 
     build_container(&container, 0, &payload, 1);
     container.bytes[0] ^= 0xff;
-    write_file("/tmp/rkvc_test_badmagic.rkmodel",
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_badmagic.rkmodel",
                container.bytes, container.len);
-    assert_int_equal(rkvc_rkmodel_open("/tmp/rkvc_test_badmagic.rkmodel",
+    assert_int_equal(rkvc_rkmodel_open(RKVC_TEST_TMPDIR "/rkvc_test_badmagic.rkmodel",
                                        &model, error, sizeof(error)),
                      RKVC_STATUS_INVALID);
     assert_non_null(strstr(error, "magic"));
@@ -169,9 +169,9 @@ static void test_oversized_header(void **state) {
     build_container(&container, 0, &payload, 1);
     memcpy(container.bytes + offsetof(rkmodel_fixed, header_len),
            &huge, sizeof(huge));
-    write_file("/tmp/rkvc_test_hugehdr.rkmodel",
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_hugehdr.rkmodel",
                container.bytes, container.len);
-    assert_int_equal(rkvc_rkmodel_open("/tmp/rkvc_test_hugehdr.rkmodel",
+    assert_int_equal(rkvc_rkmodel_open(RKVC_TEST_TMPDIR "/rkvc_test_hugehdr.rkmodel",
                                        &model, NULL, 0), RKVC_STATUS_INVALID);
     free(container.bytes);
 }
@@ -186,9 +186,9 @@ static void test_old_payload_table_layout_rejected(void **state) {
     build_container(&container, 0, &payload, 1);
     fixed = (rkmodel_fixed *)container.bytes;
     fixed->payload_entry_size = 0;
-    write_file("/tmp/rkvc_test_old_layout.rkmodel",
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_old_layout.rkmodel",
                container.bytes, container.len);
-    assert_int_equal(rkvc_rkmodel_open("/tmp/rkvc_test_old_layout.rkmodel",
+    assert_int_equal(rkvc_rkmodel_open(RKVC_TEST_TMPDIR "/rkvc_test_old_layout.rkmodel",
                                        &model, NULL, 0), RKVC_STATUS_INVALID);
     free(container.bytes);
 }
@@ -206,8 +206,8 @@ static void test_payload_out_of_bounds(void **state) {
     entry = (rkmodel_payload_entry *)(container.bytes + sizeof(*fixed) +
                                       fixed->header_len);
     entry->length = container.len;
-    write_file("/tmp/rkvc_test_oob.rkmodel", container.bytes, container.len);
-    assert_int_equal(rkvc_rkmodel_open("/tmp/rkvc_test_oob.rkmodel",
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_oob.rkmodel", container.bytes, container.len);
+    assert_int_equal(rkvc_rkmodel_open(RKVC_TEST_TMPDIR "/rkvc_test_oob.rkmodel",
                                        &model, NULL, 0), RKVC_STATUS_INVALID);
     free(container.bytes);
 }
@@ -222,9 +222,9 @@ static void test_duplicate_payload_kind(void **state) {
     (void)state;
 
     build_container(&container, 0, payloads, 2);
-    write_file("/tmp/rkvc_test_duplicate.rkmodel",
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_duplicate.rkmodel",
                container.bytes, container.len);
-    assert_int_equal(rkvc_rkmodel_open("/tmp/rkvc_test_duplicate.rkmodel",
+    assert_int_equal(rkvc_rkmodel_open(RKVC_TEST_TMPDIR "/rkvc_test_duplicate.rkmodel",
                                        &model, NULL, 0), RKVC_STATUS_INVALID);
     free(container.bytes);
 }
@@ -233,7 +233,7 @@ static void test_registry_scan(void **state) {
     test_payload payload = {RKMODEL_PAYLOAD_RKNN, PAYLOAD_B, sizeof(PAYLOAD_B)};
     blob good;
     blob bad;
-    const char *dirs[1] = {"/tmp/rkvc_test_models"};
+    const char *dirs[1] = {RKVC_TEST_TMPDIR "/rkvc_test_models"};
     rkvc_context_options options;
     rkvc_context *context = NULL;
     rkvc_model_info info;
@@ -241,10 +241,12 @@ static void test_registry_scan(void **state) {
 
     mkdir(dirs[0], 0755);
     build_container(&good, 0, &payload, 1);
-    write_file("/tmp/rkvc_test_models/good.rkmodel", good.bytes, good.len);
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_models/good.rkmodel",
+               good.bytes, good.len);
     build_container(&bad, 0, &payload, 1);
     bad.bytes[0] ^= 0xff;
-    write_file("/tmp/rkvc_test_models/bad.rkmodel", bad.bytes, bad.len);
+    write_file(RKVC_TEST_TMPDIR "/rkvc_test_models/bad.rkmodel",
+               bad.bytes, bad.len);
 
     rkvc_context_options_init(&options, sizeof(options));
     options.paths.model_dirs = dirs;

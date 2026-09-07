@@ -21,6 +21,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
+# 测试临时目录统一落项目内 .temp/，不写系统临时目录。
+_TMP_ROOT = ROOT / ".temp"
+_TMP_ROOT.mkdir(exist_ok=True)
+tempfile.tempdir = str(_TMP_ROOT)
 
 from rkvc_build.verify import policy  # noqa: E402
 from rkvc_build.verify.elf import read_elf  # noqa: E402

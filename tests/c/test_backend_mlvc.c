@@ -27,7 +27,7 @@
 #include "mlvc/container.h"
 #include "mlvc/mlvc_pixel.h"
 
-#define TEST_ROOT "/tmp/rkvc_test_backend_mlvc"
+#define TEST_ROOT RKVC_TEST_TMPDIR "/rkvc_test_backend_mlvc"
 #define MODEL_DIR TEST_ROOT "/models"
 #define ENC_MODEL_PATH MODEL_DIR "/mlvc-enc.rkmodel"
 #define DEC_MODEL_PATH MODEL_DIR "/mlvc-dec.rkmodel"

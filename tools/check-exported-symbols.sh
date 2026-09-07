@@ -13,7 +13,9 @@ if [[ -z "$LIB" || ! -f "$LIB" ]]; then
     exit 2
 fi
 
-tmp_dir="$(mktemp -d)"
+# 项目内临时目录（不写 /tmp）。
+mkdir -p "$PROJECT_DIR/.temp"
+tmp_dir="$(mktemp -d "$PROJECT_DIR/.temp/so-symbols.XXXXXX")"
 trap 'rm -rf "$tmp_dir"' EXIT
 
 # 22.04 runner 镜像不带 ripgrep，本脚本只用 GNU grep（-P 的 lookahead Ubuntu 均支持）。

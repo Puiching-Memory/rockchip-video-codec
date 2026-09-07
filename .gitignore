@@ -4,6 +4,8 @@
 .build/
 # 0.3 MLVC 参考源码（只读对照用，不入库）
 .mlvc-ref/
+# 项目内临时目录（C/Python 测试、导出工具的中间产物统一落这里）
+.temp/
 build/
 build-*/
 build_*/
