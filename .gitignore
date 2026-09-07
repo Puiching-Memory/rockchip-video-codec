@@ -12,6 +12,7 @@ build_*/
 *.so
 *.so.*
 *.dylib
+*.tmp/
 
 # CMake / CTest / CPack
 CMakeCache.txt
