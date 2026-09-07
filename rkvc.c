@@ -59,8 +59,10 @@ static void usage(FILE *out) {
         "            in.mp4/in.mkv 等容器输入自动 demux（ffmpeg 后端）\n"
         "  encode    -i in.nv12 -o out.es --width W --height H\n"
         "            [--codec h264|hevc|av1|mlvc] [--bitrate BPS] [--qp QP]\n"
+        "            [--gop N] [--ltr start,period]\n"
         "            av1 走 SVT 软件编码；mlvc 需 NPU 模型；\n"
-        "            --qp 为 MLVC 量化档（默认 21）\n"
+        "            --qp 为 MLVC 量化档（默认 21）；\n"
+        "            --gop/--ltr 仅 MLVC 生效（默认随模型变体）\n"
         "  transcode -i in.es -o out.es --codec h264|hevc|av1 [--bitrate BPS]\n"
         "            [--width W --height H] 转码中缩放\n"
         "  upscale   -i in.nv12 -o out.nv12 --width W --height H\n"
@@ -387,6 +389,9 @@ typedef struct media_options {
     long height;
     long bitrate;
     long qp;
+    long gop;
+    long ltr_start;
+    long ltr_period;
     rkvc_codec codec;
 } media_options;
 
@@ -463,6 +468,24 @@ static int parse_media_options(int argc, char **argv, int start,
         } else if (!strcmp(a, "--qp")) {
             if (++i >= argc || !parse_long_value(argv[i], 0, 255,
                                                  &opts->qp)) return 0;
+        } else if (!strcmp(a, "--gop")) {
+            if (++i >= argc || !parse_long_value(argv[i], 0, UINT32_MAX,
+                                                 &opts->gop)) return 0;
+        } else if (!strcmp(a, "--ltr")) {
+            /* start,period；period=0 关闭 LTR */
+            char *comma;
+            if (++i >= argc) return 0;
+            comma = strchr(argv[i], ',');
+            if (!comma) return 0;
+            {
+                long sv, pv;
+                *comma = '\0';
+                if (!parse_long_value(argv[i], 0, UINT32_MAX, &sv) ||
+                    !parse_long_value(comma + 1, 0, UINT32_MAX, &pv))
+                    return 0;
+                opts->ltr_start = sv;
+                opts->ltr_period = pv;
+            }
         } else if (bench && !strcmp(a, "--warmup")) {
             if (++i >= argc || !parse_long_value(argv[i], 0, 1000,
                                                  &bench->warmup)) return 0;
@@ -549,6 +572,13 @@ static rkvc_status run_media_once(rkvc_operation op,
     req.height = (uint32_t)opts->height;
     req.quality.bitrate_bps = (int32_t)opts->bitrate;
     req.quality.qp = (int32_t)opts->qp;
+    req.quality.gop_size = (uint32_t)opts->gop;
+    if (opts->ltr_period > 0 || opts->ltr_start > 0) {
+        req.quality.ltr_period = (uint32_t)opts->ltr_period;
+        req.quality.ltr_start_idx = (uint32_t)opts->ltr_start;
+        if (!opts->ltr_period)
+            req.quality.ltr_period = UINT32_MAX; /* --ltr N,0 = 关闭 */
+    }
     req.model_id = opts->model;
     st = rkvc_job_create(ctx, &req, diag, &job);
     if (st == RKVC_STATUS_OK)

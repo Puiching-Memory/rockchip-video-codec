@@ -383,7 +383,12 @@ static int rknn_open(rkvc_node *node, rkvc_diag **diag) {
      * 量化重解释约定。宿主仍按 UINT8 递交（rknn_inputs_set 声明
      * RKNN_TENSOR_UINT8），runtime 依据 zp/scale 自动转换。因此除原生
      * UINT8 外，同时接受「INT8 + 仿射量化 + 零点 -128」的输入属性。 */
+    /* FP16 exports retain a floating host tensor attribute. inputs_set below
+     * explicitly submits UINT8 with pass_through=0, so RKNN converts the byte
+     * values to the model's floating input just as for quantized models. */
     if (up->input_attr.type != RKNN_TENSOR_UINT8 &&
+        up->input_attr.type != RKNN_TENSOR_FLOAT16 &&
+        up->input_attr.type != RKNN_TENSOR_FLOAT32 &&
         !(up->input_attr.type == RKNN_TENSOR_INT8 &&
           up->input_attr.qnt_type != RKNN_TENSOR_QNT_NONE &&
           up->input_attr.zp == -128)) {

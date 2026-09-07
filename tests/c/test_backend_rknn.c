@@ -18,6 +18,9 @@
 #include "rkvc/job.h"
 #include "context_internal.h"
 #include "rkmodel_layout.h"
+#include "rknn_api.h"
+
+extern void fake_rknn_sr_input_type(int type);
 
 #define TEST_ROOT RKVC_TEST_TMPDIR "/rkvc_test_backend_rknn"
 #define MODEL_DIR TEST_ROOT "/models"
@@ -163,9 +166,23 @@ static void test_phase_model_runs_as_transform(void **state) {
     rmdir(TEST_ROOT);
 }
 
+static void test_fp16_phase_model(void **state) {
+    fake_rknn_sr_input_type(RKNN_TENSOR_FLOAT16);
+    test_phase_model_runs_as_transform(state);
+    fake_rknn_sr_input_type(RKNN_TENSOR_UINT8);
+}
+
+static void test_fp32_phase_model(void **state) {
+    fake_rknn_sr_input_type(RKNN_TENSOR_FLOAT32);
+    test_phase_model_runs_as_transform(state);
+    fake_rknn_sr_input_type(RKNN_TENSOR_UINT8);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_phase_model_runs_as_transform),
+        cmocka_unit_test(test_fp16_phase_model),
+        cmocka_unit_test(test_fp32_phase_model),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

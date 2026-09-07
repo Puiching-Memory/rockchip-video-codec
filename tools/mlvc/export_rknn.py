@@ -40,6 +40,7 @@ if str(_DIR) not in sys.path:
 
 import pmf  # noqa: E402
 import qppatch  # noqa: E402
+import qptab  # noqa: E402
 import rknn_convert  # noqa: E402
 import export_onnx  # noqa: E402
 from onnx_rewrite import (  # noqa: E402
@@ -170,6 +171,7 @@ def export_models(
     skip_rknn: bool,
     extract_tail: bool,
     default_qp: int | None = None,
+    qp_dynamic: bool = False,
 ) -> dict[str, Any]:
     keep_prepared = keep_onnx or skip_rknn
     # 中间产物统一放项目内 .temp/（不写系统 /tmp），用完仍由 finally 清理。
@@ -177,6 +179,8 @@ def export_models(
     _tmp_root.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="rkvc_mlvc_onnx_", dir=_tmp_root))
     models_meta: dict[str, Any] = {}
+    # qp-dynamic：单模型覆盖全 QP，只跑一遍（qp 占位为 None）
+    qp_iter: list[int | None] = [None] if qp_dynamic else list(qp_list)
     try:
         for part in ("encoder", "decoder"):
             src = sources.get(part)
@@ -185,14 +189,22 @@ def export_models(
                 continue
             print(f"== {part}: {src.name} ==")
             part_meta: dict[str, Any] = {"source": str(src), "qps": {}}
-            for qp in qp_list:
-                prepared = work / f"{part}_qp{qp}.onnx"
+            for qp in qp_iter:
+                tag = "dynq" if qp is None else f"qp{qp}"
+                prepared = work / f"{part}_{tag}.onnx"
                 try:
                     info, report = prepare_onnx(
-                        src, prepared, qp=qp if fold else None, rewrite=rewrite, fold=fold
+                        src, prepared,
+                        qp=qp if (fold and qp is not None) else None,
+                        rewrite=rewrite, fold=fold, qp_dynamic=qp_dynamic,
                     )
                 except OnnxRewriteError as exc:
                     raise ExportError(str(exc)) from exc
+                if qp_dynamic and report.qp_tables:
+                    qptab_path = out_dir / f"qptab_{part}.bin"
+                    nbytes = qptab.write_qptab(report.qp_tables, qptab_path)
+                    names = ",".join(t.name for t in report.qp_tables)
+                    print(f"  qptab_{part}.bin  {nbytes} B  ({names})")
                 extract_note = ""
                 if extract_tail and part == "decoder":
                     onnx_mod = __import__("onnx")
@@ -208,9 +220,11 @@ def export_models(
                         f"{ex.in_shape}"
                     )
                 kind = classify_part(info)
-                problems = validate_runtime_io(info, part=kind if kind != "unknown" else part)
+                problems = validate_runtime_io(
+                    info, part=kind if kind != "unknown" else part, qp_dynamic=qp_dynamic
+                )
                 print(
-                    f"  qp={qp}: fold={report.folded_inputs or '-'}  "
+                    f"  {tag}: fold={report.folded_inputs or '-'}  "
                     f"SpaceToDepth={report.space_to_depth} Max→Clip={report.max_to_clip} "
                     f"Div→Mul={report.div_to_mul}"
                     f"{extract_note}"
@@ -228,7 +242,7 @@ def export_models(
                     )
 
                 rknn_rel = _rknn_name(part, platform)
-                if len(qp_list) == 1:
+                if qp_dynamic or len(qp_list) == 1:
                     rknn_path = out_dir / rknn_rel
                 else:
                     rknn_path = out_dir / f"{platform}_qp_models" / f"qp{qp}" / rknn_rel
@@ -249,6 +263,10 @@ def export_models(
                     },
                     "io_warnings": problems,
                 }
+                if qp_dynamic:
+                    qp_entry["qp_dynamic"] = True
+                    qp_entry["qptab"] = str(qptab_path)
+                    qp_entry["qp_tables"] = [t.name for t in report.qp_tables]
                 if skip_rknn:
                     onnx_out = rknn_path.with_suffix(".onnx")
                     onnx_out.parent.mkdir(parents=True, exist_ok=True)
@@ -281,10 +299,10 @@ def export_models(
                         kept = rknn_path.with_suffix(".onnx")
                         kept.write_bytes(prepared.read_bytes())
                         qp_entry["kept_onnx"] = str(kept)
-                part_meta["qps"][str(qp)] = qp_entry
+                part_meta["qps"][tag] = qp_entry
             models_meta[part] = part_meta
 
-            if not skip_rknn and len(qp_list) > 1:
+            if not qp_dynamic and not skip_rknn and len(qp_list) > 1:
                 primary = default_qp if default_qp in qp_list else qp_list[0]
                 src_rknn = Path(part_meta["qps"][str(primary)]["rknn"])
                 dst_rknn = out_dir / _rknn_name(part, platform)
@@ -325,6 +343,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="保留解码器尾部 DepthToSpace+Clip 在图内（默认拆到 CPU，板上 1:1 且更快）",
     )
     p.add_argument("--no-fold-qp", action="store_true", help="保留 q_index 输入（C 运行时目前不能喂该输入）")
+    p.add_argument(
+        "--qp-dynamic",
+        action="store_true",
+        help="把 QP 条件表改写成 q_*_row 图输入并导出 qptab 载荷（宿主查表，单模型全 QP，无需 rung 切换）",
+    )
     p.add_argument("--keep-onnx", action="store_true", help="在输出目录保留折叠/重写后的 ONNX")
     p.add_argument("--skip-rknn", action="store_true", help="只做 PMF + ONNX 图处理，不调用 rknn-toolkit2")
     p.add_argument("--make-patches", action="store_true",
@@ -439,16 +462,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         platform=args.platform,
         qp_list=qp_list,
         rewrite=not args.no_rewrite,
-        fold=not args.no_fold_qp,
+        fold=not args.no_fold_qp and not args.qp_dynamic,
         keep_onnx=args.keep_onnx,
         verbose=args.verbose,
         skip_rknn=args.skip_rknn,
         extract_tail=not args.no_extract_tail,
         default_qp=args.qp,
+        qp_dynamic=args.qp_dynamic,
     )
     patch_meta = None
     qp_models = out_dir / f"{args.platform}_qp_models"
-    want_patches = args.make_patches or (len(qp_list) > 1 and not args.skip_rknn)
+    want_patches = (
+        not args.qp_dynamic
+        and (args.make_patches or (len(qp_list) > 1 and not args.skip_rknn))
+    )
     if want_patches:
         patch_dir = args.patch_dir or (out_dir / "qp_patches")
         if args.skip_rknn:
@@ -469,7 +496,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "platform": args.platform,
         "qp_list": qp_list,
         "rewrite": not args.no_rewrite,
-        "fold_qp": not args.no_fold_qp,
+        "fold_qp": not args.no_fold_qp and not args.qp_dynamic,
+        "qp_dynamic": bool(args.qp_dynamic),
         "rknn_export": {
             "precision": "fp16",
             "do_quantization": False,

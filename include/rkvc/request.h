@@ -58,6 +58,9 @@ typedef struct rkvc_quality {
     double   target_latency_ms; /**< 软时延上限；<=0 表示不约束 */
     uint32_t critical_interval_ms; /**< 硬时延上限；0 = 未设 */
     uint8_t  crop_to_16;     /**< 编解码前按 16 对齐裁剪 */
+    uint32_t gop_size;       /**< IDR 周期（帧）；0 = 后端默认 */
+    uint32_t ltr_period;     /**< 长时参考周期（帧）；0 = 自动，UINT32_MAX = 关闭 */
+    uint32_t ltr_start_idx;  /**< 首个 LTR 帧序；0 = 自动 */
 } rkvc_quality;
 
 /* ── 输入/输出端点 ────────────────────────────────────────────────── */

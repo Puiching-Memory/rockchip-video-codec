@@ -66,6 +66,7 @@ class RewriteReport:
     max_to_clip: int = 0
     min_to_clip: int = 0
     div_to_mul: int = 0
+    qp_tables: list[QpTable] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
 
     @property
@@ -149,15 +150,15 @@ def classify_part(info: OnnxInfo) -> str:
     return "unknown"
 
 
-def validate_runtime_io(info: OnnxInfo, *, part: str | None = None) -> list[str]:
-    """检查折叠 q_index 之后是否仍满足 node_mlvc.c 的 I/O 约定。"""
+def validate_runtime_io(info: OnnxInfo, *, part: str | None = None, qp_dynamic: bool = False) -> list[str]:
+    """检查改写之后是否满足运行时 I/O 约定（折叠 / qp-dynamic 两种形态）。"""
     part = part or classify_part(info)
     in_names = [i.name for i in info.inputs]
     out_names = [o.name for o in info.outputs]
     problems: list[str] = []
     if find_name(in_names, "q_index"):
         problems.append(
-            "仍有 q_index 输入；node_mlvc.c 不会写入该 tensor，请使用 --qp 折叠"
+            "仍有 q_index 输入；请折叠（--qp）或做 qp-dynamic 改写"
         )
     keys_in = ENC_INPUT_KEYS if part == "encoder" else DEC_INPUT_KEYS
     keys_out = ENC_OUTPUT_KEYS if part == "encoder" else DEC_OUTPUT_KEYS
@@ -170,12 +171,17 @@ def validate_runtime_io(info: OnnxInfo, *, part: str | None = None) -> list[str]
         for key in keys_out:
             if find_name(out_names, key) is None:
                 problems.append(f"{part} 缺少输出 '{key}'（现有: {out_names}）")
-        expected_n = 2 if part == "encoder" else 4
-        if len(in_names) != expected_n:
-            problems.append(
-                f"{part} 输入数为 {len(in_names)}，运行时期望 {expected_n}（现有: {in_names}）"
-            )
-        # C 侧按名字绑定 y_raw_0 / y_raw_1 / x_hat，不要求相邻下标。
+        if qp_dynamic:
+            row_inputs = [n for n in in_names if n.startswith("q_") and n.endswith("_row")]
+            if not row_inputs:
+                problems.append(f"{part} 缺少 q_*_row 输入（qp-dynamic 模式必需）")
+        else:
+            expected_n = 2 if part == "encoder" else 4
+            if len(in_names) != expected_n:
+                problems.append(
+                    f"{part} 输入数为 {len(in_names)}，运行时期望 {expected_n}（现有: {in_names}）"
+                )
+        # C 侧按名字绑定 y_raw_0 / y_raw_1 / x_hat / q_*_row，不要求相邻下标。
     return problems
 
 
@@ -274,6 +280,124 @@ def _make_i64_tensor(onnx: Any, name: str, values: Sequence[int]) -> Any:
         dims=[len(values)],
         vals=[int(v) for v in values],
     )
+
+
+@dataclass
+class QpTable:
+    """从图里摘出的 QP 条件表（宿主侧查表用）。"""
+
+    name: str       # 新图输入名，如 q_encoder_row
+    source: str     # 原 initializer 名，如 model.q_encoder
+    rows: int
+    cols: int
+    data_fp16: bytes  # 行主序 fp16
+
+
+def make_qp_dynamic(model: Any, *, names: Sequence[str] = Q_INDEX_NAMES) -> list[QpTable]:
+    """把 Gather(q_table, q_index) 改写为独立 FP16 图输入，查表挪到宿主侧。
+
+    返回摘出的 QP 表列表。q_index 输入的全部消费者必须是
+    ``Gather(initializer[N, C, 1, 1], q_index)``，否则报错——不允许条件化
+    子图（Exp 等）残留在图内。
+    """
+    onnx = require_onnx()
+    from onnx import numpy_helper  # type: ignore
+
+    graph = model.graph
+    init_names = {init.name for init in graph.initializer}
+    consumers: dict[str, list[Any]] = {}
+    for node in graph.node:
+        for inp in node.input:
+            consumers.setdefault(inp, []).append(node)
+
+    q_inputs = [
+        inp.name
+        for inp in graph.input
+        if inp.name not in init_names
+        and any(key.lower() in inp.name.lower() for key in names)
+    ]
+    if not q_inputs:
+        raise OnnxRewriteError("未找到 q_index 图输入，无法做 qp-dynamic 改写")
+
+    tables: list[QpTable] = []
+    by_row_name: dict[str, QpTable] = {}
+    drop_nodes: set[int] = set()
+    drop_inits: set[str] = set()
+    rewires: dict[str, str] = {}
+
+    for qi in q_inputs:
+        users = consumers.get(qi, [])
+        if not users:
+            raise OnnxRewriteError(f"q_index 输入 {qi} 无消费者（已是动态图？）")
+        for node in users:
+            if node.op_type != "Gather" or len(node.input) < 2 or node.input[1] != qi:
+                raise OnnxRewriteError(
+                    f"q_index 输入 {qi} 被非 Gather 节点消费: {node.op_type} {node.name}"
+                )
+            table_name = node.input[0]
+            if table_name not in init_names:
+                raise OnnxRewriteError(f"Gather 数据源 {table_name} 不是 initializer")
+            table_users = [
+                n for n in consumers.get(table_name, []) if n.op_type == "Gather"
+            ]
+            if len(table_users) != len(consumers.get(table_name, [])):
+                raise OnnxRewriteError(f"QP 表 {table_name} 被非 Gather 节点消费")
+            arr = numpy_helper.to_array(_init_map(model)[table_name])
+            if arr.ndim != 4 or arr.shape[2] != 1 or arr.shape[3] != 1:
+                raise OnnxRewriteError(
+                    f"QP 表 {table_name} 形状 {arr.shape} 不是 [N, C, 1, 1]"
+                )
+            short = table_name.split(".")[-1]
+            row_name = f"{short}_row"
+            if row_name in by_row_name:
+                table = by_row_name[row_name]
+                if table.source != table_name:
+                    raise OnnxRewriteError(f"行输入名冲突: {row_name}")
+            else:
+                if arr.dtype.name != "float16":
+                    raise OnnxRewriteError(
+                        f"QP 表 {table_name} dtype {arr.dtype} 不是 float16"
+                    )
+                table = QpTable(
+                    name=row_name,
+                    source=table_name,
+                    rows=int(arr.shape[0]),
+                    cols=int(arr.shape[1]),
+                    data_fp16=arr.tobytes(),
+                )
+                tables.append(table)
+                by_row_name[row_name] = table
+                drop_inits.add(table_name)
+            drop_nodes.add(id(node))
+            for out in node.output:
+                rewires[out] = row_name
+
+    kept_nodes = []
+    for node in graph.node:
+        if id(node) in drop_nodes:
+            continue
+        for i, inp in enumerate(node.input):
+            if inp in rewires:
+                node.input[i] = rewires[inp]
+        kept_nodes.append(node)
+    del graph.node[:]
+    graph.node.extend(kept_nodes)
+
+    for table in tables:
+        vi = onnx.helper.make_tensor_value_info(
+            table.name, onnx.TensorProto.FLOAT16, [1, table.cols, 1, 1]
+        )
+        graph.input.append(vi)
+
+    keep_inputs = [
+        inp for inp in graph.input if inp.name in init_names or inp.name not in q_inputs
+    ]
+    del graph.input[:]
+    graph.input.extend(keep_inputs)
+    remaining = [init for init in graph.initializer if init.name not in drop_inits]
+    del graph.initializer[:]
+    graph.initializer.extend(remaining)
+    return tables
 
 
 def fold_q_index(model: Any, qp: int, *, names: Sequence[str] = Q_INDEX_NAMES) -> list[str]:
@@ -569,11 +693,14 @@ def prepare_onnx(
     qp: int | None = 21,
     rewrite: bool = True,
     fold: bool = True,
+    qp_dynamic: bool = False,
 ) -> tuple[OnnxInfo, RewriteReport]:
     onnx = require_onnx()
     model = onnx.load(str(src))
     report = RewriteReport()
-    if fold and qp is not None:
+    if qp_dynamic:
+        report.qp_tables = make_qp_dynamic(model)
+    elif fold and qp is not None:
         report.folded_inputs = fold_q_index(model, int(qp))
     if rewrite:
         extra = rewrite_npu_ops(model)

@@ -27,7 +27,7 @@ TAG_RKNN_TARGET = 5
 TAG_MIN_ABI = 8
 
 PAYLOAD_KINDS = {"rknn": 1, "pmf": 2, "qppatch": 3,
-                 "pmf-gaussian": 4, "pmf-bitest": 5}
+                 "pmf-gaussian": 4, "pmf-bitest": 5, "qptab": 6}
 KIND_NAMES = {value: name for name, value in PAYLOAD_KINDS.items()}
 
 

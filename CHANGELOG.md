@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-07
+
 ### 变更（破坏性）
 
 - **删除全部模型加密与签名功能**：`librkvc` 不再依赖 libsodium；当前 `.rkmodel` v1 直接改为无摘要、无签名尾的结构容器，公开 API 删除 trust 与授权/完整性状态，构建和发布工具删除密钥、签名及 RKNN 加密入口。旧容器和旧调用方不提供兼容路径。
@@ -11,23 +13,81 @@
 
 ### 新增
 
+- **MLVC 全 QP 单模型（--qp-dynamic，零损多 QP）**：导出侧把每个
+  `Gather(q_table, q_index)` 改写为 FP16 `[1,C,1,1]` 行输入
+  （`q_{encoder,decoder,feature,recon}_row`），q 表摘出为 **QPT1**
+  载荷（`RKMODEL_PAYLOAD_QPTAB`）随 `.rkmodel` 分发；运行时宿主按
+  q 查表喂行，单 RKNN 上下文覆盖全部 72 档，无 rung 切换与钳位。
+  RK3576 实测：比特数偏差 +0.49%（舍入差，画质等价）、编码 fps
+  +33%（免 rung 重建）；RV1126B fps 偏差 -0.33%（零损）。
+  折叠模型自动走原 QPP1 路径，两者可并存。导出与打包用法见
+  `docs/mlvc-rknn-export.md` §全 QP 单模型。
+- **NPU 核选择自适应**：MLVC 后端初始化改为 `RKNN_NPU_CORE_ALL`
+  单次设置（rk3588 三核 / rk3576 双核自动生效），单核平台失败即
+  保持默认 AUTO；移除逐档降级重试。
+- **板卡交叉构建固定化**：新增 `tools/board-build.sh <rk3576|rv1126b>`
+  一键交叉构建（RKNN staging 固定 `.build/cross-rknn/`），板卡不再
+  保留编译器与源码，统一由 102 容器产出部署 tar。
+- **MLVC 满血化（对齐 microsoft/mlvc 官方语义）**：
+  - **闭环码率控制（CBR）**：`backends/mlvc/ratectl.{h,c}` 为官方
+    `rate_controller.py` 的逐行 C 移植（LeakyBucket + RateAllocator +
+    4 个指数 R-Q 模型，α/β 拟合值、β ramp、取整口径一致）；与官方
+    Python 实现 32 帧逐帧 golden 对拍一致（`test_mlvc_ratectl
+    --trace`）。编码端 `rkvc_encode_control.bitrate_bps` 支持热更。
+  - **周期 IDR 与强制 IDR**：`rkvc_quality.gop_size` 配置 IDR 周期，
+    `rkvc_encode_control.force_idr` 运行中强制关键帧（DPB 与 LTR 槽
+    清零）。
+  - **LTR 长期参考**：`rkvc_quality.ltr_start_idx/ltr_period`（0=自动，
+    UINT32_MAX=关），记录 flags 携带 LTR_MARK/LTR_RECOVERY；编码端
+    proactive LTR recovery，解码端双槽 DPB。
+  - **编码端主动丢帧**：码控溢出时产生 16B 标记记录（q_index=-1，
+    无载荷），解码端重复上一输出帧补齐时间轴；仅可丢 P 帧，其余
+    帧型回退 q_index=0（官方行为）。
+  - **逐帧 q_index**：编码端按码控求解值从 QPPATCH 集合选最近 rung
+    的 NPU 上下文（多 rung 时强制 host 输入路径）；解码端按记录
+    q_index 精确切换 rung。
+- **MLVC 容器格式定型**：64B 头（iframe_period/ltr_start_idx/
+  ltr_period/hdr_flags/target_bitrate_bps）+ 16B 帧记录（q_index
+  与 flags 字段）；单一格式无版本协商，@5 格式标识字节不符即拒绝。
+  网络传输规范 `docs/mlvc-streaming-spec.md` 同步更新。
+- **`rkvc_quality` 扩展**：新增 `gop_size` / `ltr_period` /
+  `ltr_start_idx`（ABI 未冻结期，尾部追加）；CLI 新增 `--gop N`
+  与 `--ltr start,period`。
 - **0.4 实机性能基准**：重建 `tools/bench/`，以零第三方依赖的 Python 驱动器对统一 CLI 的 decode/encode/transcode 做预热和多轮采样，记录 FPS、实时倍速、I/O 吞吐、MP/s、mean/median/p95/stdev、板卡温度与 CPU governor；支持 JSON/CSV 留档、矩阵筛选及可用于板卡回归门禁的性能阈值。
 - **0.4 示例与 ROI/热控恢复**：按 Context/Request/Job/Frame API 重写 0.3 的全部 10 个示例（文件、流式端口、合成采集、UDP loopback、ROI、自适应码率、实时转码与 upscale context）；ROI 改为逐帧 `rkvc_frame_desc` side data（深拷贝、最多 8 区、QP/边界校验），MPP 后端映射 `KEY_ROI_DATA`，并支持逐帧 bitrate/GOP/IDR 热控；转码编码器在协商期宽高未知时延迟到首个解码帧初始化。恢复 ffmpeg-rockchip ROI/runtime-RC 下游补丁及无修改 apply-check；新增 frame metadata 与公共 ABI 契约测试。
 
-- **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
+- **图执行内核**：`lib/graph.c`（两步构建）、`lib/executor.c`（有界队列背压、逆序回滚、确定性候选顺序）与 `lib/job.c`；新增 `test_graph_executor` / `test_job` 独立编译单测。
+- **后端 DSO 加载器**：`lib/backend_dso.c` 从可信目录 `dlopen`（`RTLD_NOW|RTLD_LOCAL`）、`rkvc_backend_query()` ABI 握手、失败隔离与淘汰诊断；`lib/builtin_backends.c` 提供内建后端注册点。新增 `fixture_backend` / `fixture_backend_badabi` 与 `test_backend_loader`。
 - **内建 fileio 后端与文件管线**：`lib/node_fileio.c` 提供 `file.source`（SOURCE 阶段，flush 阶段产出整个文件：码流按 256KB 分块、NV12 按帧切分）与 `file.sink`（SINK 阶段，码流直写、NV12/NV21/P010/YUV420P 逐行裁剪 stride 填充写出、DMABUF 经 mmap+DMA_BUF_IOCTL_SYNC）；`rkvc_plan_build` 对 FILE 端点自动注入/摘除 SOURCE/SINK 步骤（无 uri 时保持原行为），`rkvc_job_create` 拒绝缺 uri 的 FILE 端点。`rkvc_frame_spec` 新增 `ver_stride`（ABI 未冻结期允许的破坏性新增），协商合并逻辑同步覆盖。
 - **MPP 后端 DSO（解码 + 编码）**：`backends/backend_mpp.c` 重写为多 codec 节点后端——`mpp.decode` 支持 H.264/HEVC/AV1 显式 codec 与 AUTO/转码首包 Annex-B 探测（H264 SPS / HEVC VPS），解码输出帧回填 `ver_stride`；`mpp.encode` 新增 H.264/HEVC 硬编（DMA-BUF 零拷贝导入、HOST 帧按平面拷贝、CBR/FIXQP、每 IDR 头、EOS 排空）。优先 DMA-HEAP 缓冲组，回退 ION。
+- **SVT-AV1 软编与 FFmpeg 容器后端**：`backends/backend_svt.c` 提供 `svt.encode`（ENCODE/TRANSCODE→AV1 的纯 CPU 路径：HOST/DMA-BUF 帧→I420→SVT-AV1，输出含序列头的 AV1 OBU，几何未知时延迟到首帧初始化）；`backends/backend_ffmpeg.c` 提供 `ffmpeg.demux` / `ffmpeg.mux` 容器节点（.mp4/.mov/.mkv/.ts 等容器输入逐帧 BITSTREAM：H.264/HEVC 经 mp4toannexb 转 Annex-B、AV1 直通 OBU；mux 首帧 av_parser 求尺寸并 extract_extradata 出 SPS/PPS/OBU，供 muxer 生成 avcC/hvcC/av1C，统一 90kHz 时基）。仅容器后缀生效，裸流回退 `file.source` / `file.sink`；FFmpeg 后端链接树内 ffmpeg-rockchip 构建，DSO 独立装载失败不影响其他路径。
 - **统一 CLI 媒体与运维子命令**：`rkvc decode / encode / transcode / upscale` 落地；`rkvc bench OP` 直接复用 Request/Job 路径执行预热和多轮采样，输出耗时、FPS、实时倍速及 JSON；`rkvc license` 输出 AGPL 标识并可从安装树读取全文与定位第三方声明。
+- **job 非阻塞拉取与子目录集成**：`rkvc_job` 新增 `rkvc_job_try_pull` 非阻塞拉取（无帧可取返回 `RKVC_STATUS_AGAIN`，与 push 的背压语义对称），补齐 push/pull/push_eos 与 `rkvc_job_run`（文件端点的阻塞驱动）完整生命周期；核心库可被上层 SDK 以 `add_subdirectory` 内嵌为 `rkvc_static`（集成指南见 `docs/semantic-codec-sdk-integration.md`）。
 - **RKNN 后端 DSO**：新增 `rknn.upscale`，直接消费 `.rkmodel` 经核心校验后交付的内存载荷，`rknn_init` 后严格验证 Phase-RLFN 单输入 12→108 tensor 契约，执行 NV12 phase 打包、3× 推理、bicubic 基座与残差融合；支持 HOST/线性 DMA-BUF 输入。发布编排器新增 `--rknn-sdk` 显式审计前缀装配，fake Runtime 端到端测试覆盖无 NPU CI。
-- **发布管线依赖适配器**：`tools/rkvc_build/adapters/mpp.py`（子模块钉版本，同工具链/sysroot 交叉构建 MPP）与 `adapters/sodium.py`（经 `tools/install-libsodium.sh` 交叉构建 libsodium）；`rkvc-build package` 新增 `deps-sodium` / `deps-mpp` 阶段与 `--no-mpp` 开关，MPP 运行库随包分发至扁平 `lib/`（与后端 DSO `$ORIGIN/../..` RPATH 对齐），libsodium 静态链入核心库；`build-install` 阶段安装前清空包根，杜绝历史过期产物混入。
-- **`.rkmodel` v1 线格式与模型信任链**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV + 载荷表含 SHA-256 + 可选 Ed25519 签名尾）与读取器 `lib/rkmodel.c`、注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰）；trust root dev/prod 分离（`RKVC_ENABLE_MODEL_SIGN` + `RKVC_TRUST_PUBKEY_HEX` + `RKVC_TRUST_PRODUCTION`），CLI `rkvc inspect models` 接入真实注册表；Python 签名 → C 验证互操作闭环。
+- **发布管线依赖适配器**：`tools/rkvc_build/adapters/` 提供 mpp（子模块钉版本，同工具链/sysroot 交叉构建 MPP）、rga、rknn 三类依赖装配；`rkvc-build package` 新增 `deps-mpp` / `deps-rga` / `deps-rknn` 阶段与 `--no-mpp` 开关，各后端运行库随包分发至扁平 `lib/`（与后端 DSO `$ORIGIN/../..` RPATH 对齐）；`build-install` 阶段安装前清空包根，杜绝历史过期产物混入。
+- **`.rkmodel` v1 容器与模型注册表**：`lib/rkmodel_layout.h`（64B 固定头 + 有界 TLV 头区 + 24B 载荷表，无摘要与签名尾）+ 读取器 `lib/rkmodel.c` + 注册表 `lib/model_registry.c`（可信目录扫描、候选失败只淘汰；即使显式 `model_id` 也强制 role 过滤，SoC 前缀匹配板级 compatible）；`rkvc inspect models` 接入真实注册表，多载荷交付（`rknn` / `pmf-gaussian` / `pmf-bitest` / 可选 `qppatch`）。
 - **统一发布路径 `tools/rkvc-build`**（stdlib Python）：sysroot 锁定（SHA-256 锁文件）→ 交叉构建 → SBOM（CycloneDX 1.5）/许可证归集 → 封装（SHA256SUMS + provenance）→ 产物验证（ELF 架构/解释器、glibc 2.31 基线、绝对 RPATH 拒绝）→ 确定性归档 → QEMU 冒烟；重复归档字节级一致。
-- **MLVC 神经视频编解码后端（`backends/backend_mlvc.c` DSO）**：工厂 `mlvc.encode`/`mlvc.decode`（priority 1100）+ 支撑库 `backends/mlvc/`（rANS 熵编码、PMF1 表加载、像素转换、QPP1 补丁、`.mlvc` 容器）；`RKVC_CODEC_MLVC` 进入公共 codec 枚举与统一 CLI（`.mlvc` 扩展名自动推断，encode 需 `--width/--height`，`--qp` 默认 21）。模型以 `.rkmodel` 多载荷交付（`rknn` + `pmf-gaussian` + `pmf-bitest`，可选 `qppatch`），核心校验 SHA-256 后经 `bind_model` 传入；encoder NV12→NPU 双输入→rANS 三段码流（首帧附 32B 容器头），decoder 流式 demux→惰性按容器头 qp 初始化→rANS 解码→四输入 NPU→NV12（tail D2S 已拆出图外时 CPU DCR）。RKNN 混合 I/O：encoder 输入零拷贝（`RKVC_MLVC_ENCODER_ZERO_COPY=0` 回退）、decoder native 四输入。x86 fake RKNN 契约测试 `test_backend_mlvc`（容器守恒 + 往返）常绿。板卡回归（2026-09-02）：RK3576 encode/decode 20 帧 2.8s/2.2s、100 帧×3 轮 md5 一致、Y-PSNR 32.7dB；RV1126B 5.1s/4.6s、32.71dB；跨板互操作通过（RK3576 编码流 RV1126B 解码）。
+- **MLVC 神经视频编解码后端（`backends/backend_mlvc.c` DSO）**：工厂 `mlvc.encode`/`mlvc.decode`（priority 1100）+ 支撑库 `backends/mlvc/`（rANS 熵编码、PMF1 表加载、像素转换、QPP1 补丁、`.mlvc` 容器）；`RKVC_CODEC_MLVC` 进入公共 codec 枚举与统一 CLI（`.mlvc` 扩展名自动推断，encode 需 `--width/--height`，`--qp` 默认 21）。模型以 `.rkmodel` 多载荷交付（`rknn` + `pmf-gaussian` + `pmf-bitest`，可选 `qppatch`），核心校验后经 `bind_model` 传入；encoder NV12→NPU 双输入→rANS 三段码流（首帧附 32B 容器头），decoder 流式 demux→惰性按容器头 qp 初始化→rANS 解码→四输入 NPU→NV12（tail D2S 已拆出图外时 CPU DCR）。RKNN 混合 I/O：encoder 输入零拷贝（`RKVC_MLVC_ENCODER_ZERO_COPY=0` 回退）、decoder native 四输入。x86 fake RKNN 契约测试 `test_backend_mlvc`（容器守恒 + 往返）常绿。板卡回归（2026-09-02）：RK3576 encode/decode 20 帧 2.8s/2.2s、100 帧×3 轮 md5 一致、Y-PSNR 32.7dB；RV1126B 5.1s/4.6s、32.71dB；跨板互操作通过（RK3576 编码流 RV1126B 解码）。
+- **MLVC 与官方参考实现互操作**：按 microsoft/mlvc 官方语义逐项对齐——熵编码几何按变体参数化（标准 MLVC channel_repeat 2/spatial_repeat 8，MLVC-S 4/4，与导出模型严格一致）、PMF/模型交叉校验、rANS 严格 EOF；MLVC 导出锁定非量化 FP16（`do_quantization=False`，拒绝静默回退 INT8），ONNX 转换不再以删 `float_dtype` 妥协；多变体同树导出按 `{model_version}-{weights_version}` 过滤，避免 MLVC-S 误复用标准版 ONNX；模型注册表即使显式 `model_id` 也强制 role 过滤。验收（640×368 NV12 QP21，Y-PSNR）：官方自环 32.89/31.04dB、RV1126B 自环 31.11/29.63dB、跨端 161→GPU 26.10/25.69dB、GPU→161 25.24/25.60dB。
+- **MLVC 多 QP 补丁选择**：编码端按会话 `qp` 从 `.rkmodel` 载荷表选取对应 `qppatch`，QP 模型与补丁自动匹配。
+
+### 测试
+
+- `test_backend_mlvc` 新增 3 用例（IDR/LTR flags 序列、丢帧往返
+  帧数守恒、容器头严格格式校验）；新增 `test_mlvc_ratectl` 码控行为
+  单测 5 例 + golden 对拍 trace 模式。
 
 ### 变更
 
 - **开发工具目录收敛**：原 `scripts/` 剩余的依赖构建、公共 shell helper、ABI 导出检查和 trust 说明全部迁入 `tools/`，CI、CMake 诊断与文档调用路径同步更新，不再维护两个平行工具根目录。
-- **SHA-256 收敛到 libsodium**：删除自研 `lib/sha256.c`/`sha256.h`（FIPS 180-4），`.rkmodel` 载荷摘要与 key_id 计算统一走 libsodium `crypto_hash_sha256`；唯一核心库与单元测试均要求先运行 `bash tools/install-libsodium.sh`。
+- **仓库与工具链卫生**：测试与工具临时产物统一落项目内 `.temp/`（解除对 `/tmp`、`/root` 的写依赖，CI 与本地一致）；`gitattributes` 统一文本文件 LF 行尾；`.gitignore` 忽略 `*.tmp`；子模块启用 `ignore = untracked` 防 dirty 误报。
+
+### 修复
+
+- **MPP 解码多包输入死锁**：解码输入改非阻塞，`BUFFER_FULL` 时先排空输出再继续送包，修复多包输入死锁。
+- **MPP 编码管道阻塞与 `try_pull` 误报 EOF**：`lib/executor.c` / `lib/graph.c` 修正排泄与轮询语义，补充 `test_graph_executor` / `test_job` 回归用例。
+- **静态链接 CLI 的后端 DSO 符号解析**：`rkvc_cli` 加 `ENABLE_EXPORTS`，修复静态构建下 `rkvc bench` 因 dlopen 后端解析不到 `rkvc_*` 符号被淘汰（planner 无候选）而失败。
+- **交叉编译与构建**：隔离交叉 sysroot 头、门控 isoc23 符号、解码重试加时间预算；修正 aarch64 sysroot 链接并在交叉构建启用模型绑定测试。
 
 ### 进行中
 

@@ -24,7 +24,9 @@
 #include "mlvc/mlvc_pixel.h"
 #include "mlvc/pmf.h"
 #include "mlvc/qppatch.h"
+#include "mlvc/qptab.h"
 #include "mlvc/rans.h"
+#include "mlvc/ratectl.h"
 #include "rkvc/backend.h"
 
 #include <limits.h>
@@ -47,18 +49,11 @@ static void mlvc_quiet_runtime(void)
 #endif
 }
 
-/** 多核 NPU：向下尝试 core_mask，驱动为最终权威。 */
-static int mlvc_apply_npu_cores(rknn_context ctx)
+/** 多核 NPU：CORE_ALL 按平台自适应选核（rk3588 三核 / rk3576 双核）。
+ *  单核平台 set 失败，保持默认 AUTO 即单核，无碍。C API 无核数查询接口。 */
+static void mlvc_apply_npu_cores(rknn_context ctx)
 {
-    int cores = 3;
-    while (cores > 1) {
-        rknn_core_mask mask = cores == 3 ? RKNN_NPU_CORE_0_1_2
-                                         : RKNN_NPU_CORE_0_1;
-        if (rknn_set_core_mask(ctx, mask) == RKNN_SUCC)
-            return cores;
-        cores--;
-    }
-    return 0;
+    (void)rknn_set_core_mask(ctx, RKNN_NPU_CORE_ALL);
 }
 
 #define MLVC_MAX_IO 8
@@ -142,7 +137,7 @@ static int rknn_model_init(mlvc_rknn_model *m, const unsigned char *model,
         free(writable);
         return (int)RKVC_STATUS_HW;
     }
-    (void)mlvc_apply_npu_cores(m->ctx);
+    mlvc_apply_npu_cores(m->ctx);
 
     rc = rknn_query(m->ctx, RKNN_QUERY_IN_OUT_NUM, &m->io_num,
                     sizeof(m->io_num));
@@ -400,6 +395,211 @@ static const rkvc_model_payload_view *find_qppatch_for_qp(
     return NULL;
 }
 
+/* ── QP rung 集合：逐帧 q_index 动态切换的多上下文 ─────────────────
+ * 容器可携带多份 QPPATCH（每 qp 一份，基座 qp 的空补丁也在内）。
+ * 无补丁时恒单 rung（会话 qp），行为与 0.4 一致。 */
+
+#define MLVC_MAX_RUNGS 8
+
+typedef struct {
+    mlvc_rknn_model models[MLVC_MAX_RUNGS];
+    int rung_qp[MLVC_MAX_RUNGS];
+    int rung_count;
+    int active; /**< 当前 rung 索引 */
+} mlvc_rung_set;
+
+/**
+ * 收集 rung qp 列表（升序去重）。
+ * 无 QPPATCH：单 rung = session_qp。有补丁：session_qp 必须在集合内，
+ * 否则 FORMAT（替代旧版的静默基座失配）。
+ */
+static int rungs_collect(mlvc_rung_set *rs,
+                         const rkvc_model_binding *binding, int session_qp)
+{
+    size_t i;
+
+    memset(rs, 0, sizeof(*rs));
+    if (!binding)
+        return (int)RKVC_STATUS_FORMAT;
+    for (i = 0; i < binding->payload_count; ++i) {
+        const rkvc_model_payload_view *v = &binding->payloads[i];
+        int qp;
+        int j;
+        if (v->kind != RKMODEL_PAYLOAD_QPPATCH)
+            continue;
+        qp = qppatch_qp(v);
+        if (qp < 0 || qp > 63)
+            continue;
+        for (j = 0; j < rs->rung_count; j++)
+            if (rs->rung_qp[j] == qp)
+                break;
+        if (j < rs->rung_count)
+            continue; /* 去重 */
+        if (rs->rung_count >= MLVC_MAX_RUNGS)
+            return (int)RKVC_STATUS_FORMAT;
+        /* 升序插入 */
+        for (j = rs->rung_count; j > 0 && rs->rung_qp[j - 1] > qp; j--)
+            rs->rung_qp[j] = rs->rung_qp[j - 1];
+        rs->rung_qp[j] = qp;
+        rs->rung_count++;
+    }
+    if (!rs->rung_count) {
+        rs->rung_qp[0] = session_qp;
+        rs->rung_count = 1;
+        rs->active = 0;
+        return 0;
+    }
+    for (i = 0; (int)i < rs->rung_count; i++)
+        if (rs->rung_qp[i] == session_qp)
+            break;
+    if ((int)i >= rs->rung_count)
+        return (int)RKVC_STATUS_FORMAT; /* 会话 qp 不在补丁集合内 */
+    rs->active = (int)i;
+    return 0;
+}
+
+/** 最近 rung（并列取低 qp）。 */
+static int rungs_nearest(const mlvc_rung_set *rs, int q)
+{
+    int best = 0;
+    int best_d = INT_MAX;
+    for (int i = 0; i < rs->rung_count; i++) {
+        int d = rs->rung_qp[i] > q ? rs->rung_qp[i] - q : q - rs->rung_qp[i];
+        if (d < best_d) {
+            best_d = d;
+            best = i;
+        }
+    }
+    return best;
+}
+
+/** 初始化全部 rung（各自应用 QPPATCH）；失败清理已建上下文。 */
+static int rungs_init_all(mlvc_rung_set *rs,
+                          const rkvc_model_binding *binding,
+                          const unsigned char *model, size_t model_size)
+{
+    for (int i = 0; i < rs->rung_count; i++) {
+        const rkvc_model_payload_view *patch =
+            find_qppatch_for_qp(binding, rs->rung_qp[i]);
+        int rc = rknn_model_init(&rs->models[i], model, model_size,
+                                 patch ? patch->data : NULL,
+                                 patch ? patch->size : 0, rs->rung_qp[i]);
+        if (rc != 0) {
+            while (--i >= 0)
+                rknn_model_cleanup(&rs->models[i]);
+            return rc;
+        }
+    }
+    return 0;
+}
+
+static void rungs_cleanup(mlvc_rung_set *rs)
+{
+    for (int i = 0; i < rs->rung_count; i++)
+        rknn_model_cleanup(&rs->models[i]);
+    rs->rung_count = 0;
+    rs->active = 0;
+}
+
+/* ── qp-dynamic：q_*_row 图输入 + QPTAB 行表（单上下文全 QP）─────────
+ * 免折叠模型把 FiLM 条件表摘为 q_*_row 图输入，宿主按当前 q 查表喂行；
+ * 无 rung 切换开销。折叠模型无此类输入，自动走原 rung 路径。 */
+
+#define MLVC_MAX_QROWS 4
+
+typedef struct {
+    int present;                      /**< 模型带 q_*_row 输入 */
+    int nrows;
+    int in_index[MLVC_MAX_QROWS];     /**< 图输入下标 */
+    const mlvc_qptab_table *tab[MLVC_MAX_QROWS];
+    int fed_qp;                       /**< io_mem 路径已喂入的 q（-1=未喂） */
+} mlvc_qrows;
+
+/** 扫描模型输入，把每个 q_*_row 绑定到同名 QPTAB 表。 */
+static int qrows_bind(mlvc_qrows *qr, const mlvc_rknn_model *m,
+                      const mlvc_qptab *qt)
+{
+    memset(qr, 0, sizeof(*qr));
+    qr->fed_qp = -1;
+    for (uint32_t i = 0; i < m->io_num.n_input; i++) {
+        const char *n = m->in_attr[i].name;
+        size_t len = strlen(n);
+        const mlvc_qptab_table *t;
+        if (len < 7 || strncmp(n, "q_", 2) != 0 ||
+            strcmp(n + len - 4, "_row") != 0)
+            continue;
+        if (qr->nrows >= MLVC_MAX_QROWS)
+            return (int)RKVC_STATUS_FORMAT;
+        t = mlvc_qptab_find(qt, n);
+        if (!t || !tensor_is_unquantized_fp16(&m->in_attr[i]))
+            return (int)RKVC_STATUS_FORMAT;
+        qr->in_index[qr->nrows] = (int)i;
+        qr->tab[qr->nrows] = t;
+        qr->nrows++;
+    }
+    qr->present = qr->nrows > 0;
+    return 0;
+}
+
+/** host 路径：q 行指针填入 inputs 数组（rknn_inputs_set 内部拷贝）。 */
+static void qrows_fill_inputs(const mlvc_qrows *qr, int q,
+                              rknn_input *inputs)
+{
+    for (int i = 0; i < qr->nrows; i++) {
+        int idx = qr->in_index[i];
+        inputs[idx].index = (uint32_t)idx;
+        inputs[idx].buf = (void *)mlvc_qptab_row(qr->tab[i], (uint32_t)q);
+        inputs[idx].size = qr->tab[i]->cols * sizeof(uint16_t);
+        inputs[idx].type = RKNN_TENSOR_FLOAT16;
+        inputs[idx].fmt = RKNN_TENSOR_NHWC;
+    }
+}
+
+/** io_mem 路径：q 变化时把行写入各自输入 mem（行仅数百字节）。 */
+static void qrows_sync_io_mem(mlvc_qrows *qr, mlvc_rknn_model *m, int q)
+{
+    if (!qr->present || qr->fed_qp == q)
+        return;
+    for (int i = 0; i < qr->nrows; i++)
+        rknn_write_input(m, qr->in_index[i],
+                         mlvc_qptab_row(qr->tab[i], (uint32_t)q));
+    qr->fed_qp = q;
+}
+
+/** 从绑定载荷装载 QPTAB 并绑定模型的 q_*_row 输入；无 q_*_row 输入时无操作。 */
+static int qrows_setup(mlvc_qrows *qr, mlvc_qptab *qt,
+                       mlvc_rknn_model *m,
+                       const rkvc_model_binding *binding)
+{
+    int has_qrows = 0;
+    for (uint32_t i = 0; i < m->io_num.n_input; i++) {
+        const char *n = m->in_attr[i].name;
+        size_t len = strlen(n);
+        if (len >= 7 && strncmp(n, "q_", 2) == 0 &&
+            strcmp(n + len - 4, "_row") == 0) {
+            has_qrows = 1;
+            break;
+        }
+    }
+    if (!has_qrows)
+        return 0;
+    {
+        const rkvc_model_payload_view *qv =
+            find_payload(binding, RKMODEL_PAYLOAD_QPTAB);
+        int rc;
+        if (!qv)
+            return (int)RKVC_STATUS_FORMAT; /* qp-dynamic 模型缺 QPTAB 载荷 */
+        rc = mlvc_qptab_load(qv->data, qv->size, qt);
+        if (rc != 0)
+            return rc;
+    }
+    if (qrows_bind(qr, m, qt) != 0) {
+        mlvc_qptab_free(qt);
+        return (int)RKVC_STATUS_FORMAT;
+    }
+    return 0;
+}
+
 typedef struct {
     int scale_max_index;
     uint32_t qp_num;
@@ -513,11 +713,14 @@ static int init_rans_from_binding(const rkvc_model_binding *binding,
 
 struct mlvc_encoder {
     rkvc_request request;
-    mlvc_rknn_model enc_model;
+    mlvc_rung_set rs;
+    mlvc_qptab qptab;      /**< qp-dynamic 行表（QPTAB 载荷） */
+    mlvc_qrows qrows;
     rkvc_rans_coder g_coder, b_coder;
     mlvc_entropy_config entropy;
     int rans_ready;
-    int qp;
+    int qp;            /**< 会话基准 q_index */
+    int z_idx_qp;      /**< z_idx 已构建的 qp（-1 = 未构建） */
 
     int IMG_W, IMG_H, REF_C, REF_H, REF_W;
     int ZC, ZH, ZW, YC, YH, YW;
@@ -527,15 +730,28 @@ struct mlvc_encoder {
     int zero_copy_x_direct;
 
     uint16_t *x_nhwc;
-    uint16_t *ref_nhwc;
+    uint16_t *ref_nhwc;    /**< prev 参考槽（host 路径，NHWC） */
+    uint16_t *ref_ltr;     /**< LTR 参考槽（布局随输入路径） */
+    size_t ref_ltr_bytes;
+    int have_ltr;
     int32_t *z_r, *y0_r, *y1_r, *s0, *s1, *z_idx;
 
+    /* 会话参数（对齐官方 iframe_period / LTR 配置） */
+    uint32_t iframe_period;   /**< 0 = 仅首帧 IDR */
+    uint32_t ltr_start_idx;
+    uint32_t ltr_period;      /**< 0 = 关闭 LTR */
+    int proactive_ltr;
+    uint32_t cur_frame_idx;   /**< GOP 内帧序（IDR 归零） */
     uint32_t frame_count;
+    uint32_t fps;             /**< RC 用恒定节奏帧率 */
+
+    mlvc_rate_controller *rc; /**< CBR 码控（bitrate_bps>0 时创建） */
+    int64_t rc_bitrate;
 };
 
 static int enc_resolve_geom(struct mlvc_encoder *e)
 {
-    mlvc_rknn_model *enc = &e->enc_model;
+    mlvc_rknn_model *enc = &e->rs.models[e->rs.active];
     e->enc_x_in = rknn_find_input(enc, "x");
     if (e->enc_x_in < 0)
         e->enc_x_in = rknn_find_input(enc, "New_input_x");
@@ -625,24 +841,25 @@ static int enc_native_ref_compatible(const struct mlvc_encoder *e,
 
 static int enc_init_zero_copy_inputs(struct mlvc_encoder *e)
 {
-    if (!enc_zero_copy_requested())
-        return 0;
+    if (!enc_zero_copy_requested() || e->rs.rung_count > 1)
+        return 0; /* 多 rung 强制 host 输入（native mem 为单上下文绑定） */
 
+    mlvc_rknn_model *enc = &e->rs.models[e->rs.active];
     rknn_tensor_attr x_attr, ref_attr;
-    int native_x = rknn_query_input_mem_attr(&e->enc_model,
+    int native_x = rknn_query_input_mem_attr(enc,
                                              (uint32_t)e->enc_x_in, &x_attr);
-    int native = rknn_query_input_mem_attr(&e->enc_model,
+    int native = rknn_query_input_mem_attr(enc,
                                            (uint32_t)e->enc_ref_in, &ref_attr);
     if (!native_x || !enc_native_x_compatible(e, &x_attr) ||
         !native || !enc_native_ref_compatible(e, &ref_attr))
         return 0; /* 回退标准 host 输入 */
 
-    int rc = rknn_alloc_input_mems(&e->enc_model);
+    int rc = rknn_alloc_input_mems(enc);
     if (rc != 0)
         return rc;
     e->zero_copy_inputs = 1;
 
-    const rknn_tensor_attr *bound_x = &e->enc_model.in_mem_attr[e->enc_x_in];
+    const rknn_tensor_attr *bound_x = &enc->in_mem_attr[e->enc_x_in];
     uint32_t x_ws = bound_x->w_stride ? bound_x->w_stride : bound_x->dims[2];
     e->zero_copy_x_direct =
         bound_x->n_dims == 4 && bound_x->fmt == RKNN_TENSOR_NHWC &&
@@ -650,13 +867,13 @@ static int enc_init_zero_copy_inputs(struct mlvc_encoder *e)
         bound_x->dims[2] == (uint32_t)e->IMG_W && bound_x->dims[3] == 3 &&
         x_ws == (uint32_t)e->IMG_W;
 
-    rknn_tensor_mem *ref_mem = e->enc_model.in_mem[e->enc_ref_in];
-    size_t bytes = e->enc_model.in_mem_attr[e->enc_ref_in].size_with_stride;
+    rknn_tensor_mem *ref_mem = enc->in_mem[e->enc_ref_in];
+    size_t bytes = enc->in_mem_attr[e->enc_ref_in].size_with_stride;
     if (!bytes)
-        bytes = (size_t)e->enc_model.in_mem_attr[e->enc_ref_in].n_elems *
+        bytes = (size_t)enc->in_mem_attr[e->enc_ref_in].n_elems *
                 sizeof(uint16_t);
     memset(ref_mem->virt_addr, 0, bytes);
-    if (rknn_mem_sync(e->enc_model.ctx, ref_mem,
+    if (rknn_mem_sync(enc->ctx, ref_mem,
                       RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC)
         return (int)RKVC_STATUS_HW;
     return 0;
@@ -679,7 +896,19 @@ static int enc_alloc_bufs(struct mlvc_encoder *e)
         if (!e->ref_nhwc)
             return (int)RKVC_STATUS_NOMEM;
         memset(e->ref_nhwc, 0, ref_sz * 2);
+        e->ref_ltr_bytes = ref_sz * 2;
+    } else {
+        /* LTR 槽 = native NC1HWC2 布局的 host 副本 */
+        const rknn_tensor_attr *a =
+            &e->rs.models[e->rs.active].in_mem_attr[e->enc_ref_in];
+        e->ref_ltr_bytes = a->size_with_stride
+            ? a->size_with_stride
+            : (size_t)a->n_elems * sizeof(uint16_t);
     }
+    e->ref_ltr = malloc(e->ref_ltr_bytes);
+    if (!e->ref_ltr)
+        return (int)RKVC_STATUS_NOMEM;
+    memset(e->ref_ltr, 0, e->ref_ltr_bytes);
     e->z_r = malloc(z_sz * 4);
     e->y0_r = malloc(y_sz * 4);
     e->y1_r = malloc(y_sz * 4);
@@ -688,21 +917,64 @@ static int enc_alloc_bufs(struct mlvc_encoder *e)
     e->z_idx = malloc(z_sz * 4);
     if (!e->z_r || !e->y0_r || !e->y1_r || !e->s0 || !e->s1 || !e->z_idx)
         return (int)RKVC_STATUS_NOMEM;
+    e->z_idx_qp = -1;
+    return 0;
+}
 
-    /* z_idx 在通道平面内为常量：z_idx = qp*ZC + c。 */
+/** z_idx 在通道平面内为常量：z_idx = qp*ZC + c。按活动 qp 惰性重建。 */
+static void enc_set_z_idx_qp(struct mlvc_encoder *e, int qp)
+{
+    if (e->z_idx_qp == qp)
+        return;
     for (int c = 0; c < e->ZC; c++) {
         int32_t *p = e->z_idx + (size_t)c * e->ZH * e->ZW;
         size_t n = (size_t)e->ZH * e->ZW;
         for (size_t i = 0; i < n; i++)
-            p[i] = e->qp * e->ZC + c;
+            p[i] = qp * e->ZC + c;
     }
-    return 0;
+    e->z_idx_qp = qp;
+}
+
+/** prev 参考槽指针（host 路径 NHWC；零拷贝路径为 NPU 输入 mem）。 */
+static uint16_t *enc_ref_prev_ptr(struct mlvc_encoder *e)
+{
+    if (e->zero_copy_inputs)
+        return (uint16_t *)e->rs.models[e->rs.active]
+            .in_mem[e->enc_ref_in]->virt_addr;
+    return e->ref_nhwc;
+}
+
+/** prev 槽字节数（布局随输入路径，LTR 槽同构）。 */
+static size_t enc_ref_prev_bytes(struct mlvc_encoder *e)
+{
+    if (e->zero_copy_inputs) {
+        const rknn_tensor_attr *a =
+            &e->rs.models[e->rs.active].in_mem_attr[e->enc_ref_in];
+        return a->size_with_stride
+            ? a->size_with_stride
+            : (size_t)a->n_elems * sizeof(uint16_t);
+    }
+    return (size_t)e->REF_C * e->REF_H * e->REF_W * sizeof(uint16_t);
+}
+
+/** IDR：清空两个参考槽与 LTR 状态。 */
+static void enc_clear_refs(struct mlvc_encoder *e)
+{
+    memset(enc_ref_prev_ptr(e), 0, enc_ref_prev_bytes(e));
+    memset(e->ref_ltr, 0, e->ref_ltr_bytes);
+    e->have_ltr = 0;
+    if (e->zero_copy_inputs) {
+        mlvc_rknn_model *enc = &e->rs.models[e->rs.active];
+        rknn_mem_sync(enc->ctx, enc->in_mem[e->enc_ref_in],
+                      RKNN_MEMORY_SYNC_TO_DEVICE);
+    }
 }
 
 static void enc_free_bufs(struct mlvc_encoder *e)
 {
     free(e->x_nhwc);
     free(e->ref_nhwc);
+    free(e->ref_ltr);
     free(e->z_r);
     free(e->y0_r);
     free(e->y1_r);
@@ -711,6 +983,7 @@ static void enc_free_bufs(struct mlvc_encoder *e)
     free(e->z_idx);
     e->x_nhwc = NULL;
     e->ref_nhwc = NULL;
+    e->ref_ltr = NULL;
     e->z_r = e->y0_r = e->y1_r = e->s0 = e->s1 = e->z_idx = NULL;
 }
 
@@ -746,16 +1019,30 @@ static int mlvc_enc_bind_model(rkvc_node *node,
     }
     e->rans_ready = 1;
 
-    const rkvc_model_payload_view *patch =
-        find_qppatch_for_qp(binding, e->qp);
-    rc = rknn_model_init(&e->enc_model, binding->payload,
-                         binding->payload_size,
-                         patch ? patch->data : NULL,
-                         patch ? patch->size : 0, e->qp);
+    rc = rungs_collect(&e->rs, binding, e->qp);
+    if (rc != 0) {
+        push_reason(diag, (rkvc_status)rc, node,
+                    "session qp missing from QPPATCH rung set");
+        return rc;
+    }
+    rc = rungs_init_all(&e->rs, binding, binding->payload,
+                        binding->payload_size);
     if (rc != 0) {
         push_reason(diag, (rkvc_status)rc, node,
                     "encoder RKNN init failed (qp patch/model)");
         return rc;
+    }
+    rc = qrows_setup(&e->qrows, &e->qptab, &e->rs.models[e->rs.active],
+                     binding);
+    if (rc != 0) {
+        push_reason(diag, (rkvc_status)rc, node,
+                    "encoder qp-dynamic model missing/invalid QPTAB payload");
+        return rc;
+    }
+    if (e->qrows.present && e->rs.rung_count != 1) {
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "qp-dynamic model must not carry QPPATCH rungs");
+        return (int)RKVC_STATUS_FORMAT;
     }
     return 0;
 }
@@ -797,6 +1084,41 @@ static int mlvc_enc_open(rkvc_node *node, rkvc_diag **diag)
                     "encoder PMF/model entropy geometry mismatch");
         return rc;
     }
+    /* 会话参数默认（对齐官方 yaml：std=2/8 变体 gop 64 无 LTR；
+     * mini=4/4 变体 gop 1024 + LTR(8,64)）；request 字段优先。 */
+    {
+        int is_mini = e->entropy.channel_repeat == 4;
+        e->iframe_period = e->request.quality.gop_size
+            ? e->request.quality.gop_size
+            : (uint32_t)(is_mini ? 1024 : 64);
+        if (e->request.quality.ltr_period == UINT32_MAX) {
+            e->ltr_period = 0;
+            e->ltr_start_idx = 0;
+        } else if (e->request.quality.ltr_period > 0) {
+            e->ltr_period = e->request.quality.ltr_period;
+            e->ltr_start_idx = e->request.quality.ltr_start_idx
+                ? e->request.quality.ltr_start_idx : 8;
+        } else {
+            e->ltr_period = is_mini ? 64 : 0;
+            e->ltr_start_idx = is_mini ? 8 : 0;
+        }
+        e->proactive_ltr = 1; /* 官方 proactive_ltr_recovery 默认 True */
+    }
+    {
+        const char *v = getenv("RKVC_MLVC_FPS");
+        e->fps = (v && atoi(v) > 0) ? (uint32_t)atoi(v) : 30;
+    }
+    if (e->request.quality.bitrate_bps > 0) {
+        e->rc = mlvc_rc_create((uint32_t)e->IMG_W, (uint32_t)e->IMG_H,
+                               (double)e->request.quality.bitrate_bps,
+                               (double)e->fps);
+        if (!e->rc) {
+            push_reason(diag, RKVC_STATUS_NOMEM, node,
+                        "rate controller alloc failed");
+            return (int)RKVC_STATUS_NOMEM;
+        }
+        e->rc_bitrate = e->request.quality.bitrate_bps;
+    }
     rc = enc_init_zero_copy_inputs(e);
     if (rc != 0)
         return rc;
@@ -823,7 +1145,6 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     rkvc_frame_desc desc;
     const uint8_t *base;
     uint16_t *x_dst;
-    uint64_t profile_unused;
     rknn_output outputs[MLVC_MAX_IO];
     rkvc_rans_enc_stream stream;
     const uint8_t *bits;
@@ -832,9 +1153,14 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     rkvc_frame_desc out_desc;
     rkvc_frame *output = NULL;
     rkvc_status st;
+    mlvc_rknn_model *enc;
     int rc;
     uint32_t i;
-    int keyframe;
+    int is_idr, mark_ltr, is_recovery;
+    uint32_t rec_flags;
+    int q_index, used_qp;
+    uint32_t cur;
+    mlvc_rc_frame_type rc_type;
 
     if (!input || rkvc_frame_get_desc(input, &desc) != RKVC_STATUS_OK ||
         desc.spec.fmt != RKVC_FRAME_FMT_NV12 ||
@@ -847,9 +1173,97 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
         return (int)RKVC_STATUS_FORMAT;
     base = desc.data;
 
+    /* 逐帧热控（对齐 MPP 语义）：码率/GOP 热更、force_idr */
+    if (desc.encode.bitrate_bps > 0 &&
+        desc.encode.bitrate_bps != e->rc_bitrate) {
+        if (!e->rc) {
+            e->rc = mlvc_rc_create((uint32_t)e->IMG_W, (uint32_t)e->IMG_H,
+                                   (double)desc.encode.bitrate_bps,
+                                   (double)e->fps);
+            if (!e->rc)
+                return (int)RKVC_STATUS_NOMEM;
+        } else {
+            mlvc_rc_configure(e->rc, (double)desc.encode.bitrate_bps);
+        }
+        e->rc_bitrate = desc.encode.bitrate_bps;
+    }
+    if (desc.encode.gop_size > 0)
+        e->iframe_period = desc.encode.gop_size;
+
+    /* 帧型判定：IDR（首帧/force_idr/周期）→ LTR 标记 → proactive 恢复 */
+    cur = e->cur_frame_idx;
+    is_idr = e->frame_count == 0 || desc.encode.force_idr ||
+             (e->iframe_period && cur > 0 && cur % e->iframe_period == 0);
+    mark_ltr = 0;
+    is_recovery = 0;
+    if (!is_idr && e->ltr_period) {
+        mark_ltr = cur == e->ltr_start_idx ||
+                   (cur > e->ltr_start_idx && cur % e->ltr_period == 0);
+        is_recovery = e->proactive_ltr && mark_ltr && e->have_ltr;
+    }
+    rec_flags = (is_idr ? MLVC_REC_KEYFRAME : 0) |
+                (mark_ltr ? MLVC_REC_LTR_MARK : 0) |
+                (is_recovery ? MLVC_REC_LTR_RECOVERY : 0);
+    rc_type = is_idr ? MLVC_RC_FRAME_I
+        : is_recovery ? MLVC_RC_FRAME_LTR_RECOVERY : MLVC_RC_FRAME_P;
+
+    /* 码控求解 q_index；丢帧仅对可丢 P 帧生效，其余回退 q_index=0 */
+    q_index = e->qp;
+    if (e->rc) {
+        double pt = (double)e->frame_count / (double)e->fps;
+        int solved = mlvc_rc_solve_q_index(e->rc, pt, rc_type,
+                                           MLVC_REC_SIZE * 8);
+        if (solved == MLVC_RC_Q_DROP) {
+            if (rc_type == MLVC_RC_FRAME_P && !mark_ltr) {
+                /* 丢帧：16B 标记记录（无载荷）；官方 frame_loop 丢帧
+                 * 不触碰码控（无 update），漏桶自然跨帧泄水 */
+                record = malloc(MLVC_REC_SIZE);
+                if (!record)
+                    return (int)RKVC_STATUS_NOMEM;
+                mlvc_container_write_record(record, 0,
+                                            MLVC_QINDEX_DROPPED, 0);
+                rkvc_frame_desc_init(&out_desc, sizeof(out_desc));
+                out_desc.spec.fmt = RKVC_FRAME_FMT_BITSTREAM;
+                out_desc.spec.domain = RKVC_MEM_DOMAIN_HOST;
+                out_desc.data = record;
+                out_desc.size = MLVC_REC_SIZE;
+                out_desc.pts = desc.pts;
+                out_desc.dts = desc.pts;
+                st = rkvc_backend_frame_create(&out_desc, free_buffer_fn,
+                                               record, &output);
+                if (st != RKVC_STATUS_OK) {
+                    free(record);
+                    return (int)st;
+                }
+                rc = rkvc_node_emit(node, 0, output);
+                if (rc != 0)
+                    rkvc_frame_release(output);
+                e->frame_count++;
+                e->cur_frame_idx = cur + 1;
+                return rc;
+            }
+            solved = 0; /* 不可丢帧型：回退最低码率（官方行为） */
+        }
+        q_index = solved;
+    }
+
+    /* qp-dynamic：q 直喂行表，无 rung 钳位；否则 q → 最近 rung */
+    if (e->qrows.present) {
+        used_qp = q_index;
+    } else {
+        if (e->rc)
+            e->rs.active = rungs_nearest(&e->rs, q_index);
+        used_qp = e->rs.rung_qp[e->rs.active];
+    }
+    enc_set_z_idx_qp(e, used_qp);
+    enc = &e->rs.models[e->rs.active];
+
+    if (is_idr)
+        enc_clear_refs(e);
+
     /* NV12 → NHWC fp16（native 直写或暂存缓冲） */
     x_dst = e->zero_copy_x_direct
-        ? (uint16_t *)e->enc_model.in_mem[e->enc_x_in]->virt_addr
+        ? (uint16_t *)enc->in_mem[e->enc_x_in]->virt_addr
         : e->x_nhwc;
     {
         uint32_t stride = desc.spec.stride ? desc.spec.stride
@@ -861,55 +1275,63 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
                                  (int)stride, 1, e->IMG_W, e->IMG_H, x_dst);
     }
 
-    /* encoder NPU（混合 I/O：零拷贝输入 + 逻辑输出） */
+    /* 参考槽选择：LTR_RECOVERY 用 LTR 槽，否则 prev 槽 */
     if (e->zero_copy_inputs) {
+        if (is_recovery) {
+            rknn_tensor_mem *ref_mem = enc->in_mem[e->enc_ref_in];
+            memcpy(ref_mem->virt_addr, e->ref_ltr, e->ref_ltr_bytes);
+            if (rknn_mem_sync(enc->ctx, ref_mem,
+                              RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC)
+                return (int)RKVC_STATUS_HW;
+        }
         if (e->zero_copy_x_direct) {
-            if (rknn_mem_sync(e->enc_model.ctx,
-                              e->enc_model.in_mem[e->enc_x_in],
+            if (rknn_mem_sync(enc->ctx, enc->in_mem[e->enc_x_in],
                               RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC)
                 return (int)RKVC_STATUS_HW;
         } else {
-            rknn_write_input(&e->enc_model, e->enc_x_in, e->x_nhwc);
+            rknn_write_input(enc, e->enc_x_in, e->x_nhwc);
         }
+        qrows_sync_io_mem(&e->qrows, enc, used_qp);
     } else {
         rknn_input inputs[MLVC_MAX_IO];
         memset(inputs, 0, sizeof(inputs));
         inputs[e->enc_x_in].index = (uint32_t)e->enc_x_in;
         inputs[e->enc_x_in].buf = e->x_nhwc;
         inputs[e->enc_x_in].size =
-            e->enc_model.in_attr[e->enc_x_in].n_elems * sizeof(uint16_t);
+            enc->in_attr[e->enc_x_in].n_elems * sizeof(uint16_t);
         inputs[e->enc_x_in].type = RKNN_TENSOR_FLOAT16;
         inputs[e->enc_x_in].fmt = RKNN_TENSOR_NHWC;
         inputs[e->enc_ref_in].index = (uint32_t)e->enc_ref_in;
-        inputs[e->enc_ref_in].buf = e->ref_nhwc;
+        inputs[e->enc_ref_in].buf =
+            is_recovery ? e->ref_ltr : e->ref_nhwc;
         inputs[e->enc_ref_in].size =
-            e->enc_model.in_attr[e->enc_ref_in].n_elems * sizeof(uint16_t);
+            enc->in_attr[e->enc_ref_in].n_elems * sizeof(uint16_t);
         inputs[e->enc_ref_in].type = RKNN_TENSOR_FLOAT16;
         inputs[e->enc_ref_in].fmt = RKNN_TENSOR_NHWC;
-        if (rknn_inputs_set(e->enc_model.ctx, e->enc_model.io_num.n_input,
+        qrows_fill_inputs(&e->qrows, used_qp, inputs);
+        if (rknn_inputs_set(enc->ctx, enc->io_num.n_input,
                             inputs) != RKNN_SUCC)
             return (int)RKVC_STATUS_HW;
     }
-    if (rknn_run(e->enc_model.ctx, NULL) != RKNN_SUCC) {
+    if (rknn_run(enc->ctx, NULL) != RKNN_SUCC) {
         push_reason(diag, RKVC_STATUS_HW, node, "encoder RKNN run failed");
         return (int)RKVC_STATUS_HW;
     }
 
     memset(outputs, 0, sizeof(outputs));
-    for (i = 0; i < e->enc_model.io_num.n_output; i++) {
+    for (i = 0; i < enc->io_num.n_output; i++) {
         outputs[i].index = i;
         outputs[i].want_float = 0;
         outputs[i].is_prealloc = 0;
     }
-    if (rknn_outputs_get(e->enc_model.ctx, e->enc_model.io_num.n_output,
+    if (rknn_outputs_get(enc->ctx, enc->io_num.n_output,
                          outputs, NULL) != RKNN_SUCC)
         return (int)RKVC_STATUS_HW;
-    for (i = 0; i < e->enc_model.io_num.n_output; i++) {
+    for (i = 0; i < enc->io_num.n_output; i++) {
         size_t required =
-            (size_t)e->enc_model.out_attr[i].n_elems * sizeof(uint16_t);
+            (size_t)enc->out_attr[i].n_elems * sizeof(uint16_t);
         if (!outputs[i].buf || outputs[i].size < required) {
-            rknn_outputs_release(e->enc_model.ctx,
-                                 e->enc_model.io_num.n_output, outputs);
+            rknn_outputs_release(enc->ctx, enc->io_num.n_output, outputs);
             return (int)RKVC_STATUS_HW;
         }
     }
@@ -918,15 +1340,14 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     const uint16_t *by1 = outputs[e->enc_y1_out].buf;
     const uint16_t *fv = outputs[e->enc_feat_out].buf;
     if (!fp16_tensor_is_finite(bz,
-            e->enc_model.out_attr[e->enc_z_out].n_elems) ||
+            enc->out_attr[e->enc_z_out].n_elems) ||
         !fp16_tensor_is_finite(by0,
-            e->enc_model.out_attr[e->enc_y0_out].n_elems) ||
+            enc->out_attr[e->enc_y0_out].n_elems) ||
         !fp16_tensor_is_finite(by1,
-            e->enc_model.out_attr[e->enc_y1_out].n_elems) ||
+            enc->out_attr[e->enc_y1_out].n_elems) ||
         !fp16_tensor_is_finite(fv,
-            e->enc_model.out_attr[e->enc_feat_out].n_elems)) {
-        rknn_outputs_release(e->enc_model.ctx,
-                             e->enc_model.io_num.n_output, outputs);
+            enc->out_attr[e->enc_feat_out].n_elems)) {
+        rknn_outputs_release(enc->ctx, enc->io_num.n_output, outputs);
         push_reason(diag, RKVC_STATUS_HW, node,
                     "encoder produced non-finite latent values");
         return (int)RKVC_STATUS_HW;
@@ -935,28 +1356,32 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     nchw_fp16_to_int32(bz, e->z_r, (size_t)e->ZC * e->ZH * e->ZW);
     nchw_fp16_to_int32(by0, e->y0_r, (size_t)e->YC * e->YH * e->YW);
     nchw_fp16_to_int32(by1, e->y1_r, (size_t)e->YC * e->YH * e->YW);
-    /* feature 输出 → 下一帧参考（native NC1HWC2 或逻辑 NHWC） */
+    /* feature 输出 → prev 参考槽；LTR_MARK 时再拷入 LTR 槽 */
     if (e->zero_copy_inputs) {
-        rknn_tensor_attr *a = &e->enc_model.in_mem_attr[e->enc_ref_in];
-        uint16_t *dst = (uint16_t *)e->enc_model.in_mem[e->enc_ref_in]
+        rknn_tensor_attr *a = &enc->in_mem_attr[e->enc_ref_in];
+        uint16_t *dst = (uint16_t *)enc->in_mem[e->enc_ref_in]
                             ->virt_addr;
         int c2 = (int)a->dims[4];
         int ws = a->w_stride ? (int)a->w_stride : (int)a->dims[3];
         mlvc_px_nchw_f16_to_nc1hwc2(fv, dst, e->REF_C, e->REF_H,
                                     e->REF_W, c2, ws);
-        if (rknn_mem_sync(e->enc_model.ctx,
-                          e->enc_model.in_mem[e->enc_ref_in],
+        if (mark_ltr)
+            memcpy(e->ref_ltr, dst, e->ref_ltr_bytes);
+        if (rknn_mem_sync(enc->ctx,
+                          enc->in_mem[e->enc_ref_in],
                           RKNN_MEMORY_SYNC_TO_DEVICE) != RKNN_SUCC) {
-            rknn_outputs_release(e->enc_model.ctx,
-                                 e->enc_model.io_num.n_output, outputs);
+            rknn_outputs_release(enc->ctx, enc->io_num.n_output, outputs);
             return (int)RKVC_STATUS_HW;
         }
     } else {
         nchw_to_nhwc_fp16(fv, e->ref_nhwc, e->REF_C, e->REF_H, e->REF_W);
+        if (mark_ltr)
+            memcpy(e->ref_ltr, e->ref_nhwc, e->ref_ltr_bytes);
     }
-    rknn_outputs_release(e->enc_model.ctx, e->enc_model.io_num.n_output,
+    if (mark_ltr)
+        e->have_ltr = 1;
+    rknn_outputs_release(enc->ctx, enc->io_num.n_output,
                          outputs);
-    (void)profile_unused;
 
     /* 熵编码：y1, y0, z 三段流 */
     if (mlvc_px_extract_scales(e->z_r, e->s0, e->s1,
@@ -990,28 +1415,46 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
         return (int)RKVC_STATUS_INTERNAL;
     }
 
-    /* 组装 .mlvc 记录（首帧附 32B 容器头） */
-    keyframe = e->frame_count == 0;
-    record_size = (keyframe ? MLVC_HDR_SIZE : 0) + MLVC_REC_SIZE + bits_size;
+    /* 组装 .mlvc 记录（首帧附 64B 容器头） */
+    record_size = (e->frame_count == 0 ? MLVC_HDR_SIZE : 0) +
+                  MLVC_REC_SIZE + bits_size;
     record = malloc(record_size);
     if (!record) {
         rkvc_rans_enc_stream_free(&stream);
         return (int)RKVC_STATUS_NOMEM;
     }
     {
-        uint8_t *cur = record;
-        if (keyframe) {
-            mlvc_container_write_header(cur, (uint32_t)e->IMG_W,
-                                        (uint32_t)e->IMG_H, 0, 0,
-                                        (uint32_t)e->qp);
-            cur += MLVC_HDR_SIZE;
+        uint8_t *curp = record;
+        if (e->frame_count == 0) {
+            mlvc_container_header hdr = {0};
+            hdr.width = (uint32_t)e->IMG_W;
+            hdr.height = (uint32_t)e->IMG_H;
+            hdr.fps_num = e->fps;
+            hdr.fps_den = 1;
+            hdr.qp = (uint32_t)e->qp;
+            hdr.iframe_period = e->iframe_period;
+            hdr.ltr_start_idx = e->ltr_start_idx;
+            hdr.ltr_period = e->ltr_period;
+            /* PROACTIVE_LTR 仅在 LTR 启用时置位，避免歧义 */
+            hdr.flags = ((e->proactive_ltr && e->ltr_period)
+                             ? MLVC_HDR_FLAG_PROACTIVE_LTR : 0) |
+                        (e->rc ? MLVC_HDR_FLAG_CBR : 0);
+            hdr.target_bitrate_bps = (uint32_t)(e->rc_bitrate > 0
+                ? e->rc_bitrate : 0);
+            mlvc_container_write_header(curp, &hdr);
+            curp += MLVC_HDR_SIZE;
         }
-        mlvc_container_write_record(cur, (uint32_t)bits_size, keyframe);
-        cur += MLVC_REC_SIZE;
-        memcpy(cur, bits, bits_size);
+        mlvc_container_write_record(curp, (uint32_t)bits_size, used_qp,
+                                    rec_flags);
+        curp += MLVC_REC_SIZE;
+        memcpy(curp, bits, bits_size);
     }
     rkvc_rans_enc_stream_free(&stream);
 
+    if (e->rc)
+        mlvc_rc_update(e->rc,
+                       (int64_t)(record_size - bits_size) * 8,
+                       (int64_t)bits_size * 8);
     rkvc_frame_desc_init(&out_desc, sizeof(out_desc));
     out_desc.spec.fmt = RKVC_FRAME_FMT_BITSTREAM;
     out_desc.spec.domain = RKVC_MEM_DOMAIN_HOST;
@@ -1019,7 +1462,7 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     out_desc.size = record_size;
     out_desc.pts = desc.pts;
     out_desc.dts = desc.pts;
-    if (keyframe)
+    if (is_idr)
         out_desc.flags |= RKVC_FRAME_FLAG_KEYFRAME;
     st = rkvc_backend_frame_create(&out_desc, free_buffer_fn, record,
                                    &output);
@@ -1031,6 +1474,7 @@ static int mlvc_enc_process(rkvc_node *node, rkvc_frame *input,
     if (rc != 0)
         rkvc_frame_release(output);
     e->frame_count++;
+    e->cur_frame_idx = is_idr ? 1 : cur + 1;
     return rc;
 }
 
@@ -1039,8 +1483,11 @@ static void mlvc_enc_close(rkvc_node *node)
     struct mlvc_encoder *e = node ? node->priv : NULL;
     if (!e)
         return;
+    mlvc_rc_free(e->rc);
+    e->rc = NULL;
     enc_free_bufs(e);
-    rknn_model_cleanup(&e->enc_model);
+    rungs_cleanup(&e->rs);
+    mlvc_qptab_free(&e->qptab);
     if (e->rans_ready) {
         rkvc_rans_coder_free(&e->g_coder);
         rkvc_rans_coder_free(&e->b_coder);
@@ -1071,12 +1518,15 @@ static const rkvc_node_ops mlvc_enc_ops = {
 
 struct mlvc_decoder {
     rkvc_request request;
-    mlvc_rknn_model dec_model;
+    mlvc_rung_set rs;
+    mlvc_qptab qptab;      /**< qp-dynamic 行表（QPTAB 载荷） */
+    mlvc_qrows qrows;
     rkvc_rans_coder g_coder, b_coder;
     mlvc_entropy_config entropy;
     int rans_ready;
     int model_ready;
-    int qp;
+    int qp;            /**< 会话基准 q_index（容器头） */
+    int z_idx_qp;      /**< z_idx 已构建的 qp（-1 = 未构建） */
 
     int IMG_W, IMG_H, REF_C, REF_H, REF_W;
     int OUT_C2;
@@ -1085,10 +1535,18 @@ struct mlvc_decoder {
     int ZC, ZH, ZW, YC, YH, YW;
     int dec_z_in, dec_y0_in, dec_y1_in, dec_ref_in, dec_x_out, dec_ref_out;
 
-    uint16_t *ref_nhwc;
+    uint16_t *ref_nhwc;    /**< prev 参考槽（native NC1HWC2 布局 host 缓冲） */
+    uint16_t *ref_ltr;     /**< LTR 参考槽（同构） */
+    size_t ref_slot_elems;
+    int have_ltr;
     int32_t *z_d, *y0_d, *y1_d, *s0, *s1, *z_idx;
     uint16_t *z_d_nhwc, *y0_d_nhwc, *y1_d_nhwc;
     uint16_t *x_img;
+
+    /* 丢帧重复：上一输出 NV12 副本 */
+    uint8_t *last_nv12;
+    size_t last_nv12_size;
+    int have_last_frame;
 
     /* 绑定暂存：RKNN 惰性初始化（首帧容器头给出 qp 后） */
     const unsigned char *model_bytes;
@@ -1101,7 +1559,7 @@ struct mlvc_decoder {
 
 static int dec_resolve_geom(struct mlvc_decoder *d)
 {
-    mlvc_rknn_model *dec = &d->dec_model;
+    mlvc_rknn_model *dec = &d->rs.models[d->rs.active];
     d->dec_z_in = rknn_find_input(dec, "z_raw");
     d->dec_y0_in = rknn_find_input(dec, "y_raw_0");
     d->dec_y1_in = rknn_find_input(dec, "y_raw_1");
@@ -1168,19 +1626,22 @@ static int dec_resolve_geom(struct mlvc_decoder *d)
 
 static int dec_alloc_bufs(struct mlvc_decoder *d)
 {
-    size_t ref_sz = (size_t)d->dec_model.in_mem_attr[d->dec_ref_in].n_elems;
+    mlvc_rknn_model *dec = &d->rs.models[d->rs.active];
+    size_t ref_sz = (size_t)dec->in_mem_attr[d->dec_ref_in].n_elems;
     if (!ref_sz)
         ref_sz = (size_t)d->REF_C * d->REF_H * d->REF_W;
     size_t z_sz = (size_t)d->ZC * d->ZH * d->ZW;
     size_t y_sz = (size_t)d->YC * d->YH * d->YW;
-    size_t z_in = (size_t)d->dec_model.in_mem_attr[d->dec_z_in].n_elems;
-    size_t y_in = (size_t)d->dec_model.in_mem_attr[d->dec_y0_in].n_elems;
+    size_t z_in = (size_t)dec->in_mem_attr[d->dec_z_in].n_elems;
+    size_t y_in = (size_t)dec->in_mem_attr[d->dec_y0_in].n_elems;
     if (z_in < z_sz)
         z_in = z_sz;
     if (y_in < y_sz)
         y_in = y_sz;
 
+    d->ref_slot_elems = ref_sz;
     d->ref_nhwc = malloc(ref_sz * 2);
+    d->ref_ltr = malloc(ref_sz * 2);
     d->z_d = malloc(z_sz * 4);
     d->y0_d = malloc(y_sz * 4);
     d->y1_d = malloc(y_sz * 4);
@@ -1193,24 +1654,35 @@ static int dec_alloc_bufs(struct mlvc_decoder *d)
     d->x_img = NULL;
     if (d->x_d2s_bs > 0)
         d->x_img = malloc(3ull * d->IMG_H * d->IMG_W * 2);
-    if (!d->ref_nhwc || !d->z_d || !d->y0_d || !d->y1_d || !d->s0 ||
-        !d->s1 || !d->z_idx || !d->z_d_nhwc || !d->y0_d_nhwc ||
+    if (!d->ref_nhwc || !d->ref_ltr || !d->z_d || !d->y0_d || !d->y1_d ||
+        !d->s0 || !d->s1 || !d->z_idx || !d->z_d_nhwc || !d->y0_d_nhwc ||
         !d->y1_d_nhwc || (d->x_d2s_bs > 0 && !d->x_img))
         return (int)RKVC_STATUS_NOMEM;
 
     memset(d->ref_nhwc, 0, ref_sz * 2);
+    memset(d->ref_ltr, 0, ref_sz * 2);
+    d->z_idx_qp = -1;
+    return 0;
+}
+
+/** z_idx 按活动 qp 惰性重建（z_idx = qp*ZC + c，通道平面内常量）。 */
+static void dec_set_z_idx_qp(struct mlvc_decoder *d, int qp)
+{
+    if (d->z_idx_qp == qp)
+        return;
     for (int c = 0; c < d->ZC; c++) {
         int32_t *p = d->z_idx + (size_t)c * d->ZH * d->ZW;
         size_t n = (size_t)d->ZH * d->ZW;
         for (size_t i = 0; i < n; i++)
-            p[i] = d->qp * d->ZC + c;
+            p[i] = qp * d->ZC + c;
     }
-    return 0;
+    d->z_idx_qp = qp;
 }
 
 static void dec_free_bufs(struct mlvc_decoder *d)
 {
     free(d->ref_nhwc);
+    free(d->ref_ltr);
     free(d->z_d);
     free(d->y0_d);
     free(d->y1_d);
@@ -1221,10 +1693,14 @@ static void dec_free_bufs(struct mlvc_decoder *d)
     free(d->y0_d_nhwc);
     free(d->y1_d_nhwc);
     free(d->x_img);
+    free(d->last_nv12);
     d->ref_nhwc = NULL;
+    d->ref_ltr = NULL;
     d->z_d = d->y0_d = d->y1_d = d->s0 = d->s1 = d->z_idx = NULL;
     d->z_d_nhwc = d->y0_d_nhwc = d->y1_d_nhwc = NULL;
     d->x_img = NULL;
+    d->last_nv12 = NULL;
+    d->have_last_frame = 0;
 }
 
 static int mlvc_dec_bind_model(rkvc_node *node,
@@ -1287,27 +1763,42 @@ static int mlvc_dec_open(rkvc_node *node, rkvc_diag **diag)
     return 0;
 }
 
-/** 首帧路径：容器头解析后用 qp 初始化 RKNN + 几何/缓冲。 */
+/** 首帧路径：容器头解析后用 qp 收集 rung 集合并初始化全部 RKNN 上下文。 */
 static int dec_lazy_init(struct mlvc_decoder *d, rkvc_diag **diag,
                          const rkvc_node *node)
 {
-    const rkvc_model_payload_view *patch =
-        find_qppatch_for_qp(&d->binding, d->qp);
-    int rc = rknn_model_init(&d->dec_model, d->model_bytes, d->model_size,
-                             patch ? patch->data : NULL,
-                             patch ? patch->size : 0, d->qp);
+    int rc = rungs_collect(&d->rs, &d->binding, d->qp);
+    if (rc != 0) {
+        push_reason(diag, (rkvc_status)rc, node,
+                    "session qp missing from QPPATCH rung set");
+        return rc;
+    }
+    rc = rungs_init_all(&d->rs, &d->binding, d->model_bytes, d->model_size);
     if (rc != 0) {
         push_reason(diag, (rkvc_status)rc, node,
                     "decoder RKNN init failed (qp patch/model)");
         return rc;
     }
+    rc = qrows_setup(&d->qrows, &d->qptab, &d->rs.models[d->rs.active],
+                     &d->binding);
+    if (rc != 0) {
+        push_reason(diag, (rkvc_status)rc, node,
+                    "decoder qp-dynamic model missing/invalid QPTAB payload");
+        return rc;
+    }
+    if (d->qrows.present && d->rs.rung_count != 1) {
+        push_reason(diag, RKVC_STATUS_FORMAT, node,
+                    "qp-dynamic model must not carry QPPATCH rungs");
+        return (int)RKVC_STATUS_FORMAT;
+    }
     d->model_ready = 1;
-    rc = rknn_alloc_input_mems(&d->dec_model);
-    if (rc != 0)
-        return rc;
-    rc = rknn_alloc_output_mems(&d->dec_model);
-    if (rc != 0)
-        return rc;
+    for (int i = 0; i < d->rs.rung_count; i++) {
+        rc = rknn_alloc_input_mems(&d->rs.models[i]);
+        if (rc == 0)
+            rc = rknn_alloc_output_mems(&d->rs.models[i]);
+        if (rc != 0)
+            return rc;
+    }
     rc = dec_resolve_geom(d);
     if (rc != 0) {
         push_reason(diag, RKVC_STATUS_FORMAT, node,
@@ -1324,21 +1815,59 @@ static int dec_lazy_init(struct mlvc_decoder *d, rkvc_diag **diag,
     return dec_alloc_bufs(d);
 }
 
-/** 解码一帧 rANS 载荷 → NV12 BITSTREAM→video 转换并发出。 */
+/** 解码一帧 rANS 载荷 → NV12 并发出；按记录 flags 维护 DPB/LTR。 */
 static int dec_decode_frame(struct mlvc_decoder *d, rkvc_node *node,
                             const uint8_t *payload, size_t size,
-                            int keyframe, rkvc_diag **diag)
+                            int32_t rec_q_index, uint32_t rec_flags,
+                            rkvc_diag **diag)
 {
+    mlvc_rknn_model *dec;
     rkvc_rans_dec_stream ds;
     size_t z_n = (size_t)d->ZC * d->ZH * d->ZW;
     size_t y_n = (size_t)d->YC * d->YH * d->YW;
     const uint16_t *xh, *fv;
+    const uint16_t *ref_src;
     uint8_t *nv12;
     size_t nv12_size;
     rkvc_frame_desc out_desc;
     rkvc_frame *output = NULL;
     rkvc_status st;
     int rc;
+    int keyframe = (rec_flags & MLVC_REC_KEYFRAME) != 0;
+
+    /* 逐帧 qp：qp-dynamic 按记录头 q 喂行；否则精确命中 rung，多 rung 报错 */
+    if (d->qrows.present) {
+        d->rs.active = 0;
+    } else if (rec_q_index != d->rs.rung_qp[d->rs.active]) {
+        int found = -1;
+        for (int i = 0; i < d->rs.rung_count; i++)
+            if (d->rs.rung_qp[i] == (int)rec_q_index)
+                found = i;
+        if (found < 0) {
+            if (d->rs.rung_count > 1) {
+                push_reason(diag, RKVC_STATUS_FORMAT, node,
+                            "record q_index has no matching decoder rung");
+                return (int)RKVC_STATUS_FORMAT;
+            }
+            /* 单 rung：忽略失配，按会话 qp 解码 */
+        } else {
+            d->rs.active = found;
+        }
+    }
+    dec = &d->rs.models[d->rs.active];
+    if (d->qrows.present) {
+        qrows_sync_io_mem(&d->qrows, dec, (int)rec_q_index);
+        dec_set_z_idx_qp(d, (int)rec_q_index);
+    } else {
+        dec_set_z_idx_qp(d, d->rs.rung_qp[d->rs.active]);
+    }
+
+    if (keyframe) {
+        /* IDR：清空 DPB 两槽（官方 IDR 清 ref_manager） */
+        memset(d->ref_nhwc, 0, d->ref_slot_elems * sizeof(uint16_t));
+        memset(d->ref_ltr, 0, d->ref_slot_elems * sizeof(uint16_t));
+        d->have_ltr = 0;
+    }
 
     rkvc_rans_dec_stream_init(&ds, RKVC_RANS_BYTE);
     if (rkvc_rans_dec_stream_open(&ds, payload, size) != RKVC_RANS_OK) {
@@ -1382,18 +1911,21 @@ static int dec_decode_frame(struct mlvc_decoder *d, rkvc_node *node,
     mlvc_px_nchw_to_nc1hwc2_fp16(d->y0_d, d->y0_d_nhwc, d->YC, d->YH, d->YW);
     mlvc_px_nchw_to_nc1hwc2_fp16(d->y1_d, d->y1_d_nhwc, d->YC, d->YH, d->YW);
 
-    rknn_write_input(&d->dec_model, d->dec_z_in, d->z_d_nhwc);
-    rknn_write_input(&d->dec_model, d->dec_y0_in, d->y0_d_nhwc);
-    rknn_write_input(&d->dec_model, d->dec_y1_in, d->y1_d_nhwc);
-    rknn_write_input(&d->dec_model, d->dec_ref_in, d->ref_nhwc);
-    if (rknn_run(d->dec_model.ctx, NULL) != RKNN_SUCC) {
+    /* 参考槽选择：LTR_RECOVERY 用 LTR 槽（无 LTR 时宽容回退 prev） */
+    ref_src = (rec_flags & MLVC_REC_LTR_RECOVERY) && d->have_ltr
+        ? d->ref_ltr : d->ref_nhwc;
+    rknn_write_input(dec, d->dec_z_in, d->z_d_nhwc);
+    rknn_write_input(dec, d->dec_y0_in, d->y0_d_nhwc);
+    rknn_write_input(dec, d->dec_y1_in, d->y1_d_nhwc);
+    rknn_write_input(dec, d->dec_ref_in, ref_src);
+    if (rknn_run(dec->ctx, NULL) != RKNN_SUCC) {
         push_reason(diag, RKVC_STATUS_HW, node, "decoder RKNN run failed");
         return (int)RKVC_STATUS_HW;
     }
 
-    xh = rknn_output_data(&d->dec_model, d->dec_x_out);
+    xh = rknn_output_data(dec, d->dec_x_out);
     if (!xh || !fp16_tensor_is_finite(
-                   xh, d->dec_model.native_out_attr[d->dec_x_out].n_elems)) {
+                   xh, dec->native_out_attr[d->dec_x_out].n_elems)) {
         push_reason(diag, RKVC_STATUS_HW, node,
                     "decoder produced non-finite pixels");
         return (int)RKVC_STATUS_HW;
@@ -1423,19 +1955,34 @@ static int dec_decode_frame(struct mlvc_decoder *d, rkvc_node *node,
                                                 d->IMG_H, d->IMG_W);
     }
 
-    /* decoder feature 输出 → 下一帧参考（native NC1HWC2 直接拷贝） */
-    fv = rknn_output_data(&d->dec_model, d->dec_ref_out);
+    /* decoder feature 输出 → prev 参考槽；LTR_MARK 时再拷入 LTR 槽 */
+    fv = rknn_output_data(dec, d->dec_ref_out);
     if (!fv || !fp16_tensor_is_finite(
-                   fv, d->dec_model.native_out_attr[d->dec_ref_out]
-                           .n_elems)) {
+                   fv, dec->native_out_attr[d->dec_ref_out].n_elems)) {
         free(nv12);
         push_reason(diag, RKVC_STATUS_HW, node,
                     "decoder produced non-finite reference values");
         return (int)RKVC_STATUS_HW;
     }
     memcpy(d->ref_nhwc, fv,
-           (size_t)d->dec_model.in_mem_attr[d->dec_ref_in].n_elems *
+           (size_t)dec->in_mem_attr[d->dec_ref_in].n_elems *
                sizeof(uint16_t));
+    if (rec_flags & MLVC_REC_LTR_MARK) {
+        memcpy(d->ref_ltr, d->ref_nhwc,
+               d->ref_slot_elems * sizeof(uint16_t));
+        d->have_ltr = 1;
+    }
+
+    /* 丢帧恢复用：保留上一输出 NV12 副本 */
+    if (!d->last_nv12 || d->last_nv12_size != nv12_size) {
+        free(d->last_nv12);
+        d->last_nv12 = malloc(nv12_size);
+        d->last_nv12_size = d->last_nv12 ? nv12_size : 0;
+    }
+    if (d->last_nv12) {
+        memcpy(d->last_nv12, nv12, nv12_size);
+        d->have_last_frame = 1;
+    }
 
     rkvc_frame_desc_init(&out_desc, sizeof(out_desc));
     out_desc.spec.width = (uint32_t)d->IMG_W;
@@ -1479,9 +2026,11 @@ static int mlvc_dec_process(rkvc_node *node, rkvc_frame *input,
     for (;;) {
         const uint8_t *payload;
         size_t size;
-        int keyframe;
+        int32_t rec_q_index;
+        uint32_t rec_flags;
 
-        rc = mlvc_demux_next(&d->demux, &payload, &size, &keyframe);
+        rc = mlvc_demux_next(&d->demux, &payload, &size, &rec_q_index,
+                             &rec_flags);
         if (rc < 0) {
             push_reason(diag, RKVC_STATUS_FORMAT, node,
                         "malformed .mlvc stream");
@@ -1500,7 +2049,43 @@ static int mlvc_dec_process(rkvc_node *node, rkvc_frame *input,
         }
         if (rc == 0)
             return 0; /* 缓冲不足：等下一块 */
-        rc = dec_decode_frame(d, node, payload, size, keyframe, diag);
+        if (rec_q_index == MLVC_QINDEX_DROPPED) {
+            /* 丢帧：重复上一输出帧（首帧前丢帧无法重建，静默跳过） */
+            if (d->have_last_frame && d->last_nv12) {
+                uint8_t *nv12 = malloc(d->last_nv12_size);
+                rkvc_frame_desc out_desc;
+                rkvc_frame *output = NULL;
+                rkvc_status st;
+                if (!nv12)
+                    return (int)RKVC_STATUS_NOMEM;
+                memcpy(nv12, d->last_nv12, d->last_nv12_size);
+                rkvc_frame_desc_init(&out_desc, sizeof(out_desc));
+                out_desc.spec.width = (uint32_t)d->IMG_W;
+                out_desc.spec.height = (uint32_t)d->IMG_H;
+                out_desc.spec.fmt = RKVC_FRAME_FMT_NV12;
+                out_desc.spec.domain = RKVC_MEM_DOMAIN_HOST;
+                out_desc.spec.stride = (uint32_t)d->IMG_W;
+                out_desc.spec.ver_stride = (uint32_t)d->IMG_H;
+                out_desc.data = nv12;
+                out_desc.size = d->last_nv12_size;
+                st = rkvc_backend_frame_create(&out_desc, free_buffer_fn,
+                                               nv12, &output);
+                if (st != RKVC_STATUS_OK) {
+                    free(nv12);
+                    return (int)st;
+                }
+                rc = rkvc_node_emit(node, 0, output);
+                if (rc != 0)
+                    rkvc_frame_release(output);
+                d->frame_count++;
+                if (rc != 0)
+                    return rc;
+            }
+            mlvc_demux_consume(&d->demux, MLVC_REC_SIZE);
+            continue;
+        }
+        rc = dec_decode_frame(d, node, payload, size, rec_q_index,
+                              rec_flags, diag);
         if (rc != 0)
             return rc;
         mlvc_demux_consume(&d->demux, MLVC_REC_SIZE + size);
@@ -1513,7 +2098,8 @@ static void mlvc_dec_close(rkvc_node *node)
     if (!d)
         return;
     dec_free_bufs(d);
-    rknn_model_cleanup(&d->dec_model);
+    rungs_cleanup(&d->rs);
+    mlvc_qptab_free(&d->qptab);
     mlvc_demux_free(&d->demux);
     if (d->rans_ready) {
         rkvc_rans_coder_free(&d->g_coder);

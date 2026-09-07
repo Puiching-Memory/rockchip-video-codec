@@ -148,8 +148,10 @@ if(RKVC_BUILD_BACKEND_MLVC)
         backends/mlvc/rans.c
         backends/mlvc/mlvc_pixel.c
         backends/mlvc/pmf.c
+        backends/mlvc/qptab.c
         backends/mlvc/qppatch.c
-        backends/mlvc/container.c)
+        backends/mlvc/container.c
+        backends/mlvc/ratectl.c)
     target_include_directories(rkvc_backend_mlvc PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/lib

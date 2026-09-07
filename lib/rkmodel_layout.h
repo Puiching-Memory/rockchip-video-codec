@@ -42,6 +42,7 @@
 #define RKMODEL_PAYLOAD_QPPATCH      3u
 #define RKMODEL_PAYLOAD_PMF_GAUSSIAN 4u
 #define RKMODEL_PAYLOAD_PMF_BITEST   5u
+#define RKMODEL_PAYLOAD_QPTAB        6u  /* QPT1：qp-dynamic 模型的逐 QP FiLM 行表 */
 
 #pragma pack(push, 1)
 typedef struct rkmodel_fixed {

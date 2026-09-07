@@ -162,10 +162,11 @@ python3 tools/bench/benchmark.py --config tools/bench/config.local.json
 
 配置矩阵与单项运行方法见 [tools/bench/README.md](tools/bench/README.md)。
 
-端到端性能与率失真曲线示例：
-
-![端到端性能](docs/images/bench/perf_e2e.png)
-![端到端率失真曲线](docs/images/bench/rd_curve_e2e.png)
+新版 [RD 测试流程](tools/bench/README.md#rd-实测与报告)采用 UVG 经典七序列，
+比较 MLVC、H.264、H.265、AV1 的低分辨率 RD，以及同一码流经传统插值与
+3× SR 重建后的 1080p RD；传统编码器原生 1080p 作为额外参照。
+报告按序列分图，提供实际码率、Y-PSNR／Y-SSIM、板端耗时和模型哈希。
+旧版示例图不再作为当前版本性能依据。
 
 ## 模型
 

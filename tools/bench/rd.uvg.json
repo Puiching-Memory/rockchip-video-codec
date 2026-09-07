@@ -1,0 +1,87 @@
+{
+  "dataset": "UVG-7 / official 1080p / first 96 frames",
+  "source_url": "https://ultravideo.fi/dataset.html",
+  "rkvc": "/root/rkvc-0.4.0-linux-aarch64-portable/bin/rkvc",
+  "ffmpeg": "ffmpeg",
+  "width": 1920,
+  "height": 1080,
+  "fps": 120,
+  "frames": 96,
+  "scale": 3,
+  "warmup": 1,
+  "iterations": 3,
+  "timeout_seconds": 1800,
+  "mlvc_model": "mlvc",
+  "sr_model": "phase-rlfn-bench",
+  "codecs": {
+    "h264": [
+      22,
+      27,
+      32,
+      37
+    ],
+    "hevc": [
+      22,
+      27,
+      32,
+      37
+    ],
+    "av1": [
+      24,
+      32,
+      40,
+      48
+    ],
+    "mlvc": [
+      12,
+      21,
+      30,
+      39
+    ]
+  },
+  "sequences": [
+    {
+      "name": "Beauty",
+      "path": "media/Beauty_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/Beauty_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    },
+    {
+      "name": "Bosphorus",
+      "path": "media/Bosphorus_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/Bosphorus_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    },
+    {
+      "name": "HoneyBee",
+      "path": "media/HoneyBee_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/HoneyBee_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    },
+    {
+      "name": "Jockey",
+      "path": "media/Jockey_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/Jockey_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    },
+    {
+      "name": "ReadySetGo",
+      "path": "media/ReadySetGo_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/ReadySetGo_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    },
+    {
+      "name": "ShakeNDry",
+      "path": "media/ShakeNDry_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/ShakeNDry_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    },
+    {
+      "name": "YachtRide",
+      "path": "media/YachtRide_1920x1080_120fps_420_8bit_YUV.yuv",
+      "download_url": "https://ultravideo.fi/video/YachtRide_1920x1080_120fps_420_8bit_YUV_RAW.7z"
+    }
+  ],
+  "mlvc_alignment": 16,
+  "mlvc_models": {
+    "12": "mlvc-bench-qp12",
+    "21": "mlvc-bench-qp21",
+    "30": "mlvc-bench-qp30",
+    "39": "mlvc-bench-qp39"
+  },
+  "classical_decoder": "ffmpeg-rkmpp"
+}

@@ -27,7 +27,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 SCHEMA_VERSION = 1
 OPERATIONS = {"decode", "encode", "transcode"}
-CODECS = {"auto", "h264", "hevc", "av1"}
+CODECS = {"auto", "h264", "hevc", "av1", "mlvc"}
 
 
 class BenchmarkError(RuntimeError):
@@ -236,6 +236,7 @@ def _default_output(operation: str, codec: str) -> str:
         "h264": "output.h264",
         "hevc": "output.h265",
         "av1": "output.ivf",
+        "mlvc": "output.mlvc",
     }.get(codec, "output.es")
 
 

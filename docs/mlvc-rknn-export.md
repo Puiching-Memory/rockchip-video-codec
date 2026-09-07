@@ -138,6 +138,7 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁按
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `--qp 21`                       | 折进图的 `q_index`（默认 21，与 `node_mlvc` 一致）                                                           |
 | `--qp-list 10,21,30,40`         | 每个 qp 一份模型，写入 `{out-dir}/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 bundle 根目录作默认 |
+| `--qp-dynamic`                  | 全 QP 单模型（QPT1）：Gather 改 q 行输入，q 表外置随 `.rkmodel` 分发；与 `--qp-list`/QPP1 互斥 |
 | `--skip-rknn`                   | 只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用）                                                     |
 | `--pmf-only`                    | 只把 JSON 写成 `gaussian.bin` / `bitest.bin`                                                                 |
 | `--inspect`                     | 只打印 ONNX I/O                                                                                              |
@@ -194,4 +195,59 @@ JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_length
 
 产物：`models/mlvc/qp_patches/{enc|dec}_qp{N}.qppatch`（含基座 qp 的空补丁）。格式为 48 字节小端头 `QPP1` + 合并后的 `(offset, length)` 区间 + payload；头里带基座 / payload CRC32。缺补丁或 CRC 不对会打开失败，不会静默用错权重。
 
-后端应由 request 的模型 ID 和质量约束选择 QP patch。
+**运行时 rung 集合**（0.4 满血化后）：后端在 `bind_model` 时收集
+`.rkmodel` 载荷表中的全部 qppatch 为一个升序去重的 rung 集合
+（≤8 档），每档独立 `rknn_init` 出上下文。恒 QP 模式下集合退化为
+单 rung（会话 qp 必须在集合内，否则 FORMAT 拒绝）。CBR 模式下编码端
+按码控逐帧求解的 q_index 选最近 rung（并列取低），解码端按帧记录
+q_index 精确命中 rung（多 rung 无命中即 FORMAT）。因此 CBR 部署的
+`.rkmodel` 应携带覆盖目标 q 区间的若干档补丁（如
+`--qp-list 10,21,30,40`），否则逐帧 q 会被钳到仅有的档位上。
+多 rung 时编码器强制 host 输入路径（零拷贝 NPU 输入缓冲按 rung
+独占分配）。
+
+## 全 QP 单模型（--qp-dynamic，QPT1）
+
+QPP1 多 rung 是用空间换时间的折衷：每档一份上下文，切换有钳位误差。
+`--qp-dynamic` 走零损路线——把每个 `Gather(q_table, q_index)` 改写为
+FP16 `[1,C,1,1]` 图输入（行向量），q 表本体摘出图外随 `.rkmodel`
+分发，运行时宿主按 q 查表把整行喂进 NPU，图内只剩常量广播乘（≤5 个
+`Mul`）。单 RKNN 上下文覆盖全部 72 行 q 档，无 rung、无切换、无钳位：
+
+```bash
+.venv/bin/python tools/mlvc/export_rknn.py \
+    --onnx-dir /path/to/onnx-generic/640x368 \
+    --out-dir models/mlvc-dynq --platform rk3576 \
+    --qp-dynamic
+
+# 打包：qptab 作为第 4 类载荷与 rknn/pmf-gaussian/pmf-bitest 并列
+python3 tools/rkvc_build/rkmodel.py pack \
+    --id mlvc-dynq-rk3576 --family mlvc --role encoder --version 1.0.0 \
+    --rknn-target rk3576 \
+    --payload rknn=.../MLVCEncoder_rk3576.rknn \
+    --payload pmf-gaussian=.../gaussian.bin \
+    --payload pmf-bitest=.../bitest.bin \
+    --payload qptab=.../qptab_encoder.bin \
+    mlvc-dynq-encoder.rkmodel
+```
+
+模型 I/O 契约（encoder 追加 3 输入、decoder 追加 3 输入，均 FP16 未量化）：
+
+| 部件   | q 行输入                                        | 对应表（rows×cols）                  |
+| ------ | ----------------------------------------------- | ------------------------------------- |
+| 编码器 | `q_encoder_row` / `q_decoder_row` / `q_feature_row` | `[72,256]` / `[72,128]` / `[72,256]` |
+| 解码器 | `q_feature_row` / `q_decoder_row` / `q_recon_row`   | 均 `[72,256]`                         |
+
+`qptab_{encoder,decoder}.bin` 为 **QPT1** 线格式：`"QPT1"` magic +
+u32 表数；每表 u32 name_len + name（≤32B，无 NUL）+ u32 rows + u32 cols +
+rows×cols×2B FP16 行主序。rows=72（64 qp + 8 extra）。
+
+运行时（`node_mlvc`）在 bind 时扫输入名发现 `q_*_row` 即要求 `.rkmodel`
+携带 qptab 载荷（`RKMODEL_PAYLOAD_QPTAB`），恒 QP 直喂、CBR 逐帧直喂、
+解码按帧记录头 q_index 直喂；q 不变时跳过行拷贝。_qp-dynamic 模型不得
+再携带 QPPATCH rung（FORMAT 拒绝）_。折叠模型（无 `q_*_row` 输入）
+自动走原 QPP1 路径，两者可在同一 registry 并存。
+
+实测（RK3576 640×368×70 帧）：与折叠基线比特数偏差 +0.49%（常量预融合
+vs 行输入的舍入差，画质等价）；编码 fps +33%（免 rung 上下文重建）。
+RV1126B 单核：fps 偏差 -0.33%（噪声内，零损）。

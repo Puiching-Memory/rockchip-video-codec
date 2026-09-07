@@ -103,8 +103,10 @@ if(RKVC_BUILD_TESTS)
         backends/mlvc/rans.c
         backends/mlvc/mlvc_pixel.c
         backends/mlvc/pmf.c
+        backends/mlvc/qptab.c
         backends/mlvc/qppatch.c
         backends/mlvc/container.c
+        backends/mlvc/ratectl.c
         ${RKVC_STANDALONE_SOURCES})
     target_compile_definitions(test_backend_mlvc PRIVATE
         RKVC_STANDALONE_TEST=1 RKVC_MLVC_TESTING=1 _DEFAULT_SOURCE
@@ -120,6 +122,16 @@ if(RKVC_BUILD_TESTS)
         rkvc_instrumentation)
     add_test(NAME test_backend_mlvc COMMAND test_backend_mlvc)
     set_tests_properties(test_backend_mlvc PROPERTIES LABELS "c;unit;backend")
+
+    # MLVC RateController 纯算法单测（官方 rate_controller.py 移植）
+    add_executable(test_mlvc_ratectl
+        tests/c/test_mlvc_ratectl.c
+        backends/mlvc/ratectl.c)
+    target_include_directories(test_mlvc_ratectl PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/backends)
+    target_link_libraries(test_mlvc_ratectl PRIVATE cmocka m)
+    add_test(NAME test_mlvc_ratectl COMMAND test_mlvc_ratectl)
+    set_tests_properties(test_mlvc_ratectl PROPERTIES LABELS "c;unit;backend")
 
     add_library(rkvc_fixture_backend_good MODULE tests/c/fixture_backend.c)
     add_library(rkvc_fixture_backend_badabi MODULE tests/c/fixture_backend_badabi.c)
