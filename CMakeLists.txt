@@ -179,7 +179,8 @@ if(RKVC_BUILD_TESTS)
         test_graph_executor test_job test_rkmodel
         test_media_pipeline test_model_binding
         test_frame_metadata test_api_contract
-        test_backend_loader test_backend_rknn test_backend_mlvc)
+        test_backend_loader test_backend_rknn test_backend_mlvc
+        test_mlvc_ratectl)
     if(RKVC_BUILD_EXAMPLES)
         list(APPEND RKVC_CHECK_TARGETS
             example_decode_file example_encode_file example_transcode
