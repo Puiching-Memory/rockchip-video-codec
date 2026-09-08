@@ -441,12 +441,12 @@ static int mpp_enc_open(rkvc_node *node, rkvc_diag **diag) {
     mpp_enc_cfg_set_s32(cfg, "prep:format", (RK_S32)enc->format);
     mpp_enc_cfg_set_s32(cfg, "codec:type", (RK_S32)enc->coding);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_in_flex", 0);
-    mpp_enc_cfg_set_s32(cfg, "rc:fps_in_num", MPP_ENC_DEFAULT_FPS);
+    mpp_enc_cfg_set_s32(cfg, "rc:fps_in_num", enc->request.fps ? enc->request.fps : MPP_ENC_DEFAULT_FPS);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_in_denom", 1);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_flex", 0);
-    mpp_enc_cfg_set_s32(cfg, "rc:fps_out_num", MPP_ENC_DEFAULT_FPS);
+    mpp_enc_cfg_set_s32(cfg, "rc:fps_out_num", enc->request.fps ? enc->request.fps : MPP_ENC_DEFAULT_FPS);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_denom", 1);
-    mpp_enc_cfg_set_s32(cfg, "rc:gop", MPP_ENC_DEFAULT_GOP);
+    mpp_enc_cfg_set_s32(cfg, "rc:gop", enc->request.quality.gop_size ? enc->request.quality.gop_size : MPP_ENC_DEFAULT_GOP);
 
     if (enc->request.quality.qp >= 0) {
         RK_S32 qp = enc->request.quality.qp;
@@ -471,7 +471,7 @@ static int mpp_enc_open(rkvc_node *node, rkvc_diag **diag) {
         mpp_enc_cfg_set_s32(cfg, "rc:bps_min", (RK_S32)(bps * 15 / 16));
         enc->applied_bps = (int32_t)bps;
     }
-    enc->applied_gop = MPP_ENC_DEFAULT_GOP;
+    enc->applied_gop = enc->request.quality.gop_size ? enc->request.quality.gop_size : MPP_ENC_DEFAULT_GOP;
 
     /* 编码器必须先 mpp_init 再下发配置：MPP_ENC_SET_CFG 依赖已建好的
      * 编码上下文（否则 mpp_control_enc 断言 mEnc 为空）。 */

@@ -82,6 +82,8 @@ rkvc bench decode -i input.h264 -o output.nv12 --codec h264 \
   demux（需 FFmpeg 后端）。
 - `encode` 支持 `--codec h264|hevc|av1|mlvc`，`av1` 走 SVT 软编、`mlvc` 需
   NPU 模型（`--qp` 为量化档，默认 21）；`--bitrate` 设码率。
+- MPP／SVT／MLVC 编码支持 `--gop 64 --fps 120 --low-delay`：指定关键帧周期、
+  编码帧率和只使用过去帧的参考模式；低延迟模式同时关闭 MLVC 长时参考。
 - `upscale` 的 `--width/--height` 为输入尺寸，NPU 超分优先，无模型时回退
   RGA 2×；`--model ID` 覆盖注册表选择。
 - `bench OP` 复用媒体子命令参数并追加 `--warmup/--iterations/--frames/
@@ -167,6 +169,14 @@ python3 tools/bench/benchmark.py --config tools/bench/config.local.json
 3× SR 重建后的 1080p RD；传统编码器原生 1080p 作为额外参照。
 报告按序列分图，提供实际码率、Y-PSNR／Y-SSIM、板端耗时和模型哈希。
 旧版示例图不再作为当前版本性能依据。
+
+[RK3576 · UVG-7 实测结果](docs/bench-uvg-rk3576.md)已完成 532 个有效评分点，
+包含可重绘数据、MLVC 与传统编码器对比，以及 SR / bicubic / Lanczos 消融。
+实测为文中记录的源码快照，单次采样；SR 对 MLVC 的收益很小，详见逐序列结果。
+
+![UVG 低分辨率编码 RD](docs/images/bench/uvg-rk3576-low_native-codecs.png)
+
+![UVG MLVC 3× 重建 RD](docs/images/bench/uvg-rk3576-low-mlvc.png)
 
 ## 模型
 

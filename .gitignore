@@ -6,6 +6,8 @@
 .mlvc-ref/
 # 项目内临时目录（C/Python 测试、导出工具的中间产物统一落这里）
 .temp/
+# 一次性可视化调试产物（nanovsr SR 前后帧对比等，不入库）
+_nanovsr_vis/
 build/
 build-*/
 build_*/

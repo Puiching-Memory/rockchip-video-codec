@@ -69,6 +69,7 @@ class RDTests(unittest.TestCase):
                     Path(args[-1]).write_bytes(bytes(216))
                 return (1, '', '')
             runner.run = fake_run
+            runner.audit_gop = lambda *args: None
             runner.quality = lambda *args: {'psnr_y': 30, 'ssim_y': .9}
             rows = runner.point('h264', 22, 'low', work/'ref', work/'low', .5, work, False)
             self.assertEqual([r['kbps'] for r in rows], [120, 120, 120, 120])
@@ -84,6 +85,48 @@ class RDTests(unittest.TestCase):
         pooled = aggregate(rows, ['a', 'b'])[0]
         self.assertAlmostEqual(pooled['psnr_y'], 32.5963731051)
         self.assertNotEqual(pooled['psnr_y'], 35)
+
+    def test_resume_retries_a_partially_measured_stream(self):
+        common = dict(sequence='Beauty', codec='mlvc', qp=21, branch='low', status='ok')
+        rows = [dict(common, reconstruction=m) for m in ('low_native', 'bicubic', 'lanczos')]
+        self.assertEqual(rd.completed_points(rows), set())
+        rows.append(dict(common, reconstruction='sr', status='failed'))
+        self.assertEqual(rd.completed_points(rows), set())
+        rows[-1]['status'] = 'ok'
+        self.assertEqual(rd.completed_points(rows), {('Beauty', 'mlvc', 'low', 21)})
+
+    def test_resume_rejects_model_or_board_changes(self):
+        before = dict(config=self.config, rkvc_sha256='binary', library_hashes={'lib': 'a'},
+                      model_hashes={'sr': 'a'}, ffmpeg_version='version', cpu_affinity=[4, 5],
+                      system={'hostname': 'RK3576', 'machine': 'aarch64'})
+        rd.verify_resume(before, copy.deepcopy(before))
+        after = copy.deepcopy(before)
+        after['model_hashes']['sr'] = 'different-model'
+        with self.assertRaisesRegex(ValueError, 'model_hashes changed'):
+            rd.verify_resume(before, after)
+        after = copy.deepcopy(before)
+        after['system']['hostname'] = 'another-board'
+        with self.assertRaisesRegex(ValueError, 'hostname changed'):
+            rd.verify_resume(before, after)
+
+    def test_explicit_encoder_controls_and_keyframe_audit(self):
+        self.config.update(gop=64, frames=96)
+        runner = rd.Runner(self.config, ROOT / '.temp')
+        for codec in ('h264', 'hevc', 'av1', 'mlvc'):
+            args = runner.media('encode', 'in', 'out', codec)
+            self.assertEqual(args[args.index('--gop') + 1], 64)
+            self.assertEqual(args[args.index('--fps') + 1], 120)
+            self.assertIn('--low-delay', args)
+        def log(interval):
+            return json.dumps({'frames': [{'key_frame': int(i % interval == 0), 'pict_type': 'P'} for i in range(96)]})
+        runner.run = lambda *args: (0, log(64), '')
+        self.assertEqual(runner.audit_gop(Path('stream'), 'h264')['keyframes'], [0, 64])
+        runner.run = lambda *args: (0, log(60), '')
+        with self.assertRaisesRegex(ValueError, 'GOP audit failed'):
+            runner.audit_gop(Path('stream'), 'h264')
+        runner.run = lambda *args: (0, '', '\n'.join(
+            f'frame_type 00 = {int(i % 64 != 0)}' for i in range(96)))
+        self.assertEqual(runner.audit_gop(Path('stream'), 'av1')['keyframes'], [0, 64])
 
 
 if __name__ == '__main__':

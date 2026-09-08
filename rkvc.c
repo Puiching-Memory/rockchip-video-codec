@@ -62,7 +62,8 @@ static void usage(FILE *out) {
         "            [--gop N] [--ltr start,period]\n"
         "            av1 走 SVT 软件编码；mlvc 需 NPU 模型；\n"
         "            --qp 为 MLVC 量化档（默认 21）；\n"
-        "            --gop/--ltr 仅 MLVC 生效（默认随模型变体）\n"
+        "            [--fps N] [--low-delay]（编码帧率与低延迟参考模式）\n"
+        "            --gop 支持 MPP/SVT/MLVC；--ltr 仅 MLVC 生效\n"
         "  transcode -i in.es -o out.es --codec h264|hevc|av1 [--bitrate BPS]\n"
         "            [--width W --height H] 转码中缩放\n"
         "  upscale   -i in.nv12 -o out.nv12 --width W --height H\n"
@@ -390,6 +391,8 @@ typedef struct media_options {
     long bitrate;
     long qp;
     long gop;
+    long fps;
+    int low_delay;
     long ltr_start;
     long ltr_period;
     rkvc_codec codec;
@@ -471,6 +474,11 @@ static int parse_media_options(int argc, char **argv, int start,
         } else if (!strcmp(a, "--gop")) {
             if (++i >= argc || !parse_long_value(argv[i], 0, UINT32_MAX,
                                                  &opts->gop)) return 0;
+        } else if (!strcmp(a, "--fps")) {
+            if (++i >= argc || !parse_long_value(argv[i], 1, 240,
+                                                 &opts->fps)) return 0;
+        } else if (!strcmp(a, "--low-delay")) {
+            opts->low_delay = 1;
         } else if (!strcmp(a, "--ltr")) {
             /* start,period；period=0 关闭 LTR */
             char *comma;
@@ -573,7 +581,9 @@ static rkvc_status run_media_once(rkvc_operation op,
     req.quality.bitrate_bps = (int32_t)opts->bitrate;
     req.quality.qp = (int32_t)opts->qp;
     req.quality.gop_size = (uint32_t)opts->gop;
-    if (opts->ltr_period > 0 || opts->ltr_start > 0) {
+    req.fps = (uint32_t)opts->fps;
+    req.low_delay = (uint32_t)opts->low_delay;
+    if (opts->ltr_period > 0 || opts->ltr_start > 0 || opts->low_delay) {
         req.quality.ltr_period = (uint32_t)opts->ltr_period;
         req.quality.ltr_start_idx = (uint32_t)opts->ltr_start;
         if (!opts->ltr_period)

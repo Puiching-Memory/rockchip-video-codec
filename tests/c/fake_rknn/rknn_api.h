@@ -97,6 +97,7 @@ typedef enum rknn_core_mask {
     RKNN_NPU_CORE_0_1 = 3,
     RKNN_NPU_CORE_2 = 4,
     RKNN_NPU_CORE_0_1_2 = 7,
+    RKNN_NPU_CORE_ALL = 0xffff,
 } rknn_core_mask;
 
 int rknn_init(rknn_context *context, void *model, uint32_t size,

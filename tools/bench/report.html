@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RKVC · 板端率失真报告</title>
+<style>
+:root{color-scheme:light;--ink:#172b36;--muted:#657780;--line:#dfe7e9;--paper:#fff;--accent:#147d73}
+*{box-sizing:border-box}body{margin:0;background:#f2f5f5;color:var(--ink);font:15px/1.7 system-ui,"Microsoft YaHei",sans-serif}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}button,select{font:inherit}button,a,select{touch-action:manipulation}
+:focus-visible{outline:3px solid #34a99a;outline-offset:4px}.topbar{max-width:1480px;margin:auto;padding:22px 36px;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.brand{font-size:20px;font-weight:850;letter-spacing:.05em}.brand span{font-size:12px;font-weight:500;color:var(--muted);margin-left:16px;letter-spacing:.1em}
+.badge{font-size:12px;color:var(--accent);padding:5px 12px;border:1px solid #badbd3;background:#edf8f3;border-radius:30px}.badge.pending{color:#986316;background:#fff5e2;border-color:#efd9b0}
+main{max-width:1480px;margin:auto;padding:0 36px 48px}.hero{background:#16383d;color:#f1f8f6;border-radius:22px;padding:36px 40px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;position:relative;overflow:hidden}
+.hero:after{content:"";position:absolute;width:240px;height:240px;border:1px solid #ffffff15;border-radius:50%;right:-70px;top:-100px;pointer-events:none}
+.eyebrow{color:#9bbfb7;font-size:11px;letter-spacing:.15em}.hero h1{font-size:clamp(28px,3vw,42px);letter-spacing:.01em;line-height:1.3;margin:12px 0 14px}.hero p{margin:0;color:#b9ceca;max-width:740px;font-size:14px}
+.download{display:inline-flex;align-items:center;gap:12px;background:#e2f5e9;color:#184638;padding:12px 18px;border-radius:10px;font-weight:650;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0 26px}.stat{padding:19px 22px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}.stat small{display:block;color:var(--muted);font-size:12px}.stat strong{display:block;font-size:26px;font-weight:700;line-height:1.3;margin:8px 0 4px;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:var(--muted)}
+.workspace{display:grid;grid-template-columns:216px minmax(0,1fr);gap:24px;align-items:start}.workspace>*{min-width:0}.sidebar{position:sticky;top:20px}.sidebar h2{font-size:11px;color:var(--muted);font-weight:650;letter-spacing:.12em;margin:0 0 10px}.sidebar label{display:block;font-size:12px;color:var(--muted);margin:20px 0 7px}select{width:100%;border:1px solid #ccdadd;border-radius:9px;padding:10px;background:white;color:var(--ink)}
+.views{display:flex;flex-direction:column;gap:6px}.views button{background:transparent;border:0;text-align:left;padding:11px 13px;border-radius:9px;color:var(--muted);cursor:pointer;font-size:13px}.views button:hover{background:#e7eeee;color:var(--ink)}.views button[aria-pressed=true]{background:#dcece7;color:#15584f;font-weight:700}.aside-note{border-top:1px solid var(--line);margin-top:22px;padding-top:15px;color:var(--muted);font-size:12px}
+.section-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 14px}.section-head h2{font-size:20px;margin:0}.section-head span{font-size:12px;color:var(--muted)}
+.protocol{padding:18px 22px;background:#e9f0ed;border-radius:12px;margin:0 0 18px;font-size:13px;color:#426057}.protocol strong{display:block;margin-bottom:5px;color:#264c42}.protocol p{margin:0}
+figure{margin:0 0 22px;background:white;border:1px solid var(--line);border-radius:15px;overflow:hidden;box-shadow:0 4px 20px #203c4604}figure img{display:block;width:100%;height:auto}figcaption{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:13px 20px;border-top:1px solid #edf1f2;font-size:12px;color:var(--muted)}figcaption a{margin-left:14px}
+details{background:white;border:1px solid var(--line);border-radius:12px;margin:18px 0;padding:16px 20px}summary{cursor:pointer;font-size:13px;font-weight:650}details p{font-size:13px;color:var(--muted)}pre{font-size:11px;white-space:pre-wrap;word-break:break-word;color:var(--muted);max-height:420px;overflow:auto}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--muted);font-weight:500}code{font-size:12px;overflow-wrap:anywhere}.footer{color:var(--muted);font-size:12px;margin-top:26px;border-top:1px solid var(--line);padding-top:18px}[hidden]{display:none!important}
+@media(min-width:1700px){main,.topbar{max-width:1640px}}@media(max-width:900px){main{padding:0 18px 30px}.topbar{padding:18px}.hero{padding:26px;grid-template-columns:1fr}.hero .download{justify-self:start}.stats{grid-template-columns:repeat(2,1fr)}.workspace{grid-template-columns:1fr}.sidebar{position:static}.views{flex-direction:row;overflow:auto;gap:6px;padding-bottom:6px}.views button{white-space:nowrap}.sidebar label{margin-top:10px}.aside-note{display:none}.brand span{display:none}.section-head{margin-top:4px}}@media(max-width:480px){.stats{gap:9px}.stat{padding:15px}.stat strong{font-size:23px}.hero{padding:23px}figcaption{padding:11px;flex-wrap:wrap}}
+@media print{.sidebar,.download,.topbar .badge{display:none}.workspace{display:block}main{padding:0}.hero{background:white;color:var(--ink);border:1px solid var(--line)}.hero p,.eyebrow{color:var(--muted)}figure{break-inside:avoid;box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="brand">RKVC<span>视频编码 · 实测档案</span></div><span class="badge $state_class">$state</span></div>
+<main>
+<header class="hero"><div><div class="eyebrow">$board · UVG · 率失真评估</div><h1>视频编码实测报告</h1><p>$summary</p></div><a class="download" href="rd.json" download>下载原始数据 <span aria-hidden="true">↗</span></a></header>
+<div class="stats">$stats</div>
+<div class="workspace">
+<aside class="sidebar"><h2>对比视图</h2><nav class="views" aria-label="对比视图">$views</nav><label for="sequence">测试序列</label><select id="sequence">$options</select><p class="aside-note">横轴为实际码流码率。<br>曲线使用同一组固定配色。<br>重建方法复用同一码流。</p></aside>
+<section aria-label="测量图表"><div class="section-head"><h2 id="view-title">编码 RD</h2><span id="figure-count" aria-live="polite"></span></div>
+<div class="protocol"><strong>本次比较条件</strong><p>$protocol</p></div>
+$body
+<details><summary>QP 扫描范围与采样条件</summary><div class="table-wrap"><table><thead><tr><th>编码器</th><th>QP 档位</th><th>数量</th></tr></thead><tbody>$qp_rows</tbody></table></div><p>$sampling</p></details>
+<details><summary>指标与计时口径</summary><p>Y-PSNR 由池化后的亮度均方误差计算，Y-SSIM 为逐帧均值。全测试集汇总要求每个档位包含全部配置序列；缺失点不插值。各序列等长，汇总码率取算术平均。不同评价分辨率的 PSNR 不跨图比较。</p><p>吞吐按下采样、编码、解码及重建的独立阶段耗时相加计算，包含初始化和文件读写，不包含画质评分与码流核验，不代表流水线端到端延迟。编码器算法、参考结构和硬件实现仍有差异。</p></details>
+<details $failure_open><summary>不可用的测量结果（$failed_count）</summary><p>$fatal</p><div class="table-wrap"><table><tr><th>序列</th><th>编码器</th><th>QP</th><th>分支</th><th>重建</th><th>原因</th></tr>$failures</table></div></details>
+<details><summary>来源、模型与运行环境</summary><p>实测源码：<code>$revision</code></p><pre>$provenance</pre></details>
+</section></div>
+<footer class="footer">$board · $timestamp · 本页支持离线浏览，图表可下载为 PNG 或 SVG。</footer>
+</main>
+<script>
+let panel='low_native';
+const buttons=[...document.querySelectorAll('[data-view]')], selector=document.getElementById('sequence');
+function filter(){let count=0;document.querySelectorAll('figure').forEach(f=>{f.hidden=f.dataset.sequence!==selector.value||(panel!=='all'&&f.dataset.panel!==panel);if(!f.hidden)count++});buttons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===panel)));document.getElementById('view-title').textContent=buttons.find(b=>b.dataset.view===panel).textContent;document.getElementById('figure-count').textContent=selector.selectedOptions[0].textContent+' · '+count+' 张图';}
+buttons.forEach(b=>b.addEventListener('click',()=>{panel=b.dataset.view;filter()}));selector.addEventListener('change',filter);filter();
+</script>
+</body></html>

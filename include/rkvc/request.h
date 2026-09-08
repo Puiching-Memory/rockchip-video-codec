@@ -91,6 +91,8 @@ typedef struct rkvc_request {
     uint32_t      width;        /**< 期望输出宽度；0 = 跟随源；UPSCALE 时为输入几何 */
     uint32_t      height;       /**< 期望输出高度；0 = 跟随源；UPSCALE 时为输入几何 */
     const char   *model_id;     /**< 可选：稳定模型 ID 覆盖自动选择；NULL=自动 */
+    uint32_t      fps;          /**< 编码帧率（整数）；0 = 后端默认 */
+    uint32_t      low_delay;    /**< 非零：只使用过去帧参考；SVT 使用 LOW_DELAY */
 } rkvc_request;
 
 /**

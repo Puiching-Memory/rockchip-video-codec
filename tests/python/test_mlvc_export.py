@@ -12,6 +12,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 # 测试临时目录统一落项目内 .temp/，不写系统临时目录。
 _TMP_ROOT = os.path.join(
@@ -55,6 +57,31 @@ BITEST_JSON = {
     "qp_num": 2,
     "channels": 2,
 }
+
+
+class TestMultiQPExport(unittest.TestCase):
+    def test_zero_qp_default_is_copied_from_named_variant(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            info = SimpleNamespace(inputs=[], outputs=[])
+            report = SimpleNamespace(folded_inputs=[], space_to_depth=0, max_to_clip=0,
+                                     min_to_clip=0, div_to_mul=0, skipped=[])
+            def convert(src, dst, **kwargs):
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                dst.write_bytes(dst.parent.name.encode())
+                return dst
+            with patch.object(export_rknn, 'prepare_onnx', return_value=(info, report)), \
+                 patch.object(export_rknn, 'classify_part', return_value='unknown'), \
+                 patch.object(export_rknn, 'validate_runtime_io', return_value=[]), \
+                 patch.object(export_rknn.rknn_convert, 'convert_onnx_to_rknn', side_effect=convert):
+                result = export_rknn.export_models(
+                    sources={'encoder': root/'enc.onnx', 'decoder': root/'dec.onnx'},
+                    out_dir=root, platform='rk3576', qp_list=[0, 63], default_qp=0,
+                    rewrite=True, fold=True, keep_onnx=False, verbose=False,
+                    skip_rknn=False, extract_tail=False)
+            for part in ('encoder', 'decoder'):
+                self.assertEqual(Path(result[part]['default_rknn']).read_bytes(), b'qp0')
+                self.assertEqual(len(result[part]['qps']), 2)
 
 
 class TestPmf1(unittest.TestCase):

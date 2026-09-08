@@ -18,25 +18,37 @@
       22,
       27,
       32,
-      37
+      37,
+      42,
+      47,
+      51
     ],
     "hevc": [
       22,
       27,
       32,
-      37
+      37,
+      42,
+      47,
+      51
     ],
     "av1": [
       24,
       32,
       40,
-      48
+      48,
+      54,
+      59,
+      63
     ],
     "mlvc": [
+      0,
       12,
       21,
       30,
-      39
+      39,
+      48,
+      63
     ]
   },
   "sequences": [
@@ -78,10 +90,14 @@
   ],
   "mlvc_alignment": 16,
   "mlvc_models": {
+    "0": "mlvc-bench-qp0",
     "12": "mlvc-bench-qp12",
     "21": "mlvc-bench-qp21",
     "30": "mlvc-bench-qp30",
-    "39": "mlvc-bench-qp39"
+    "39": "mlvc-bench-qp39",
+    "48": "mlvc-bench-qp48",
+    "63": "mlvc-bench-qp63"
   },
-  "classical_decoder": "ffmpeg-rkmpp"
+  "classical_decoder": "ffmpeg-rkmpp",
+  "gop": 64
 }

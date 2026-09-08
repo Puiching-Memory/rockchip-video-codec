@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import statistics
+import struct
 import subprocess
 import sys
 import time
@@ -45,6 +46,47 @@ def model_listing(stdout):
     return candidates[0]
 
 
+def progress(message):
+    try:
+        print(message, flush=True)
+    except BrokenPipeError:
+        # Losing a progress consumer must not cancel an hours-long measurement.
+        sys.stdout = open(os.devnull, 'w', encoding='utf-8')
+
+
+def point_key(row):
+    return tuple(row.get(k) for k in ('sequence', 'codec', 'branch', 'qp'))
+
+
+DEFAULT_RECON = ('low_native', 'bicubic', 'lanczos', 'sr')
+MLVC_CODECS = ('mlvc', 'mlvc-s')
+
+
+def planned_branches(config, codec):
+    if codec in MLVC_CODECS or not config.get('native_reference', True):
+        return ('low',)
+    return ('native', 'low')
+
+
+def completed_points(rows, recon=None):
+    expected_low = set(recon or DEFAULT_RECON)
+    methods = {}
+    for row in rows:
+        if row['status'] == 'ok':
+            methods.setdefault(point_key(row), set()).add(row['reconstruction'])
+    return {key for key, found in methods.items() if found == (
+        {'native'} if key[2] == 'native' else expected_low)}
+
+
+def verify_resume(previous, current):
+    for key in ('config', 'rkvc_sha256', 'library_hashes', 'model_hashes', 'ffmpeg_version', 'ffprobe_version', 'cpu_affinity'):
+        if previous.get(key) != current.get(key):
+            raise ValueError(f'cannot resume: {key} changed; use a new output directory')
+    for key in ('hostname', 'machine', 'device_tree_compatible'):
+        if previous['system'].get(key) != current['system'].get(key):
+            raise ValueError(f'cannot resume: board {key} changed')
+
+
 def validate(config):
     for key in ('frames', 'iterations', 'width', 'height', 'scale'):
         value = config[key]
@@ -52,6 +94,11 @@ def validate(config):
             raise ValueError(f'{key} must be a positive integer')
     if type(config['warmup']) is not int or config['warmup'] < 0:
         raise ValueError('warmup must be a nonnegative integer')
+    if 'gop' in config:
+        if type(config['gop']) is not int or not 1 <= config['gop'] <= 10000:
+            raise ValueError('gop must be an integer in 1..10000')
+        if type(config['fps']) is not int or not 1 <= config['fps'] <= 240:
+            raise ValueError('explicit encoder fps must be an integer in 1..240')
     for key in ('timeout_seconds', 'fps'):
         if not math.isfinite(config[key]) or config[key] <= 0:
             raise ValueError(f'{key} must be finite and positive')
@@ -65,7 +112,7 @@ def validate(config):
         raise ValueError('sequence names must be unique safe filenames')
     for codec, qps in config['codecs'].items():
         limit = 51 if codec in ('h264', 'hevc') else 63
-        if codec not in ('h264', 'hevc', 'av1', 'mlvc') or len(set(qps)) < 4:
+        if codec not in ('h264', 'hevc', 'av1') + MLVC_CODECS or len(set(qps)) < 4:
             raise ValueError('each supported codec needs at least four distinct QPs')
         if any(type(q) is not int or not 0 <= q <= limit for q in qps):
             raise ValueError(f'invalid QP for {codec}')
@@ -75,11 +122,21 @@ def validate(config):
         raise ValueError('mlvc_alignment must be a positive integer')
     if not config.get('sr_model') or not config.get('mlvc_model'):
         raise ValueError('explicit sr_model and mlvc_model IDs are required')
-    if 'mlvc' in config['codecs']:
-        models = config.get('mlvc_models', {})
-        if any(not isinstance(models.get(str(q)), str) or not models[str(q)]
-               for q in config['codecs']['mlvc']):
-            raise ValueError('mlvc_models must explicitly map every tested QP to its matching model ID')
+    for codec in MLVC_CODECS:
+        if codec in config['codecs']:
+            key = 'mlvc_s_models' if codec == 'mlvc-s' else 'mlvc_models'
+            models = config.get(key, {})
+            if any(not isinstance(models.get(str(q)), str) or not models[str(q)]
+                   for q in config['codecs'][codec]):
+                raise ValueError(f'{key} must explicitly map every tested QP to its matching model ID')
+    recon = config.get('reconstructions', list(DEFAULT_RECON))
+    if type(recon) is not list or not recon or len(set(recon)) != len(recon) \
+            or any(m not in DEFAULT_RECON for m in recon):
+        raise ValueError('reconstructions must be distinct entries from low_native/bicubic/lanczos/sr')
+    if 'low_native' not in recon:
+        raise ValueError('reconstructions must include low_native')
+    if type(config.get('native_reference', True)) is not bool:
+        raise ValueError('native_reference must be a boolean')
 
 
 class Runner:
@@ -114,8 +171,10 @@ class Runner:
 
     def media(self, op, src, dst, codec=None, w=None, h=None, qp=None, model=None):
         args = [self.c['rkvc'], op, '-i', src, '-o', dst]
+        if op == 'encode' and 'gop' in self.c:
+            args += ['--gop', self.c['gop'], '--fps', self.c['fps'], '--low-delay']
         if codec:
-            args += ['--codec', codec]
+            args += ['--codec', 'mlvc' if codec == 'mlvc-s' else codec]
         if w:
             args += ['--width', w, '--height', h]
         if qp is not None:
@@ -131,6 +190,54 @@ class Runner:
         if path.stat().st_size != expected:
             raise ValueError(f'{path}: expected {expected} bytes (exact frame count/geometry), '
                              f'got {path.stat().st_size}')
+
+    def audit_gop(self, stream, codec):
+        """Verify actual keyframe positions; configuration alone is not evidence."""
+        if 'gop' not in self.c:
+            return None
+        keys = []
+        if codec in MLVC_CODECS:
+            blob = stream.read_bytes()
+            if blob[:6] != b'MLVC1\x02' or len(blob) < 64:
+                raise ValueError('GOP audit requires MLVC container format 2')
+            fps, den = struct.unpack_from('<II', blob, 16)
+            gop, _, ltr = struct.unpack_from('<III', blob, 32)
+            if (fps, den, gop, ltr) != (self.c['fps'], 1, self.c['gop'], 0):
+                raise ValueError('MLVC stream timing/GOP/LTR mismatch')
+            offset, count = 64, 0
+            while offset < len(blob):
+                if offset + 16 > len(blob):
+                    raise ValueError('truncated MLVC record')
+                size, qp, flags, _ = struct.unpack_from('<IiII', blob, offset)
+                if not size or qp < 0 or offset + 16 + size > len(blob):
+                    raise ValueError('invalid/dropped MLVC frame in RD measurement')
+                if flags & 1:
+                    keys.append(count)
+                offset += 16 + size
+                count += 1
+            details = {'fps': fps, 'ltr_period': ltr}
+        elif codec == 'av1':
+            # rkmpp does not propagate AV1 key_frame flags to decoded AVFrames.
+            # Read the actual AV1 frame_type syntax instead of trusting flags.
+            _, _, stderr = self.run(self.ff() + ['-f', 'obu', '-i', stream,
+                '-c', 'copy', '-bsf:v', 'trace_headers', '-f', 'null', '-'])
+            kinds = re.findall(r'\bframe_type\s+[01]+\s*=\s*(\d+)', stderr)
+            count = len(kinds)
+            keys = [i for i, kind in enumerate(kinds) if kind == '0']
+            details = {'parser': 'ffmpeg/trace_headers', 'frame_types': sorted(set(kinds))}
+        else:
+            _, stdout, _ = self.run([self.c.get('ffprobe', 'ffprobe'), '-v', 'error',
+                '-f', codec, '-i', stream, '-show_frames', '-show_entries',
+                'frame=key_frame,pict_type', '-of', 'json'])
+            frames = json.loads(stdout)['frames']
+            keys = [i for i, frame in enumerate(frames) if frame.get('key_frame') == 1]
+            count = len(frames)
+            details = {'parser': 'ffprobe',
+                       'picture_types': sorted({frame.get('pict_type', '?') for frame in frames})}
+        expected = list(range(0, self.c['frames'], self.c['gop']))
+        if count != self.c['frames'] or keys != expected:
+            raise ValueError(f'GOP audit failed: {count} frames, keyframes {keys}; expected {expected}')
+        return dict(details, keyframes=keys, frames=count, verified=True)
 
     def quality(self, ref, rec, work, dimensions=None):
         w, h = dimensions or (self.c['width'], self.c['height'])
@@ -186,11 +293,15 @@ class Runner:
         if not native:
             w, h = w // c['scale'], h // c['scale']
         stream, decoded = work / ('coded.' + codec), work / 'decoded.nv12'
-        model = c.get('mlvc_models', {}).get(str(qp), c['mlvc_model']) if codec == 'mlvc' else None
+        if codec in MLVC_CODECS:
+            key = 'mlvc_s_models' if codec == 'mlvc-s' else 'mlvc_models'
+            model = c.get(key, {}).get(str(qp), c['mlvc_model'])
+        else:
+            model = None
         source = ref if native else low
         coded_w, coded_h = w, h
         padding_seconds = 0
-        if codec == 'mlvc':
+        if codec in MLVC_CODECS:
             alignment = c.get('mlvc_alignment', 16)
             coded_w = (w + alignment - 1) // alignment * alignment
             coded_h = (h + alignment - 1) // alignment * alignment
@@ -203,7 +314,7 @@ class Runner:
         enc = self.media('encode', source, stream, codec, coded_w, coded_h, qp, model)
         dec = self.media('decode', stream, raw_decoded, codec, model=model)
         decoder = 'rkvc'
-        if codec != 'mlvc' and c.get('classical_decoder') == 'ffmpeg-rkmpp':
+        if codec not in MLVC_CODECS and c.get('classical_decoder') == 'ffmpeg-rkmpp':
             decoder = f'ffmpeg/{codec}_rkmpp'
             dec = self.ff() + ['-hwaccel', 'rkmpp', '-hwaccel_output_format', 'drm_prime',
                 '-c:v', f'{codec}_rkmpp', '-f',
@@ -234,8 +345,9 @@ class Runner:
                   'samples': samples, 'downsample_seconds': 0 if native else down_seconds}
         common.update(coded_width=coded_w, coded_height=coded_h, padding_seconds=padding_seconds,
                       model_id=model, decoder=decoder)
+        common['gop_audit'] = self.audit_gop(stream, codec)
         rows = []
-        methods = ['native'] if native else ['low_native', 'bicubic', 'lanczos', 'sr']
+        methods = ['native'] if native else list(c.get('reconstructions', DEFAULT_RECON))
         for method in methods:
             row = dict(common, reconstruction=method)
             try:
@@ -295,6 +407,7 @@ def main(argv=None):
     p.add_argument('--output', type=Path, required=True, help='new run directory; never overwrites a run')
     p.add_argument('--dry-run', action='store_true')
     p.add_argument('--preflight', action='store_true', help='two frames from the first sequence; all codec/QP paths')
+    p.add_argument('--resume', action='store_true', help='resume an existing run after checking provenance')
     args = p.parse_args(argv)
     c = json.loads(args.config.read_text(encoding='utf-8'))
     validate(c)
@@ -314,7 +427,9 @@ def main(argv=None):
         if not hasattr(os, 'sched_setaffinity'):
             raise ValueError('cpu_affinity requires Linux')
         os.sched_setaffinity(0, set(c['cpu_affinity']))
-    args.output.mkdir(parents=True, exist_ok=False)
+    previous = json.loads((args.output / 'rd.json').read_text(encoding='utf-8')) if args.resume else None
+    args.output.mkdir(parents=True, exist_ok=args.resume)
+    write_allowed = previous is None
     runner = Runner(c, args.output)
     report = {'schema_version': 1, 'system': system_metadata(), 'config': c,
               'runner_sha256': digest(Path(__file__)),
@@ -341,24 +456,57 @@ def main(argv=None):
             raise ValueError('RD runner currently requires the package default model registry')
         sr_available = any(m['id'] == c['sr_model'] and m['role'] == 'upscale' for m in models)
         report['ffmpeg_version'] = runner.run([c['ffmpeg'], '-version'])[1]
+        if 'gop' in c:
+            report['ffprobe_version'] = runner.run([c.get('ffprobe', 'ffprobe'), '-version'])[1]
+            report['protocol'] = 'explicit fps/GOP; causal references; MLVC LTR off; verified keyframe positions'
+        if previous is not None:
+            verify_resume(previous, report)
+            backup = args.output / f'rd.before-resume-{time.time_ns()}.json'
+            shutil.copyfile(args.output / 'rd.json', backup)
+            report['sessions'] = previous.get('sessions', [{
+                'system': previous['system'], 'system_end': previous.get('system_end'),
+                'runner_sha256': previous.get('runner_sha256')}]) + [{
+                'system': report['system'], 'runner_sha256': report['runner_sha256']}]
+            report['system'] = previous['system']
+            report['points'] = [r for r in previous['points'] if r['status'] == 'ok']
+            report['previous_failures'] = previous.get('previous_failures', []) + [
+                r for r in previous['points'] if r['status'] != 'ok']
+            report['sources'] = previous['sources']
+            runner.commands[:0] = previous['commands']
+            write_allowed = True
+        done = completed_points(report['points'], c.get('reconstructions'))
         for sequence in c['sequences']:
+            planned = {(sequence['name'], codec, branch, qp)
+                       for codec, qps in c['codecs'].items()
+                       for branch in planned_branches(c, codec) for qp in qps}
+            if planned <= done:
+                continue
             work = args.output / sequence['name']
-            work.mkdir()
+            work.mkdir(exist_ok=args.resume)
             try:
                 ref, low, down = runner.prepare(sequence, work)
-                report['sources'].append({'sequence': sequence['name'], 'reference_sha256': digest(ref),
+                ref_hash = digest(ref)
+                old_source = next((s for s in report['sources'] if s['sequence'] == sequence['name']), None)
+                if old_source and old_source['reference_sha256'] != ref_hash:
+                    raise ValueError('prepared reference changed since the previous session')
+                report['sources'] = [s for s in report['sources'] if s['sequence'] != sequence['name']]
+                report['sources'].append({'sequence': sequence['name'], 'reference_sha256': ref_hash,
                                           'source_bytes': Path(sequence['path']).stat().st_size})
                 for codec, qps in c['codecs'].items():
-                    for branch in (('low',) if codec == 'mlvc' else ('native', 'low')):
+                    for branch in planned_branches(c, codec):
                         for qp in qps:
-                            print(f"{sequence['name']} {codec} {branch} QP={qp}", flush=True)
+                            key = (sequence['name'], codec, branch, qp)
+                            if key in done:
+                                continue
+                            progress(f"{sequence['name']} {codec} {branch} QP={qp}")
                             point_work = work / f'{codec}-{branch}-{qp}'
-                            point_work.mkdir()
+                            point_work.mkdir(exist_ok=args.resume)
                             try:
                                 rows = runner.point(codec, qp, branch, ref, low, down, point_work, sr_available)
                             except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                                 rows = [{'codec': codec, 'qp': qp, 'branch': branch,
                                          'status': 'failed', 'error': str(exc)}]
+                            report['points'] = [r for r in report['points'] if point_key(r) != key]
                             report['points'].extend(dict(row, sequence=sequence['name']) for row in rows)
                             save(report, args.output)
                             # Only delete files created in this fresh run's point directory.
@@ -376,7 +524,12 @@ def main(argv=None):
         report['fatal_error'] = str(exc)
     finally:
         report['system_end'] = system_metadata()
-        save(report, args.output)
+        if report.get('sessions'):
+            report['sessions'][-1]['system_end'] = report['system_end']
+        if write_allowed:
+            save(report, args.output)
+        else:
+            (args.output / 'resume-rejected.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return int(bool(report.get('fatal_error')) or any(r['status'] != 'ok' for r in report['points']))
 
 

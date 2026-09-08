@@ -122,6 +122,7 @@ static int svt_drain_packets(rkvc_node *node, rkvc_diag **diag) {
         uint8_t pic_send_done = (uint8_t)(enc->eos_sent != 0);
         EbErrorType ret;
         int rc;
+        int packet_eos;
 
         ret = svt_av1_enc_get_packet(enc->handle, &hdr, pic_send_done);
         if (ret == EB_NoErrorEmptyQueue)
@@ -134,10 +135,16 @@ static int svt_drain_packets(rkvc_node *node, rkvc_diag **diag) {
         }
         if (!hdr)
             continue;
+        packet_eos = (hdr->flags & EB_BUFFERFLAG_EOS) != 0;
         rc = svt_emit_packet(node, hdr, diag);
         svt_av1_enc_release_out_buffer(&hdr);
         if (rc != 0)
             return rc;
+        /* LOW_DELAY get_packet blocks even with pic_send_done=0. Exactly
+         * one packet is available for each submitted picture; a second read
+         * would wait for a picture that this same thread has not sent yet. */
+        if (packet_eos || (enc->request.low_delay && !enc->eos_sent))
+            return 0;
     }
 }
 
@@ -155,10 +162,15 @@ static int svt_init_locked(struct svt_encoder *enc, rkvc_diag **diag) {
     cfg->source_height = enc->height;
     cfg->encoder_bit_depth = 8;
     cfg->encoder_color_format = EB_YUV420;
-    cfg->frame_rate_numerator = SVT_DEFAULT_FPS_NUM;
+    cfg->frame_rate_numerator = enc->request.fps ? enc->request.fps : SVT_DEFAULT_FPS_NUM;
     cfg->frame_rate_denominator = SVT_DEFAULT_FPS_DEN;
-    cfg->intra_period_length = SVT_DEFAULT_GOP;
-    cfg->pred_structure = RANDOM_ACCESS;
+    cfg->intra_period_length = enc->request.quality.gop_size
+        ? (int32_t)enc->request.quality.gop_size - 1 : SVT_DEFAULT_GOP;
+    cfg->pred_structure = enc->request.low_delay ? LOW_DELAY : RANDOM_ACCESS;
+    if (enc->request.quality.gop_size) {
+        cfg->intra_refresh_type = SVT_AV1_KF_REFRESH;
+        cfg->scene_change_detection = 0;
+    }
     if (enc->request.quality.qp >= 0) {
         /* 固定 QP / CRF：直接使用请求 QP。 */
         cfg->rate_control_mode = SVT_AV1_RC_MODE_CQP_OR_CRF;
@@ -362,7 +374,8 @@ static int svt_process(rkvc_node *node, rkvc_frame *input,
         hdr->pts = desc.pts;
         hdr->dts = desc.dts >= 0 ? desc.dts : desc.pts;
     } else {
-        hdr->pts = (int64_t)enc->frame_index * SVT_TS_TICK;
+        hdr->pts = (int64_t)enc->frame_index * SVT_TS_BASE /
+            (enc->request.fps ? enc->request.fps : SVT_DEFAULT_FPS_NUM);
         hdr->dts = hdr->pts;
     }
     ret = svt_av1_enc_send_picture(enc->handle, hdr);

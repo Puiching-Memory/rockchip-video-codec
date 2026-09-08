@@ -13,6 +13,11 @@
 所有可扩展公开结构以 rkvc_header 开头。调用方使用对应 init 函数填入
 struct_size 和 api_version。句柄均为 opaque。
 
+编码请求通过 `quality.gop_size` 指定关键帧周期，`fps` 指定整数编码帧率，
+`low_delay` 请求仅使用过去帧参考（SVT 使用 LOW_DELAY）；零值保留后端默认。
+MLVC 长时参考由 `quality.ltr_period` 单独控制，`UINT32_MAX` 表示关闭。
+`fps` 和 `low_delay` 追加在请求结构尾部，旧尺寸请求仍按零值默认处理。
+
 文件端点通过 RKVC_ENDPOINT_FILE 和 URI 描述；流式端点使用
 rkvc_job_push、rkvc_job_pull 和 rkvc_job_push_eos。RKVC_STATUS_AGAIN
 表示有界队列暂时满或空，不是永久错误。

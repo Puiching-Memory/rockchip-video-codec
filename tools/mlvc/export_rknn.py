@@ -304,7 +304,7 @@ def export_models(
 
             if not qp_dynamic and not skip_rknn and len(qp_list) > 1:
                 primary = default_qp if default_qp in qp_list else qp_list[0]
-                src_rknn = Path(part_meta["qps"][str(primary)]["rknn"])
+                src_rknn = Path(part_meta["qps"][f"qp{primary}"]["rknn"])
                 dst_rknn = out_dir / _rknn_name(part, platform)
                 dst_rknn.write_bytes(src_rknn.read_bytes())
                 print(f"  默认拷贝 qp={primary} → {dst_rknn}")

@@ -1106,7 +1106,8 @@ static int mlvc_enc_open(rkvc_node *node, rkvc_diag **diag)
     }
     {
         const char *v = getenv("RKVC_MLVC_FPS");
-        e->fps = (v && atoi(v) > 0) ? (uint32_t)atoi(v) : 30;
+        e->fps = e->request.fps ? e->request.fps :
+            ((v && atoi(v) > 0) ? (uint32_t)atoi(v) : 30);
     }
     if (e->request.quality.bitrate_bps > 0) {
         e->rc = mlvc_rc_create((uint32_t)e->IMG_W, (uint32_t)e->IMG_H,
