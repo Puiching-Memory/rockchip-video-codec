@@ -101,3 +101,10 @@ TEST_CASE("upscale node validation without runtime") {
     if (s2)
         CHECK(s2.value()->start() == rkvc::Status::Hw);
 }
+
+TEST_CASE("sr plugin registers its factory") {
+    rkvc::Context ctx;
+    CHECK(ctx.load_plugin(RKVC_TEST_SR_PLUGIN) == rkvc::Status::Ok);
+    CHECK(ctx.plugin_count() == 1);
+    CHECK(ctx.registry().find("rknn.upscale") != nullptr);
+}

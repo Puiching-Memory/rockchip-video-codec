@@ -71,7 +71,10 @@ if(RKVC_SR_BUILD_TESTS)
     add_executable(test_sr_post tests/test_sr_post.cpp)
     target_link_libraries(test_sr_post PRIVATE sr::codec rkvc::doctest)
     target_compile_definitions(test_sr_post PRIVATE
-        DOCTEST_CONFIG_NO_EXCEPTIONS)
+        DOCTEST_CONFIG_NO_EXCEPTIONS
+        RKVC_TEST_SR_PLUGIN="$<TARGET_FILE:rkvc_sr>")
     target_compile_options(test_sr_post PRIVATE -fno-exceptions -fno-rtti)
+    set_target_properties(test_sr_post PROPERTIES ENABLE_EXPORTS ON)
+    add_dependencies(test_sr_post rkvc_sr)
     add_test(NAME test_sr_post COMMAND test_sr_post)
 endif()

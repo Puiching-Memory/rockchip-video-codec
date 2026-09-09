@@ -3,6 +3,7 @@
 #
 # Optional environment variables:
 #   RKVC_CROSS_PREFIX=aarch64-linux-gnu-
+#   RKVC_CROSS_SUFFIX=-11 (selects gcc-11/g++-11 for a glibc-2.35 ceiling)
 #   RKVC_SYSROOT=/path/to/aarch64/sysroot
 
 set(CMAKE_SYSTEM_NAME Linux)
@@ -12,10 +13,13 @@ set(_rkvc_cross_prefix "$ENV{RKVC_CROSS_PREFIX}")
 if(_rkvc_cross_prefix STREQUAL "")
     set(_rkvc_cross_prefix "aarch64-linux-gnu-")
 endif()
+# Jammy gcc-11 (glibc 2.35 libstdc++) coexists with noble gcc-13 (2.39);
+# the suffix picks it without touching the system default compiler.
+set(_rkvc_cross_suffix "$ENV{RKVC_CROSS_SUFFIX}")
 
-set(CMAKE_C_COMPILER "${_rkvc_cross_prefix}gcc")
-set(CMAKE_CXX_COMPILER "${_rkvc_cross_prefix}g++")
-set(CMAKE_ASM_COMPILER "${_rkvc_cross_prefix}gcc")
+set(CMAKE_C_COMPILER "${_rkvc_cross_prefix}gcc${_rkvc_cross_suffix}")
+set(CMAKE_CXX_COMPILER "${_rkvc_cross_prefix}g++${_rkvc_cross_suffix}")
+set(CMAKE_ASM_COMPILER "${_rkvc_cross_prefix}gcc${_rkvc_cross_suffix}")
 set(CMAKE_AR "${_rkvc_cross_prefix}ar" CACHE FILEPATH "target archiver")
 set(CMAKE_RANLIB "${_rkvc_cross_prefix}ranlib" CACHE FILEPATH "target ranlib")
 set(CMAKE_STRIP "${_rkvc_cross_prefix}strip" CACHE FILEPATH "target strip")

@@ -72,11 +72,15 @@ TEST_CASE("identity plugin end to end") {
     CHECK(ctx.registry().find("test.identity") != nullptr);
     auto s = Session::create(ctx, upscale_queue_req());
     CHECK(s);
+    if (!s)
+        return;
     auto session = s.value();
     CHECK(session->start() == Status::Ok);
     std::vector<uint8_t> buf(min_size(nv12_64x32()), 0xAB);
     auto fr = Frame::borrow_host(nv12_64x32(), buf.data(), buf.size());
     CHECK(fr);
+    if (!fr)
+        return;
     fr.value()->set_pts(7);
     CHECK(session->push(fr.value()) == Status::Ok);
     CHECK(session->push_eos() == Status::Ok);

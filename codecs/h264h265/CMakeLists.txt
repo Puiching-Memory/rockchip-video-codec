@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rkvc-h264h265 VERSION 0.5.0 LANGUAGES CXX)
+project(rkvc-h264h265 VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -75,5 +75,25 @@ if(RKVC_H264H265_WITH_MPP)
         target_compile_options(test_mpp_logic PRIVATE
             -fno-exceptions -fno-rtti)
         add_test(NAME test_mpp_logic COMMAND test_mpp_logic)
+
+        # Container load smoke: the stub satisfies the link so dlopen
+        # catches missing-symbol regressions without hardware.
+        add_library(mpp_stub STATIC tests/stubs/mpp_stub.c)
+        target_include_directories(mpp_stub PRIVATE ${MPP_INCLUDE_DIR})
+        add_executable(test_mpp_plugin tests/test_mpp_plugin.cpp)
+        target_link_libraries(test_mpp_plugin PRIVATE h264h265::codec
+                              rkvc::doctest)
+        # Whole-archive: the test itself references no mpp_* symbols, but
+        # the dlopened plugin resolves them from this host.
+        target_link_libraries(test_mpp_plugin PRIVATE
+            -Wl,--whole-archive mpp_stub -Wl,--no-whole-archive)
+        target_compile_definitions(test_mpp_plugin PRIVATE
+            DOCTEST_CONFIG_NO_EXCEPTIONS
+            RKVC_TEST_MPP_PLUGIN="$<TARGET_FILE:rkvc_h264h265>")
+        target_compile_options(test_mpp_plugin PRIVATE
+            -fno-exceptions -fno-rtti)
+        set_target_properties(test_mpp_plugin PROPERTIES ENABLE_EXPORTS ON)
+        add_dependencies(test_mpp_plugin rkvc_h264h265)
+        add_test(NAME test_mpp_plugin COMMAND test_mpp_plugin)
     endif()
 endif()

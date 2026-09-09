@@ -358,6 +358,8 @@ rkvc::Result<rkvc::NodePtr> MppDecodeFactory::create(
     return rkvc::Result<rkvc::NodePtr>::success(std::move(n));
 }
 
+namespace detail {
+
 bool mpp_device_present() noexcept {
     if (access("/dev/mpp_service", R_OK | W_OK) != 0 &&
         access("/dev/mpp-service", R_OK | W_OK) != 0)
@@ -367,5 +369,7 @@ bool mpp_device_present() noexcept {
            mpp_check_support_format(MPP_CTX_ENC, MPP_VIDEO_CodingAVC) ==
                MPP_OK;
 }
+
+}  // namespace detail
 
 }  // namespace h264h265

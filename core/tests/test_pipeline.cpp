@@ -249,6 +249,8 @@ TEST_CASE("process error surfaces instead of eof") {
     add_pipe(ctx, "fake.h264", 10);
     auto s = Session::create(ctx, encode_req());
     CHECK(s);
+    if (!s)
+        return;
     auto session = s.value();
     CHECK(session->start() == Status::Ok);
     CHECK(session->push(make_frame(0)) == Status::Ok);
@@ -256,6 +258,8 @@ TEST_CASE("process error surfaces instead of eof") {
     CHECK(session->push_eos() == Status::Ok);
     auto first = session->pull();
     CHECK(first);
+    if (!first)
+        return;
     CHECK(first.value()->pts() == 0);
     auto second = session->pull();
     CHECK(!second);

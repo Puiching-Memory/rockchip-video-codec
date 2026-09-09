@@ -1,11 +1,19 @@
 #!/bin/bash
-# 符号审计：GLIBC_2.17 上限 + 禁动态 libstdc++/libgcc_s + 导出面核对。
+# 符号审计：GLIBC_2.34 上限 + 禁动态 libstdc++/libgcc_s + 导出面核对。
 # 用法: tools/check-symbols.sh <elf> [<elf>...]
 # 退出码: 0 全过；1 违规；2 用法错误。
 set -euo pipefail
 
 MAX_GLIBC_MAJOR=2
-MAX_GLIBC_MINOR=17
+# Ceiling 2.34, not 2.17: pthread_once/key/dlopen and __libc_start_main
+# bind 2.34 even in the old production librkvc.so.0.4.0 (board-verified).
+# librknnrt's 2.17 stays the aspiration pending a 2.17 sysroot; 2.34 keeps
+# every artifact runnable on the glibc-2.35 fleet with one version margin.
+MAX_GLIBC_MINOR=34
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+mkdir -p "$PROJECT_DIR/.temp"
 
 fail=0
 for ELF in "$@"; do
@@ -26,7 +34,7 @@ for ELF in "$@"; do
         fail=1
     fi
 
-    # 2. GLIBC 符号版本上限 2.17（对齐 librknnrt 基线）。
+    # 2. GLIBC 符号版本上限（见顶部门限说明）。
     ver_refs="$(nm -D --with-symbol-versions "$ELF" 2>/dev/null | grep -oP 'GLIBC_[0-9]+\.[0-9]+' | sort -Vu || true)"
     worst=""
     for v in $ver_refs; do
@@ -50,15 +58,15 @@ for ELF in "$@"; do
 done
 
 # 3. 导出面核对：仅当新 C ABI 头存在时执行（旧 C 树时期跳过）。
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 NEW_ABI="$PROJECT_DIR/core/include/rkvc/rkvc.h"
 if [[ -f "$NEW_ABI" && $# -gt 0 ]]; then
     tmp_dir="$(mktemp -d "$PROJECT_DIR/.temp/symbols.XXXXXX")"
     trap 'rm -rf "$tmp_dir"' EXIT
-    mkdir -p "$PROJECT_DIR/.temp"
-    sed '/^[[:space:]]*\(\/\*\|\*\|\/\/\)/d' "$NEW_ABI" | \
-        grep -ohP 'rkvc_[A-Za-z0-9_]+(?=[[:space:]]*\()' | sort -u >"$tmp_dir/allowed"
+    { sed '/^[[:space:]]*\(\/\*\|\*\|\/\/\)/d' "$NEW_ABI" | \
+        grep -ohP 'rkvc_[A-Za-z0-9_]+(?=[[:space:]]*\()';
+        # The plugin handshake entry is ABI surface too (plugin.hpp), but
+        # lives outside the app-facing rkvc.h.
+        echo rkvc_plugin_query; } | sort -u >"$tmp_dir/allowed"
     for ELF in "$@"; do
         if [[ "$ELF" == *.so* ]]; then
             nm -D --defined-only "$ELF" | awk '{print $3}' | sed 's/@.*//' | \

@@ -83,3 +83,10 @@ TEST_CASE("svt rejects rgb input at negotiate") {
     if (!s)
         CHECK(s.status() == rkvc::Status::Negotiate);
 }
+
+TEST_CASE("av1 plugin registers its factory") {
+    rkvc::Context ctx;
+    CHECK(ctx.load_plugin(RKVC_TEST_AV1_PLUGIN) == rkvc::Status::Ok);
+    CHECK(ctx.plugin_count() == 1);
+    CHECK(ctx.registry().find("svt.encode") != nullptr);
+}
