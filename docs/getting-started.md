@@ -1,66 +1,40 @@
 # 快速开始
 
-要求 Linux、CMake 3.21+、C17 编译器、Ninja、pthread 和 dl。
+要求 Linux、CMake 3.21+、C++20 编译器、Ninja、pthread 和 dl。
+x86 本机只能验证纯软路径；MPP / NPU 路径须上板。
 
 ~~~bash
 cmake --preset default
 cmake --build --preset default
 ~~~
 
-默认产物位于 .build/release：librkvc.so、librkvc.a 和 rkvc。
-默认同时编译 0.3 时期的 10 个示例名，并全部改用 0.4 API：文件编解码/
-转码、流式端口、合成采集、UDP loopback、ROI、自适应码率、实时端口转码
-和 upscale context；可用 `-DRKVC_BUILD_EXAMPLES=OFF` 关闭。
+默认产物在 `.build/release/`：`rkvc` CLI 与 `rkvc_h264h265.so`、
+`rkvc_mlvc.so`、`rkvc_av1.so`、`rkvc_sr.so` 四个插件。
 
 ~~~bash
-.build/release/rkvc version --json
-.build/release/rkvc inspect device --json
-.build/release/rkvc inspect models --json
+.build/release/rkvc version
+.build/release/rkvc caps --backend-dir .build/release
+.build/release/rkvc inspect backends --backend-dir .build/release
+.build/release/rkvc inspect models --backend-dir .build/release \
+    --model-dir /path/to/models
 ~~~
 
-MPP DSO 需要一个目标架构匹配的 MPP 安装前缀，并在配置时设置
-RKVC_BUILD_BACKEND_MPP=ON 与 MPP_INSTALL_PREFIX。
+`caps` 输出 `soc / mpp_enc / mpp_dec / rknn / npu_cores` 一行；
+x86 本机 mpp/rknn 项为 0 属正常，只代表探测结果，不代表插件缺失。
 
-SVT-AV1 软件编码后端（`svt.encode`，AV1）与 FFmpeg 容器后端
-（`ffmpeg.demux` / `ffmpeg.mux`）按需启用：
+编一个裸帧文件（以 SVT AV1 软编码为例，x86 可跑）：
 
 ~~~bash
-# SVT：先构建安装到 .build/deps/svt-av1-install（含 include/svt-av1 与 lib/libSvtAv1Enc.so）
-cmake -S . -B .build/svt -G Ninja \
-  -DRKVC_BUILD_BACKEND_SVT=ON \
-  -DRKVC_BUILD_BACKEND_FFMPEG=ON
+head -c $((640*360*3/2)) /dev/urandom > in.nv12
+.build/release/rkvc encode --codec av1 --input in.nv12 --width 640 \
+    --height 360 --pixfmt nv12 --output out.obu \
+    --backend-dir .build/release --qp 32 --gop 64 --fps 30
 ~~~
 
-FFmpeg 后端链接 `third_party/ffmpeg-rockchip` 源码树内的共享库，需先
-configure && make（--enable-shared）产出 libavcodec/libavformat/libavutil
-三个 `.so`。启用后，`decode`/`transcode` 的 `.mp4/.mkv/.ts` 等容器输入
-自动走 `ffmpeg.demux`，`encode`/`transcode` 的容器输出自动走
-`ffmpeg.mux`；裸码流路径不受影响，仍回退到 `file.source` / `file.sink`。
+MLVC 与超分需要 NPU 与已注册的 RKMDL1（`--model FILE` 或
+`--model-dir DIR`，`--model-id` 按导出 stem 选择），见
+[RKNN 导出](mlvc-rknn-export.md)。
 
-RKNN DSO 同样要求显式目标 SDK 前缀：
-
-~~~bash
-cmake -S . -B .build/rknn -G Ninja \
-  -DRKVC_BUILD_BACKEND_RKNN=ON \
-  -DRKNN_INSTALL_PREFIX=/opt/rknn-runtime-aarch64
-~~~
-
-前缀须含 `include/rknn_api.h`（或 `include/rknn/rknn_api.h`）及
-`lib/librknnrt.so`。运行 `rkvc upscale` 时，注册表自动选择 role=upscale
-的 `.rkmodel`；`--model ID` 可覆盖选择。
-
-~~~bash
-.build/release/rkvc bench decode -i sample.h264 -o /tmp/out.nv12 \
-  --codec h264 --warmup 1 --iterations 5 --frames 300 --json
-.build/release/rkvc license --json
-~~~
-
-MPP 后端加载成功后，可以直接运行逐帧 side-data 示例：
-
-~~~bash
-.build/release/example_roi_encode roi.h264
-.build/release/example_adaptive_bitrate adaptive.h264
-~~~
-
-这两个示例均使用 FRAME_SINK 端点。前者为每个输入帧附带 ROI 矩形，后者
-每 30 帧通过 `rkvc_encode_control` 更新码率/GOP 并请求 IDR。
+各子工程可独立配置（codec 工程自动回退 `add_subdirectory(core)`），
+顶层只有 `RKVC_BUILD_CLI` / `RKVC_BUILD_CODECS` 两个开关。
+测试与基准见 [测试](testing.md)，目录约定见 [构建目录](build-layout.md)。

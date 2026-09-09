@@ -1,6 +1,7 @@
 # rkvc
 
-rkvc 只保留一个公共 API、一个媒体执行内核、一个 CLI 和一条发布路径。
+C++20 会话式媒体运行库：一个稳定 C ABI（0.5.0）、一个核心静态库、
+四个独立 codec 插件、一个 CLI。无异常、无 RTTI。
 
 ## 文档
 
@@ -8,5 +9,9 @@ rkvc 只保留一个公共 API、一个媒体执行内核、一个 CLI 和一条
 - [架构](architecture.md)
 - [API](api.md)
 - [测试](testing.md)
+- [构建目录](build-layout.md)
 - [打包](packaging.md)
-- [重构计划](0.4.0-refactor-plan.md)
+- MLVC [流格式](mlvc-streaming-spec.md) · [NPU 剖析](mlvc-npu-profile.md) ·
+  [RKNN 导出](mlvc-rknn-export.md)
+- [语义编解码 SDK 集成](semantic-codec-sdk-integration.md)
+- [C++ 重写计划](cpp-rewrite-plan.md)（已完成，历史记录）

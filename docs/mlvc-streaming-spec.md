@@ -1,7 +1,7 @@
 # MLVC 码流网络传输规范（草案 v0.1）
 
-> 状态：**设计草案**。第 2 章容器格式与 `backends/mlvc/container.h` 实现一致；
-> 其余各章为待实现的传输映射设计。落地状态见文末实现状态矩阵。
+> 状态：**设计草案**。第 2 章容器格式与 `codecs/mlvc/src/container.cpp`
+> 实现一致；其余各章为待实现的传输映射设计。落地状态见文末实现状态矩阵。
 
 本文定义 MLVC 神经视频码流在标准协议上的承载方式，目标是：传输、复用、
 信令层全部使用标准协议（GB/T 28181、RTSP/RTP、MPEG-TS/SRT），MLVC 仅以
@@ -24,7 +24,7 @@
 
 ## 2. 基础容器线格式（已实现）
 
-全部小端。与 `backends/mlvc/container.h` 逐字段一致。
+全部小端。与 `codecs/mlvc/src/container.cpp` 逐字段一致。
 
 ### 2.1 容器头（64B，即配置记录）
 
@@ -227,16 +227,16 @@ SIP 注册、保活、INVITE/ACK 与会话管理完全遵循 GB/T 28181-2016/202
 
 | 项                               | 状态   | 位置                                               |
 | -------------------------------- | ------ | -------------------------------------------------- |
-| 容器头/帧记录读写、流式 demux    | 已实现 | `backends/mlvc/container.{h,c}`（v2 + v1 读兼容）  |
-| 首帧关键帧 + KEYFRAME 标志       | 已实现 | `backends/backend_mlvc.c`                          |
-| 周期 IDR / 强制 IDR（force_idr） | 已实现 | `backends/backend_mlvc.c`、`rkvc_quality.gop_size` |
-| LTR 长期参考（MARK/RECOVERY）    | 已实现 | `backends/backend_mlvc.c`、容器记录 flags          |
-| 闭环码控（CBR，官方算法移植）    | 已实现 | `backends/mlvc/ratectl.{h,c}`（golden 对拍一致）   |
-| 编码端主动丢帧（标记记录）       | 已实现 | `backends/backend_mlvc.c`、`q_inde                 |
-| 解码端丢帧重复上一帧             | 已实现 | `backends/backend_mlvc.c`                          |
-| 逐帧 q_index（rung 多上下文）    | 已实现 | `backends/backend_mlvc.c`（QPPATCH 集合）          |
-| RTP 打包/解包（第 4 章）         | 未实现 | 规划 `net.mux` 节点                                |
+| 容器头/帧记录读写、流式 demux    | 已实现 | `codecs/mlvc/src/container.cpp`（格式字节 `0x02`） |
+| 首帧关键帧 + KEYFRAME 标志       | 已实现 | `codecs/mlvc/src/encoder.cpp`（P-only，首帧关键帧） |
+| 周期 IDR（`quality.gop_size`）   | 已实现 | `codecs/mlvc/src/encoder.cpp`                     |
+| LTR 长期参考（MARK/RECOVERY）    | 已实现 | `codecs/mlvc/src/encoder.cpp`、容器记录 flags      |
+| 闭环码控（CBR，官方算法移植）    | 已实现 | `codecs/mlvc/src/ratectl.cpp`（golden 对拍一致）   |
+| 编码端主动丢帧（标记记录）       | 已实现 | `codecs/mlvc/src/encoder.cpp`                     |
+| 解码端丢帧重复上一帧             | 已实现 | `codecs/mlvc/src/decoder.cpp`                      |
+| 逐帧 q_index（rung 多上下文）    | 已实现 | `codecs/mlvc/src/codec.cpp`（QPPATCH 集合）        |
+| RTP 打包/解包（第 4 章）         | 未实现 | 规划独立插件                                       |
 | SDP fmtp 参数传递                | 未实现 | 同上                                               |
-| PS 封装与 GB28181 信令           | 未实现 | 规划独立后端 DSO                                   |
-| TS/SRT 封装                      | 未实现 | 可复用 libavformat（需确认 ffmpeg 构建启用 SRT）   |
-| `RKVC_ENDPOINT_STREAM` 图规划    | 未实现 | `include/rkvc/request.h` 已声明                    |
+| PS 封装与 GB28181 信令           | 未实现 | 规划独立插件                                       |
+| TS/SRT 封装                      | 未实现 | 本仓无容器后端（旧 FFmpeg demux/mux 已删），需外部封装 |
+| `RKVC_ENDPOINT_STREAM` 端点           | 未实现 | C ABI 枚举已声明，管线未实现           |

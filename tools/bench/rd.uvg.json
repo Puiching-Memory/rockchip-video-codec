@@ -12,6 +12,7 @@
   "iterations": 3,
   "timeout_seconds": 1800,
   "mlvc_model": "mlvc",
+  "mlvc_dec_model": "mlvc-dec",
   "sr_model": "phase-rlfn-bench",
   "codecs": {
     "h264": [
@@ -97,6 +98,15 @@
     "39": "mlvc-bench-qp39",
     "48": "mlvc-bench-qp48",
     "63": "mlvc-bench-qp63"
+  },
+  "mlvc_dec_models": {
+    "0": "mlvc-dec-bench-qp0",
+    "12": "mlvc-dec-bench-qp12",
+    "21": "mlvc-dec-bench-qp21",
+    "30": "mlvc-dec-bench-qp30",
+    "39": "mlvc-dec-bench-qp39",
+    "48": "mlvc-dec-bench-qp48",
+    "63": "mlvc-dec-bench-qp63"
   },
   "classical_decoder": "ffmpeg-rkmpp",
   "gop": 64

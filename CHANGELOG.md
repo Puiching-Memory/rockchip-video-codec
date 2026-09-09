@@ -8,7 +8,8 @@
 
 - **core 工程**：无异常错误模型（`Status`/`Result<T>`/`Diag`，
   `-fno-exceptions -fno-rtti`）+ `Spec` 协商 + `Frame` 借用语义 +
-  自研 SHA-256 + 新 RKMDL2 模型容器 + 有界队列/Graph/Executor
+  自研 SHA-256 + RKMDL1 模型容器（魔数 `RKMDL1\x00\x00`、128B 头、
+  88B 条目、多 qppatch 载荷）+ 有界队列管线/执行器
   （两阶段错误终止，在途帧不丢）+ 新 C ABI（`rkvc.h` 0.5.0）。
 - **插件 ABI**：`rkvc_plugin_query(host_abi)` 握手 + 工具链指纹 +
   坏 ABI 淘汰；内建 fileio；doctest 2.4.11（NO_EXCEPTIONS）全绿，
@@ -41,8 +42,22 @@
   完整 UVG bench（`tools/bench/rd.py`）待数据集 + 模型 + 板上
   python3 就绪后按 `docs/data/uvg-rk3576-20260908.csv` 口径补跑。
 - LTR 口径：旧 `backend_mpp.c` 即无 H264 LTR 实现，新 C ABI
-  `ltr_period/ltr_start_idx` 为保留字段；mlvc LTR 由 ratectl/
-  container 覆盖（fake 回环含 LTR 变体）。
+  `quality` 只有 `{bitrate_bps, qp, gop_size, fps}` 四字段、无 LTR 字段；
+  mlvc LTR 由 ratectl/container 覆盖（fake 回环含 LTR 变体）。
+
+### 删除（旧 C 树清仓，零兼容）
+
+- 删除 `backends/`、`lib/`、`include/rkvc/`、`rkvc.c`、旧 `examples/*.c`、
+  `tests/c/`、`cmake/` 旧模块、`tools/rkvc_build/` + `tools/rkvc-build` +
+  `tools/board-build.sh` + `tools/check-exported-symbols.sh`、
+  `RKVC_BUILD_BACKEND_*` 开关、`rkvc transcode/bench/license` 子命令、
+  `--low-delay` 开关与 portable/SBOM 打包流水线。
+- 文档、测试、示例随新树彻底重写：README 与 `docs/` 对齐 C ABI 0.5.0 与
+  `rkvc caps/version/inspect/encode/decode/upscale` 长选项 CLI；
+  `tests/python/test_rd.py` 等对齐新 bench 协议
+  （显式 `mlvc_dec_model` / 逐 QP `mlvc_models` / `mlvc_dec_models`）；
+  示例只剩三个 C ABI 样板（`integration-c` 流式、`decode-file`、`upscale-file`）；
+  `CMakePresets.json` 只剩 `default` / `debug` / `tests` 三预设。
 
 ## [0.4.0] - 2026-09-07
 

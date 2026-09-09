@@ -1,30 +1,23 @@
 # 打包
 
-唯一发布入口：
+本仓**没有打包器、不设 install 规则、不产安装树**。
+旧 C 树的 `tools/rkvc-build`、`portable` 包、`RKVC_BUILD_BACKEND_*` 开关、
+SBOM/provenance 流水线与 glibc 2.31 基线已随旧树删除，不再维护。
 
-~~~bash
-python3 tools/rkvc-build package --jobs 6
+发布产物就是构建树：
+
+~~~text
+.build/release/rkvc            # CLI
+.build/release/rkvc_*.so       # 所需 codec 插件
+<模型目录>/*.rkmdl              # RKMDL1 模型（tools/mlvc、tools/sr 导出）
 ~~~
 
-仓库不隐式使用宿主机 RKNN Runtime。需要把 RKNN 后端与运行库纳入包时，
-显式传入已经完成再分发审计的 AArch64 SDK 前缀：
+板端部署 = 复制这三样，保证插件与 CLI 同一次构建（工具链指纹握手会拒载
+混版 `.so`），运行时用 `--backend-dir` / `--model-dir`（或逐个 `--model`）
+指向它们。第三方运行时（MPP / `librknnrt.so` / SVT）由目标机系统路径或
+随包复制的前缀目录提供，走常规动态链接解析。
 
-~~~bash
-python3 tools/rkvc-build package --jobs 6 \
-  --rknn-sdk /opt/rknn-runtime-aarch64 \
-  --rknn-license /secure/legal/RKNN-RUNTIME-LICENSE.txt
-~~~
-
-编排器把许可证证据纳入 SDK 内容摘要，将头文件/运行库隔离装入 target
-prefix，再构建 `rkvc_backend_rknn.so`；两个参数必须同时提供，缺少头文件、
-`librknnrt.so` 或许可证证据时立即失败。
-
-流水线为 pinned sysroot -> target dependencies -> CMake install ->
-SBOM/licenses/provenance -> SHA256SUMS -> verify -> deterministic archive ->
-QEMU smoke。
-
-安装树而不是 Python 文件清单决定包内容。目标包只含统一 rkvc、唯一
-librkvc.so.0、后端 DSO、公共头文件、模型目录和审计材料。
-
-默认目标为 linux-aarch64-glibc231。验证器拒绝错误架构、绝对 RPATH、
-缺失 SONAME/依赖、可写可执行段和高于 glibc 2.31 的符号需求。
+aarch64 构建自动静态链接 libstdc++/libgcc；板端另跑
+`tools/check-symbols.sh` 审计最终产物（GLIBC ≤ 2.34、NEEDED 禁动态
+C++ 运行时）。注意该审计只在板端有意义：x86 构建产物天然动态链接
+系统 libstdc++，CI 已移除这一步。

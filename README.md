@@ -1,209 +1,209 @@
 # rockchip-video-codec
 
-rkvc 是面向 Rockchip Linux 的 C17 媒体图运行库。它只保留
-**一个公共 API**（context / request / job / frame / diagnostic）、
-**一个执行内核**、**一个 `rkvc` CLI** 和 **一条发布路径**，媒体实现全部
-通过版本化的后端 DSO ABI 接入。核心库不链接 FFmpeg、MPP、RGA 或 RKNN 类型。
+rkvc 是面向 Rockchip Linux 的 C++20 会话式媒体运行库（无异常、无 RTTI）。
+它只保留**一个稳定 C ABI**（当前 0.5.0：context / session / frame /
+diagnostic）、**一个核心静态库**（`rkvc-core-static`）、**四个独立的 codec
+插件工程**与**一个 `rkvc` CLI**。媒体实现经 `rkvc_plugin_query` 握手
+（`kPluginAbi=1` + 工具链指纹）接入，核心不链接 MPP、RGA、RKNN 或
+SVT 类型。
 
 ## 能力
 
-- **图执行内核**：有界队列背压、EOS、取消、逆序回滚和确定性后端回退；
-  文件与流式端点
-- **MPP 后端 DSO**：H.264/HEVC/AV1 解码（含 Annex-B 首包探测），
-  H.264/HEVC 硬编码（DMA-BUF 零拷贝导入、CBR/FIXQP）
-- **RGA 缩放后端 DSO**，并作为超分的无 NPU 回退路径
-- **RKNN 超分后端 DSO**：Phase-RLFN 3×（NV12 逐像素相位打包、bicubic
-  基座 + 残差融合）
-- **MLVC 神经视频编解码后端 DSO**：NPU 双输入编码 → rANS 熵编码，
-  四输入解码；`.mlvc` 容器与 `.rkmodel` 多载荷交付
-- **SVT-AV1 软编** 与 **FFmpeg 容器 demux/mux** 后端（按需启用）
+- **核心**（`core/`）：会话规划与执行、有界队列背压、EOS / 取消 / flush、
+  FILE 与 FRAME_SINK 双端点、RKMDL1 模型容器与注册表、文本诊断
+- **h264h265**（`codecs/h264h265/`）：MPP H.264 / HEVC 硬编码 + 硬解码
+- **av1**（`codecs/av1/`）：SVT-AV1 软件编码
+- **mlvc**（`codecs/mlvc/`）：NPU 神经视频编解码，`.mlvc` 容器（流格式字节
+  `0x02`），P-only，无 B 帧
+- **sr**（`codecs/sr/`）：Phase-RLFN 固定 3× NPU 超分（NHWC 输入 / NCHW
+  输出，以 `core_w` / `core_h` 拆分非方形）
+- **CLI**（`cli/`）：`caps` / `version` / `inspect` / `encode` / `decode` /
+  `upscale`，长选项，无转码、无 `-i/-o` 短选项、无 low-delay 开关
+  （MLVC 天生 P-only，MPP 默认无 B 帧）
 
 MLVC 编码/解码链路：
 
 ![MLVC 架构](docs/images/mlvc-architecture.png)
-- **逐帧 ROI**、运行时码率/GOP 更新与强制 IDR（side-data 契约）
-- **DMA-BUF / HOST 帧所有权**与逐行 stride 填充写出
-- **`.rkmodel` 容器与模型注册表**（可信目录扫描、候选失败只淘汰）
-- **可复现打包**：固定 sysroot、交叉构建、SBOM/provenance、ELF/glibc
-  2.31 基线验证、确定性归档与 QEMU 冒烟
 
 ## 构建
 
-要求 Linux、CMake 3.21+、C17 编译器、Ninja、pthread 与 dl。
+要求 Linux、CMake 3.21+、C++20 编译器、Ninja、pthread 与 dl。
+顶层是薄聚合（core + codecs + cli + CTest），每个子工程也可独立配置
+（codec 工程回退 `add_subdirectory(core)`）。
 
 ~~~bash
 cmake --preset default
 cmake --build --preset default
 
 ./.build/release/rkvc version
-./.build/release/rkvc inspect device --json
-./.build/release/rkvc inspect backends --json
-./.build/release/rkvc inspect models --json
-./.build/release/rkvc license --json
+./.build/release/rkvc caps
+./.build/release/rkvc inspect backends
+./.build/release/rkvc inspect models
 ~~~
 
-默认产物位于 `.build/release/`：`librkvc.so`、`librkvc.a` 与 `rkvc`。
-常用预设：`default`、`debug`、`tests`、`asan`（ASan+UBSan）、`coverage`、
-`portable`。
+默认产物位于 `.build/release/`：`rkvc`（CLI）与四个 `rkvc_*.so` 插件。
+预设只有三个：`default`、`debug`、`tests`（后者多开
+`RKVC_CORE_BUILD_TESTS=ON`）。顶层开关只有两个：
 
-### 后端
+| 选项               | 默认 | 说明           |
+| ------------------ | ---- | -------------- |
+| `RKVC_BUILD_CLI`   | ON   | 构建 `rkvc` CLI |
+| `RKVC_BUILD_CODECS` | ON  | 构建四个 codec 插件 |
 
-各后端默认关闭，需要对应的目标 SDK 前缀，配置时显式启用：
+各 codec/test 工程的测试开关（`RKVC_*_BUILD_TESTS`）默认全开，core 的
+`RKVC_CORE_BUILD_TESTS` 默认关闭、由 `tests` 预设或 CI 打开。
+aarch64 链接自动加 `-static-libstdc++ -static-libgcc`，产物审计见
+`tools/check-symbols.sh`（GLIBC ≤ 2.34、禁动态 C++ 运行时；只在板端有意义，
+x86 构建产物天然动态链接 libstdc++，不跑此审计）。
 
-| 选项                        | 后端                                  | 需要前缀                  |
-| --------------------------- | ------------------------------------- | ------------------------- |
-| `RKVC_BUILD_BACKEND_MPP`    | `mpp.decode` / `mpp.encode`           | `MPP_INSTALL_PREFIX`      |
-| `RKVC_BUILD_BACKEND_RGA`    | RGA 缩放                              | `RGA_INSTALL_PREFIX`      |
-| `RKVC_BUILD_BACKEND_RKNN`   | `rknn.upscale`（Phase-RLFN 3×）       | `RKNN_INSTALL_PREFIX`     |
-| `RKVC_BUILD_BACKEND_MLVC`   | `mlvc.encode` / `mlvc.decode`         | `RKNN_INSTALL_PREFIX`     |
-| `RKVC_BUILD_BACKEND_SVT`    | `svt.encode`（AV1 软编）              | `SVT_AV1_INSTALL_PREFIX`  |
-| `RKVC_BUILD_BACKEND_FFMPEG` | `ffmpeg.demux` / `ffmpeg.mux`（容器） | 树内 ffmpeg-rockchip 构建 |
-
-RKNN 前缀必须含 `rknn_api.h`（或 `include/rknn/rknn_api.h`）及
-`lib/librknnrt.so`。FFmpeg 后端链接 `third_party/ffmpeg-rockchip` 源码树内
-`--enable-shared` 产出的 `libavcodec`/`libavformat`/`libavutil`，启用后容器
-输入输出自动走 demux/mux，裸码流仍回退 `file.source` / `file.sink`。
+MPP / SVT / RKNN 等第三方依赖以前缀方式提供，见各 codec 工程的
+`third_party/` 与 `cmake/` 说明；在 x86 本机只能构建与测试纯软路径
+（SVT 编码、MLVC 算法表、SR 后处理），MPP / NPU 路径须上板验证。
 
 ## CLI
 
-`rkvc` 将参数转换为 `rkvc_request` 后即调用公共 API，输入输出为后端可直接
-消费的原始帧或 elementary stream：
+`rkvc` 把长选项翻译成 session 请求后调用 C ABI，输入输出为后端可直接
+消费的裸帧或 elementary stream（mlvc 为 `.mlvc` 容器）：
 
-~~~bash
-rkvc decode -i input.h264 -o output.nv12 --codec h264
-rkvc encode -i input.nv12 -o output.h264 --width 1920 --height 1080 --codec h264
-rkvc transcode -i input.h265 -o output.h264 --codec h264
-rkvc upscale -i input.nv12 -o output.nv12 --width 640 --height 360
-rkvc bench decode -i input.h264 -o output.nv12 --codec h264 \
-  --warmup 1 --iterations 5 --frames 300 --json
+~~~text
+  rkvc caps [--backend-dir DIR]...
+  rkvc version [--json]
+  rkvc inspect backends|models [--backend-dir DIR]...
+            [--model-dir DIR]... [--json]
+  rkvc encode --codec h264|hevc|av1 --input IN --width W --height H
+            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...
+            [--model FILE]... [--model-dir DIR]... [--model-id ID]
+            [--qp Q] [--bitrate BPS] [--gop G] [--fps N]
+  rkvc decode --codec mlvc --input IN.mlvc --width W --height H
+            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...
+            [--model FILE]... [--model-dir DIR]... [--model-id ID]
+  rkvc upscale --input IN --width W --height H
+            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...
+            [--model FILE]... [--model-dir DIR]... [--model-id ID]
 ~~~
 
-- `decode` 支持 `--codec h264|hevc|av1|mlvc`；`.mp4/.mkv/.ts` 容器输入自动
-  demux（需 FFmpeg 后端）。
-- `encode` 支持 `--codec h264|hevc|av1|mlvc`，`av1` 走 SVT 软编、`mlvc` 需
-  NPU 模型（`--qp` 为量化档，默认 21）；`--bitrate` 设码率。
-- MPP／SVT／MLVC 编码支持 `--gop 64 --fps 120 --low-delay`：指定关键帧周期、
-  编码帧率和只使用过去帧的参考模式；低延迟模式同时关闭 MLVC 长时参考。
-- `upscale` 的 `--width/--height` 为输入尺寸，NPU 超分优先，无模型时回退
-  RGA 2×；`--model ID` 覆盖注册表选择。
-- `bench OP` 复用媒体子命令参数并追加 `--warmup/--iterations/--frames/
-  --duration`。
+- `encode` 的 `--codec` 另接受 `mlvc`（NPU，需 `--model-id` 选编码模型）；
+  `--qp` 为量化档，`--gop`/`--fps` 显式控制关键帧周期与帧率。
+- `decode --width/--height` 取**输出几何**（裸帧尺寸；`encode` 则取输入几何）。
+- `upscale` 的 `--width/--height` 为输入尺寸，输出固定 3×；`--model-id` 选
+  已注册的 RKMDL1（如 `phase-rlfn-bench`），模型 ID 即导出 stem。
+- `--model FILE` 逐个注册 RKMDL1，`--model-dir DIR` 扫描目录注册。
 
 ## 示例
 
-`RKVC_BUILD_EXAMPLES=ON`（默认）按 0.4 API 构建 10 个示例：
-`decode_file`、`encode_file`、`transcode`、`stream_ports`、`live_capture`、
-`live_transcode_ports`、`net_loopback`、`roi_encode`、`adaptive_bitrate`、
-`upscale_ctx`。其中 ROI 与热控示例展示逐帧 side-data 契约：
+三个独立 C 示例（各带 `CMakeLists.txt`，以 `RKVC_CORE_DIR` 指向
+`core/` 源码、直链 `rkvc-core-static`；内嵌形态见
+[语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md)）：
 
-~~~bash
-./.build/release/example_roi_encode roi.h264
-./.build/release/example_adaptive_bitrate adaptive.h264
-~~~
-
-ffmpeg-rockchip 的对应下游 ROI/runtime-RC 补丁保存在
-`patches/ffmpeg-rockchip/`，测试配置会对当前子模块 pin 执行 `git apply
---check`。
+| 示例 | 端点 | 说明 |
+| ---- | ---- | ---- |
+| `examples/integration-c/` | FRAME_SINK 流式 | AV1 编码：wrap → push/try_pull 背压 → push_eos → pull 至 EOF |
+| `examples/decode-file/` | FILE | 解码裸码流/` .mlvc` 到裸帧（与 `rkvc decode` 同参数形状） |
+| `examples/upscale-file/` | FILE | 固定 3× 超分（与 `rkvc upscale` 同参数形状） |
 
 ## API
 
 ~~~c
 #include <rkvc/rkvc.h>
 
-rkvc_context *context = NULL;
-rkvc_job *job = NULL;
-rkvc_request request;
+rkvc_context *ctx = NULL;
+rkvc_context_options opts;
+rkvc_context_options_init(&opts, sizeof(opts));
+rkvc_context_create(&opts, &ctx);
 
-rkvc_context_create(NULL, &context);
-rkvc_request_init(&request, sizeof(request));
-request.operation = RKVC_OPERATION_TRANSCODE;
-request.input.kind = RKVC_ENDPOINT_FILE;
-request.input.uri = "input.h265";
-request.output.kind = RKVC_ENDPOINT_FILE;
-request.output.uri = "output.h264";
-request.codec = RKVC_CODEC_H264;
+rkvc_session_request req;
+rkvc_session_request_init(&req, sizeof(req));
+req.operation = RKVC_OP_DECODE;
+req.codec = RKVC_CODEC_MLVC;
+req.input.kind = RKVC_ENDPOINT_FILE;
+req.input.uri = "clip.mlvc";
+req.input.fmt = RKVC_FRAME_FMT_BITSTREAM;
+req.input.width = 640;
+req.input.height = 360;
+req.output.kind = RKVC_ENDPOINT_FILE;
+req.output.uri = "clip.nv12";
+req.output.fmt = RKVC_FRAME_FMT_NV12;
+req.output.width = 640;
+req.output.height = 360;
 
-rkvc_job_create(context, &request, NULL, &job);
-rkvc_job_start(job, NULL);
-rkvc_job_wait(job);
-rkvc_job_destroy(job);
-rkvc_context_destroy(context);
+rkvc_session *s = NULL;
+rkvc_diagnostic *diag = NULL;
+rkvc_session_create(ctx, &req, &s, &diag);
+rkvc_session_start(s, &diag);
+rkvc_session_wait(s); /* FILE 会话：等待整条管线跑完 */
+rkvc_session_destroy(s);
+rkvc_context_destroy(ctx);
 ~~~
 
-公共接口见 [include/rkvc/api.h](include/rkvc/api.h)，后端扩展接口见
-[include/rkvc/backend.h](include/rkvc/backend.h)。
+流式用法（FRAME_SINK：wrap → push / try_pull / pull → push_eos）见
+`examples/integration-c/main.c`。全部声明在
+[core/include/rkvc/rkvc.h](core/include/rkvc/rkvc.h)，
+语义见 [docs/api.md](docs/api.md)。注意所有结构体都走
+`xxx_init(&x, sizeof(x))` 版本优先初始化，`struct_size` 不匹配即拒收。
 
 ## 测试
 
-- **C**（`tests/c/`，CMocka + CTest）：图执行器、job 生命周期、媒体管线、
-  frame 元数据、API/ABI 契约、后端 DSO 加载、`.rkmodel`、RKNN 与 MLVC 的
-  fake Runtime 往返
-- **Python**（`tests/python/`，`unittest`）：模型导出、发布校验与基准
-- **Bash**（`tests/bash/`）：MLVC / 超分导出链路
+- **C++**（doctest 2.4.11，`DOCTEST_CONFIG_NO_EXCEPTIONS`，随各工程构建、
+  CTest 执行）：core（status/result、spec/frame、rkmdl1、queue、plugin、
+  pipeline、C ABI）7 套；mlvc（tables、ratectl、rans、pixel、codec）5 套；
+  av1、sr 后处理、h264h265 逻辑、CLI 参数各 1 套
+- **Python**（`tests/python/`，`unittest`）：rd 核算、`benchmark.py` 命令生成、
+  RKMDL1 容器、MLVC / SR 导出
+- **Bash**（`tests/bash/`）：MLVC / 超分导出链路入口（优先 `.venv` 回退
+  `python3`，不依赖调用者 cwd）
 
 ~~~bash
-cmake --preset tests
-cmake --build --preset tests            # 含 check 目标
-ctest --test-dir .build/tests -L c --output-on-failure
-python3 -m unittest discover -s tests/python -p 'test_*.py' -v
+cmake --preset tests && cmake --build --preset tests
+ctest --test-dir .build/tests --output-on-failure
+python3 -m unittest discover -s tests/python -p 'test_*.py'
 ~~~
 
-真实 MPP/RGA/NPU 硬件路径仍须在 Rockchip 板卡验证；QEMU 只覆盖加载、CLI
-与无硬件路径。详见 [docs/testing.md](docs/testing.md)。
+MPP / NPU 硬件路径须在 Rockchip 板卡验证；x86 只覆盖加载、CLI 与纯软路径。
+详见 [docs/testing.md](docs/testing.md)。
 
 ## 性能基准
 
-内建 `rkvc bench OP` 提供单项预热和重复采样；`tools/bench/benchmark.py`
-在 Rockchip 实机上对 decode / encode / transcode 执行预热和多轮采样，
-记录 FPS、实时倍速、吞吐、mean/median/p95/stdev、板卡温度与 CPU governor，
-输出 JSON 与 CSV，并支持板卡回归门槛：
+`tools/bench/` 是纯标准库工具（`rd.py` / `benchmark.py`，新 CLI 长选项协议，
+自带 GOP 审计与显式逐 QP 模型 ID），在板端跑 UVG RD 与性能采样：
 
 ~~~bash
-python3 tools/bench/benchmark.py --config tools/bench/config.local.json
+python3 tools/bench/benchmark.py --config tools/bench/rd.uvg.json
 ~~~
 
-配置矩阵与单项运行方法见 [tools/bench/README.md](tools/bench/README.md)。
+配置模板、矩阵与报告方法见 [tools/bench/README.md](tools/bench/README.md)。
+`tools/bench/results/` 下的历史 `rd.json` 是旧协议归档，不代表当前版本性能。
 
-新版 [RD 测试流程](tools/bench/README.md#rd-实测与报告)采用 UVG 经典七序列，
-比较 MLVC、H.264、H.265、AV1 的低分辨率 RD，以及同一码流经传统插值与
-3× SR 重建后的 1080p RD；传统编码器原生 1080p 作为额外参照。
-报告按序列分图，提供实际码率、Y-PSNR／Y-SSIM、板端耗时和模型哈希。
-旧版示例图不再作为当前版本性能依据。
-
-[RK3576 · UVG-7 实测结果](docs/bench-uvg-rk3576.md)已完成 532 个有效评分点，
-包含可重绘数据、MLVC 与传统编码器对比，以及 SR / bicubic / Lanczos 消融。
-实测为文中记录的源码快照，单次采样；SR 对 MLVC 的收益很小，详见逐序列结果。
-
-![UVG 低分辨率编码 RD](docs/images/bench/uvg-rk3576-low_native-codecs.png)
-
-![UVG MLVC 3× 重建 RD](docs/images/bench/uvg-rk3576-low-mlvc.png)
+![UVG 低分辨率编码 RD](docs/images/bench/uvg-rk3576-20260908-low_native-codecs.png)
 
 ## 模型
 
-`.rkmodel` v1 是无摘要、无签名的结构容器（64B 固定头 + 有界 TLV + 载荷表），
-由注册表从可信目录扫描加载，载荷经 SHA-256 校验后交付给后端。MLVC 以
-`.rkmodel` 多载荷交付（`rknn` + `pmf-gaussian` + `pmf-bitest`，可选
-`qppatch`），SR 交付单输入 Phase-RLFN 3× core。模型布局与导出见
-[docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md) 与
+RKMDL1 容器（魔数 `RKMDL1\x00\x00`，128B 头 + 88B 条目 + 多 qppatch 载荷；
+全仓版本 1 政策唯一例外是 `.mlvc` 流字节 `0x02`），由注册表从可信目录或
+`--model FILE` 显式加载，失败只淘汰候选。NPU 侧 I/O 契约：输入 NHWC、
+输出 NCHW。模型 ID 即导出 stem（如 `mlvc_rk3576_qp21_encoder`、
+`phase-rlfn-bench`），CLI 与 bench 配置都用它经 `--model-id` 选模型。
+布局与导出见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md) 与
 [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md)。
 
 ## 发布
 
-~~~bash
-python3 tools/rkvc-build package --jobs 6
-~~~
-
-发布编排器负责固定 sysroot、交叉构建依赖与目标、从安装树封装、生成
-SBOM/provenance、验证 ELF 与 glibc 2.31 基线、确定性归档和 QEMU 冒烟；
-重复归档字节级一致。详见 [docs/packaging.md](docs/packaging.md)。
+本仓**没有打包器、不设 install 规则**：发布产物就是构建树
+（`rkvc` + `rkvc_*.so` 插件 + 所需 `.rkmdl`）。板端部署 = 复制这三样并用
+`--backend-dir/--model-dir`（或 `--model FILE`）指向它们；aarch64 产物另跑
+`tools/check-symbols.sh` 做 GLIBC 与 C++ 运行时审计。依赖（MPP / rknnrt /
+SVT）来自目标机系统路径或随包复制的前缀目录，由运行时链接器解析。
+历史可复现打包流程（rkvc-build / portable / SBOM）已随旧 C 树删除。
 
 ## 文档
 
 - [快速开始](docs/getting-started.md) · [架构](docs/architecture.md) ·
-  [API](docs/api.md) · [测试](docs/testing.md) · [打包](docs/packaging.md)
-- MLVC： [NPU 剖析](docs/mlvc-npu-profile.md) ·
+  [API](docs/api.md) · [测试](docs/testing.md) · [构建目录](docs/build-layout.md) ·
+  [打包](docs/packaging.md)
+- MLVC：[流格式](docs/mlvc-streaming-spec.md) ·
+  [NPU 剖析](docs/mlvc-npu-profile.md) ·
   [RKNN 导出](docs/mlvc-rknn-export.md) ·
   [语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md)
+- [C++ 重写计划](docs/cpp-rewrite-plan.md)（已完成，保留为历史记录）
 
 ## 许可
 
