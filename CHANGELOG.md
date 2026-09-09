@@ -30,8 +30,14 @@
   GOP 30/60/120 关键帧数 3/2/1 落地；CBR 1M/4M 码率吻合。
 - RV1126B（glibc 2.41）H264 硬编码出包，`ldd` 仅依赖系统
   libc/MPP，无缺失。
-- mlvc/sr 板上 E2E 未跑：仓库无可用模型文件，且 161 无
-  `/dev/rknpu`；插件 `dlopen` + `rkvc_plugin_query` 装载正常。
+- MLVC 真机闭环（RV1126B/214，2026-09-09）：`--pack` 产出的
+  RKMDL1（rknn+双PMF+4 qppatch rung）经新 CLI `--model-dir/--model-id`
+  装载，NPU 编解码 2 帧 640×368 回环 **42.56dB**（qp21）。
+  附带修出三个潜伏 bug：解码器尾部拆分模型不支持（CPU DCR）、
+  NPU 输入误用通道主序（host 公约为输入 NHWC/输出 NCHW，ref 须转置）、
+  标量 `f16_to_f32` 非规格数双重加偏。
+- sr 板上 E2E 未跑：仓库无可用模型文件，且 161 无 `/dev/rknpu`；
+  插件 `dlopen` + `rkvc_plugin_query` 装载正常。
   完整 UVG bench（`tools/bench/rd.py`）待数据集 + 模型 + 板上
   python3 就绪后按 `docs/data/uvg-rk3576-20260908.csv` 口径补跑。
 - LTR 口径：旧 `backend_mpp.c` 即无 H264 LTR 实现，新 C ABI

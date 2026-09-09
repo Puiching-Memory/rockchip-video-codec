@@ -115,6 +115,8 @@ Result<FramePtr> Session::pull() { return out_->pop(); }
 
 Status Session::wait() { return exec_.wait(); }
 
+Diag Session::error_diag() const { return exec_.error_diag(); }
+
 Status Session::close() {
     if (closed_)
         return Status::Ok;

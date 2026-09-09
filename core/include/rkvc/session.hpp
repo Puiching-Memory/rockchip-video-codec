@@ -28,6 +28,8 @@ public:
     // Blocks until the pipeline drains; returns the first error or Ok.
     Status wait();
     Status close();
+    // Terminal error detail (empty when wait() returned Ok).
+    Diag error_diag() const;
     ~Session();
 
     Session(const Session&) = delete;

@@ -13,7 +13,10 @@ void usage() {
         "  rkvc encode --codec h264|hevc|av1 --input IN --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
         "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n"
-        "            [--qp Q] [--bitrate BPS] [--gop G]\n");
+        "            [--qp Q] [--bitrate BPS] [--gop G]\n"
+        "  rkvc decode --codec mlvc --input IN.mlvc --width W --height H\n"
+        "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
+        "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n");
 }
 
 namespace {
@@ -84,7 +87,7 @@ bool parse_args(int argc, char** argv, std::string& cmd, Args& a) {
             return false;
         }
     }
-    return cmd == "caps" || cmd == "encode";
+    return cmd == "caps" || cmd == "encode" || cmd == "decode";
 }
 
 }  // namespace cli

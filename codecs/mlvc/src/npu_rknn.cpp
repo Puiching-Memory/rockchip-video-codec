@@ -37,8 +37,9 @@ public:
         owned_ = std::vector<uint8_t>(model.begin(), model.end());
         if (!patch.empty()) {
             rkvc::Diag d;
-            if (apply_qppatch(owned_.data(), owned_.size(), patch.data(),
-                              patch.size(), patch_qp, &d) != rkvc::Status::Ok)
+            auto pr = apply_qppatch(owned_.data(), owned_.size(),
+                                    patch.data(), patch.size(), patch_qp, &d);
+            if (!pr)
                 return rknn_failed(diag, "qppatch apply failed");
         }
         if (rknn_init(&ctx_, (void*)owned_.data(), (uint32_t)owned_.size(),

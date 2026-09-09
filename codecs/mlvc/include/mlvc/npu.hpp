@@ -44,9 +44,9 @@ using NpuModelFn = std::function<std::unique_ptr<NpuModel>()>;
 // invertible stub math (see npu_fake.cpp). Never ships in the plugin.
 struct FakeNpuGeometry {
     uint32_t img = 64;
-    uint32_t y_c = 4;
+    uint32_t y_c = 8;
     uint32_t y_hw = 16;
-    uint32_t z_c = 4;
+    uint32_t z_c = 8;
     uint32_t z_hw = 4;
     uint32_t ref_c = 4;
     uint32_t ref_hw = 8;

@@ -185,8 +185,8 @@ rkvc_status rkvc_session_try_pull(rkvc_session *s, rkvc_frame **out);
 rkvc_status rkvc_session_pull(rkvc_session *s, rkvc_frame **out);
 rkvc_status rkvc_session_push_eos(rkvc_session *s);
 rkvc_status rkvc_session_wait(rkvc_session *s);
-void rkvc_session_destroy(rkvc_session *s);
-
+void rkvc_session_destroy(rkvc_session *s);/* @brief 取终端错误的阶段明细（wait 已排空后调用，立即返回；Ok 时 buf 置空）。 */
+rkvc_status rkvc_session_error_text(rkvc_session* s, char* buf, size_t size);
 void rkvc_frame_desc_init(rkvc_frame_desc *desc, size_t size);
 rkvc_status rkvc_frame_wrap(const rkvc_frame_desc *desc, rkvc_frame **out);
 rkvc_status rkvc_frame_get_desc(const rkvc_frame *f, rkvc_frame_desc *desc);

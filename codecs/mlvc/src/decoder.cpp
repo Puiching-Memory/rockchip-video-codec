@@ -61,10 +61,17 @@ struct MlvcDecoderNode::Impl {
     int dec_ref_in = -1;
     int dec_x_out = -1;
     int dec_ref_out = -1;
+    // Tail-extracted x_hat (pre-shuffle NCHW [1,C,h',w'], C=3*bs*bs):
+    // bs>0 selects the CPU DCR path, else direct 3-channel.
+    int x_d2s_bs = 0;
+    uint32_t x_pre_c = 0;
+    uint32_t x_pre_h = 0;
+    uint32_t x_pre_w = 0;
 
     Demuxer demux;
     std::vector<uint16_t> ref_prev;
     std::vector<uint16_t> ref_ltr;
+    std::vector<uint16_t> ref_feed;  // NHWC transit for NPU input
     bool have_ltr = false;
     std::vector<int32_t> z_d, y0_d, y1_d, s0, s1, z_idx;
     int z_idx_qp = -1;
@@ -150,8 +157,8 @@ rkvc::Status MlvcDecoderNode::bind_model(const rkvc::Model& model,
 
 namespace {
 
-// Geometry from the active rung (host fp16: decoder inputs NCHW, ref NHWC;
-// x_hat NCHW YUV).
+// Geometry from the active rung (host I/O contract: inputs NHWC,
+// outputs logical NCHW); x_hat is NCHW YUV after DCR.
 rkvc::Status resolve_dec_geom(MlvcDecoderNode::Impl* d, rkvc::Diag* diag) {
     NpuModel& npu = *d->rs.models[d->rs.active];
     auto ins = npu.inputs();
@@ -179,23 +186,44 @@ rkvc::Status resolve_dec_geom(MlvcDecoderNode::Impl* d, rkvc::Diag* diag) {
             diag->add("bind", "mlvc.decode", "tensor rank mismatch");
         return rkvc::Status::Format;
     }
-    // v1 has no native upscaler path: x_hat must be 3-channel NCHW.
-    if (xd[1] != 3) {
-        if (diag)
-            diag->add("bind", "mlvc.decode", "upscale models need native I/O");
-        return rkvc::Status::Unsupported;
+    // x_hat is either full [1,3,H,W] or tail-extracted pre-shuffle
+    // NCHW [1,3*bs*bs,h',w'] needing CPU DCR + saturate.
+    if (xd[1] == 3) {
+        d->x_d2s_bs = 0;
+        d->img_h = xd[2];
+        d->img_w = xd[3];
+    } else {
+        uint32_t C = xd[1], H = xd[2], W = xd[3];
+        if (C < 3 * 2 * 2 || C % 3 != 0 || !H || !W) {
+            if (diag)
+                diag->add("bind", "mlvc.decode", "bad tail tensor shape");
+            return rkvc::Status::Format;
+        }
+        uint32_t t = C / 3, bs = 0;
+        for (uint32_t b = 2; b * b <= t; ++b)
+            if (b * b == t)
+                bs = b;
+        if (!bs) {
+            if (diag)
+                diag->add("bind", "mlvc.decode", "tail channels not 3*bs*bs");
+            return rkvc::Status::Format;
+        }
+        d->x_d2s_bs = (int)bs;
+        d->x_pre_c = C;
+        d->x_pre_h = H;
+        d->x_pre_w = W;
+        d->img_h = H * bs;
+        d->img_w = W * bs;
     }
-    d->z_c = zd[1];
-    d->z_h = zd[2];
-    d->z_w = zd[3];
-    d->y_c = yd[1];
-    d->y_h = yd[2];
-    d->y_w = yd[3];
+    d->z_c = zd[3];
+    d->z_h = zd[1];
+    d->z_w = zd[2];
+    d->y_c = yd[3];
+    d->y_h = yd[1];
+    d->y_w = yd[2];
     d->ref_h = rd[1];
     d->ref_w = rd[2];
     d->ref_c = rd[3];
-    d->img_h = xd[2];
-    d->img_w = xd[3];
     auto elems = [](const std::vector<uint32_t>& v) {
         return (size_t)v[1] * v[2] * v[3];
     };
@@ -237,6 +265,7 @@ rkvc::Status lazy_init(MlvcDecoderNode::Impl* d, rkvc::Diag* diag) {
     size_t y_n = (size_t)d->y_c * d->y_h * d->y_w;
     d->ref_prev.assign(ref_n, 0);
     d->ref_ltr.assign(ref_n, 0);
+    d->ref_feed.assign(ref_n, 0);
     d->z_d.assign(z_n, 0);
     d->y0_d.assign(y_n, 0);
     d->y1_d.assign(y_n, 0);
@@ -258,8 +287,6 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
             diag->add("process", "mlvc.decode", reason);
         return s;
     };
-    size_t z_n = d->z_d.size();
-    size_t y_n = d->y0_d.size();
     bool keyframe = (rec_flags & kRecKeyframe) != 0;
 
     if (d->qrows.present) {
@@ -307,22 +334,27 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
     if (!dec.check_eof())
         return bad(rkvc::Status::Format, "rANS trailing data");
 
-    for (size_t i = 0; i < z_n; ++i)
-        d->z_f16[i] = pixel::f32_to_f16((float)d->z_d[i]);
-    for (size_t i = 0; i < y_n; ++i) {
-        d->y0_f16[i] = pixel::f32_to_f16((float)d->y0_d[i]);
-        d->y1_f16[i] = pixel::f32_to_f16((float)d->y1_d[i]);
-    }
+    // NPU z/y inputs are NHWC; rANS yields NCHW int32.
+    pixel::nchw_i32_to_nhwc_f16(d->z_d.data(), d->z_f16.data(), (int)d->z_c,
+                                (int)d->z_h, (int)d->z_w);
+    pixel::nchw_i32_to_nhwc_f16(d->y0_d.data(), d->y0_f16.data(),
+                                (int)d->y_c, (int)d->y_h, (int)d->y_w);
+    pixel::nchw_i32_to_nhwc_f16(d->y1_d.data(), d->y1_f16.data(),
+                                (int)d->y_c, (int)d->y_h, (int)d->y_w);
     const std::vector<uint16_t>& ref =
         ((rec_flags & kRecLtrRecovery) && d->have_ltr) ? d->ref_ltr
                                                        : d->ref_prev;
-    rkvc::Status st = npu.set_input(d->dec_z_in, d->z_f16);
+    // Reference slot is NCHW; the NPU takes NHWC.
+    pixel::nchw_f16_to_nhwc(ref.data(), d->ref_feed.data(), (int)d->ref_c,
+                            (int)d->ref_h, (int)d->ref_w);
+    rkvc::Status st =
+        npu.set_input(d->dec_z_in, d->z_f16);
     if (st == rkvc::Status::Ok)
         st = npu.set_input(d->dec_y0_in, d->y0_f16);
     if (st == rkvc::Status::Ok)
         st = npu.set_input(d->dec_y1_in, d->y1_f16);
     if (st == rkvc::Status::Ok)
-        st = npu.set_input(d->dec_ref_in, ref);
+        st = npu.set_input(d->dec_ref_in, d->ref_feed);
     for (size_t i = 0; st == rkvc::Status::Ok && i < d->qrows.rows.size();
          ++i) {
         size_t idx = d->qrows.rows[i].first;
@@ -337,17 +369,34 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
         return bad(st, "NPU run failed");
     auto xh = npu.output(d->dec_x_out);
     auto fv = npu.output(d->dec_ref_out);
-    size_t img_n = (size_t)3 * d->img_w * d->img_h;
-    if (xh.size() < img_n || fv.size() != d->ref_prev.size() ||
-        !all_finite(xh) || !all_finite(fv))
+    if (fv.size() != d->ref_prev.size() || !all_finite(xh) ||
+        !all_finite(fv)) {
         return bad(rkvc::Status::Hw, "bad NPU outputs");
+    }
+    // Tail-extracted x_hat: CPU DCR to NCHW YUV, then shared saturate path.
+    const uint16_t* yuv = xh.data();
+    std::vector<uint16_t> d2s;
+    if (d->x_d2s_bs > 0) {
+        size_t pre_n =
+            (size_t)d->x_pre_c * d->x_pre_h * d->x_pre_w;
+        if (xh.size() < pre_n)
+            return bad(rkvc::Status::Hw, "short tail output");
+        d2s.resize((size_t)3 * d->img_w * d->img_h);
+        pixel::nchw_d2s_dcr_f16(xh.data(), d2s.data(), 3, (int)d->x_pre_h,
+                                (int)d->x_pre_w, d->x_d2s_bs);
+        yuv = d2s.data();
+    } else {
+        size_t img_n = (size_t)3 * d->img_w * d->img_h;
+        if (xh.size() < img_n)
+            return bad(rkvc::Status::Hw, "short image output");
+    }
 
     size_t nv12_size = (size_t)d->img_w * d->img_h * 3 / 2;
     uint8_t* nv12 = static_cast<uint8_t*>(malloc(nv12_size));
     if (!nv12)
         return bad(rkvc::Status::Nomem, "no memory");
     pixel::nchw_yuv_fp16_to_nv12_planes(
-        xh.data(), d->img_w, d->img_h, nv12, d->img_w,
+        yuv, d->img_w, d->img_h, nv12, d->img_w,
         nv12 + (size_t)d->img_w * d->img_h, d->img_w);
 
     d->ref_prev.assign(fv.begin(), fv.end());

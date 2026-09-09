@@ -72,7 +72,7 @@ int add_model_file(rkvc_context* ctx, const std::string& path) {
     rkvc_diagnostic* diag = nullptr;
     rkvc_status st = rkvc_context_add_model_file(ctx, path.c_str(), &diag);
     if (st != RKVC_OK) {
-        fprintf(stderr, "encode: load model '%s' failed: %s\n", path.c_str(),
+        fprintf(stderr, "model: load '%s' failed: %s\n", path.c_str(),
                 rkvc_status_str(st));
         print_diag(diag);
         return 2;
@@ -88,7 +88,7 @@ int load_models(rkvc_context* ctx, const cli::Args& a) {
     for (const auto& dir : a.model_dirs) {
         DIR* dp = opendir(dir.c_str());
         if (!dp) {
-            fprintf(stderr, "encode: cannot open model dir '%s'\n",
+            fprintf(stderr, "model: cannot open dir '%s'\n",
                     dir.c_str());
             return 2;
         }
@@ -112,7 +112,19 @@ int load_models(rkvc_context* ctx, const cli::Args& a) {
     return 0;
 }
 
+int run_file_session(const cli::Args& a, rkvc_operation op, bool raw_input,
+                     const char* tag);
+
 int cmd_encode(const cli::Args& a) {
+    return run_file_session(a, RKVC_OP_ENCODE, true, "encode");
+}
+
+int cmd_decode(const cli::Args& a) {
+    return run_file_session(a, RKVC_OP_DECODE, false, "decode");
+}
+
+int run_file_session(const cli::Args& a, rkvc_operation op, bool raw_input,
+                     const char* tag) {
     if (a.codec.empty() || a.input.empty() || a.output.empty() || !a.width ||
         !a.height || (a.pixfmt != "nv12" && a.pixfmt != "yuv420p")) {
         usage();
@@ -120,7 +132,7 @@ int cmd_encode(const cli::Args& a) {
     }
     rkvc_codec codec = parse_codec(a.codec);
     if (codec == RKVC_CODEC_AUTO) {
-        fprintf(stderr, "encode: unknown codec '%s'\n", a.codec.c_str());
+        fprintf(stderr, "%s: unknown codec '%s'\n", tag, a.codec.c_str());
         return 1;
     }
     rkvc_context_options opts;
@@ -132,28 +144,31 @@ int cmd_encode(const cli::Args& a) {
     opts.backend_dir_count = dirs.size();
     rkvc_context* ctx = nullptr;
     if (rkvc_context_create(&opts, &ctx) != RKVC_OK) {
-        fprintf(stderr, "encode: context create failed\n");
+        fprintf(stderr, "%s: context create failed\n", tag);
         return 2;
     }
     if (load_models(ctx, a) != 0) {
         rkvc_context_destroy(ctx);
         return 2;
     }
+    rkvc_frame_fmt raw_fmt = (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12
+                                                  : RKVC_FRAME_FMT_YUV420P;
     rkvc_session_request req;
     rkvc_session_request_init(&req, sizeof(req));
-    req.operation = RKVC_OP_ENCODE;
+    req.operation = op;
     req.codec = codec;
     if (!a.model_id.empty())
         req.model_id = a.model_id.c_str();
     req.input.kind = RKVC_ENDPOINT_FILE;
     req.input.uri = a.input.c_str();
-    req.input.fmt = (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12
-                                         : RKVC_FRAME_FMT_YUV420P;
+    req.input.fmt = raw_input ? raw_fmt : RKVC_FRAME_FMT_BITSTREAM;
     req.input.width = a.width;
     req.input.height = a.height;
     req.output.kind = RKVC_ENDPOINT_FILE;
     req.output.uri = a.output.c_str();
-    req.output.fmt = RKVC_FRAME_FMT_BITSTREAM;
+    req.output.fmt = raw_input ? RKVC_FRAME_FMT_BITSTREAM : raw_fmt;
+    req.output.width = raw_input ? 0 : a.width;
+    req.output.height = raw_input ? 0 : a.height;
     req.quality.qp = a.qp;
     req.quality.bitrate_bps =
         (a.bitrate > INT32_MAX) ? INT32_MAX : (int32_t)a.bitrate;
@@ -162,7 +177,7 @@ int cmd_encode(const cli::Args& a) {
     rkvc_diagnostic* diag = nullptr;
     rkvc_status st = rkvc_session_create(ctx, &req, &s, &diag);
     if (st != RKVC_OK) {
-        fprintf(stderr, "encode: session create failed: %s\n",
+        fprintf(stderr, "%s: session create failed: %s\n", tag,
                 rkvc_status_str(st));
         print_diag(diag);
         rkvc_context_destroy(ctx);
@@ -170,7 +185,7 @@ int cmd_encode(const cli::Args& a) {
     }
     st = rkvc_session_start(s, &diag);
     if (st != RKVC_OK) {
-        fprintf(stderr, "encode: session start failed: %s\n",
+        fprintf(stderr, "%s: session start failed: %s\n", tag,
                 rkvc_status_str(st));
         print_diag(diag);
         rkvc_session_destroy(s);
@@ -178,8 +193,12 @@ int cmd_encode(const cli::Args& a) {
         return 2;
     }
     st = rkvc_session_wait(s);
-    if (st != RKVC_OK)
-        fprintf(stderr, "encode: pipeline ended: %s\n", rkvc_status_str(st));
+    if (st != RKVC_OK) {
+        char err[2048];
+        rkvc_session_error_text(s, err, sizeof(err));
+        fprintf(stderr, "%s: pipeline ended: %s\n%s", tag,
+                rkvc_status_str(st), err);
+    }
     rkvc_session_destroy(s);
     rkvc_context_destroy(ctx);
     return st == RKVC_OK ? 0 : 2;
@@ -196,5 +215,10 @@ int main(int argc, char** argv) {
     }
     if (cmd == "caps")
         return cmd_caps(a);
-    return cmd_encode(a);
+    if (cmd == "decode")
+        return cmd_decode(a);
+    if (cmd == "encode")
+        return cmd_encode(a);
+    cli::usage();
+    return 1;
 }

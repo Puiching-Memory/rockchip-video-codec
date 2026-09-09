@@ -75,7 +75,7 @@ inline float f16_to_f32(uint16_t h) noexcept {
                 --exp;
             }
             mant &= 0x3ff;
-            out = sign | ((exp + 127 - 15) << 23) | (mant << 13);
+            out = sign | (exp << 23) | (mant << 13);
         }
     } else if (exp == 0x1f) {
         out = sign | 0x7f800000 | (mant << 13);
@@ -106,6 +106,15 @@ void nchw_f16_to_nc1hwc2(const uint16_t* src, uint16_t* dst, int C, int H,
 // NC1HWC2 -> ONNX DepthToSpace(DCR) fused, NCHW fp16 out.
 void nc1hwc2_d2s_dcr_f16(const uint16_t* src, uint16_t* out, int C1, int H,
                          int W, int C2, int bs) noexcept;
+// NCHW int32 -> NHWC fp16 (host I/O path: NPU takes NHWC, returns NCHW).
+void nchw_i32_to_nhwc_f16(const int32_t* src, uint16_t* dst, int C, int H,
+                           int W) noexcept;
+// NCHW fp16 -> NHWC fp16, bit-preserving reorder.
+void nchw_f16_to_nhwc(const uint16_t* src, uint16_t* dst, int C, int H,
+                       int W) noexcept;
+// NCHW fp16 DepthToSpace(DCR): [oc*bs*bs,h,w] -> [oc,h*bs,w*bs].
+void nchw_d2s_dcr_f16(const uint16_t* src, uint16_t* dst, int OC, int H,
+                       int W, int bs) noexcept;
 // YUV planes (NV12 or I420) -> NHWC fp16 (x1/255).
 void yuv_to_nhwc_fp16(const uint8_t* yp, int y_stride, const uint8_t* up,
                        const uint8_t* vp, int uv_stride, int nv12, int W,

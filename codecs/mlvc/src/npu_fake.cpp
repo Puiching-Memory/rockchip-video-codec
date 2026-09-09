@@ -103,9 +103,10 @@ public:
         return rkvc::Status::Ok;
     }
     std::vector<NpuTensorInfo> inputs() const override {
-        return {{{"z_raw", {1, g_.z_c, g_.z_hw, g_.z_hw}},
-                 {"y_raw_0", {1, g_.y_c, g_.y_hw, g_.y_hw}},
-                 {"y_raw_1", {1, g_.y_c, g_.y_hw, g_.y_hw}},
+        // NHWC, matching RKNN runtime attr order (see resolve_dec_geom).
+        return {{{"z_raw", {1, g_.z_hw, g_.z_hw, g_.z_c}},
+                 {"y_raw_0", {1, g_.y_hw, g_.y_hw, g_.y_c}},
+                 {"y_raw_1", {1, g_.y_hw, g_.y_hw, g_.y_c}},
                  {"ref_feature", {1, g_.ref_hw, g_.ref_hw, g_.ref_c}}}};
     }
     std::vector<NpuTensorInfo> outputs() const override {
@@ -122,14 +123,16 @@ public:
     rkvc::Status run(rkvc::Diag*) override {
         if (ins_[1].empty())
             return rkvc::Status::Invalid;
-        // x_hat[c,Y,X] = 0.5 * y0[c,Y/4,X/4] (nearest upscale, NCHW).
+        // Inputs are NHWC fp16 bits (host I/O contract); outputs NCHW.
+        // x_hat[c,Y,X] = 0.5 * y0[c,Y/4,X/4] (nearest upscale, NCHW out).
         const uint32_t S = g_.img / g_.y_hw;
+        const uint32_t YC = g_.y_c, YH = g_.y_hw;
         x_.assign(3 * g_.img * g_.img, 0);
         for (uint32_t c = 0; c < 3; ++c) {
             for (uint32_t y = 0; y < g_.img; ++y) {
                 for (uint32_t x = 0; x < g_.img; ++x) {
                     float v = pixel::f16_to_f32(
-                        ins_[1][(c * g_.y_hw + y / S) * g_.y_hw + x / S]);
+                        ins_[1][((y / S) * YH + x / S) * YC + c]);
                     x_[(c * g_.img + y) * g_.img + x] =
                         pixel::f32_to_f16(v * 0.5f);
                 }

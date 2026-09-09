@@ -210,6 +210,38 @@ void nchw_to_nc1hwc2_fp16(const int32_t* src, uint16_t* dst, int C, int H,
     }
 }
 
+void nchw_i32_to_nhwc_f16(const int32_t* src, uint16_t* dst, int C, int H,
+                           int W) noexcept {
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++)
+            for (int c = 0; c < C; c++)
+                dst[((size_t)y * W + x) * C + c] =
+                    f32_to_f16((float)src[((size_t)c * H + y) * W + x]);
+}
+
+void nchw_f16_to_nhwc(const uint16_t* src, uint16_t* dst, int C, int H,
+                       int W) noexcept {
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++)
+            for (int c = 0; c < C; c++)
+                dst[((size_t)y * W + x) * C + c] =
+                    src[((size_t)c * H + y) * W + x];
+}
+
+void nchw_d2s_dcr_f16(const uint16_t* src, uint16_t* dst, int OC, int H,
+                       int W, int bs) noexcept {
+    int OH = H * bs, OW = W * bs;
+    for (int c = 0; c < OC; ++c)
+        for (int y = 0; y < OH; ++y)
+            for (int x = 0; x < OW; ++x) {
+                int dy = y % bs, dx = x % bs;
+                dst[((size_t)c * OH + y) * OW + x] =
+                    src[(((size_t)(dy * bs + dx) * OC + c) * H + y / bs) *
+                            W +
+                        x / bs];
+            }
+}
+
 void nchw_f16_to_nc1hwc2(const uint16_t* src, uint16_t* dst, int C, int H,
                           int W, int C2, int w_stride) noexcept {
     if (!src || !dst || C <= 0 || H <= 0 || W <= 0 || C2 <= 0)

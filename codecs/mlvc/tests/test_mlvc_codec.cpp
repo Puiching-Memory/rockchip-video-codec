@@ -46,22 +46,22 @@ std::vector<uint8_t> make_gaussian() {
     return b;
 }
 
-// 256 dists x {64,64,64,32,32}, bitest tag (qp_num=64, channels=4).
+// 512 dists x {64,64,64,32,32}, bitest tag (qp_num=64, channels=8).
 std::vector<uint8_t> make_bitest() {
     std::vector<uint8_t> b;
     b.insert(b.end(), {'P', 'M', 'F', '1'});
-    put32(b, 256);
-    put32(b, 256);
-    put32(b, 1280);
-    for (int i = 0; i < 256; ++i)
+    put32(b, 512);
+    put32(b, 512);
+    put32(b, 2560);
+    for (int i = 0; i < 512; ++i)
         put32(b, 5);  // lengths: 5 symbols each
-    for (int i = 0; i < 256; ++i)
+    for (int i = 0; i < 512; ++i)
         put32(b, 0);  // offsets
-    for (int i = 0; i < 1280; ++i)
+    for (int i = 0; i < 2560; ++i)
         put32(b, (i % 5 == 3 || i % 5 == 4) ? 32 : 64);
     put32(b, 2);
     put32(b, 64);
-    put32(b, 4);
+    put32(b, 8);
     return b;
 }
 

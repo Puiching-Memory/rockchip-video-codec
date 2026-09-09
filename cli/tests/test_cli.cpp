@@ -80,3 +80,15 @@ TEST_CASE("cli parses model options") {
     CHECK(a.model_dirs[0] == "models/mlvc");
     CHECK(a.model_id == "mlvc-rk3576");
 }
+
+TEST_CASE("cli parses decode") {
+    std::string cmd;
+    cli::Args a;
+    CHECK(parse({"rkvc", "decode", "--codec", "mlvc", "--input", "s.mlvc",
+                 "--width", "640", "--height", "368", "--pixfmt", "nv12",
+                 "--output", "s.yuv", "--model-id", "mlvc-dec"},
+                cmd, a));
+    CHECK(cmd == "decode");
+    CHECK(a.codec == "mlvc");
+    CHECK(a.model_id == "mlvc-dec");
+}

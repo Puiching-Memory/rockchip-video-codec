@@ -63,6 +63,7 @@ struct MlvcEncoderNode::Impl {
     std::vector<uint16_t> x_nhwc;
     std::vector<uint16_t> ref_prev;
     std::vector<uint16_t> ref_ltr;
+    std::vector<uint16_t> ref_feed;  // NHWC transit for NPU input
     bool have_ltr = false;
     std::vector<int32_t> z_r, y0_r, y1_r, s0, s1, z_idx;
     int z_idx_qp = -1;
@@ -216,6 +217,7 @@ rkvc::Status MlvcEncoderNode::bind_model(const rkvc::Model& model,
     e->x_nhwc.assign(img_n * 3, 0);
     e->ref_prev.assign(ref_n, 0);
     e->ref_ltr.assign(ref_n, 0);
+    e->ref_feed.assign(ref_n, 0);
     e->z_r.assign(z_n, 0);
     e->y0_r.assign(y_n, 0);
     e->y1_r.assign(y_n, 0);
@@ -337,9 +339,12 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
 
     const std::vector<uint16_t>& ref =
         (is_recovery && e->have_ltr) ? e->ref_ltr : e->ref_prev;
+    // Reference slot is NCHW; the NPU takes NHWC.
+    pixel::nchw_f16_to_nhwc(ref.data(), e->ref_feed.data(), (int)e->ref_c,
+                            (int)e->ref_h, (int)e->ref_w);
     rkvc::Status st = npu.set_input(e->enc_x_in, e->x_nhwc);
     if (st == rkvc::Status::Ok)
-        st = npu.set_input(e->enc_ref_in, ref);
+        st = npu.set_input(e->enc_ref_in, e->ref_feed);
     for (size_t i = 0; st == rkvc::Status::Ok && i < e->qrows.rows.size();
          ++i) {
         size_t idx = e->qrows.rows[i].first;

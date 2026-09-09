@@ -70,6 +70,15 @@ TEST_CASE("f32 f16 converters") {
         float f = i / 255.0f;
         CHECK(f16_to_f32(f32_to_f16(f)) == f16_to_f32(ref_f16(f)));
     }
+    // Subnormal bit patterns decode exactly (regression: double bias).
+    for (uint32_t h = 0; h < 0x10000u; ++h) {
+        if (((h >> 10) & 0x1f) != 0)
+            continue;
+        float want = ldexpf((float)(int)(h & 0x3ff), -24);
+        if (h & 0x8000)
+            want = -want;
+        CHECK(f16_to_f32((uint16_t)h) == want);
+    }
 }
 
 TEST_CASE("extract scales checkerboard") {
@@ -184,6 +193,51 @@ TEST_CASE("d2s dcr against naive two step") {
                 int src_c = dy * (bs * oc) + dx * oc + c;
                 ref[(c * oh + h) * ow + w] =
                     nchw[(src_c * H + ho) * W + wo];
+            }
+    CHECK(got == ref);
+}
+
+TEST_CASE("host io transposes are exact") {
+    const int C = 5, H = 3, W = 4;
+    std::vector<int32_t> nchw_i(C * H * W);
+    for (int c = 0; c < C; ++c)
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                nchw_i[(c * H + y) * W + x] = (c * 131 + y * 17 + x) % 9 - 4;
+    std::vector<uint16_t> nhwc(C * H * W, 0);
+    mlvc::pixel::nchw_i32_to_nhwc_f16(nchw_i.data(), nhwc.data(), C, H, W);
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            for (int c = 0; c < C; ++c)
+                CHECK(nhwc[(y * W + x) * C + c] ==
+                      mlvc::pixel::f32_to_f16(
+                          (float)nchw_i[(c * H + y) * W + x]));
+    std::vector<uint16_t> nchw_f(C * H * W);
+    for (size_t i = 0; i < nchw_f.size(); ++i)
+        nchw_f[i] = mlvc::pixel::f32_to_f16((float)((i * 7) % 11) * 0.25f);
+    std::vector<uint16_t> back(C * H * W, 0), rt(C * H * W, 0);
+    mlvc::pixel::nchw_f16_to_nhwc(nchw_f.data(), back.data(), C, H, W);
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            for (int c = 0; c < C; ++c)
+                CHECK(back[(y * W + x) * C + c] ==
+                      nchw_f[(c * H + y) * W + x]);
+}
+
+TEST_CASE("nchw d2s dcr against naive") {
+    const int OC = 3, bs = 8, H = 2, W = 3;
+    const int C = OC * bs * bs, OH = H * bs, OW = W * bs;
+    std::vector<uint16_t> src(C * H * W);
+    for (size_t i = 0; i < src.size(); ++i)
+        src[i] = static_cast<uint16_t>((i * 13) & 0xffff);
+    std::vector<uint16_t> got(OC * OH * OW, 0), ref(OC * OH * OW, 0);
+    mlvc::pixel::nchw_d2s_dcr_f16(src.data(), got.data(), OC, H, W, bs);
+    for (int c = 0; c < OC; ++c)
+        for (int y = 0; y < OH; ++y)
+            for (int x = 0; x < OW; ++x) {
+                int dy = y % bs, dx = x % bs;
+                ref[(c * OH + y) * OW + x] =
+                    src[(((dy * bs + dx) * OC + c) * H + y / bs) * W + x / bs];
             }
     CHECK(got == ref);
 }

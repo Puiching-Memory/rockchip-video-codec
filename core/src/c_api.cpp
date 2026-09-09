@@ -456,6 +456,18 @@ rkvc_status rkvc_session_wait(rkvc_session* s) {
     return sc(s->s->wait());
 }
 
+rkvc_status rkvc_session_error_text(rkvc_session* s, char* buf, size_t size) {
+    if (!s)
+        return RKVC_INVALID;
+    if (buf && size) {
+        std::string text = s->s->error_diag().format();
+        size_t n = text.size() < size - 1 ? text.size() : size - 1;
+        memcpy(buf, text.data(), n);
+        buf[n] = '\0';
+    }
+    return sc(s->s->wait());
+}
+
 void rkvc_session_destroy(rkvc_session* s) { delete s; }
 
 void rkvc_frame_desc_init(rkvc_frame_desc* desc, size_t size) {
