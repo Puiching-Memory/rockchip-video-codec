@@ -52,8 +52,9 @@ foreach(t rkvc-core-static)
     target_compile_definitions(${t} PUBLIC RKVC_NO_EXCEPTIONS=1)
 endforeach()
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-    target_link_options(rkvc-core-static PRIVATE -static-libstdc++ -static-libgcc)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    # Final links (tests, plugins, CLIs) carry no dynamic C++ runtime.
+    add_link_options(-static-libstdc++ -static-libgcc)
 endif()
 
 if(RKVC_CORE_BUILD_TESTS)

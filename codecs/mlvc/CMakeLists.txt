@@ -33,8 +33,8 @@ target_compile_options(mlvc-algo PRIVATE -fno-exceptions -fno-rtti
     -Wall -Wextra -Werror=return-type)
 target_compile_definitions(mlvc-algo PUBLIC RKVC_NO_EXCEPTIONS=1)
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
-    target_link_options(mlvc-algo PRIVATE -static-libstdc++ -static-libgcc)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    add_link_options(-static-libstdc++ -static-libgcc)
 endif()
 
 option(RKVC_MLVC_BUILD_TESTS "Build mlvc algorithm tests" ON)

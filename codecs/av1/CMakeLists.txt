@@ -12,6 +12,10 @@ if(NOT TARGET rkvc::core)
 endif()
 find_package(Threads REQUIRED)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    add_link_options(-static-libstdc++ -static-libgcc)
+endif()
+
 option(RKVC_AV1_WITH_SVT "Build the SVT-AV1 software encoder" ON)
 set(SVT_AV1_INSTALL_PREFIX "" CACHE PATH "SVT-AV1 install prefix")
 option(RKVC_AV1_BUILD_TESTS "Build av1 tests" ON)

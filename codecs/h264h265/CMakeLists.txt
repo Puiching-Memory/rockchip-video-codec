@@ -12,6 +12,10 @@ if(NOT TARGET rkvc::core)
 endif()
 find_package(Threads REQUIRED)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    add_link_options(-static-libstdc++ -static-libgcc)
+endif()
+
 option(RKVC_H264H265_WITH_MPP "Build the MPP hard codec nodes" ON)
 set(MPP_INSTALL_PREFIX "" CACHE PATH "librockchip_mpp install prefix")
 option(RKVC_H264H265_BUILD_TESTS "Build h264h265 logic tests" ON)

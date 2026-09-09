@@ -12,6 +12,10 @@ if(NOT TARGET rkvc::core)
 endif()
 find_package(Threads REQUIRED)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    add_link_options(-static-libstdc++ -static-libgcc)
+endif()
+
 option(RKVC_SR_WITH_RKNN "Use real librknnrt backend when found" ON)
 option(RKVC_SR_BUILD_TESTS "Build sr post-kernel tests" ON)
 set(RKNN_INSTALL_PREFIX "" CACHE PATH "librknnrt install prefix")
