@@ -1,0 +1,48 @@
+cmake_minimum_required(VERSION 3.21)
+project(rkvc-mlvc VERSION 0.5.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+if(NOT TARGET rkvc::core)
+    add_subdirectory(../../core core-build)
+endif()
+find_package(Threads REQUIRED)
+
+add_library(mlvc-algo STATIC
+    src/container.cpp
+    src/pmf.cpp
+    src/qptab.cpp
+    src/qppatch.cpp
+)
+add_library(mlvc::algo ALIAS mlvc-algo)
+
+target_include_directories(mlvc-algo
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(mlvc-algo PUBLIC rkvc::core)
+target_compile_options(mlvc-algo PRIVATE -fno-exceptions -fno-rtti
+    -Wall -Wextra -Werror=return-type)
+target_compile_definitions(mlvc-algo PUBLIC RKVC_NO_EXCEPTIONS=1)
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+    target_link_options(mlvc-algo PRIVATE -static-libstdc++ -static-libgcc)
+endif()
+
+option(RKVC_MLVC_BUILD_TESTS "Build mlvc algorithm tests" ON)
+
+if(RKVC_MLVC_BUILD_TESTS)
+    enable_testing()
+    add_executable(test_mlvc_tables tests/test_mlvc_tables.cpp)
+    target_link_libraries(test_mlvc_tables PRIVATE mlvc::algo rkvc::doctest)
+    target_compile_definitions(test_mlvc_tables PRIVATE
+        DOCTEST_CONFIG_NO_EXCEPTIONS)
+    target_compile_options(test_mlvc_tables PRIVATE
+        -fno-exceptions -fno-rtti)
+    add_test(NAME test_mlvc_tables COMMAND test_mlvc_tables)
+endif()

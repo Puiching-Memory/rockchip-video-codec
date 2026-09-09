@@ -28,6 +28,12 @@ add_library(rkvc-core-static STATIC
 )
 add_library(rkvc::core ALIAS rkvc-core-static)
 
+# Header-only doctest for downstream test targets.
+add_library(rkvc-doctest INTERFACE)
+target_include_directories(rkvc-doctest INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party>)
+add_library(rkvc::doctest ALIAS rkvc-doctest)
+
 target_include_directories(rkvc-core-static
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
