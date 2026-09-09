@@ -1,36 +1,60 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// 无异常编译验证 + Status/Result/Diag 最小回归（doctest vendor 前的过渡形态）。
-#include <cassert>
+// Status/Result/Diag 回归（doctest + DOCTEST_CONFIG_NO_EXCEPTIONS）。
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <doctest/doctest.h>
+
 #include <string>
 
 #include "rkvc/diag.hpp"
 #include "rkvc/result.hpp"
 #include "rkvc/status.hpp"
 
-int main() {
+TEST_CASE("status basics") {
     using namespace rkvc;
-    assert(is_ok(Status::Ok));
-    assert(!is_ok(Status::Again));
-    assert(is_flow(Status::Again) && is_flow(Status::Eof));
-    assert(!is_flow(Status::Ok));
-    assert(static_cast<int>(Status::Again) < 0);
-    assert(std::string(to_string(Status::Ok)) == "ok");
+    CHECK(is_ok(Status::Ok));
+    CHECK(!is_ok(Status::Again));
+    CHECK(is_flow(Status::Again));
+    CHECK(is_flow(Status::Eof));
+    CHECK(!is_flow(Status::Ok));
+    CHECK(static_cast<int>(Status::Again) < 0);
+    CHECK(std::string(to_string(Status::Ok)) == "ok");
+    CHECK(std::string(to_string(Status::Model)) == "model error");
+}
 
+TEST_CASE("result value and error") {
+    using namespace rkvc;
     auto ok = Result<int>::success(42);
-    assert(ok && ok.status() == Status::Ok && ok.value() == 42);
+    CHECK(ok);
+    CHECK(ok.status() == Status::Ok);
+    CHECK(ok.value() == 42);
 
     Diag d;
-    assert(d.empty());
+    CHECK(d.empty());
     d.add("open", "mpp", "no device");
-    assert(d.size() == 1);
+    CHECK(d.size() == 1);
     auto fail = Result<int>::failure(Status::Hw, std::move(d));
-    assert(!fail && fail.status() == Status::Hw);
-    assert(fail.diag().size() == 1);
-    assert(fail.diag().format().find("mpp") != std::string::npos);
+    CHECK(!fail);
+    CHECK(fail.status() == Status::Hw);
+    CHECK(fail.diag().size() == 1);
+    CHECK(fail.diag().format().find("mpp") != std::string::npos);
+}
 
+TEST_CASE("result void") {
+    using namespace rkvc;
     auto v = Result<void>::success();
-    assert(v.ok());
+    CHECK(v.ok());
     auto ve = Result<void>::failure(Status::Nomem);
-    assert(!ve && ve.status() == Status::Nomem);
-    return 0;
+    CHECK(!ve);
+    CHECK(ve.status() == Status::Nomem);
+}
+
+TEST_CASE("diag format") {
+    using namespace rkvc;
+    Diag d;
+    d.add("probe", "mpp", "no device");
+    d.add("open", "svt", "missing library");
+    CHECK(d.size() == 2);
+    std::string text = d.format();
+    CHECK(text.find("probe(mpp)") != std::string::npos);
+    CHECK(text.find("open(svt)") != std::string::npos);
 }

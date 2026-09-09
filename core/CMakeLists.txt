@@ -33,6 +33,11 @@ if(RKVC_CORE_BUILD_TESTS)
     enable_testing()
     add_executable(test_status_result tests/test_status_result.cpp)
     target_link_libraries(test_status_result PRIVATE rkvc::core)
+    # doctest 单头 vendored（v2.4.11），无异常模式与 -fno-exceptions 配套。
+    target_include_directories(test_status_result PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+    target_compile_definitions(test_status_result PRIVATE
+        DOCTEST_CONFIG_NO_EXCEPTIONS)
     target_compile_options(test_status_result PRIVATE -fno-exceptions -fno-rtti)
     add_test(NAME test_status_result COMMAND test_status_result)
 endif()
