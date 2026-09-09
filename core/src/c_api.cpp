@@ -360,6 +360,7 @@ bool map_request(const rkvc_session_request& in, rkvc::Request& out) {
     out.quality.bitrate_bps = in.quality.bitrate_bps;
     out.quality.qp = in.quality.qp;
     out.quality.gop_size = in.quality.gop_size;
+    out.quality.fps = in.quality.fps;
     if (in.model_id)
         out.model_id = in.model_id;
     out.queue_capacity = in.queue_capacity ? in.queue_capacity : 4;

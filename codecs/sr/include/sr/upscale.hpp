@@ -17,7 +17,8 @@ namespace sr {
 // upscale = bicubic baseline + NPU phase residual. The NPU backend is
 // injected (real RKNN in the plugin, absent without the runtime).
 struct SrGeometry {
-    uint32_t core = 0;  // model core pixels (input = 2x, output = 6x)
+    uint32_t core_w = 0;  // model core pixels (input = 2x, output = 6x)
+    uint32_t core_h = 0;
     uint32_t in_w = 0;
     uint32_t in_h = 0;
     uint32_t out_w = 0;

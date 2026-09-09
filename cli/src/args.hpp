@@ -11,6 +11,8 @@ struct Args {
     std::vector<std::string> models;
     std::vector<std::string> model_dirs;
     std::string model_id;
+    std::string sub;  // inspect target: backends|models
+    bool json = false;
     std::string codec;
     std::string input;
     std::string output;
@@ -20,6 +22,7 @@ struct Args {
     int qp = -1;
     int64_t bitrate = 0;
     uint32_t gop = 0;
+    uint32_t fps = 0;
 };
 
 void usage();

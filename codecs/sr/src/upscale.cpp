@@ -102,10 +102,11 @@ rkvc::Status SrUpscaleNode::open(rkvc::Emit* emit, rkvc::Diag* diag) {
             diag->add("open", "rknn.upscale", "request geometry mismatch");
         return rkvc::Status::Format;
     }
-    up->packed.assign((size_t)post::kPhaseInCh * up->geom.core * up->geom.core,
+    up->packed.assign((size_t)post::kPhaseInCh * up->geom.core_w *
+                          up->geom.core_h,
                       0);
     up->residual.assign(
-        (size_t)post::kPhaseOutCh * up->geom.core * up->geom.core, 0.0f);
+        (size_t)post::kPhaseOutCh * up->geom.core_w * up->geom.core_h, 0.0f);
     up->emit = emit;
     up->opened = true;
     return rkvc::Status::Ok;
@@ -180,8 +181,8 @@ rkvc::Status SrUpscaleNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
         st = post::bicubic_nv12(base, up->geom.in_w, up->geom.in_h, stride,
                                 vstride, out, up->geom.out_w, up->geom.out_h);
     if (st == rkvc::Status::Ok)
-        st = post::add_phase_residual(up->residual.data(), up->geom.core,
-                                      up->geom.core, out, up->geom.out_w,
+        st = post::add_phase_residual(up->residual.data(), up->geom.core_w,
+                                      up->geom.core_h, out, up->geom.out_w,
                                       up->geom.out_h);
     unmap();
     if (st != rkvc::Status::Ok) {

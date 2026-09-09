@@ -41,6 +41,7 @@ struct Quality {
     int32_t bitrate_bps = 0;  // <=0: automatic
     int32_t qp = -1;          // <0: automatic
     uint32_t gop_size = 0;    // 0: backend default
+    uint32_t fps = 0;         // 0: backend default (30)
     uint32_t ltr_period = 0;  // 0: automatic
     uint32_t ltr_start_idx = 0;
 };

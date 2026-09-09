@@ -41,6 +41,7 @@ struct MlvcEncoderNode::Impl {
     EntropyConfig entropy;
     bool rans_ready = false;
     int qp = kDefaultQp;
+    uint32_t fps = kMlvcFps;
 
     uint32_t img_w = 0;
     uint32_t img_h = 0;
@@ -122,6 +123,7 @@ rkvc::Status MlvcEncoderNode::open(rkvc::Emit* emit, rkvc::Diag* diag) {
         return rkvc::Status::Format;
     }
     e->iframe_period = e->req.quality.gop_size;
+    e->fps = e->req.quality.fps ? e->req.quality.fps : kMlvcFps;
     e->ltr_start_idx = e->req.quality.ltr_start_idx;
     e->ltr_period = e->req.quality.ltr_period;
     e->proactive_ltr = e->ltr_period != 0;
@@ -250,7 +252,7 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
         if (!e->rc) {
             auto rc = RateController::create(
                 e->img_w, e->img_h, (double)input->encode().bitrate_bps,
-                kMlvcFps, diag);
+                (double)e->fps, diag);
             if (!rc)
                 return bad(rc.status(), "rate controller init failed");
             e->rc = std::move(rc.value());
@@ -281,7 +283,7 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
 
     int q_index = e->qp;
     if (e->rc) {
-        double pt = (double)e->frame_count / kMlvcFps;
+        double pt = (double)e->frame_count / (double)e->fps;
         int solved = e->rc->solve(pt, rc_type, kRecSize * 8);
         if (solved == kQDrop) {
             if (rc_type == RcFrameType::P && !mark_ltr) {
@@ -411,7 +413,7 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
             Header hdr;
             hdr.width = e->img_w;
             hdr.height = e->img_h;
-            hdr.fps_num = kMlvcFps;
+            hdr.fps_num = e->fps;
             hdr.fps_den = 1;
             hdr.qp = (uint32_t)e->qp;
             hdr.iframe_period = e->iframe_period;

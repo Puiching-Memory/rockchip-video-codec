@@ -10,11 +10,17 @@ void usage() {
     printf(
         "usage:\n"
         "  rkvc caps [--backend-dir DIR]...\n"
+        "  rkvc version [--json]\n"
+        "  rkvc inspect backends|models [--backend-dir DIR]...\n"
+        "            [--model-dir DIR]... [--json]\n"
         "  rkvc encode --codec h264|hevc|av1 --input IN --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
         "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n"
-        "            [--qp Q] [--bitrate BPS] [--gop G]\n"
+        "            [--qp Q] [--bitrate BPS] [--gop G] [--fps N]\n"
         "  rkvc decode --codec mlvc --input IN.mlvc --width W --height H\n"
+        "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
+        "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n"
+        "  rkvc upscale --input IN --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
         "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n");
 }
@@ -48,9 +54,14 @@ bool parse_uint(const std::string& s, uint32_t& out) {
 bool parse_args(int argc, char** argv, std::string& cmd, Args& a) {
     if (argc < 2)
         return false;
+    a = Args();
     cmd = argv[1];
     for (int i = 2; i < argc; ++i) {
         std::string k = argv[i];
+        if (cmd == "inspect" && a.sub.empty() && !k.empty() && k[0] != '-') {
+            a.sub = k;
+            continue;
+        }
         std::string v;
         if (k == "--backend-dir" && take_value(argc, argv, i, v))
             a.backend_dirs.push_back(v);
@@ -60,6 +71,8 @@ bool parse_args(int argc, char** argv, std::string& cmd, Args& a) {
             a.model_dirs.push_back(v);
         else if (k == "--model-id" && take_value(argc, argv, i, v))
             a.model_id = v;
+        else if (k == "--json")
+            a.json = true;
         else if (k == "--codec" && take_value(argc, argv, i, v))
             a.codec = v;
         else if (k == "--input" && take_value(argc, argv, i, v))
@@ -83,11 +96,19 @@ bool parse_args(int argc, char** argv, std::string& cmd, Args& a) {
             if (!parse_uint(v, g))
                 return false;
             a.gop = g;
+        } else if (k == "--fps" && take_value(argc, argv, i, v)) {
+            uint32_t f = 0;
+            if (!parse_uint(v, f))
+                return false;
+            a.fps = f;
         } else {
             return false;
         }
     }
-    return cmd == "caps" || cmd == "encode" || cmd == "decode";
+    if (cmd == "inspect")
+        return a.sub == "backends" || a.sub == "models";
+    return cmd == "caps" || cmd == "encode" || cmd == "decode" ||
+           cmd == "upscale" || cmd == "version";
 }
 
 }  // namespace cli

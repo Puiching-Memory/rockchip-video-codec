@@ -113,6 +113,7 @@ typedef struct rkvc_quality {
     int32_t bitrate_bps;
     int32_t qp;
     uint32_t gop_size;
+    uint32_t fps;  /* 0 = backend default */
 } rkvc_quality;
 
 typedef struct rkvc_session_request {

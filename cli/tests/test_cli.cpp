@@ -92,3 +92,38 @@ TEST_CASE("cli parses decode") {
     CHECK(a.codec == "mlvc");
     CHECK(a.model_id == "mlvc-dec");
 }
+
+TEST_CASE("cli parses upscale") {
+    std::string cmd;
+    cli::Args a;
+    CHECK(parse({"rkvc", "upscale", "--input", "in.yuv", "--width", "640",
+                 "--height", "360", "--pixfmt", "nv12", "--output", "o.yuv",
+                 "--model-id", "sr-x3"},
+                cmd, a));
+    CHECK(cmd == "upscale");
+    CHECK(a.width == 640);
+    CHECK(a.model_id == "sr-x3");
+}
+
+TEST_CASE("cli parses version, inspect and fps") {
+    std::string cmd;
+    cli::Args a;
+    CHECK(parse({"rkvc", "version", "--json"}, cmd, a));
+    CHECK(cmd == "version");
+    CHECK(a.json);
+    CHECK(parse({"rkvc", "inspect", "models", "--model-dir", "m",
+                 "--json"},
+                cmd, a));
+    CHECK(cmd == "inspect");
+    CHECK(a.sub == "models");
+    CHECK(a.json);
+    CHECK(parse({"rkvc", "inspect", "backends", "--backend-dir", "b"},
+                cmd, a));
+    CHECK(a.sub == "backends");
+    CHECK(!parse({"rkvc", "inspect", "frobnicate"}, cmd, a));
+    CHECK(parse({"rkvc", "encode", "--codec", "h264", "--input", "i",
+                 "--width", "64", "--height", "64", "--output", "o",
+                 "--fps", "120"},
+                cmd, a));
+    CHECK(a.fps == 120);
+}

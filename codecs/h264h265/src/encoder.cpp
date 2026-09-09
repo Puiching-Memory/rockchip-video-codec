@@ -135,11 +135,13 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
     mpp_enc_cfg_set_s32(cfg, "prep:ver_stride", enc->ver_stride);
     mpp_enc_cfg_set_s32(cfg, "prep:format", enc->format);
     mpp_enc_cfg_set_s32(cfg, "codec:type", enc->coding);
+    int32_t fps =
+        enc->req.quality.fps ? (int32_t)enc->req.quality.fps : kDefaultFps;
     mpp_enc_cfg_set_s32(cfg, "rc:fps_in_flex", 0);
-    mpp_enc_cfg_set_s32(cfg, "rc:fps_in_num", kDefaultFps);
+    mpp_enc_cfg_set_s32(cfg, "rc:fps_in_num", fps);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_in_denom", 1);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_flex", 0);
-    mpp_enc_cfg_set_s32(cfg, "rc:fps_out_num", kDefaultFps);
+    mpp_enc_cfg_set_s32(cfg, "rc:fps_out_num", fps);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_denom", 1);
     mpp_enc_cfg_set_s32(cfg, "rc:gop",
                         enc->req.quality.gop_size ? enc->req.quality.gop_size

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "rknn_api.h"
+#include "sr/post.hpp"
 #include "sr/upscale.hpp"
 
 namespace sr {
@@ -93,7 +94,8 @@ public:
             ctx_ = 0;
             return bad("tensor contract mismatch");
         }
-        g.core = in_w;
+        g.core_w = in_w;
+        g.core_h = in_h;
         g.in_w = in_w * post::kPhaseInFactor;
         g.in_h = in_h * post::kPhaseInFactor;
         g.out_w = out_w * post::kPhaseOutFactor;
