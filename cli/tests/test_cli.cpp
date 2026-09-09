@@ -63,3 +63,20 @@ TEST_CASE("cli rejects bad input") {
     CHECK(!parse({"rkvc", "encode", "--codec", "h264", "--width", "6x4"},
                  cmd, a));
 }
+
+TEST_CASE("cli parses model options") {
+    std::string cmd;
+    cli::Args a;
+    CHECK(parse({"rkvc", "encode", "--codec", "mlvc", "--input", "in.yuv",
+                 "--width", "640", "--height", "368", "--output", "out.bin",
+                 "--model", "a.rkmodel", "--model", "b.rkmodel",
+                 "--model-dir", "models/mlvc", "--model-id", "mlvc-rk3576",
+                 "--qp", "21"},
+                cmd, a));
+    CHECK(a.models.size() == 2);
+    CHECK(a.models[0] == "a.rkmodel");
+    CHECK(a.models[1] == "b.rkmodel");
+    CHECK(a.model_dirs.size() == 1);
+    CHECK(a.model_dirs[0] == "models/mlvc");
+    CHECK(a.model_id == "mlvc-rk3576");
+}

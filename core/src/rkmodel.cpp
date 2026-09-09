@@ -159,9 +159,9 @@ Result<Model> unpack_model(const uint8_t* data, size_t size, Diag* diag) {
         ModelPayload p;
         if (!get_str(e, kKindLen, p.kind) || p.kind.empty())
             return reject(Status::Format, "bad kind string");
-        for (uint32_t j = 0; j < i; ++j)
-            if (m.payloads[j].kind == p.kind)
-                return reject(Status::Format, "duplicate kind");
+        // Repeated kinds are tolerated here (pack stays strict): patch
+        // payloads (one per QP rung) are gathered by full-table scan,
+        // while find() keeps returning the first match.
         if (get32le(e + 36) != 0)
             return reject(Status::Format, "entry reserved nonzero");
         p.flags = get32le(e + 32);

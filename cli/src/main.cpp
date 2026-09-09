@@ -6,6 +6,11 @@
 #include <string>
 #include <vector>
 
+#ifdef __linux__
+#include <algorithm>
+#include <dirent.h>
+#endif
+
 #include "args.hpp"
 #include "rkvc/rkvc.h"
 
@@ -63,6 +68,50 @@ rkvc_codec parse_codec(const std::string& s) {
     return RKVC_CODEC_AUTO;
 }
 
+int add_model_file(rkvc_context* ctx, const std::string& path) {
+    rkvc_diagnostic* diag = nullptr;
+    rkvc_status st = rkvc_context_add_model_file(ctx, path.c_str(), &diag);
+    if (st != RKVC_OK) {
+        fprintf(stderr, "encode: load model '%s' failed: %s\n", path.c_str(),
+                rkvc_status_str(st));
+        print_diag(diag);
+        return 2;
+    }
+    return 0;
+}
+
+int load_models(rkvc_context* ctx, const cli::Args& a) {
+    for (const auto& m : a.models)
+        if (add_model_file(ctx, m) != 0)
+            return 2;
+#ifdef __linux__
+    for (const auto& dir : a.model_dirs) {
+        DIR* dp = opendir(dir.c_str());
+        if (!dp) {
+            fprintf(stderr, "encode: cannot open model dir '%s'\n",
+                    dir.c_str());
+            return 2;
+        }
+        std::vector<std::string> files;
+        while (dirent* e = readdir(dp)) {
+            std::string name = e->d_name;
+            if (name.size() < 8 ||
+                name.compare(name.size() - 8, 8, ".rkmodel") != 0)
+                continue;
+            files.push_back(dir + "/" + name);
+        }
+        closedir(dp);
+        std::sort(files.begin(), files.end());
+        for (const auto& f : files)
+            if (add_model_file(ctx, f) != 0)
+                return 2;
+    }
+#else
+    (void)a;
+#endif
+    return 0;
+}
+
 int cmd_encode(const cli::Args& a) {
     if (a.codec.empty() || a.input.empty() || a.output.empty() || !a.width ||
         !a.height || (a.pixfmt != "nv12" && a.pixfmt != "yuv420p")) {
@@ -86,10 +135,16 @@ int cmd_encode(const cli::Args& a) {
         fprintf(stderr, "encode: context create failed\n");
         return 2;
     }
+    if (load_models(ctx, a) != 0) {
+        rkvc_context_destroy(ctx);
+        return 2;
+    }
     rkvc_session_request req;
     rkvc_session_request_init(&req, sizeof(req));
     req.operation = RKVC_OP_ENCODE;
     req.codec = codec;
+    if (!a.model_id.empty())
+        req.model_id = a.model_id.c_str();
     req.input.kind = RKVC_ENDPOINT_FILE;
     req.input.uri = a.input.c_str();
     req.input.fmt = (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12

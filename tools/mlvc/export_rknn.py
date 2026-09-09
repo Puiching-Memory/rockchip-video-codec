@@ -41,6 +41,7 @@ if str(_DIR) not in sys.path:
 import pmf  # noqa: E402
 import qppatch  # noqa: E402
 import qptab  # noqa: E402
+import rkmdl2  # noqa: E402
 import rknn_convert  # noqa: E402
 import export_onnx  # noqa: E402
 from onnx_rewrite import (  # noqa: E402
@@ -314,6 +315,60 @@ def export_models(
     return models_meta
 
 
+def pack_models_bundle(
+    *,
+    out_dir: Path,
+    platform: str,
+    variant: str,
+    qp_dynamic: bool,
+    base_qp: int,
+    models_meta: dict[str, Any],
+    patch_dir: Path | None,
+) -> dict[str, Any]:
+    """把 bundle 打成每 role 一份 RKMDL2（C++ bind_model 可直接装载）。"""
+    packed: dict[str, Any] = {}
+    tag = "dynq" if qp_dynamic else f"qp{base_qp}"
+    for part in ("encoder", "decoder"):
+        part_meta = models_meta.get(part) or {}
+        if qp_dynamic or "default_rknn" not in part_meta:
+            base = out_dir / _rknn_name(part, platform)
+        else:
+            base = Path(part_meta["default_rknn"])
+        missing = [str(p) for p in (base, out_dir / "gaussian.bin",
+                                    out_dir / "bitest.bin") if not p.is_file()]
+        if missing:
+            print(f"  （{part} 缺 {','.join(missing)}，跳过打包）")
+            continue
+        payloads: list = [
+            ("rknn", base.read_bytes()),
+            ("pmf-gaussian", (out_dir / "gaussian.bin").read_bytes()),
+            ("pmf-bitest", (out_dir / "bitest.bin").read_bytes()),
+        ]
+        if qp_dynamic:
+            qtab = out_dir / f"qptab_{part}.bin"
+            if not qtab.is_file():
+                print(f"  （{part} 缺 {qtab}，跳过打包）")
+                continue
+            payloads.append(("qptab", qtab.read_bytes()))
+        elif patch_dir is not None and patch_dir.is_dir():
+            prefix = "enc" if part == "encoder" else "dec"
+            for patch in sorted(patch_dir.glob(f"{prefix}_qp*.qppatch")):
+                payloads.append(("qppatch", patch.read_bytes()))
+        stem = f"{variant}_{platform}_{tag}_{part}"
+        dest = out_dir / f"{stem}.rkmodel"
+        blob = rkmdl2.pack_model(
+            {"id": stem, "family": variant, "role": part, "target": platform},
+            payloads)
+        dest.write_bytes(blob)
+        print(f"  {dest.name}  {len(blob)} B  ({len(payloads)} payloads)")
+        packed[part] = {"file": str(dest), "bytes": len(blob),
+                        "model_id": stem,
+                        "payloads": [k for k, *_ in payloads]}
+    if not packed:
+        raise ExportError("--pack：没有可打包的 role（缺 .rknn 或 PMF）")
+    return packed
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="将 MLVC ONNX/PMF 导出为 rkvc 使用的 RKNN 模型与 PMF1 表",
@@ -354,6 +409,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="多 qp 导出后生成 QPP1 补丁到 --patch-dir（需已产出 .rknn）")
     p.add_argument("--patch-dir", type=Path, default=None,
                    help="QPP1 输出目录（默认 {out-dir}/qp_patches）")
+    p.add_argument("--pack", dest="pack", action="store_true", default=True,
+                   help="导出后打成 RKMDL2（默认开启，需 .rknn + PMF 齐备）")
+    p.add_argument("--no-pack", dest="pack", action="store_false",
+                   help="只留 bundle，不打包")
     p.add_argument("--pmf-only", action="store_true", help="只转换 PMF JSON")
     p.add_argument("--inspect", action="store_true", help="只打印 ONNX I/O，不转换")
     p.add_argument("--verbose", action="store_true", help="RKNN 转换详细日志")
@@ -491,6 +550,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 qp_models, patch_dir,
                 base_qp=args.qp if args.qp in qp_list else qp_list[0],
             )
+    pack_meta = None
+    if args.pack and not args.pmf_only and not args.skip_rknn:
+        print("RKMDL2 打包:")
+        pack_meta = pack_models_bundle(
+            out_dir=out_dir,
+            platform=args.platform,
+            variant=("mlvc-s" if args.model_version ==
+                     export_onnx.DEFAULT_S_MODEL_VERSION else "mlvc"),
+            qp_dynamic=bool(args.qp_dynamic),
+            base_qp=args.qp if args.qp in qp_list else qp_list[0],
+            models_meta=models_meta,
+            patch_dir=args.patch_dir or (out_dir / "qp_patches"),
+        )
     manifest = {
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "platform": args.platform,
@@ -506,8 +578,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "pmf": pmf_meta,
         "models": models_meta,
         "qppatch": patch_meta,
+        "pack": pack_meta,
         "extract_tail": not args.no_extract_tail,
-        "runtime": "lib/node_mlvc.c（编码器用混合 I/O：2 输入走 native set_io_mem、输出为逻辑 NCHW；解码器 4 输入与输出走 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
+        "runtime": "MlvcEncoderNode/MlvcDecoderNode（编码器混合 I/O：2 输入走 native set_io_mem、输出为逻辑 NCHW；解码器 4 输入与输出走 native NC1HWC2；x_hat 若为 3·bs² 通道则 CPU DepthToSpace DCR）",
     }
     _write_json(out_dir / "mlvc_rknn_export_manifest.json", manifest)
     print(f"清单: {out_dir / 'mlvc_rknn_export_manifest.json'}")

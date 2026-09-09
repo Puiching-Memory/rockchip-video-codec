@@ -12,6 +12,7 @@ void usage() {
         "  rkvc caps [--backend-dir DIR]...\n"
         "  rkvc encode --codec h264|hevc|av1 --input IN --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
+        "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n"
         "            [--qp Q] [--bitrate BPS] [--gop G]\n");
 }
 
@@ -50,6 +51,12 @@ bool parse_args(int argc, char** argv, std::string& cmd, Args& a) {
         std::string v;
         if (k == "--backend-dir" && take_value(argc, argv, i, v))
             a.backend_dirs.push_back(v);
+        else if (k == "--model" && take_value(argc, argv, i, v))
+            a.models.push_back(v);
+        else if (k == "--model-dir" && take_value(argc, argv, i, v))
+            a.model_dirs.push_back(v);
+        else if (k == "--model-id" && take_value(argc, argv, i, v))
+            a.model_id = v;
         else if (k == "--codec" && take_value(argc, argv, i, v))
             a.codec = v;
         else if (k == "--input" && take_value(argc, argv, i, v))

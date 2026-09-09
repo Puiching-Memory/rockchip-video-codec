@@ -6,6 +6,7 @@
 #include <new>
 #include <string>
 #include <utility>
+#include <vector>
 
 #ifdef __linux__
 #include <dirent.h>
@@ -14,6 +15,7 @@
 #endif
 
 #include "rkvc/context.hpp"
+#include "rkvc/rkmodel.hpp"
 #include "rkvc/session.hpp"
 
 struct rkvc_context {
@@ -209,6 +211,51 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
 }
 
 void rkvc_context_destroy(rkvc_context* ctx) { delete ctx; }
+
+rkvc_status rkvc_context_add_model_file(rkvc_context* ctx, const char* path,
+                                        rkvc_diagnostic** diag) {
+    if (diag)
+        *diag = nullptr;
+    if (!ctx || !path || !*path)
+        return RKVC_INVALID;
+    rkvc::Diag d;
+    auto fail = [&](rkvc::Status s, const char* reason) {
+        d.add("load", "model", reason);
+        if (diag)
+            *diag = make_diag(s, std::move(d));
+        return sc(s);
+    };
+    FILE* fp = fopen(path, "rb");
+    if (!fp)
+        return fail(rkvc::Status::Io, "open failed");
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return fail(rkvc::Status::Io, "seek failed");
+    }
+    long size = ftell(fp);
+    constexpr long kMaxModelFile = 1L << 29;
+    if (size < 0 || size > kMaxModelFile || fseek(fp, 0, SEEK_SET) != 0) {
+        fclose(fp);
+        return fail(rkvc::Status::Format, "bad file size");
+    }
+    std::vector<uint8_t> buf(static_cast<size_t>(size));
+    bool ok = !buf.empty() || size == 0;
+    if (ok && size > 0)
+        ok = fread(buf.data(), 1, buf.size(), fp) == buf.size();
+    fclose(fp);
+    if (!ok)
+        return fail(rkvc::Status::Io, "read failed");
+    auto m = rkvc::unpack_model(buf.data(), buf.size(), &d);
+    if (!m) {
+        if (diag)
+            *diag = make_diag(m.status(), std::move(d));
+        return sc(m.status());
+    }
+    rkvc::Status st = ctx->ctx.add_model(std::move(m.value()));
+    if (st != rkvc::Status::Ok)
+        return fail(st, "register failed");
+    return RKVC_OK;
+}
 
 rkvc_status rkvc_probe_device(rkvc_context* ctx, rkvc_caps* caps) {
     if (!ctx || !caps)

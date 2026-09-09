@@ -8,6 +8,9 @@ namespace cli {
 
 struct Args {
     std::vector<std::string> backend_dirs;
+    std::vector<std::string> models;
+    std::vector<std::string> model_dirs;
+    std::string model_id;
     std::string codec;
     std::string input;
     std::string output;
