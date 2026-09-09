@@ -113,6 +113,8 @@ Result<FramePtr> Session::try_pull() { return out_->try_pop(); }
 
 Result<FramePtr> Session::pull() { return out_->pop(); }
 
+Status Session::wait() { return exec_.wait(); }
+
 Status Session::close() {
     if (closed_)
         return Status::Ok;

@@ -188,8 +188,12 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
     if (!ctx)
         return RKVC_NOMEM;
 #ifdef __linux__
-    for (const auto& d : copts.backend_dirs)
-        discover_dir(ctx->ctx, d.c_str());
+    // NOTE: copts was moved-from above; rescan from the caller's copy.
+    if (opts) {
+        for (size_t i = 0; i < opts->backend_dir_count; ++i)
+            if (opts->backend_dirs && opts->backend_dirs[i])
+                discover_dir(ctx->ctx, opts->backend_dirs[i]);
+    }
     Dl_info info = {};
     if (dladdr((const void*)rkvc_context_create, &info) && info.dli_fname) {
         std::string self = info.dli_fname;
@@ -397,6 +401,12 @@ rkvc_status rkvc_session_push_eos(rkvc_session* s) {
     if (!s)
         return RKVC_INVALID;
     return sc(s->s->push_eos());
+}
+
+rkvc_status rkvc_session_wait(rkvc_session* s) {
+    if (!s)
+        return RKVC_INVALID;
+    return sc(s->s->wait());
 }
 
 void rkvc_session_destroy(rkvc_session* s) { delete s; }

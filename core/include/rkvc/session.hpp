@@ -25,6 +25,8 @@ public:
     Status push_eos();
     Result<FramePtr> try_pull();
     Result<FramePtr> pull();
+    // Blocks until the pipeline drains; returns the first error or Ok.
+    Status wait();
     Status close();
     ~Session();
 

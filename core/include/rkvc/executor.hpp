@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 #include <atomic>
+#include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -23,6 +24,8 @@ public:
 
     Status launch(Graph& g, FrameQueue* in_q, FrameQueue* out_q);
     void shutdown();
+    // Blocks until all workers exit; returns the first error or Ok.
+    Status wait();
     Status error() const noexcept;
     Diag error_diag() const;
 
@@ -35,6 +38,8 @@ private:
     FrameQueue* out_q_ = nullptr;
     std::vector<std::thread> threads_;
     mutable std::mutex m_;
+    std::condition_variable done_;
+    size_t active_ = 0;
     Status error_ = Status::Ok;
     Diag error_diag_;
     bool launched_ = false;

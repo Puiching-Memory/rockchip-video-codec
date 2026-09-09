@@ -180,6 +180,7 @@ rkvc_status rkvc_session_push(rkvc_session *s, rkvc_frame *f);
 rkvc_status rkvc_session_try_pull(rkvc_session *s, rkvc_frame **out);
 rkvc_status rkvc_session_pull(rkvc_session *s, rkvc_frame **out);
 rkvc_status rkvc_session_push_eos(rkvc_session *s);
+rkvc_status rkvc_session_wait(rkvc_session *s);
 void rkvc_session_destroy(rkvc_session *s);
 
 void rkvc_frame_desc_init(rkvc_frame_desc *desc, size_t size);

@@ -14,6 +14,10 @@ Status Executor::launch(Graph& g, FrameQueue* in_q, FrameQueue* out_q) {
     in_q_ = in_q;
     out_q_ = out_q;
     launched_ = true;
+    {
+        std::lock_guard<std::mutex> lk(m_);
+        active_ = g_->node_count();
+    }
     for (size_t i = 0; i < g_->node_count(); ++i)
         threads_.emplace_back([this, i] { worker(i); });
     return Status::Ok;
@@ -39,6 +43,12 @@ void Executor::shutdown() {
 
 Status Executor::error() const noexcept {
     std::lock_guard<std::mutex> lk(m_);
+    return error_;
+}
+
+Status Executor::wait() {
+    std::unique_lock<std::mutex> lk(m_);
+    done_.wait(lk, [&] { return active_ == 0; });
     return error_;
 }
 
@@ -70,6 +80,14 @@ void Executor::fail(Status s, Diag d) {
 }
 
 void Executor::worker(size_t idx) {
+    struct Guard {
+        Executor* e;
+        ~Guard() {
+            std::lock_guard<std::mutex> lk(e->m_);
+            if (e->active_ > 0 && --e->active_ == 0)
+                e->done_.notify_all();
+        }
+    } guard{this};
     Graph& g = *g_;
     Node* n = g.node(idx);
     if (idx == 0) {
