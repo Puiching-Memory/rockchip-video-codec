@@ -12,7 +12,9 @@ namespace mlvc {
 // .mlvc stream container. Wire format is byte-identical to the C
 // implementation (64B header + 16B records, magic "MLVC1", format byte
 // 0x02): the format was already minimal, so the redesign keeps the bytes
-// and drops nothing on the floor for board interop.
+// and drops nothing on the floor for board interop. The 0x02 byte is the
+// one sanctioned exception to the version-1 policy: unifying it would fork
+// the live wire format shared with the old C tree for no functional gain.
 inline constexpr size_t kHdrSize = 64;
 inline constexpr size_t kRecSize = 16;
 inline constexpr uint32_t kMaxFrameBytes = 64u << 20;
