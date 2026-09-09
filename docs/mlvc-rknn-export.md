@@ -154,7 +154,7 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁经 `--pack`
 
 `--onnx-dir` 也可指向更上层目录，工具会递归查找 `MLVCEncoder.onnx` 等文件名。
 
-## 打包与装载（RKMDL2）
+## 打包与装载（RKMDL1）
 
 `export_rknn.py` 默认一步到位打成 C++ 可直接装载的模型文件
 （`--no-pack` 关闭；`--skip-rknn`/`--pmf-only` 下无 `.rknn` 则跳过）：
@@ -168,7 +168,7 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁经 `--pack`
 每份含 `rknn` + `pmf-gaussian` + `pmf-bitest`，再加全部
 `qppatch`（多 rung 共存一文件）或 `qptab`（dynq）。
 meta 的 `id` 即文件名 stem（如 `mlvc_rk3576_qp21_encoder`），
-`target` 为 `--platform`。版式见 `tools/mlvc/rkmdl2.py`
+`target` 为 `--platform`。版式见 `tools/mlvc/rkmdl1.py`
 （与 `core/src/rkmodel.cpp` 逐字节对齐；`pack`/`verify` 子命令
 可独立打包校验任意载荷）。
 

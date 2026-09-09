@@ -171,7 +171,7 @@ rkvc_status rkvc_context_create(const rkvc_context_options *opts,
 void rkvc_context_destroy(rkvc_context *ctx);
 rkvc_status rkvc_probe_device(rkvc_context *ctx, rkvc_caps *caps);
 
-/* @brief 从 RKMDL2 文件装载模型并注册（id 去重；失败时可选填 diag）。 */
+/* @brief 从 RKMDL1 文件装载模型并注册（id 去重；失败时可选填 diag）。 */
 rkvc_status rkvc_context_add_model_file(rkvc_context *ctx, const char *path,
                                         rkvc_diagnostic **diag);
 

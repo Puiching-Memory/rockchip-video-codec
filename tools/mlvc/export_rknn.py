@@ -41,7 +41,7 @@ if str(_DIR) not in sys.path:
 import pmf  # noqa: E402
 import qppatch  # noqa: E402
 import qptab  # noqa: E402
-import rkmdl2  # noqa: E402
+import rkmdl1  # noqa: E402
 import rknn_convert  # noqa: E402
 import export_onnx  # noqa: E402
 from onnx_rewrite import (  # noqa: E402
@@ -325,7 +325,7 @@ def pack_models_bundle(
     models_meta: dict[str, Any],
     patch_dir: Path | None,
 ) -> dict[str, Any]:
-    """把 bundle 打成每 role 一份 RKMDL2（C++ bind_model 可直接装载）。"""
+    """把 bundle 打成每 role 一份 RKMDL1（C++ bind_model 可直接装载）。"""
     packed: dict[str, Any] = {}
     tag = "dynq" if qp_dynamic else f"qp{base_qp}"
     for part in ("encoder", "decoder"):
@@ -356,7 +356,7 @@ def pack_models_bundle(
                 payloads.append(("qppatch", patch.read_bytes()))
         stem = f"{variant}_{platform}_{tag}_{part}"
         dest = out_dir / f"{stem}.rkmodel"
-        blob = rkmdl2.pack_model(
+        blob = rkmdl1.pack_model(
             {"id": stem, "family": variant, "role": part, "target": platform},
             payloads)
         dest.write_bytes(blob)
@@ -410,7 +410,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--patch-dir", type=Path, default=None,
                    help="QPP1 输出目录（默认 {out-dir}/qp_patches）")
     p.add_argument("--pack", dest="pack", action="store_true", default=True,
-                   help="导出后打成 RKMDL2（默认开启，需 .rknn + PMF 齐备）")
+                   help="导出后打成 RKMDL1（默认开启，需 .rknn + PMF 齐备）")
     p.add_argument("--no-pack", dest="pack", action="store_false",
                    help="只留 bundle，不打包")
     p.add_argument("--pmf-only", action="store_true", help="只转换 PMF JSON")
@@ -552,7 +552,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
     pack_meta = None
     if args.pack and not args.pmf_only and not args.skip_rknn:
-        print("RKMDL2 打包:")
+        print("RKMDL1 打包:")
         pack_meta = pack_models_bundle(
             out_dir=out_dir,
             platform=args.platform,

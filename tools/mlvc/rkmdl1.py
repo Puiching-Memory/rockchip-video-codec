@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""RKMDL2 模型容器打包/校验（写入侧与读取侧，纯 stdlib）。
+"""RKMDL1 模型容器打包/校验（写入侧与读取侧，纯 stdlib）。
 
-版式与 ``core/src/rkmodel.cpp`` 逐字节对齐（小端；格式随代码演进，
-无版本号；旧 "RKMF" 文件会被 C++ 侧按 magic 拒绝）：
+版式与 ``core/src/rkmodel.cpp`` 逐字节对齐（小端；格式版本 1；
+旧文件不适配，一律用当前工具重出）：
 
-- [0:8] magic ``b"RKMDL2\\x00\\x00"``；[8:12] u32 header_size = 128；
+- [0:8] magic ``b"RKMDL1\x00\x00"``；[8:12] u32 header_size = 128；
   [12:16] u32 载荷数；[16:48] id（32B，NUL 填充，有效长度 ≤31）；
   [48:64] family、[64:80] role、[80:96] target（各 16B，有效长度 ≤15）；
   [96:128] 保留零。
@@ -25,7 +25,7 @@ import struct
 import sys
 from pathlib import Path
 
-MAGIC = b"RKMDL2\x00\x00"
+MAGIC = b"RKMDL1\x00\x00"
 HEADER_SIZE = 128
 ENTRY_SIZE = 88
 MAX_PAYLOADS = 16
@@ -40,14 +40,14 @@ _LEN_WORD = 16
 _LEN_KIND = 32
 
 
-class Rkmdl2Error(RuntimeError):
+class RkmdlError(RuntimeError):
     pass
 
 
 def _encode_str(value: str, cap: int, what: str) -> bytes:
     raw = value.encode("utf-8")
     if len(raw) >= cap:
-        raise Rkmdl2Error(f"{what} 过长（{len(raw)}B，上限 {cap - 1}B）: {value!r}")
+        raise RkmdlError(f"{what} 过长（{len(raw)}B，上限 {cap - 1}B）: {value!r}")
     return raw + b"\x00" * (cap - len(raw))
 
 
@@ -55,7 +55,7 @@ def _decode_str(buf: bytes, what: str) -> str:
     try:
         end = buf.index(b"\x00")
     except ValueError:
-        raise Rkmdl2Error(f"{what} 缺少 NUL 终止") from None
+        raise RkmdlError(f"{what} 缺少 NUL 终止") from None
     return buf[:end].decode("utf-8")
 
 
@@ -63,14 +63,14 @@ def pack_model(meta: dict, payloads: list) -> bytes:
     """meta 需含 id/family/role/target；payloads 为 (kind, bytes[, flags])。"""
     for key in ("id", "family", "role", "target"):
         if not meta.get(key):
-            raise Rkmdl2Error(f"meta 缺少 {key}")
+            raise RkmdlError(f"meta 缺少 {key}")
     if len(payloads) > MAX_PAYLOADS:
-        raise Rkmdl2Error(f"载荷数 {len(payloads)} 超过 {MAX_PAYLOADS}")
+        raise RkmdlError(f"载荷数 {len(payloads)} 超过 {MAX_PAYLOADS}")
     total = HEADER_SIZE + ENTRY_SIZE * len(payloads)
     for item in payloads:
         total += len(item[1])
         if total > MAX_FILE:
-            raise Rkmdl2Error("模型超过 512MiB 上限")
+            raise RkmdlError("模型超过 512MiB 上限")
     out = bytearray(total)
     out[0:8] = MAGIC
     struct.pack_into("<II", out, 8, HEADER_SIZE, len(payloads))
@@ -97,20 +97,20 @@ def pack_model(meta: dict, payloads: list) -> bytes:
 def unpack_model(data: bytes):
     """返回 (meta, [(kind, flags, bytes), ...])；版式/哈希不对抛错。"""
     if len(data) < HEADER_SIZE:
-        raise Rkmdl2Error("文件小于 128B 头")
+        raise RkmdlError("文件小于 128B 头")
     if data[0:8] != MAGIC:
-        raise Rkmdl2Error(f"bad magic {data[0:8]!r}")
+        raise RkmdlError(f"bad magic {data[0:8]!r}")
     header_size, count = struct.unpack_from("<II", data, 8)
     if header_size != HEADER_SIZE:
-        raise Rkmdl2Error(f"bad header size {header_size}")
+        raise RkmdlError(f"bad header size {header_size}")
     if count > MAX_PAYLOADS:
-        raise Rkmdl2Error(f"载荷数 {count} 越界")
+        raise RkmdlError(f"载荷数 {count} 越界")
     if any(data[96:128]):
-        raise Rkmdl2Error("保留字段非零")
+        raise RkmdlError("保留字段非零")
     if len(data) < HEADER_SIZE + ENTRY_SIZE * count:
-        raise Rkmdl2Error("表项区截断")
+        raise RkmdlError("表项区截断")
     if len(data) > MAX_FILE:
-        raise Rkmdl2Error("文件超过 512MiB 上限")
+        raise RkmdlError("文件超过 512MiB 上限")
     meta = {
         "id": _decode_str(data[16:48], "id"),
         "family": _decode_str(data[48:64], "family"),
@@ -123,18 +123,18 @@ def unpack_model(data: bytes):
         e = HEADER_SIZE + i * ENTRY_SIZE
         kind = _decode_str(data[e:e + 32], "kind")
         if not kind:
-            raise Rkmdl2Error("空 kind")
+            raise RkmdlError("空 kind")
         flags, reserved, off, length = struct.unpack_from("<IIQQ", data, e + 32)
         if reserved:
-            raise Rkmdl2Error("表项保留字段非零")
+            raise RkmdlError("表项保留字段非零")
         if length > MAX_FILE or off > len(data) or length > len(data) - off:
-            raise Rkmdl2Error(f"载荷 {kind} 越界")
+            raise RkmdlError(f"载荷 {kind} 越界")
         if off < prev_end:
-            raise Rkmdl2Error(f"载荷 {kind} 重叠")
+            raise RkmdlError(f"载荷 {kind} 重叠")
         prev_end = off + length
         blob = data[off:off + length]
         if hashlib.sha256(blob).digest() != data[e + 56:e + 88]:
-            raise Rkmdl2Error(f"载荷 {kind} 哈希 mismatch")
+            raise RkmdlError(f"载荷 {kind} 哈希 mismatch")
         payloads.append((kind, flags, blob))
     return meta, payloads
 
@@ -151,7 +151,7 @@ def _cmd_pack(ns: argparse.Namespace) -> int:
     for spec in ns.payload:
         kind, _, path = spec.partition("=")
         if not kind or not path:
-            raise Rkmdl2Error(f"--payload 格式应为 kind=path: {spec!r}")
+            raise RkmdlError(f"--payload 格式应为 kind=path: {spec!r}")
         payloads.append((kind, Path(path).read_bytes()))
     blob = pack_model({"id": ns.id, "family": ns.family, "role": ns.role,
                        "target": ns.target}, payloads)
@@ -172,7 +172,7 @@ def _cmd_info(ns: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="RKMDL2 容器打包/校验")
+    p = argparse.ArgumentParser(description="RKMDL1 容器打包/校验")
     sub = p.add_subparsers(dest="cmd", required=True)
     pk = sub.add_parser("pack", help="按 kind=path 打包")
     pk.add_argument("--id", required=True)
@@ -194,7 +194,7 @@ def main(argv=None) -> int:
     ns = build_parser().parse_args(argv)
     try:
         return ns.func(ns)
-    except Rkmdl2Error as exc:
+    except RkmdlError as exc:
         print(f"错误: {exc}", file=sys.stderr)
         return 1
 

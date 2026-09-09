@@ -13,7 +13,9 @@ constexpr size_t kHeaderSize = 128;
 constexpr size_t kEntrySize = 88;
 constexpr size_t kMaxPayloads = 16;
 constexpr size_t kMaxFile = 1u << 29;  // 512 MiB upper bound
-constexpr char kMagic[8] = {'R', 'K', 'M', 'D', 'L', '2', 0, 0};
+// Format generation 1 by policy: all format versions stay at 1 and old
+// files are regenerated, never adapted.
+constexpr char kMagic[8] = {'R', 'K', 'M', 'D', 'L', '1', 0, 0};
 constexpr size_t kIdLen = 32;
 constexpr size_t kWordLen = 16;
 constexpr size_t kKindLen = 32;
