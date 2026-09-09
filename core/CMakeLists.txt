@@ -12,6 +12,8 @@ add_library(rkvc-core-static STATIC
     src/diag.cpp
     src/spec.cpp
     src/frame.cpp
+    src/sha256.cpp
+    src/rkmodel.cpp
 )
 add_library(rkvc::core ALIAS rkvc-core-static)
 
@@ -51,4 +53,13 @@ if(RKVC_CORE_BUILD_TESTS)
         DOCTEST_CONFIG_NO_EXCEPTIONS)
     target_compile_options(test_spec_frame PRIVATE -fno-exceptions -fno-rtti)
     add_test(NAME test_spec_frame COMMAND test_spec_frame)
+
+    add_executable(test_rkmodel tests/test_rkmodel.cpp)
+    target_link_libraries(test_rkmodel PRIVATE rkvc::core)
+    target_include_directories(test_rkmodel PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+    target_compile_definitions(test_rkmodel PRIVATE
+        DOCTEST_CONFIG_NO_EXCEPTIONS)
+    target_compile_options(test_rkmodel PRIVATE -fno-exceptions -fno-rtti)
+    add_test(NAME test_rkmodel COMMAND test_rkmodel)
 endif()
