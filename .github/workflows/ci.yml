@@ -3,8 +3,6 @@ name: CI
 on:
   push:
   pull_request:
-  release:
-    types: [published]
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name }}
@@ -12,25 +10,22 @@ concurrency:
 
 jobs:
   lint:
-    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang-tidy cmake ninja-build
+          sudo apt-get install -y -qq clang-tidy cmake g++ ninja-build
       - name: Configure
         run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug
       - name: Run clang-tidy
         run: |
-          mapfile -t SOURCES < <(find lib -name '*.c' -print | sort)
-          SOURCES+=(rkvc.c)
-          clang-tidy -p .build/lint --header-filter=include/.* "${SOURCES[@]}" 2>&1 | tee tidy-report.txt
+          mapfile -t SOURCES < <(find core cli codecs -name '*.cpp' -print | sort)
+          clang-tidy -p .build/lint "${SOURCES[@]}" 2>&1 | tee tidy-report.txt
           ! grep "error:" tidy-report.txt
 
   test:
-    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -40,11 +35,13 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake gcc libcmocka-dev ninja-build pkg-config
-      - name: Configure and run C tests
+          sudo apt-get install -y -qq cmake g++ ninja-build
+      - name: Configure and build
         run: |
-          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_SHARED=ON -DRKVC_BUILD_STATIC=ON -DRKVC_BUILD_TESTS=ON
-          cmake --build .build/tests --target check
+          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
+          cmake --build .build/tests
+      - name: Run C++ tests
+        run: ctest --test-dir .build/tests --output-on-failure
       - name: Run Python tests
         run: python3 -m unittest discover -s tests/python -p 'test_*.py' -v
       - name: Run Bash tests
@@ -52,58 +49,3 @@ jobs:
           for test_script in tests/bash/test_*.sh; do
             bash "$test_script"
           done
-      - name: Check exported ABI
-        run: bash tools/check-exported-symbols.sh .build/tests/librkvc.so
-
-  sanitizer:
-    if: github.event_name != 'release'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake gcc libcmocka-dev ninja-build pkg-config
-      - name: Run ASan and UBSan tests
-        run: |
-          cmake -B .build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_TESTS=ON -DRKVC_ENABLE_ASAN=ON -DRKVC_ENABLE_UBSAN=ON
-          cmake --build .build/sanitizer --target check
-
-  package:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-      - name: Initialize release dependencies
-        run: git submodule update --init --depth 1 third_party/mpp
-      - name: Install cross-build tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq binutils cmake curl gcc g++-aarch64-linux-gnu git make ninja-build patchelf pkg-config python3 qemu-user gcc-aarch64-linux-gnu
-      - name: Build, verify and smoke-test portable package
-        run: python3 tools/rkvc-build package --jobs 6
-      - uses: actions/upload-artifact@v7
-        with:
-          name: aarch64-portable
-          path: .build/portable/dist/*.tar.gz
-
-  attach-release:
-    if: github.event_name == 'release' && github.event.action == 'published'
-    needs: [package]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v7
-        with:
-          name: aarch64-portable
-          path: dist
-      - name: Attach verified archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mapfile -t FILES < <(find dist -type f -name '*.tar.gz' | sort)
-          test ${#FILES[@]} -gt 0
-          gh release upload "${{ github.event.release.tag_name }}" "${FILES[@]}" --clobber

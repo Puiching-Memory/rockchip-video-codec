@@ -16,7 +16,7 @@ tempfile.tempdir = str(_TMP_ROOT)
 
 
 class BenchmarkCaseTests(unittest.TestCase):
-    def test_decode_dimensions_are_metrics_only(self) -> None:
+    def test_decode_passes_geometry_as_output_shape(self) -> None:
         case = benchmark.BenchmarkCase(
             name="decode",
             operation="decode",
@@ -26,9 +26,25 @@ class BenchmarkCaseTests(unittest.TestCase):
             width=1920,
             height=1080,
         )
-        command = case.command("rkvc", pathlib.Path("output.nv12"))
-        self.assertNotIn("--width", command)
-        self.assertNotIn("--height", command)
+        self.assertEqual(
+            case.command("rkvc", pathlib.Path("output.nv12")),
+            [
+                "rkvc",
+                "decode",
+                "--input",
+                "input.h264",
+                "--output",
+                "output.nv12",
+                "--pixfmt",
+                "nv12",
+                "--codec",
+                "h264",
+                "--width",
+                "1920",
+                "--height",
+                "1080",
+            ],
+        )
 
     def test_encode_infers_nv12_frame_count_and_builds_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -56,10 +72,12 @@ class BenchmarkCaseTests(unittest.TestCase):
                 [
                     "rkvc",
                     "encode",
-                    "-i",
+                    "--input",
                     str(root / "input.nv12"),
-                    "-o",
+                    "--output",
                     str(root / "out.h264"),
+                    "--pixfmt",
+                    "nv12",
                     "--codec",
                     "h264",
                     "--width",
@@ -80,7 +98,10 @@ class BenchmarkCaseTests(unittest.TestCase):
                     "name": "bad",
                     "operation": "decode",
                     "input": "input.h264",
-                    "extra_args": ["-o", "somewhere"],
+                    "codec": "h264",
+                    "width": 1920,
+                    "height": 1080,
+                    "extra_args": ["--output", "somewhere"],
                 },
                 pathlib.Path.cwd(),
             )
@@ -103,6 +124,8 @@ class ConfigAndStatisticsTests(unittest.TestCase):
                                 "operation": "decode",
                                 "input": "media/in.h264",
                                 "codec": "h264",
+                                "width": 1920,
+                                "height": 1080,
                             }
                         ],
                     }

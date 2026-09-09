@@ -10,7 +10,8 @@ on:
       - README.md
       - zensical.toml
       - docs/**
-      - include/rkvc/**
+      - core/include/**
+      - codecs/**/include/**
   workflow_dispatch:
 
 permissions:
@@ -31,12 +32,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake doxygen
+          sudo apt-get install -y -qq doxygen
           pip install zensical
       - name: Build API docs
         run: |
-          cmake -B .build/docs -DRKVC_BUILD_DOCS=ON
-          cmake --build .build/docs --target docs
+          mkdir -p .build/docs
+          sed -e 's/@PROJECT_NAME@/rkvc/' -e 's/@PROJECT_VERSION@/0.5.0/' \
+            -e "s|@CMAKE_CURRENT_SOURCE_DIR@|$PWD|" \
+            -e "s|@CMAKE_CURRENT_BINARY_DIR@|$PWD/.build/docs|" \
+            Doxyfile.in > .build/docs/Doxyfile
+          doxygen .build/docs/Doxyfile
       - name: Build site
         run: |
           zensical build --clean

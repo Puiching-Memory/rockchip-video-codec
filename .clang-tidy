@@ -22,7 +22,7 @@ Checks: >
 
 WarningsAsErrors: ''
 
-HeaderFilterRegex: 'include/rkvc/.*'
+HeaderFilterRegex: '(core|codecs|cli)/(include|src)/.*'
 
 FormatStyle: file
 

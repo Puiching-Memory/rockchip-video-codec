@@ -6,10 +6,11 @@ PROJECT_BRIEF          = "RK3588 H.265 Video Codec Library (RKMPP)"
 OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@/docs
 
 # 输入
-INPUT                  = @CMAKE_CURRENT_SOURCE_DIR@/include/rkvc \
-                         @CMAKE_CURRENT_SOURCE_DIR@/lib \
+INPUT                  = @CMAKE_CURRENT_SOURCE_DIR@/core/include/rkvc \
+                         @CMAKE_CURRENT_SOURCE_DIR@/codecs/mlvc/include \
+                         @CMAKE_CURRENT_SOURCE_DIR@/codecs/sr/include \
                          @CMAKE_CURRENT_SOURCE_DIR@/README.md
-FILE_PATTERNS          = *.h *.c *.md
+FILE_PATTERNS          = *.h *.hpp *.md
 RECURSIVE              = NO
 USE_MDFILE_AS_MAINPAGE = @CMAKE_CURRENT_SOURCE_DIR@/README.md
 

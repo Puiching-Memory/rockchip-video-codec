@@ -62,9 +62,9 @@ class RDTests(unittest.TestCase):
             runner = rd.Runner(self.config, work)
             def fake_run(args):
                 if 'encode' in args:
-                    Path(args[args.index('-o') + 1]).write_bytes(bytes(1000))
+                    Path(args[args.index('--output') + 1]).write_bytes(bytes(1000))
                 elif 'decode' in args:
-                    Path(args[args.index('-o') + 1]).write_bytes(bytes(24))
+                    Path(args[args.index('--output') + 1]).write_bytes(bytes(24))
                 else:
                     Path(args[-1]).write_bytes(bytes(216))
                 return (1, '', '')
@@ -116,7 +116,7 @@ class RDTests(unittest.TestCase):
             args = runner.media('encode', 'in', 'out', codec)
             self.assertEqual(args[args.index('--gop') + 1], 64)
             self.assertEqual(args[args.index('--fps') + 1], 120)
-            self.assertIn('--low-delay', args)
+            self.assertNotIn('--low-delay', args)
         def log(interval):
             return json.dumps({'frames': [{'key_frame': int(i % interval == 0), 'pict_type': 'P'} for i in range(96)]})
         runner.run = lambda *args: (0, log(64), '')
