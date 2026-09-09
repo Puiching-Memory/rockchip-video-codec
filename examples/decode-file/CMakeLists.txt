@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rkvc-decode-file LANGUAGES C)
+project(rkvc-decode-file LANGUAGES C CXX)
 
 # Standalone FILE-decode sample (mirrors `rkvc decode`):
 #   cmake -S . -B build -DRKVC_CORE_DIR=/path/to/core \

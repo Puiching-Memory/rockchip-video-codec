@@ -239,6 +239,8 @@ TEST_CASE("mlvc ltr scheduling runs") {
     bs.fmt = rkvc::PixelFormat::Bitstream;
     er.output_spec = bs;
     er.model_id = "fake-enc";
+    er.queue_capacity = 8;  // 5 pushes without drain; default 4 races the
+                            // consumer thread under parallel ctest load.
     er.quality.gop_size = 8;
     er.quality.ltr_period = 2;
     er.quality.ltr_start_idx = 0;

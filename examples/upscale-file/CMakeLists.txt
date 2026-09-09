@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rkvc-upscale-file LANGUAGES C)
+project(rkvc-upscale-file LANGUAGES C CXX)
 
 # Standalone fixed-3x upscale sample (mirrors `rkvc upscale`):
 #   cmake -S . -B build -DRKVC_CORE_DIR=/path/to/core \
