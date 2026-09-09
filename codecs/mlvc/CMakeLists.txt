@@ -19,6 +19,7 @@ add_library(mlvc-algo STATIC
     src/qppatch.cpp
     src/ratectl.cpp
     src/rans.cpp
+    src/pixel.cpp
 )
 add_library(mlvc::algo ALIAS mlvc-algo)
 
@@ -40,7 +41,7 @@ option(RKVC_MLVC_BUILD_TESTS "Build mlvc algorithm tests" ON)
 
 if(RKVC_MLVC_BUILD_TESTS)
     enable_testing()
-    foreach(t test_mlvc_tables test_ratectl test_rans)
+    foreach(t test_mlvc_tables test_ratectl test_rans test_pixel)
         add_executable(${t} tests/${t}.cpp)
         target_link_libraries(${t} PRIVATE mlvc::algo rkvc::doctest)
         target_compile_definitions(${t} PRIVATE
