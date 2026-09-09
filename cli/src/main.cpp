@@ -6,18 +6,12 @@
 #include <string>
 #include <vector>
 
+#include "args.hpp"
 #include "rkvc/rkvc.h"
 
 namespace {
 
-void usage() {
-    printf(
-        "usage:\n"
-        "  rkvc caps [--backend-dir DIR]...\n"
-        "  rkvc encode --codec h264|hevc|av1 --input IN --width W --height H\n"
-        "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
-        "            [--qp Q] [--bitrate BPS] [--gop G]\n");
-}
+using cli::usage;
 
 void print_diag(rkvc_diagnostic* d) {
     if (!d)
@@ -28,42 +22,7 @@ void print_diag(rkvc_diagnostic* d) {
     rkvc_diag_release(d);
 }
 
-struct Args {
-    std::vector<std::string> backend_dirs;
-    std::string codec;
-    std::string input;
-    std::string output;
-    std::string pixfmt = "nv12";
-    uint32_t width = 0;
-    uint32_t height = 0;
-    int qp = -1;
-    int64_t bitrate = 0;
-    uint32_t gop = 0;
-};
-
-bool take_value(int argc, char** argv, int& i, std::string& out) {
-    if (i + 1 >= argc)
-        return false;
-    out = argv[++i];
-    return true;
-}
-
-bool parse_uint(const std::string& s, uint32_t& out) {
-    unsigned long v = 0;
-    if (s.empty())
-        return false;
-    for (char c : s) {
-        if (c < '0' || c > '9')
-            return false;
-        v = v * 10 + (c - '0');
-        if (v > 0xFFFFFFFFul)
-            return false;
-    }
-    out = (uint32_t)v;
-    return true;
-}
-
-int cmd_caps(const Args& a) {
+int cmd_caps(const cli::Args& a) {
     rkvc_context_options opts;
     rkvc_context_options_init(&opts, sizeof(opts));
     std::vector<const char*> dirs;
@@ -104,7 +63,7 @@ rkvc_codec parse_codec(const std::string& s) {
     return RKVC_CODEC_AUTO;
 }
 
-int cmd_encode(const Args& a) {
+int cmd_encode(const cli::Args& a) {
     if (a.codec.empty() || a.input.empty() || a.output.empty() || !a.width ||
         !a.height || (a.pixfmt != "nv12" && a.pixfmt != "yuv420p")) {
         usage();
@@ -174,53 +133,13 @@ int cmd_encode(const Args& a) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        usage();
+    std::string cmd;
+    cli::Args a;
+    if (!cli::parse_args(argc, argv, cmd, a)) {
+        cli::usage();
         return 1;
-    }
-    std::string cmd = argv[1];
-    Args a;
-    for (int i = 2; i < argc; ++i) {
-        std::string k = argv[i];
-        std::string v;
-        if (k == "--backend-dir" && take_value(argc, argv, i, v))
-            a.backend_dirs.push_back(v);
-        else if (k == "--codec" && take_value(argc, argv, i, v))
-            a.codec = v;
-        else if (k == "--input" && take_value(argc, argv, i, v))
-            a.input = v;
-        else if (k == "--output" && take_value(argc, argv, i, v))
-            a.output = v;
-        else if (k == "--pixfmt" && take_value(argc, argv, i, v))
-            a.pixfmt = v;
-        else if (k == "--width" && take_value(argc, argv, i, v)) {
-            if (!parse_uint(v, a.width)) {
-                usage();
-                return 1;
-            }
-        } else if (k == "--height" && take_value(argc, argv, i, v)) {
-            if (!parse_uint(v, a.height)) {
-                usage();
-                return 1;
-            }
-        } else if (k == "--bitrate" && take_value(argc, argv, i, v)) {
-            a.bitrate = atoll(v.c_str());
-        } else if (k == "--gop" && take_value(argc, argv, i, v)) {
-            uint32_t g = 0;
-            if (!parse_uint(v, g)) {
-                usage();
-                return 1;
-            }
-            a.gop = g;
-        } else {
-            usage();
-            return 1;
-        }
     }
     if (cmd == "caps")
         return cmd_caps(a);
-    if (cmd == "encode")
-        return cmd_encode(a);
-    usage();
-    return 1;
+    return cmd_encode(a);
 }
