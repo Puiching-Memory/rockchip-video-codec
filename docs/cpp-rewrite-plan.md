@@ -16,15 +16,15 @@ C ABI 对接；该 C ABI 同时是开源项目的语言中立集成面。
 
 ## 已确认决策（v4）
 
-| 决策点 | 选择 | 说明 |
-| --- | --- | --- |
-| 语言标准 | **C++20** | 容器 g++ 13.3.0 原生/交叉均已验证 |
-| 工具链基线 | **对齐 librknnrt** | glibc 符号上限 `GLIBC_2.17`；`-static-libstdc++ -static-libgcc`；符号审计兜底 |
-| 兼容性 | **零旧兼容** | 不设兼容层；线格式、插件协议、C ABI 全部重新设计；板上模型与流用工具重打包 |
-| 工程解耦 | **四 codec 工程** | core + codecs/h264h265 + codecs/mlvc + codecs/av1 + codecs/sr，独立可构建 |
-| 错误模型 | **无异常** | `Status` + `Result<T>`；`-fno-exceptions -fno-rtti`（自有源硬约束，与 MPP 同款）；dlopen 边界零翻译成本 |
-| 上游对接 | **SDK + 开源通用性** | 新极简 handle 式 C ABI 为唯一稳定面；SDK 适配层按新 ABI 重写；原生 C++ API 供进程内用户 |
-| 格式版本策略 | **无版本号演进** | 线格式（rkmodel/mlvc 容器）不设 v1/v2 标记；格式与代码同仓同版本发布，不做任何兼容窗口 |
+| 决策点       | 选择                 | 说明                                                                                                    |
+| ------------ | -------------------- | ------------------------------------------------------------------------------------------------------- |
+| 语言标准     | **C++20**            | 容器 g++ 13.3.0 原生/交叉均已验证                                                                       |
+| 工具链基线   | **对齐 librknnrt**   | glibc 符号上限 `GLIBC_2.17`；`-static-libstdc++ -static-libgcc`；符号审计兜底                           |
+| 兼容性       | **零旧兼容**         | 不设兼容层；线格式、插件协议、C ABI 全部重新设计；板上模型与流用工具重打包                              |
+| 工程解耦     | **四 codec 工程**    | core + codecs/h264h265 + codecs/mlvc + codecs/av1 + codecs/sr，独立可构建                               |
+| 错误模型     | **无异常**           | `Status` + `Result<T>`；`-fno-exceptions -fno-rtti`（自有源硬约束，与 MPP 同款）；dlopen 边界零翻译成本 |
+| 上游对接     | **SDK + 开源通用性** | 新极简 handle 式 C ABI 为唯一稳定面；SDK 适配层按新 ABI 重写；原生 C++ API 供进程内用户                 |
+| 格式版本策略 | **无版本号演进**     | 线格式（rkmodel/mlvc 容器）不设 v1/v2 标记；格式与代码同仓同版本发布，不做任何兼容窗口                  |
 
 ## 无异常错误模型（v4 修订）
 
@@ -51,16 +51,16 @@ librknnrt、FFmpeg、SVT-AV1 全部返回码错误处理，源码零 throw/catch
 glibc 2.17 / 静态 libstdc++ 体系兼容。结论：**核心体系仅引入 1 个非头文件
 依赖（doctest，且仅测试用）**，其余全部自实现或已 vendored。
 
-| 用途 | 选型 | 依据 |
-| --- | --- | --- |
-| 单元测试 | **doctest**（vendored 单头，6.9k★） | 官方 `DOCTEST_CONFIG_NO_EXCEPTIONS` 支持已核实；编译最快；单头 vendored 零构建集成 |
-| `Result<T>` | **自实现**（~200 行） | tl::expected（1.9k★）依赖异常路径表达错误侧；自实现直接绑定 `Status + Diag`，无异常语义更贴切 |
-| JSON 输出（CLI/diag） | **手写极简 writer**（~150 行） | nlohmann/json（50k★）生态最成熟但 throw 语义 + 重；CLI 仅需序列化不需解析 |
-| 格式化 | **std::format**（libstdc++ 13 已完整支持） | fmt 库（25k★）不再需要——GCC 13 的 C++20 format 实现已完整 |
-| 日志 | 不引入（spdlite 等） | 现有 diag 链 + stderr 即日志面 |
-| 构建元信息 | CMake 内建（不再用 version script） | 新导出面 = C ABI 头声明集合，审计脚本对照 |
-| rANS / 熵编码 | **自实现**（语义对齐官方 msrtc_rans） | 无成熟小依赖可引；已有 C 实现作逻辑参照 |
-| RKNN/MPP/RGA | 已 vendored/third_party | 不变 |
+| 用途                  | 选型                                       | 依据                                                                                          |
+| --------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| 单元测试              | **doctest**（vendored 单头，6.9k★）        | 官方 `DOCTEST_CONFIG_NO_EXCEPTIONS` 支持已核实；编译最快；单头 vendored 零构建集成            |
+| `Result<T>`           | **自实现**（~200 行）                      | tl::expected（1.9k★）依赖异常路径表达错误侧；自实现直接绑定 `Status + Diag`，无异常语义更贴切 |
+| JSON 输出（CLI/diag） | **手写极简 writer**（~150 行）             | nlohmann/json（50k★）生态最成熟但 throw 语义 + 重；CLI 仅需序列化不需解析                     |
+| 格式化                | **std::format**（libstdc++ 13 已完整支持） | fmt 库（25k★）不再需要——GCC 13 的 C++20 format 实现已完整                                     |
+| 日志                  | 不引入（spdlite 等）                       | 现有 diag 链 + stderr 即日志面                                                                |
+| 构建元信息            | CMake 内建（不再用 version script）        | 新导出面 = C ABI 头声明集合，审计脚本对照                                                     |
+| rANS / 熵编码         | **自实现**（语义对齐官方 msrtc_rans）      | 无成熟小依赖可引；已有 C 实现作逻辑参照                                                       |
+| RKNN/MPP/RGA          | 已 vendored/third_party                    | 不变                                                                                          |
 
 明确排除：Boost（体积/依赖面）、abseil（异常默认开）、fmt（GCC13 不需要）、
 nlohmann/json（throw 语义，仅序列化场景太重）。
@@ -201,21 +201,21 @@ semantic-codec-sdk 对接：SDK `codec/video/runtime/video_runtime.cpp`
 
 ## 迁移映射（旧 → 新）
 
-| 旧（C 单体） | 新（C++20 多工程） |
-| --- | --- |
-| `lib/*.c`（11 文件） | `core/src/` → `librkvc-core.{a,so}` |
-| `include/rkvc/*.h`（39 符号 C ABI） | `core/include/rkvc/rkvc.h` 新设计 + `*.hpp` |
-| `backend.h` C vtable | core 新插件 ABI（纯虚 + HostServices，全 Status 返回） |
-| `backends/backend_mpp.c` | `codecs/h264h265/` → `librkvc-h264h265.{a,so}` |
-| `backends/{backend_rknn,backend_mlvc}.c` + `backends/mlvc/*` | `codecs/mlvc/`（编码解码）+ `codecs/sr/`（SR 路径） |
-| `backends/backend_svt.c` | `codecs/av1/` → `librkvc-av1.{a,so}` |
-| `backends/backend_ffmpeg.c` | 不迁移（demux 需求并入 CLI/宿主侧或 core 可选层，后续评估） |
-| `rkvc.c` | `cli/` |
-| `examples/*.c` | `examples/*.cpp` + `integration-c/` |
-| `tests/c/*.c`（cmocka） | `tests/` doctest（NO_EXCEPTIONS 配置） |
-| `.rkmodel`/`.mlvc` 格式 | 重设计，**无版本号**（格式与代码同版本发布） |
-| `tools/` C 小工具 | 不迁移 |
-| `tools/check-exported-symbols.sh` | `tools/check-symbols.sh`（GLIBC + 依赖审计替代） |
+| 旧（C 单体）                                                 | 新（C++20 多工程）                                          |
+| ------------------------------------------------------------ | ----------------------------------------------------------- |
+| `lib/*.c`（11 文件）                                         | `core/src/` → `librkvc-core.{a,so}`                         |
+| `include/rkvc/*.h`（39 符号 C ABI）                          | `core/include/rkvc/rkvc.h` 新设计 + `*.hpp`                 |
+| `backend.h` C vtable                                         | core 新插件 ABI（纯虚 + HostServices，全 Status 返回）      |
+| `backends/backend_mpp.c`                                     | `codecs/h264h265/` → `librkvc-h264h265.{a,so}`              |
+| `backends/{backend_rknn,backend_mlvc}.c` + `backends/mlvc/*` | `codecs/mlvc/`（编码解码）+ `codecs/sr/`（SR 路径）         |
+| `backends/backend_svt.c`                                     | `codecs/av1/` → `librkvc-av1.{a,so}`                        |
+| `backends/backend_ffmpeg.c`                                  | 不迁移（demux 需求并入 CLI/宿主侧或 core 可选层，后续评估） |
+| `rkvc.c`                                                     | `cli/`                                                      |
+| `examples/*.c`                                               | `examples/*.cpp` + `integration-c/`                         |
+| `tests/c/*.c`（cmocka）                                      | `tests/` doctest（NO_EXCEPTIONS 配置）                      |
+| `.rkmodel`/`.mlvc` 格式                                      | 重设计，**无版本号**（格式与代码同版本发布）                |
+| `tools/` C 小工具                                            | 不迁移                                                      |
+| `tools/check-exported-symbols.sh`                            | `tools/check-symbols.sh`（GLIBC + 依赖审计替代）            |
 
 旧树规模参照：约 15.7k 行 / 60 文件。
 
