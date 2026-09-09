@@ -4,6 +4,40 @@
 
 ## [Unreleased]
 
+### 新增（cpp-rewrite：C++20 推倒重写，零旧兼容）
+
+- **core 工程**：无异常错误模型（`Status`/`Result<T>`/`Diag`，
+  `-fno-exceptions -fno-rtti`）+ `Spec` 协商 + `Frame` 借用语义 +
+  自研 SHA-256 + 新 RKMDL2 模型容器 + 有界队列/Graph/Executor
+  （两阶段错误终止，在途帧不丢）+ 新 C ABI（`rkvc.h` 0.5.0）。
+- **插件 ABI**：`rkvc_plugin_query(host_abi)` 握手 + 工具链指纹 +
+  坏 ABI 淘汰；内建 fileio；doctest 2.4.11（NO_EXCEPTIONS）全绿，
+  ASan/UBSan（`-fno-sanitize-recover=all`）7/7 全绿。
+- **四个独立 codec 工程**：h264h265（MPP 编解码节点）、mlvc
+  （container/pmf/qptab/qppatch/ratectl/rANS/pixel 全部 C golden
+  对拍 + fake-NPU 精确回环）、av1（SVT-AV1 编码节点，容器出包）、
+  sr（Phase-RLFN 后处理 + SrUpscaleNode + 双后端门控）。
+- **CLI + 样板**：`rkvc caps/encode`（`--qp/--bitrate/--gop`，参数解析
+  单测覆盖）+ `examples/integration-c` C ABI 契约样板。
+- **交叉与审计**：aarch64 `-static-libstdc++ -static-libgcc` +
+  `tools/check-symbols.sh`（GLIBC 上限 2.34，2.17 待 CentOS7 独立
+  builder；NEEDED 禁动态 C++ 运行时；导出面白名单）。
+
+### 板级基线（cpp-rewrite，RK3576/161 + RV1126B/214，2026-09-09）
+
+- H264/HEVC 硬编码出包，参考解码 70/70 帧；QP 22/27/32/37 单调
+  （542KB/37.62dB → 96KB/35.18dB，repeat70 640×368 内容）；
+  GOP 30/60/120 关键帧数 3/2/1 落地；CBR 1M/4M 码率吻合。
+- RV1126B（glibc 2.41）H264 硬编码出包，`ldd` 仅依赖系统
+  libc/MPP，无缺失。
+- mlvc/sr 板上 E2E 未跑：仓库无可用模型文件，且 161 无
+  `/dev/rknpu`；插件 `dlopen` + `rkvc_plugin_query` 装载正常。
+  完整 UVG bench（`tools/bench/rd.py`）待数据集 + 模型 + 板上
+  python3 就绪后按 `docs/data/uvg-rk3576-20260908.csv` 口径补跑。
+- LTR 口径：旧 `backend_mpp.c` 即无 H264 LTR 实现，新 C ABI
+  `ltr_period/ltr_start_idx` 为保留字段；mlvc LTR 由 ratectl/
+  container 覆盖（fake 回环含 LTR 变体）。
+
 ## [0.4.0] - 2026-09-07
 
 ### 变更（破坏性）
