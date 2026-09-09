@@ -7,6 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+find_package(Threads REQUIRED)
+
 add_library(rkvc-core-static STATIC
     src/status.cpp
     src/diag.cpp
@@ -14,6 +16,13 @@ add_library(rkvc-core-static STATIC
     src/frame.cpp
     src/sha256.cpp
     src/rkmodel.cpp
+    src/request.cpp
+    src/node.cpp
+    src/registry.cpp
+    src/graph.cpp
+    src/executor.cpp
+    src/session.cpp
+    src/context.cpp
 )
 add_library(rkvc::core ALIAS rkvc-core-static)
 
@@ -22,6 +31,7 @@ target_include_directories(rkvc-core-static
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
+target_link_libraries(rkvc-core-static PUBLIC Threads::Threads)
 
 foreach(t rkvc-core-static)
     target_compile_options(${t} PRIVATE -fno-exceptions -fno-rtti
@@ -62,4 +72,15 @@ if(RKVC_CORE_BUILD_TESTS)
         DOCTEST_CONFIG_NO_EXCEPTIONS)
     target_compile_options(test_rkmodel PRIVATE -fno-exceptions -fno-rtti)
     add_test(NAME test_rkmodel COMMAND test_rkmodel)
+
+    foreach(t test_queue test_pipeline)
+        add_executable(${t} tests/${t}.cpp)
+        target_link_libraries(${t} PRIVATE rkvc::core)
+        target_include_directories(${t} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+        target_compile_definitions(${t} PRIVATE
+            DOCTEST_CONFIG_NO_EXCEPTIONS)
+        target_compile_options(${t} PRIVATE -fno-exceptions -fno-rtti)
+        add_test(NAME ${t} COMMAND ${t})
+    endforeach()
 endif()
