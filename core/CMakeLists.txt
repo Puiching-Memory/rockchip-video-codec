@@ -10,6 +10,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_library(rkvc-core-static STATIC
     src/status.cpp
     src/diag.cpp
+    src/spec.cpp
+    src/frame.cpp
 )
 add_library(rkvc::core ALIAS rkvc-core-static)
 
@@ -40,4 +42,13 @@ if(RKVC_CORE_BUILD_TESTS)
         DOCTEST_CONFIG_NO_EXCEPTIONS)
     target_compile_options(test_status_result PRIVATE -fno-exceptions -fno-rtti)
     add_test(NAME test_status_result COMMAND test_status_result)
+
+    add_executable(test_spec_frame tests/test_spec_frame.cpp)
+    target_link_libraries(test_spec_frame PRIVATE rkvc::core)
+    target_include_directories(test_spec_frame PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+    target_compile_definitions(test_spec_frame PRIVATE
+        DOCTEST_CONFIG_NO_EXCEPTIONS)
+    target_compile_options(test_spec_frame PRIVATE -fno-exceptions -fno-rtti)
+    add_test(NAME test_spec_frame COMMAND test_spec_frame)
 endif()
