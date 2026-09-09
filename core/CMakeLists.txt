@@ -25,6 +25,7 @@ add_library(rkvc-core-static STATIC
     src/context.cpp
     src/plugin.cpp
     src/fileio.cpp
+    src/c_api.cpp
 )
 add_library(rkvc::core ALIAS rkvc-core-static)
 
@@ -85,7 +86,7 @@ if(RKVC_CORE_BUILD_TESTS)
     target_compile_options(test_rkmodel PRIVATE -fno-exceptions -fno-rtti)
     add_test(NAME test_rkmodel COMMAND test_rkmodel)
 
-    foreach(t test_queue test_pipeline)
+    foreach(t test_queue test_pipeline test_c_abi)
         add_executable(${t} tests/${t}.cpp)
         target_link_libraries(${t} PRIVATE rkvc::core)
         target_include_directories(${t} PRIVATE
