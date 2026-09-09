@@ -45,6 +45,9 @@ struct Factory {
 class Registry {
 public:
     Status add(std::unique_ptr<Factory> f);
+    // Borrowed factories stay owned by the caller (e.g. a loaded plugin);
+    // the caller must outlive the registry.
+    Status add_borrowed(const Factory* f);
     // Candidates sorted by (priority+score desc, id asc). Never null entries.
     std::vector<const Factory*> candidates(NodeStage stage, const Request& r,
                                            const DeviceCaps& caps) const;
@@ -53,6 +56,7 @@ public:
 
 private:
     std::vector<std::unique_ptr<Factory>> factories_;
+    std::vector<const Factory*> borrowed_;
 };
 
 }  // namespace rkvc

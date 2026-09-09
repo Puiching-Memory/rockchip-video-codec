@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "rkvc/context.hpp"
 
+#include "builtin.hpp"
+
 namespace rkvc {
 
-Context::Context(ContextOptions opts) : opts_(std::move(opts)) {}
+Context::Context(ContextOptions opts) : opts_(std::move(opts)) {
+    register_builtin_fileio(registry_);
+}
 
 Status Context::add_model(Model m) {
     if (m.meta.id.empty())

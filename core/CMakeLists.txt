@@ -23,6 +23,8 @@ add_library(rkvc-core-static STATIC
     src/executor.cpp
     src/session.cpp
     src/context.cpp
+    src/plugin.cpp
+    src/fileio.cpp
 )
 add_library(rkvc::core ALIAS rkvc-core-static)
 
@@ -30,8 +32,12 @@ target_include_directories(rkvc-core-static
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(rkvc-core-static PUBLIC Threads::Threads)
+target_link_libraries(rkvc-core-static
+    PUBLIC Threads::Threads
+    PRIVATE ${CMAKE_DL_LIBS})
 
 foreach(t rkvc-core-static)
     target_compile_options(${t} PRIVATE -fno-exceptions -fno-rtti
@@ -83,4 +89,30 @@ if(RKVC_CORE_BUILD_TESTS)
         target_compile_options(${t} PRIVATE -fno-exceptions -fno-rtti)
         add_test(NAME ${t} COMMAND ${t})
     endforeach()
+
+    # Plugin handshake fixtures: built as DSOs, loaded by test_plugin.
+    foreach(p identity badabi empty)
+        add_library(test_plugin_${p} MODULE tests/plugins/${p}.cpp)
+        target_include_directories(test_plugin_${p} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        target_compile_options(test_plugin_${p} PRIVATE
+            -fno-exceptions -fno-rtti -Wall -Wextra)
+    endforeach()
+
+    add_executable(test_plugin tests/test_plugin.cpp)
+    target_link_libraries(test_plugin PRIVATE rkvc::core)
+    target_include_directories(test_plugin PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+    target_compile_definitions(test_plugin PRIVATE
+        DOCTEST_CONFIG_NO_EXCEPTIONS
+        RKVC_TEST_PLUGIN_IDENTITY="$<TARGET_FILE:test_plugin_identity>"
+        RKVC_TEST_PLUGIN_BADABI="$<TARGET_FILE:test_plugin_badabi>"
+        RKVC_TEST_PLUGIN_EMPTY="$<TARGET_FILE:test_plugin_empty>"
+        RKVC_TEST_TMPDIR="${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_options(test_plugin PRIVATE -fno-exceptions -fno-rtti)
+    # The host executable must export core symbols for dlopened plugins.
+    set_target_properties(test_plugin PROPERTIES ENABLE_EXPORTS ON)
+    add_dependencies(test_plugin
+        test_plugin_identity test_plugin_badabi test_plugin_empty)
+    add_test(NAME test_plugin COMMAND test_plugin)
 endif()
