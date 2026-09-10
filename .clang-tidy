@@ -1,4 +1,6 @@
 ---
+# Checks disabled at the bottom of the list are style-only rules whose backlog
+# is in the hundreds; re-enable each one behind a repo-wide `--fix` pass.
 Checks: >
   -*,
   bugprone-*,
@@ -18,11 +20,16 @@ Checks: >
   -cert-dcl37-c,
   -cert-dcl51-cpp,
   -misc-no-recursion,
-  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -misc-include-cleaner,
+  -misc-const-correctness,
+  -misc-non-private-member-variables-in-classes,
+  -performance-enum-size,
+  -readability-braces-around-statements
 
 WarningsAsErrors: ''
 
-HeaderFilterRegex: 'include/rkvc/.*'
+HeaderFilterRegex: '(core|codecs|cli)/(include|src)/.*'
 
 FormatStyle: file
 

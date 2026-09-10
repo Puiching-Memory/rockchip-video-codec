@@ -31,7 +31,7 @@ I/O 码流逐字节一致，因此该路径默认开启。设置
 `RKVC_MLVC_ENCODER_ZERO_COPY=0` 可回退到标准 host I/O；若 native attr 查询或
 几何校验不通过，运行时也会自动回退。
 
-默认把解码器尾部 `DepthToSpace(mode=DCR)+Clip(0,1)` 拆出图外（`--no-extract-tail` 关闭）。此时 RKNN 的 `x_hat` 是 shuffle 前的 head conv（640×368 时为 `[1,192,46,80]`），`node_mlvc.c` 按 native 通道数自动做 CPU DCR + clip；旧的整图 `x_hat=[1,3,H,W]` 模型不用改。
+默认把解码器尾部 `DepthToSpace(mode=DCR)+Clip(0,1)` 拆出图外（`--no-extract-tail` 关闭）。此时 RKNN 的 `x_hat` 是 shuffle 前的 head conv（640×368 时为 `[1,192,46,80]`），解码节点按 native 通道数自动做 CPU DCR + clip；旧的整图 `x_hat=[1,3,H,W]` 模型不用改。
 
 官方 split `dmc61sbr_e1d1` / `dmc61sr_e1d1` 的 ONNX 还带 `q_index_shifted`（编码器 3 入、解码器 5 入）。折叠后才是上表的 2 / 4 输入。
 
@@ -103,9 +103,9 @@ models/
 
 多目标板：每次调用只转换一个 `--platform`；基座文件名带平台后缀
 （`MLVC{Encoder,Decoder}_<soc>.rknn`），多个平台的模型可在同一 bundle 内并存，
-ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁按
-`qp_patches/<platform>/` 分目录，运行时对应传
-`--mlvc-qp-patch-dir models/mlvc/qp_patches/<soc>`。
+ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁经 `--pack`
+直接进 `.rkmodel`（多 rung 共存一文件），运行时只需 `--model-dir`
++ `--model-id`，不再需要单独传补丁目录。
 
 产物目录形如：
 
@@ -118,7 +118,7 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁按
   metadata.json
 ```
 
-`--target-device` 建议 `generic` 或 `intel`。**不要用 `qualcomm`**：官方 Qualcomm 优化会把 PixelUnshuffle 收成 `SpaceToDepth`、把 Clip 收成 `Max`，在 RKNN 上都会 CPU fallback（见 [mlvc-npu-profile.md](mlvc-npu-profile.md) §7.2）。即便 generic 默认 pass 里仍可能出现 `SpaceToDepth`，本工具会再写回 NPU 友好算子。
+`--target-device` 建议 `generic` 或 `intel`。**不要用 `qualcomm`**：官方 Qualcomm 优化会把 PixelUnshuffle 收成 `SpaceToDepth`、把 Clip 收成 `Max`，在 RKNN 上都会 CPU fallback。即便 generic 默认 pass 里仍可能出现 `SpaceToDepth`，本工具会再写回 NPU 友好算子（替换项见 `tools/mlvc/onnx_rewrite.py` 头部）。
 
 公开 checkpoint（约 70 MB）落到 `.build/deps/mlvc-data/pretrained/mlvc-psnr-v1.ckpt`。tracing 用占位 I420（640×360 灰帧；模型 640×368 由上游 EDGE padding）。`convert.py` 默认还会做导出后校验，本包装器用 `--no-validate-conversion` 跳过。
 
@@ -136,9 +136,9 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁按
 
 | 选项                            | 说明                                                                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--qp 21`                       | 折进图的 `q_index`（默认 21，与 `node_mlvc` 一致）                                                           |
+| `--qp 21`                       | 折进图的 `q_index`（默认 21）                                                                                |
 | `--qp-list 10,21,30,40`         | 每个 qp 一份模型，写入 `{out-dir}/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 bundle 根目录作默认 |
-| `--qp-dynamic`                  | 全 QP 单模型（QPT1）：Gather 改 q 行输入，q 表外置随 `.rkmodel` 分发；与 `--qp-list`/QPP1 互斥 |
+| `--qp-dynamic`                  | 全 QP 单模型（QPT1）：Gather 改 q 行输入，q 表外置随 `.rkmodel` 分发；与 `--qp-list`/QPP1 互斥               |
 | `--skip-rknn`                   | 只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用）                                                     |
 | `--pmf-only`                    | 只把 JSON 写成 `gaussian.bin` / `bitest.bin`                                                                 |
 | `--inspect`                     | 只打印 ONNX I/O                                                                                              |
@@ -153,6 +153,31 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁按
 | `--patch-dir DIR`               | QPP1 输出目录（默认 `{out-dir}/qp_patches`）                                                                 |
 
 `--onnx-dir` 也可指向更上层目录，工具会递归查找 `MLVCEncoder.onnx` 等文件名。
+
+## 打包与装载（RKMDL1）
+
+`export_rknn.py` 默认一步到位打成 C++ 可直接装载的模型文件
+（`--no-pack` 关闭；`--skip-rknn`/`--pmf-only` 下无 `.rknn` 则跳过）：
+
+```text
+<out-dir>/mlvc_<soc>_qp<base>_encoder.rkmodel
+<out-dir>/mlvc_<soc>_qp<base>_decoder.rkmodel
+<out-dir>/mlvc_<soc>_dynq_encoder.rkmodel      # --qp-dynamic 时
+```
+
+每份含 `rknn` + `pmf-gaussian` + `pmf-bitest`，再加全部
+`qppatch`（多 rung 共存一文件）或 `qptab`（dynq）。
+meta 的 `id` 即文件名 stem（如 `mlvc_rk3576_qp21_encoder`），
+`target` 为 `--platform`。版式见 `tools/mlvc/rkmdl1.py`
+（与 `core/src/rkmodel.cpp` 逐字节对齐；`pack`/`verify` 子命令
+可独立打包校验任意载荷）。
+
+装载（CLI 会话按 `--model-id` 选模型，不填则取首个）：
+
+```bash
+rkvc encode --codec mlvc --model-dir models/mlvc --model-id mlvc_rk3576_qp21_encoder ...
+# 或逐个指定：--model a_encoder.rkmodel --model a_decoder.rkmodel
+```
 
 ## 图重写
 
@@ -176,7 +201,7 @@ JSON 字段与上游 `GaussianCoderPmf` / `BitEstimatorPmf` 一致：`pmf_length
 
 模型可继续导出和校验。
 
-分辨率须与导出时 `--model-width` / `--model-height` 一致（现网 640×368）。`--mlvc-qp` 须与折叠进图的 `--qp` 一致，否则 rANS 码表与 NPU 嵌入错位。
+分辨率须与导出时 `--model-width` / `--model-height` 一致（现网 640×368）。单 rung 文件的会话 `--qp` 须与折叠进图的 `--qp` 一致，否则 rANS 码表与 NPU 嵌入错位；多 rung 文件由码控/帧头在覆盖区间内选档。
 
 ## 多 QP 单模型（QPP1）
 
@@ -219,31 +244,24 @@ FP16 `[1,C,1,1]` 图输入（行向量），q 表本体摘出图外随 `.rkmodel
     --onnx-dir /path/to/onnx-generic/640x368 \
     --out-dir models/mlvc-dynq --platform rk3576 \
     --qp-dynamic
-
-# 打包：qptab 作为第 4 类载荷与 rknn/pmf-gaussian/pmf-bitest 并列
-python3 tools/rkvc_build/rkmodel.py pack \
-    --id mlvc-dynq-rk3576 --family mlvc --role encoder --version 1.0.0 \
-    --rknn-target rk3576 \
-    --payload rknn=.../MLVCEncoder_rk3576.rknn \
-    --payload pmf-gaussian=.../gaussian.bin \
-    --payload pmf-bitest=.../bitest.bin \
-    --payload qptab=.../qptab_encoder.bin \
-    mlvc-dynq-encoder.rkmodel
+# 默认已打包：models/mlvc-dynq/mlvc_rk3576_dynq_{encoder,decoder}.rkmodel
+# （rknn + pmf-gaussian + pmf-bitest + qptab；--no-pack 可关）
 ```
 
 模型 I/O 契约（encoder 追加 3 输入、decoder 追加 3 输入，均 FP16 未量化）：
 
-| 部件   | q 行输入                                        | 对应表（rows×cols）                  |
-| ------ | ----------------------------------------------- | ------------------------------------- |
+| 部件   | q 行输入                                            | 对应表（rows×cols）                  |
+| ------ | --------------------------------------------------- | ------------------------------------ |
 | 编码器 | `q_encoder_row` / `q_decoder_row` / `q_feature_row` | `[72,256]` / `[72,128]` / `[72,256]` |
-| 解码器 | `q_feature_row` / `q_decoder_row` / `q_recon_row`   | 均 `[72,256]`                         |
+| 解码器 | `q_feature_row` / `q_decoder_row` / `q_recon_row`   | 均 `[72,256]`                        |
 
 `qptab_{encoder,decoder}.bin` 为 **QPT1** 线格式：`"QPT1"` magic +
 u32 表数；每表 u32 name_len + name（≤32B，无 NUL）+ u32 rows + u32 cols +
 rows×cols×2B FP16 行主序。rows=72（64 qp + 8 extra）。
 
-运行时（`node_mlvc`）在 bind 时扫输入名发现 `q_*_row` 即要求 `.rkmodel`
-携带 qptab 载荷（`RKMODEL_PAYLOAD_QPTAB`），恒 QP 直喂、CBR 逐帧直喂、
+运行时（`MlvcEncoderNode`/`MlvcDecoderNode`）在 bind 时扫输入名发现
+`q_*_row` 即要求 `.rkmodel` 携带 qptab 载荷（kind `"qptab"`），恒 QP
+直喂、CBR 逐帧直喂、
 解码按帧记录头 q_index 直喂；q 不变时跳过行拷贝。_qp-dynamic 模型不得
 再携带 QPPATCH rung（FORMAT 拒绝）_。折叠模型（无 `q_*_row` 输入）
 自动走原 QPP1 路径，两者可在同一 registry 并存。

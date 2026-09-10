@@ -9,8 +9,7 @@
             "binaryDir": "${sourceDir}/.build/release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "RKVC_ENABLE_RELEASE_HARDENING": "ON"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
         },
         {
@@ -24,54 +23,14 @@
             }
         },
         {
-            "name": "tidy",
-            "displayName": "clang-tidy Check → .build/debug/",
-            "inherits": "debug",
-            "cacheVariables": {
-                "CMAKE_C_CLANG_TIDY": "clang-tidy;--header-filter=${sourceDir}/include/.*"
-            }
-        },
-        {
             "name": "tests",
-            "displayName": "Unit Tests + CLI → .build/tests/",
+            "displayName": "Unit tests → .build/tests/",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/.build/tests",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "RKVC_BUILD_SHARED": "OFF",
-                "RKVC_BUILD_CLI": "ON",
-                "RKVC_BUILD_TESTS": "ON",
-                "RKVC_ENABLE_FAULT_INJECTION": "ON"
-            }
-        },
-        {
-            "name": "asan",
-            "displayName": "ASan + UBSan Tests → .build/asan/",
-            "inherits": "tests",
-            "binaryDir": "${sourceDir}/.build/asan",
-            "cacheVariables": {
-                "RKVC_ENABLE_ASAN": "ON",
-                "RKVC_ENABLE_UBSAN": "ON"
-            }
-        },
-        {
-            "name": "coverage",
-            "displayName": "Coverage Tests → .build/coverage/",
-            "inherits": "tests",
-            "binaryDir": "${sourceDir}/.build/coverage",
-            "cacheVariables": {
-                "RKVC_ENABLE_COVERAGE": "ON"
-            }
-        },
-        {
-            "name": "portable",
-            "displayName": "Portable package tree → .build/portable/",
-            "inherits": "default",
-            "binaryDir": "${sourceDir}/.build/portable",
-            "cacheVariables": {
-                "CMAKE_INSTALL_RPATH_USE_LINK_PATH": "ON",
-                "RKVC_ENABLE_RELEASE_HARDENING": "ON"
+                "RKVC_CORE_BUILD_TESTS": "ON"
             }
         }
     ],
@@ -79,64 +38,23 @@
         {
             "name": "default",
             "configurePreset": "default",
-            "jobs": 6,
-            "targets": ["rkvc_shared", "rkvc_static", "rkvc_cli"]
+            "jobs": 6
         },
         {
             "name": "debug",
             "configurePreset": "debug",
-            "jobs": 6,
-            "targets": ["rkvc_shared", "rkvc_static", "rkvc_cli"]
+            "jobs": 6
         },
         {
             "name": "tests",
             "configurePreset": "tests",
-            "jobs": 6,
-            "targets": ["check"]
-        },
-        {
-            "name": "asan",
-            "configurePreset": "asan",
-            "jobs": 6,
-            "targets": ["check"]
-        },
-        {
-            "name": "coverage",
-            "configurePreset": "coverage",
-            "jobs": 6,
-            "targets": ["check"]
-        },
-        {
-            "name": "portable",
-            "configurePreset": "portable",
-            "jobs": 6,
-            "targets": ["rkvc_shared", "rkvc_cli"]
-        },
-        {
-            "name": "docs",
-            "configurePreset": "default",
-            "jobs": 6,
-            "targets": ["docs"]
+            "jobs": 6
         }
     ],
     "testPresets": [
         {
             "name": "tests",
             "configurePreset": "tests",
-            "output": {
-                "outputOnFailure": true
-            }
-        },
-        {
-            "name": "asan",
-            "configurePreset": "asan",
-            "output": {
-                "outputOnFailure": true
-            }
-        },
-        {
-            "name": "coverage",
-            "configurePreset": "coverage",
             "output": {
                 "outputOnFailure": true
             }

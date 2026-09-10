@@ -31,11 +31,12 @@
       "duration_seconds": 10
     },
     {
-      "name": "transcode-hevc-to-h264",
-      "operation": "transcode",
+      "name": "decode-hevc-1080p",
+      "operation": "decode",
       "input": "media/sample-1080p.h265",
-      "output": "output.h264",
-      "codec": "h264",
+      "codec": "hevc",
+      "width": 1920,
+      "height": 1080,
       "frames": 300,
       "duration_seconds": 10
     }

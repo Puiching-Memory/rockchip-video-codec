@@ -6,15 +6,16 @@ on:
     paths:
       - .github/workflows/docs.yml
       - CMakeLists.txt
-      - Doxyfile.in
+      - .doxide/**
       - README.md
       - zensical.toml
       - docs/**
-      - include/rkvc/**
+      - core/include/**
+      - codecs/**/include/**
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: pages
@@ -23,26 +24,41 @@ concurrency:
 jobs:
   docs:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write # the deploy action pushes the gh-pages branch
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: 3.x
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake doxygen
-          pip install zensical
-      - name: Build API docs
+          sudo apt-get install -y -qq curl gpg
+          # Scope the doxide key to this repo instead of the global keyring,
+          # and fetch over TLS only.
+          sudo install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL https://download.indii.org/deb/Release.key | \
+            sudo gpg --dearmor -o /etc/apt/keyrings/indii.org.gpg
+          sudo chmod 0644 /etc/apt/keyrings/indii.org.gpg
+          echo 'deb [signed-by=/etc/apt/keyrings/indii.org.gpg] https://download.indii.org/deb noble main' | \
+            sudo tee /etc/apt/sources.list.d/indii.org.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq doxide
+          pip install zensical mkdocs-material
+      - name: Build API references (Doxide)
         run: |
-          cmake -B .build/docs -DRKVC_BUILD_DOCS=ON
-          cmake --build .build/docs --target docs
+          mkdir -p .build/api
+          cp -r .doxide/* .build/api/
+          cd .build/api
+          doxide build
+          mkdocs build -d api-site
       - name: Build site
         run: |
           zensical build --clean
-          cp -r .build/docs/docs/html site/doxygen
+          cp -r .build/api/api-site site/api
           touch site/.nojekyll
-      - uses: JamesIves/github-pages-deploy-action@v4
+      - uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4
         with:
           branch: gh-pages
           folder: site

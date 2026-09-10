@@ -3,48 +3,85 @@ name: CI
 on:
   push:
   pull_request:
-  release:
-    types: [published]
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+# Codec projects only warn-and-skip when a dependency is missing, so both
+# jobs fetch what CI can provide (MPP headers, system SVT-AV1) and then
+# assert the expected test set, which turns silent skips into failures.
 jobs:
   lint:
-    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Fetch MPP headers
+        run: git submodule update --init --depth 1 third_party/mpp
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang-tidy cmake ninja-build
+          sudo apt-get install -y -qq clang-format-18 clang-tidy cmake g++ \
+            libsvtav1enc-dev ninja-build
+      - name: Check formatting
+        run: tools/check-format.sh
       - name: Configure
-        run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
       - name: Run clang-tidy
         run: |
-          mapfile -t SOURCES < <(find lib -name '*.c' -print | sort)
-          SOURCES+=(rkvc.c)
-          clang-tidy -p .build/lint --header-filter=include/.* "${SOURCES[@]}" 2>&1 | tee tidy-report.txt
-          ! grep "error:" tidy-report.txt
+          # Shipped code only: test targets expand doctest.h, which costs ~7x
+          # the whole lint run and feeds clang-analyzer false positives.
+          # clang-analyzer findings are fatal; the rest stay advisory and are
+          # summarized, so the log stays readable.
+          run-clang-tidy -p .build/lint -j "$(nproc)" -quiet \
+            -warnings-as-errors 'clang-analyzer-*' '(^|/)(src|include)/' \
+            > tidy-report.txt 2>&1
+          sed -i 's/\x1b\[[0-9;]*m//g' tidy-report.txt
+          echo "--- findings by check ---"
+          grep -oE '\[[^]]+\]$' tidy-report.txt | sort | uniq -c | sort -rn || true
+          if grep -qE "error:" tidy-report.txt; then
+            echo "--- errors ---"
+            grep -E "error:" tidy-report.txt
+            exit 1
+          fi
 
   test:
-    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Fetch MPP headers
+        run: git submodule update --init --depth 1 third_party/mpp
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake gcc libcmocka-dev ninja-build pkg-config
-      - name: Configure and run C tests
+          sudo apt-get install -y -qq cmake g++ libsvtav1enc-dev ninja-build
+      - name: Configure and build
         run: |
-          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_SHARED=ON -DRKVC_BUILD_STATIC=ON -DRKVC_BUILD_TESTS=ON
-          cmake --build .build/tests --target check
+          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
+          cmake --build .build/tests
+      - name: Assert the expected test set is registered
+        run: |
+          ctest --test-dir .build/tests -N > tests.txt
+          missing=0
+          for t in test_status_result test_spec_frame test_rkmodel test_queue \
+                   test_pipeline test_c_abi test_download test_plugin test_cli \
+                   test_ps test_rans test_pixel test_ratectl test_mlvc_tables \
+                   test_mlvc_codec test_sr_post test_mpp_logic test_mpp_plugin \
+                   test_av1; do
+            grep -qE "Test +#[0-9]+: ${t}$" tests.txt || {
+              echo "缺少测试: $t" >&2
+              missing=1
+            }
+          done
+          exit "$missing"
+      - name: Run C++ tests
+        run: ctest --test-dir .build/tests --output-on-failure
       - name: Run Python tests
         run: python3 -m unittest discover -s tests/python -p 'test_*.py' -v
       - name: Run Bash tests
@@ -52,58 +89,3 @@ jobs:
           for test_script in tests/bash/test_*.sh; do
             bash "$test_script"
           done
-      - name: Check exported ABI
-        run: bash tools/check-exported-symbols.sh .build/tests/librkvc.so
-
-  sanitizer:
-    if: github.event_name != 'release'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake gcc libcmocka-dev ninja-build pkg-config
-      - name: Run ASan and UBSan tests
-        run: |
-          cmake -B .build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_BUILD_TESTS=ON -DRKVC_ENABLE_ASAN=ON -DRKVC_ENABLE_UBSAN=ON
-          cmake --build .build/sanitizer --target check
-
-  package:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-      - name: Initialize release dependencies
-        run: git submodule update --init --depth 1 third_party/mpp
-      - name: Install cross-build tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq binutils cmake curl gcc g++-aarch64-linux-gnu git make ninja-build patchelf pkg-config python3 qemu-user gcc-aarch64-linux-gnu
-      - name: Build, verify and smoke-test portable package
-        run: python3 tools/rkvc-build package --jobs 6
-      - uses: actions/upload-artifact@v7
-        with:
-          name: aarch64-portable
-          path: .build/portable/dist/*.tar.gz
-
-  attach-release:
-    if: github.event_name == 'release' && github.event.action == 'published'
-    needs: [package]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v7
-        with:
-          name: aarch64-portable
-          path: dist
-      - name: Attach verified archive
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mapfile -t FILES < <(find dist -type f -name '*.tar.gz' | sort)
-          test ${#FILES[@]} -gt 0
-          gh release upload "${{ github.event.release.tag_name }}" "${FILES[@]}" --clobber

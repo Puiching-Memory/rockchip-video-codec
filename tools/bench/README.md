@@ -1,7 +1,8 @@
 # rkvc 性能基准
 
-已完成的 [RK3576 / UVG-7 实测](../../docs/bench-uvg-rk3576.md)包含 532 个评分点、
-可重绘快照和 SR 配对结果；源码版本与采样条件随报告记录。
+已完成的 RK3576 / UVG-7 实测包含 532 个评分点、可重绘快照和 SR 配对结果；
+原始数据见 [uvg-rk3576-20260908.csv](../../docs/data/uvg-rk3576-20260908.csv)，
+曲线图见 `docs/images/bench/`；源码版本与采样条件随报告记录。
 
 ## RD 实测与报告
 
@@ -91,7 +92,9 @@ PREFLIGHT ONLY，不能用来代替正式 RD 测试。
 - 默认 1 次进程预热、3 次采样。吞吐包括进程启动、模型初始化和文件 I/O；
   stage-sum 为单独测量的缩小、编码、解码、重建阶段相加，**不是流水线实测延迟**。
   像素指标计算不计入吞吐。实时倍速为 fps / 源 fps，越大越快。
-- 新配置显式设置 `gop: 64`，编码 CLI 统一传入 `--gop 64 --fps 120 --low-delay`。
+- 新配置显式设置 `gop: 64`，编码 CLI 统一传入 `--gop 64 --fps 120`。
+  以下为 2026-09-08 存档实测所用的编码器设置（历史记录，非当前 `rd.py`
+  行为——当前 AV1 经 rkvc CLI 编码，ffmpeg 仅用于像素指标与 GOP 核验）：
   MPP 使用固定 GOP 的 I/P 编码；SVT 使用 LOW_DELAY、闭合 GOP（intra_period_length=63），
   关闭场景切换关键帧检测；MLVC 关闭 LTR。各算法的参考帧数量与量化策略仍不同，
   这不是完整 CTC 或统一软件编码器排名。AV1 为板上 CPU 编码。
@@ -107,7 +110,7 @@ FP16 导出模型的宿主属性可以是浮点类型；运行时仍以 UINT8 NH
 `pass_through=0` 输入，由 RKNN 转换。不能因属性不是 UINT8 就静默回退到 RGA。
 
 这里存放面向 Rockchip 实机的性能基准，不属于单元测试。`benchmark.py` 包裹
-当前统一 CLI 的 `decode`、`encode`、`transcode` 命令，以独立进程运行预热和
+当前统一 CLI 的 `decode`、`encode` 命令，以独立进程运行预热和
 多轮采样，结果写成 JSON 与 CSV。脚本只使用 Python 标准库，便于随可移植包
 复制到板卡。
 
@@ -118,14 +121,16 @@ python3 tools/bench/benchmark.py \
   --rkvc .build/release/rkvc \
   --operation decode --codec h264 \
   --input media/sample-1080p.h264 \
+  --width 1920 --height 1080 \
   --frames 300 --duration-seconds 10 \
   --warmup 1 --iterations 5
 ~~~
 
-`--frames` 用于计算 FPS，`--duration-seconds` 用于计算实时倍速。decode 的
-`--width/--height` 只参与 MP/s 统计，不会传给 CLI，因此不会意外引入缩放；
+`--frames` 用于计算 FPS，`--duration-seconds` 用于计算实时倍速。新 CLI 的
+decode 要求 `--width/--height` 作为输出几何，因此单项 decode 也必须提供，
+同时用于 MP/s 统计；
 encode 输入被视为连续 NV12，提供宽高后，若文件大小可整除单帧字节数，帧数会
-自动推导。transcode 的宽高则表示请求的输出尺寸。
+自动推导。
 
 ## 基准矩阵
 

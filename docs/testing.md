@@ -1,63 +1,50 @@
 # 测试
 
-项目测试按实现语言分目录，避免测试源码、脚本入口和 Python 工具测试混放：
+三类测试，互不混放：
 
-| 类型   | 目录            | 执行方式               |
-| ------ | --------------- | ---------------------- |
-| C      | `tests/c/`      | CMake 构建，CTest 执行 |
-| Python | `tests/python/` | `unittest` 自动发现    |
-| Bash   | `tests/bash/`   | 逐个执行 `test_*.sh`   |
+| 类型     | 位置                                                              | 框架与执行                                                              |
+| -------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| C++ 单元 | 各工程 `tests/`（doctest 2.4.11，`DOCTEST_CONFIG_NO_EXCEPTIONS`） | 随工程构建，顶层 CTest 聚合                                             |
+| Python   | `tests/python/`                                                   | `python3 -m unittest discover -s tests/python -p 'test_*.py'`           |
+| Bash     | `tests/bash/test_*.sh`                                            | 逐个 `bash` 执行（MLVC / SR 导出链路入口，优先 `.venv` 回退 `python3`） |
 
-## C 测试
+## C++ 测试
 
-| 测试                | 覆盖                                           |
-| ------------------- | ---------------------------------------------- |
-| test_graph_executor | 协商、回滚、背压、EOS、取消和候选回退          |
-| test_job            | job 生命周期、线程和流式 push/pull             |
-| test_media_pipeline | file source/sink 与 fake codec 端到端          |
-| test_frame_metadata | ROI/编码热控校验、元数据深拷贝与所有权         |
-| test_api_contract   | 初始化器、状态码、结构体前缀兼容与 ABI 主版本  |
-| test_backend_loader | DSO ABI 握手、坏候选隔离和可信目录             |
-| test_rkmodel        | 容器结构边界、载荷读取和模型注册表             |
-| test_backend_rknn   | fake Runtime 下模型绑定、推理与 NV12 3× 输出   |
-| test_backend_mlvc   | fake RKNN 下 MLVC `.mlvc` 容器守恒与编解码往返 |
+| 工程     | 测试                                                                         | 覆盖                                                                           |
+| -------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| core     | status_result、spec_frame、rkmodel、queue、plugin、pipeline、c_abi、download | Status/Result/Diag、帧规约、RKMDL1、队列、插件握手、管线、C ABI、Dmabuf 下载桥 |
+| mlvc     | tables、ratectl、rans、pixel、mlvc_codec                                     | 算法表、码控、熵编码、像素打包、编解码往返                                     |
+| av1      | av1                                                                          | SVT 软编逻辑                                                                   |
+| sr       | sr_post                                                                      | 超分后处理（非方形 `core_w`/`core_h` 拆分）                                    |
+| h264h265 | mpp_logic、mpp_plugin                                                        | MPP 参数逻辑、插件装载                                                         |
+| pspack   | ps                                                                           | GB28181 PS 打包 / 解包、PSM 与 PTS、AU 组装                                    |
+| cli      | cli                                                                          | 长选项解析（含 `--fps/--json`，无 `--low-delay`）                              |
 
 ~~~bash
-cmake --preset tests
-cmake --build .build/tests
-ctest --test-dir .build/tests -L c --output-on-failure
+cmake --preset tests && cmake --build --preset tests
+ctest --test-dir .build/tests --output-on-failure
 ~~~
 
-C 测试均带有 `c` CTest 标签。完整的 `check` 目标还会运行补丁检查、CLI
-冒烟测试，并编译全部公共 API 示例：
-
-~~~bash
-cmake --build --preset tests
-~~~
-
-`test_ffmpeg_patches` 只运行 `git apply --check`，不会弄脏子模块。
+`tests` 预设多开 `RKVC_CORE_BUILD_TESTS=ON`（core 测试默认关闭，其余工程
+测试开关默认全开）。缺 MPP 头 / SVT-AV1 时注册 16 个用例，两者齐备时 19 个；
+CI 逐个断言这份清单都已注册（依赖缺失即失败，不再静默跳过）。x86 只覆盖纯软
+路径；MPP / NPU 用例在板端跑同一条 `ctest`。
 
 ## Python 测试
 
-| 测试                      | 覆盖                                     |
-| ------------------------- | ---------------------------------------- |
-| test_mlvc_export.py       | MLVC PMF/QP patch、导出 CLI 与 ONNX 重写 |
-| test_sr_export.py         | 超分模型导出、校准数据和 bundle 校验     |
-| test_rkvc_build_verify.py | ELF、RPATH、SONAME、依赖与 glibc 门禁    |
-| test_benchmark.py         | 性能基准配置、命令生成、统计与阈值       |
+| 测试                                    | 覆盖                                                                                              |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| test_rd.py                              | RD 核算（pooled MSE、GOP 审计、resume 校验；直读 `tools/bench/rd.uvg.json` 模板，模板失配即失败） |
+| test_benchmark.py                       | `benchmark.py` 配置与命令生成（新 CLI 长选项、无 `--low-delay`）                                  |
+| test_rkmdl1.py                          | RKMDL1 容器结构                                                                                   |
+| test_mlvc_export.py / test_sr_export.py | MLVC / SR 导出、ONNX 重写、bundle 校验（缺 ONNX/NumPy 时 skip）                                   |
 
-~~~bash
-python3 -m unittest discover -s tests/python -p 'test_*.py' -v
-~~~
+## 板端回归
 
-ONNX、NumPy 等可选依赖缺失时，对应用例会明确标记为 skip。ELF 校验器测试只在
-Linux 运行，其余平台同样标记为 skip。
-
-## Bash 测试
-
-Bash 目录提供使用项目 Python 环境执行 MLVC 和超分导出测试的入口。脚本优先
-使用 `.venv/bin/python`，不存在时回退到 `python3`，并且不依赖调用者的当前
-工作目录。
+MPP / NPU 硬件路径必须在 Rockchip 板卡验证：同一 `ctest` 全量 +
+`tools/bench/` 的 RD 与性能采样（见 [bench 说明](../tools/bench/README.md)）。
+`tools/bench/results/` 下的历史 `rd.json` 是旧协议归档，只作文档对照，
+不作回归基线。
 
 ~~~bash
 for test_script in tests/bash/test_*.sh; do
@@ -65,12 +52,5 @@ for test_script in tests/bash/test_*.sh; do
 done
 ~~~
 
-真实 MPP 编解码仍必须在 Rockchip 板卡运行。QEMU 只验证加载、CLI 和无硬件
-路径，不能替代 VPU 功能与性能回归。
-
-## 性能基准
-
-CTest 使用 fake 媒体 DSO 冒烟验证 `rkvc bench` 的真实 Request/Job 执行路径；
-性能门禁仍不混入普通单元测试。板卡上可用内建 `rkvc bench OP` 做单项采样，
-或使用 `tools/bench/benchmark.py` 对固定媒体集做矩阵采样；完整配置格式、输出指标
-及性能门槛见 [性能基准说明](../tools/bench/README.md)。
+真实 MPP / NPU 硬件路径仍必须在 Rockchip 板卡运行（同一 `ctest` 全量 +
+`tools/bench/` 采样）。x86 只验证加载、CLI 与无硬件纯软路径。

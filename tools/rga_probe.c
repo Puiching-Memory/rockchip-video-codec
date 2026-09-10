@@ -5,7 +5,9 @@
 #include <string.h>
 #include "im2d.h"
 
-static const char *imst(IM_STATUS s) { return imStrError_t(s); }
+static const char *imst(IM_STATUS s) {
+    return imStrError_t(s);
+}
 
 int main(int argc, char **argv) {
     int in_w = argc > 4 ? atoi(argv[1]) : 640;
@@ -38,16 +40,15 @@ int main(int argc, char **argv) {
         ret = imresize_t(src, dst, 0, 0, modes[i], 1);
         printf("  %-7s: ret=%d (%s)", names[i], (int)ret, imst(ret));
         if (ret == IM_STATUS_NOERROR || ret == IM_STATUS_SUCCESS)
-            printf(" out[0..3]=%02x %02x %02x %02x",
-                   outb[0], outb[1], outb[2], outb[3]);
+            printf(" out[0..3]=%02x %02x %02x %02x", outb[0], outb[1], outb[2],
+                   outb[3]);
         printf("\n");
     }
     /* 缩小对照（RGA 常用方向）*/
     {
         unsigned char *small = malloc((size_t)in_w * in_h * 3 / 2);
-        rga_buffer_t sdst = wrapbuffer_virtualaddr_t(small, in_w, in_h,
-                                                     in_w, in_h,
-                                                     RK_FORMAT_YCbCr_420_SP);
+        rga_buffer_t sdst = wrapbuffer_virtualaddr_t(
+            small, in_w, in_h, in_w, in_h, RK_FORMAT_YCbCr_420_SP);
         ret = imresize_t(src, sdst, 0, 0, IM_INTERP_LINEAR, 1);
         printf("  down-to-self(LINEAR): ret=%d (%s)\n", (int)ret, imst(ret));
         free(small);

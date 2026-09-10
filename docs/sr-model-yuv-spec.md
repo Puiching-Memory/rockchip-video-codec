@@ -1,5 +1,9 @@
 # Phase-RLFN 超分模型：ONNX → RKNN → bundle
 
+> 模型 I/O 契约（NHWC 输入 / NCHW 输出、phases 布局、固定 3×）现行有效；
+> 运行时实现已迁入 `codecs/sr/src/`（`post.cpp` / `upscale.cpp`），
+> 下文 RGA 基座实测与函数名为旧 C 树历史记录，仅作对照。
+
 RKVC 的 `rkvc_sr` 仅支持开源项目
 [Puiching-Memory/rknn-super-resolution](https://github.com/Puiching-Memory/rknn-super-resolution)
 的 3×、单输入 fallback 部署 core。旧 RGB 端到端 RKNN 与 codec-aware 双输入模型均不兼容。
@@ -25,14 +29,15 @@ NV12 640×360
                 PixelShuffle(6) residual → Y 逐点相加 / UV 2×2 平均 → NV12
 ```
 
-实现位于 `lib/node_rkvc_sr.c` 与 `lib/rkvc_sr_phase.c`。创建上下文时会检查模型
+实现位于 `codecs/sr/src/post.cpp`（`phase_pack_nv12` /
+`add_phase_residual`）与 `upscale.cpp`。创建上下文时会检查模型
 恰好为单输入/单输出、`12→108` 通道契约；宿主输入属性被工具链记为 NHWC
 （dims `1×180×320×12`，rknn-toolkit2 对 NCHW 图的常见记法）时同样接受。旧 3 通道模型或双输入模型直接失败。
 
 > **布局契约（实机测定，勿凭直觉修改）**：rknn 驱动直接按属性 `dims` 解释宿主
 > 缓冲的线性字节序，**不做自动转置**，且输入/输出属性不对称：输入记为 NHWC
-> （`1×H×W×12`）、输出记为 NCHW（`1×108×H×W`）。因此 `rkvc_sr_phase_pack_nv12`
-> 必须逐像素交错打包，而 `rkvc_sr_phase_add_residual_nv12` 必须按平面主序读取。
+> （`1×H×W×12`）、输出记为 NCHW（`1×108×H×W`）。因此 `phase_pack_nv12`
+> 必须逐像素交错打包，而 `add_phase_residual` 必须按平面主序读取。
 > 用恒等模型（`out = x * 1.0`，输入值编码线性索引）+ x86 模拟器可交叉验证：
 > 错误字节序会使 NPU 输出与 ONNX 参考差到 rms≈10 的量级，看起来像“FP16 精度
 > 不足”，实为布局问题。
@@ -73,9 +78,8 @@ INT8 相对 FP16 仅 −0.05dB / −0.001 SSIM，但 NPU 侧快约 1.5×、体�
 
 其他实测要点：
 
-- 融合阶段（`rkvc_sr_phase_add_residual_nv12`）是单线程 CPU 热路径，对大小核
-  敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 按 `docs/mlvc-npu-profile.md` 的
-  约定用 `taskset -c 4-7` 固定到大核簇。
+- 融合阶段（`add_phase_residual`，旧名 `rkvc_sr_phase_add_residual_nv12`）是单线程 CPU 热路径，对大小核
+  敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 用 `taskset -c 4-7` 固定到大核簇。
 - `rknn_outputs_get(want_float=1)` 的 FP32 转换要占 15–20ms/帧（输出 6.2M 元素）；
   改为 `want_float=0` 取回原生布局可再省 7ms（FP16）/11ms（INT8），但融合
   路径需自行反量化。

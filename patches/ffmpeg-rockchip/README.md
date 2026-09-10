@@ -1,6 +1,6 @@
 # ffmpeg-rockchip downstream patches
 
-rkvc 0.4 uses the native MPP backend for its main media graph, but keeps these
+rkvc uses the native MPP backend for its main media graph, but keeps these
 patches for applications that also build `third_party/ffmpeg-rockchip`.
 
 `0001-rkmppenc-roi-runtime-rc.patch` maps FFmpeg
@@ -12,9 +12,8 @@ repository.
 Validate without changing the submodule:
 
 ```sh
-cmake -DGIT_EXECUTABLE="$(command -v git)" \
-      -DRKVC_SOURCE_DIR="$PWD" \
-      -P cmake/CheckFfmpegPatches.cmake
+git -C third_party/ffmpeg-rockchip apply --check \
+    "$PWD/patches/ffmpeg-rockchip/0001-rkmppenc-roi-runtime-rc.patch"
 ```
 
 Build scripts should apply patches only in a temporary source worktree, or

@@ -120,8 +120,8 @@ def validate(config):
         raise ValueError('classical_decoder must be rkvc or ffmpeg-rkmpp')
     if type(config.get('mlvc_alignment', 16)) is not int or config.get('mlvc_alignment', 16) <= 0:
         raise ValueError('mlvc_alignment must be a positive integer')
-    if not config.get('sr_model') or not config.get('mlvc_model'):
-        raise ValueError('explicit sr_model and mlvc_model IDs are required')
+    if not config.get('sr_model') or not config.get('mlvc_model') or not config.get('mlvc_dec_model'):
+        raise ValueError('explicit sr_model, mlvc_model and mlvc_dec_model IDs are required')
     for codec in MLVC_CODECS:
         if codec in config['codecs']:
             key = 'mlvc_s_models' if codec == 'mlvc-s' else 'mlvc_models'
@@ -129,12 +129,19 @@ def validate(config):
             if any(not isinstance(models.get(str(q)), str) or not models[str(q)]
                    for q in config['codecs'][codec]):
                 raise ValueError(f'{key} must explicitly map every tested QP to its matching model ID')
+            dkey = 'mlvc_s_dec_models' if codec == 'mlvc-s' else 'mlvc_dec_models'
+            decs = config.get(dkey, {})
+            if any(not isinstance(decs.get(str(q)), str) or not decs[str(q)]
+                   for q in config['codecs'][codec]):
+                raise ValueError(f'{dkey} must explicitly map every tested QP to its matching model ID')
     recon = config.get('reconstructions', list(DEFAULT_RECON))
     if type(recon) is not list or not recon or len(set(recon)) != len(recon) \
             or any(m not in DEFAULT_RECON for m in recon):
         raise ValueError('reconstructions must be distinct entries from low_native/bicubic/lanczos/sr')
     if 'low_native' not in recon:
         raise ValueError('reconstructions must include low_native')
+    if 'sr' in recon and config.get('scale', 1) != 3:
+        raise ValueError('the fixed-3x SR node requires scale 3 for sr reconstructions')
     if type(config.get('native_reference', True)) is not bool:
         raise ValueError('native_reference must be a boolean')
 
@@ -170,9 +177,12 @@ class Runner:
         return [self.c['ffmpeg'], '-hide_banner', '-nostdin', '-y']
 
     def media(self, op, src, dst, codec=None, w=None, h=None, qp=None, model=None):
-        args = [self.c['rkvc'], op, '-i', src, '-o', dst]
+        # New C++ CLI (cpp-rewrite): long options, --model-id selects a
+        # registered RKMDL1 file. --low-delay is gone: MLVC is P-only and
+        # MPP defaults have no B-frames by construction (see protocol).
+        args = [self.c['rkvc'], op, '--input', src, '--output', dst]
         if op == 'encode' and 'gop' in self.c:
-            args += ['--gop', self.c['gop'], '--fps', self.c['fps'], '--low-delay']
+            args += ['--gop', self.c['gop'], '--fps', self.c['fps']]
         if codec:
             args += ['--codec', 'mlvc' if codec == 'mlvc-s' else codec]
         if w:
@@ -180,9 +190,11 @@ class Runner:
         if qp is not None:
             args += ['--qp', qp]
         if model:
-            args += ['--model', model]
+            args += ['--model-id', model]
         if self.c.get('model_dir'):
             args += ['--model-dir', self.c['model_dir']]
+        if self.c.get('backend_dir'):
+            args += ['--backend-dir', self.c['backend_dir']]
         return args
 
     def check_raw(self, path, w, h):
@@ -293,9 +305,12 @@ class Runner:
         if not native:
             w, h = w // c['scale'], h // c['scale']
         stream, decoded = work / ('coded.' + codec), work / 'decoded.nv12'
+        dec_model = None
         if codec in MLVC_CODECS:
             key = 'mlvc_s_models' if codec == 'mlvc-s' else 'mlvc_models'
+            dkey = 'mlvc_s_dec_models' if codec == 'mlvc-s' else 'mlvc_dec_models'
             model = c.get(key, {}).get(str(qp), c['mlvc_model'])
+            dec_model = c.get(dkey, {}).get(str(qp), c['mlvc_dec_model'])
         else:
             model = None
         source = ref if native else low
@@ -312,7 +327,10 @@ class Runner:
                      '-pix_fmt', 'nv12', '-f', 'rawvideo', source])
         raw_decoded = work / 'padded-decoded.nv12' if (coded_w, coded_h) != (w, h) else decoded
         enc = self.media('encode', source, stream, codec, coded_w, coded_h, qp, model)
-        dec = self.media('decode', stream, raw_decoded, codec, model=model)
+        # New CLI decode takes --width/--height as output geometry: the coded
+        # (possibly padded) size, cropped back to w,h afterwards.
+        dec = self.media('decode', stream, raw_decoded, codec, coded_w, coded_h,
+                         model=dec_model)
         decoder = 'rkvc'
         if codec not in MLVC_CODECS and c.get('classical_decoder') == 'ffmpeg-rkmpp':
             decoder = f'ffmpeg/{codec}_rkmpp'
@@ -445,20 +463,24 @@ def main(argv=None):
                                    for f in (package / 'lib').rglob('*.so*')
                                    if f.is_file() and not f.is_symlink()}
         report['version'] = runner.run([c['rkvc'], 'version', '--json'])[1]
-        report['backends'] = runner.run([c['rkvc'], 'inspect', 'backends', '--json'])[1]
-        # Model listing follows context override via the environment, as inspect has no path flag.
+        backends = [c['rkvc'], 'inspect', 'backends', '--json']
+        models_cmd = [c['rkvc'], 'inspect', 'models', '--json']
+        # inspect models resolves --model-dir like encode/decode do.
         model_dir = Path(c['model_dir']) if c.get('model_dir') else Path(c['rkvc']).resolve().parent.parent / 'share/rkvc/models'
         report['model_hashes'] = {str(f): digest(f) for f in model_dir.glob('*.rkmodel')}
-        report['models'] = runner.run([c['rkvc'], 'inspect', 'models', '--json'])[1]
-        models = model_listing(report['models'])
-        # A custom model directory cannot be verified through inspect; require default registry for now.
         if c.get('model_dir'):
-            raise ValueError('RD runner currently requires the package default model registry')
+            models_cmd += ['--model-dir', c['model_dir']]
+        if c.get('backend_dir'):
+            backends += ['--backend-dir', c['backend_dir']]
+        report['backends'] = runner.run(backends)[1]
+        report['models'] = runner.run(models_cmd)[1]
+        models = model_listing(report['models'])
         sr_available = any(m['id'] == c['sr_model'] and m['role'] == 'upscale' for m in models)
         report['ffmpeg_version'] = runner.run([c['ffmpeg'], '-version'])[1]
         if 'gop' in c:
             report['ffprobe_version'] = runner.run([c.get('ffprobe', 'ffprobe'), '-version'])[1]
-            report['protocol'] = 'explicit fps/GOP; causal references; MLVC LTR off; verified keyframe positions'
+            report['protocol'] = ('new C++ CLI; explicit fps/GOP; no B-frames by construction '
+                                  '(MLVC P-only, MPP defaults); MLVC LTR off; verified keyframe positions')
         if previous is not None:
             verify_resume(previous, report)
             backup = args.output / f'rd.before-resume-{time.time_ns()}.json'

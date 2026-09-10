@@ -26,7 +26,8 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 SCHEMA_VERSION = 1
-OPERATIONS = {"decode", "encode", "transcode"}
+# New C++ CLI verbs; transcode is gone (see decode/encode only).
+OPERATIONS = {"decode", "encode"}
 CODECS = {"auto", "h264", "hevc", "av1", "mlvc"}
 
 
@@ -84,13 +85,18 @@ class BenchmarkCase:
             raise BenchmarkError(
                 f"case {name!r}: codec must be one of {sorted(CODECS)}"
             )
-        if operation in {"encode", "transcode"} and codec == "auto":
-            raise BenchmarkError(f"case {name!r}: {operation} requires codec")
+        if codec == "auto":
+            raise BenchmarkError(
+                f"case {name!r}: {operation} requires an explicit codec "
+                "(new CLI has no auto-detection)"
+            )
 
         width = _optional_positive_int(raw, "width")
         height = _optional_positive_int(raw, "height")
-        if operation == "encode" and (width is None or height is None):
-            raise BenchmarkError(f"case {name!r}: encode requires width and height")
+        # New CLI decode takes --width/--height as output geometry, so both
+        # directions require them here.
+        if operation in {"encode", "decode"} and (width is None or height is None):
+            raise BenchmarkError(f"case {name!r}: {operation} requires width and height")
 
         output_name = str(raw.get("output", _default_output(operation, codec)))
         if "/" in output_name or "\\" in output_name:
@@ -104,7 +110,7 @@ class BenchmarkCase:
         extra = raw.get("extra_args", [])
         if not isinstance(extra, list) or not all(isinstance(v, str) for v in extra):
             raise BenchmarkError(f"case {name!r}: extra_args must be a string array")
-        reserved = {"-i", "--input", "-o", "--output"}
+        reserved = {"--input", "--output"}
         if reserved.intersection(extra):
             raise BenchmarkError(
                 f"case {name!r}: input/output flags are not allowed in extra_args"
@@ -163,19 +169,20 @@ class BenchmarkCase:
         command = [
             rkvc,
             self.operation,
-            "-i",
+            "--input",
             str(self.input_path),
-            "-o",
+            "--output",
             str(output_path),
+            "--pixfmt",
+            "nv12",
+            "--codec",
+            self.codec,
         ]
-        if self.codec != "auto" or self.operation != "decode":
-            command.extend(("--codec", self.codec))
-        # Decode width/height describe the source for MP/s reporting only.  The
-        # decode CLI output size must follow the bitstream instead of turning a
-        # throughput test into an implicit scale operation.
-        if self.width is not None and self.operation != "decode":
+        # New CLI decode takes --width/--height as output geometry, so they
+        # double as MP/s dimensions; encode already required them.
+        if self.width is not None:
             command.extend(("--width", str(self.width)))
-        if self.height is not None and self.operation != "decode":
+        if self.height is not None:
             command.extend(("--height", str(self.height)))
         if self.bitrate_bps is not None:
             command.extend(("--bitrate", str(self.bitrate_bps)))
@@ -656,7 +663,7 @@ def _direct_config(args: argparse.Namespace) -> RunnerConfig:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Benchmark rkvc decode/encode/transcode throughput with warmups and repeated samples."
+        description="Benchmark rkvc decode/encode throughput with warmups and repeated samples."
     )
     parser.add_argument("--config", type=pathlib.Path, help="JSON benchmark matrix")
     parser.add_argument("--rkvc", help="rkvc executable (overrides config)")
