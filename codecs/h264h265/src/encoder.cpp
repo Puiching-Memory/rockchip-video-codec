@@ -218,7 +218,8 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
         enc->ctx = nullptr;
         enc->mpi = nullptr;
         return rkvc::Status::Hw;
-    }    // MPP's own output packet buffer is only width * height bytes (see
+    }
+    // MPP's own output packet buffer is only width * height bytes (see
     // mpp_enc_check_pkt_buf), yet a high-entropy frame compresses to nearly its
     // raw size. Without a caller buffer the encoder overruns that allocation
     // and reports a packet whose position/length run past the end of the
@@ -236,7 +237,8 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
         enc->ctx = nullptr;
         enc->mpi = nullptr;
         return rkvc::Status::Hw;
-    }    return rkvc::Status::Ok;
+    }
+    return rkvc::Status::Ok;
 }
 
 rkvc::Status apply_control(MppEncoderNode::Impl* enc,
