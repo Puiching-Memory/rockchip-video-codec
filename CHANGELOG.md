@@ -21,6 +21,7 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 - **av1 插件适配 SVT-AV1 4.2.0**：子模块钉的是 v4.2.0，插件却按 1.7 的 API 写（4.x 起 `svt_av1_enc_init_handle` 去掉 `app_data` 参数、`pred_structure` 从 `uint8_t` 收紧为 `PredStructure` 枚举、`SVT_AV1_PRED_*` 常量删除），交叉构建直接编不过。按 4.2.0 头文件更新，并在 `codecs/av1/CMakeLists.txt` 加配置期版本门：发行版旧包（noble 1.7.0）当场报错并给出构建子模块的路径，不再让编译器在头文件深处报错。
 - **`SVT_AV1_INSTALL_PREFIX` 起始查找**：`codecs/av1` 在前缀分支里找 `include/EbSvtAv1Enc.h`，而 SVT-AV1 实际装到 `include/svt-av1/`，配置期只报一句 "SVT-AV1 not found" 就把 av1 插件静默跳过；补 `PATH_SUFFIXES svt-av1`，与文档记录的前缀布局一致。
 - **CI 的 SVT-AV1 改为子模块构建**：两个 job 原先装发行版 `libsvtav1enc-dev`（noble 1.7.0），与代码要求的 4.x 不符；改为从 `third_party/SVT-AV1` 构建 4.2.0（`actions/cache` 按头文件版本宏缓存，命中即跳过），lint 与 test 都带上 `SVT_AV1_INSTALL_PREFIX`。
+- **MPP 硬编高熵输入必崩（段错误）**：编码节点不给 MPP 输出 packet，MPP 就自己分配一块 `mpp_enc_check_pkt_buf` 的内部缓冲——它只有 `width*height` 字节（注释写的 ×1.5 并没有落实），而不可压缩画面压缩后接近原始帧大小。硬编把这块缓冲写穿后报出的 packet，其 `pos`/`length` 会越过 dmabuf 映射末尾，`emit_packet` 的 `memcpy` 直接读越界。板级表现为随机噪声输入 3 帧内必死（`SIGSEGV`，栈顶 `drain_packets`），纯色输入则一切正常，因此长期被误判为"随机"故障。改为按 MPP 官方 test 编码器的用法，逐帧挂上调用方自备的 64 对齐整帧大小输出 packet，并在复用该缓冲前把当帧排空到 EOI packet。
 
 ### 板级基线（RK3576/161 + RV1126B/214，2026-09-09）
 
