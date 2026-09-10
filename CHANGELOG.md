@@ -13,6 +13,17 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 - **五个独立 codec 工程**：h264h265（MPP 编解码节点，出帧走阻塞背压不丢帧）、mlvc（container/pmf/qptab/qppatch/ratectl/rANS/pixel 全部 C golden 对拍 + fake-NPU 精确回环）、av1（SVT-AV1 编码节点，容器出包）、sr（Phase-RLFN 后处理 + SrUpscaleNode + 双后端门控）、pspack（GB28181 PS 打包/解包：pack/system/PSM/PES 与 AU 组装，静态库无插件入口，核心直接链接）。
 - **CLI + 样板**：`rkvc caps/version/inspect/encode/decode/upscale`（`--qp/--bitrate/--gop/--fps`，`--backend-dir/--model-dir/--model-id`，参数解析单测覆盖）+ `examples/` 三个 C ABI 样板（`integration-c` 流式、`decode-file`、`upscale-file`）。
 - **审计**：aarch64 最终链接 `-static-libstdc++ -static-libgcc` + `tools/check-symbols.sh`（GLIBC 上限 2.34；NEEDED 禁动态 C++ 运行时；导出面白名单）。
+- **可移植包流水线**（新写，非旧 C 树 rkvc-build 的复活）：`tools/portable/` 由四件套组成——jammy 交叉镜像 `Dockerfile`（工具链固定点，目标 glibc 2.35、产物 GLIBC ≤ 2.34）、`aarch64-portable.cmake`（链接期即写入 `$ORIGIN` 相对 RUNPATH，产物天然按包布局摆放）、`build.sh`（MPP / SVT-AV1 按子模块 commit 缓存交叉构建 + rknnrt 2.3.2 按 SHA-256 固定下载 + 组装 + RUNPATH/依赖闭包审计 + `check-symbols.sh` + qemu 包内自测 + tarball）、包内 `test.sh`（布局/校验和/依赖解析/插件握手/av1 与 MPP 冒烟，无硬件自动跳过）。
+- **包内随带全套文档与示例**：`docs/`（10 个页面 + 配图）、`examples/`（三个 C ABI 样板）、`CHANGELOG.md` 原样收录，不为包另建副本；排除 doxide 现生成的 `docs/api/` 以免包内容随构建机变化。文档图片走 git-lfs，构建时检测到 130 字节指针文件即报错退出，不交付坏图。
+- **插件发现新增包布局目录**：`<二进制目录>/../lib/rkvc/backends`（即 `bin/rkvc` + `lib/rkvc/backends` 的可移植包，装载插件不再需要 `--backend-dir`）。
+- **可移植包升级为复合产品（三面同包）**：同一份 tarball 同时服务"CLI 直接跑"、"链预编译 SDK 集成"、"源码内嵌"三种用法。新增 SDK 面：`core/CMakeLists.txt` 的 `RKVC_INSTALL_SDK=ON` 产出 `librkvc.so`（SONAME 取自 `RKVC_ABI_VERSION_MAJOR`，`INSTALL_RPATH=$ORIGIN`）+ `include/rkvc/`（16 个公开头）+ `lib/cmake/rkvc/`（`find_package(rkvc CONFIG)`）+ `lib/pkgconfig/rkvc.pc`；两份包文件的前缀都相对自身定位（`${pcfiledir}/../..`、`configure_package_config_file`），整包搬目录后无需重新生成。`build.sh` 走 `cmake --install` 落盘并对 `librkvc.so` 一并做符号审计，`test.sh` 新增 SDK 段（文件点名 + pkg-config 反推 + 纯 C 消费者编译链接 + 零配置建会话）。`examples/` 三个样板同时支持 `-Drkvc_DIR=<pkg>/lib/cmake/rkvc` 与 `-DRKVC_CORE_DIR=<core 目录>`，`build.sh` 每次打包都对着包内 SDK 真编一遍并跑 `intc_encode`（非 aarch64 主机只编译不运行）。
+
+### 修复
+
+- **av1 插件适配 SVT-AV1 4.2.0**：子模块钉的是 v4.2.0，插件却按 1.7 的 API 写（4.x 起 `svt_av1_enc_init_handle` 去掉 `app_data` 参数、`pred_structure` 从 `uint8_t` 收紧为 `PredStructure` 枚举、`SVT_AV1_PRED_*` 常量删除），交叉构建直接编不过。按 4.2.0 头文件更新，并在 `codecs/av1/CMakeLists.txt` 加配置期版本门：发行版旧包（noble 1.7.0）当场报错并给出构建子模块的路径，不再让编译器在头文件深处报错。
+- **`SVT_AV1_INSTALL_PREFIX` 起始查找**：`codecs/av1` 在前缀分支里找 `include/EbSvtAv1Enc.h`，而 SVT-AV1 实际装到 `include/svt-av1/`，配置期只报一句 "SVT-AV1 not found" 就把 av1 插件静默跳过；补 `PATH_SUFFIXES svt-av1`，与文档记录的前缀布局一致。
+- **CI 的 SVT-AV1 改为子模块构建**：两个 job 原先装发行版 `libsvtav1enc-dev`（noble 1.7.0），与代码要求的 4.x 不符；改为从 `third_party/SVT-AV1` 构建 4.2.0（`actions/cache` 按头文件版本宏缓存，命中即跳过），lint 与 test 都带上 `SVT_AV1_INSTALL_PREFIX`。
+- **MPP 硬编高熵输入必崩（段错误）**：编码节点不给 MPP 输出 packet，MPP 就自己分配一块 `mpp_enc_check_pkt_buf` 的内部缓冲——它只有 `width*height` 字节（注释写的 ×1.5 并没有落实），而不可压缩画面压缩后接近原始帧大小。硬编把这块缓冲写穿后报出的 packet，其 `pos`/`length` 会越过 dmabuf 映射末尾，`emit_packet` 的 `memcpy` 直接读越界。板级表现为随机噪声输入 3 帧内必死（`SIGSEGV`，栈顶 `drain_packets`），纯色输入则一切正常，因此长期被误判为"随机"故障。改为按 MPP 官方 test 编码器的用法，逐帧挂上调用方自备的 64 对齐整帧大小输出 packet，并在复用该缓冲前把当帧排空到 EOI packet。
 
 ### 板级基线（RK3576/161 + RV1126B/214，2026-09-09）
 
@@ -28,6 +39,7 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 ### 已知限制
 
 - sr 板上 E2E 未跑：仓库无可用模型文件，且 161 无 `/dev/rknpu`；插件 `dlopen` + `rkvc_plugin_query` 装载正常。
+- qemu-user 跑不了 FrameSink 推帧路径：`examples/integration-c` 在 qemu-aarch64 下必崩（SIGSEGV；用静态 core 编同一示例同样崩，真板卡正常，已定性为模拟器局限），因此打包流水线在非 aarch64 主机上只对该示例做编译链接校验，运行校验在板卡做。
 - 完整 UVG bench（`tools/bench/rd.py`）待数据集 + 模型 + 板上 python3 就绪后按 `docs/data/uvg-rk3576-20260908.csv` 口径补跑。
 - LTR 口径：旧 `backend_mpp.c` 即无 H264 LTR 实现，新 C ABI `quality` 只有 `{bitrate_bps, qp, gop_size, fps}` 四字段、无 LTR 字段；mlvc LTR 由 ratectl/container 覆盖（fake 回环含 LTR 变体）。
 

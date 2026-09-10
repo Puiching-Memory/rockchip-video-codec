@@ -16,6 +16,7 @@ nav = [
   { "架构" = "architecture.md" },
   { "API 引用" = "api/" },
   { "部署" = "deployment.md" },
+  { "可移植包集成" = "portable-package.md" },
   { "测试" = "testing.md" },
   { "MLVC RKNN 导出" = "mlvc-rknn-export.md" },
   { "SR 模型规格" = "sr-model-yuv-spec.md" },

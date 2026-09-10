@@ -263,10 +263,12 @@ add_subdirectory(${AIS_SDK_ROOT}/codec/video sdk-video)
 
 1. 调用方经 `rkvc_context_options.backend_dirs` 传入的可信目录
    （宿主应把用户参数透传到此，参考宿主的 `cfg.backend_dir`）；
-2. 包内目录：`<core 所在宿主二进制映射目录>/rkvc/backends`（dladdr 定位，
-   适配"CLI 与插件同目录部署"布局）；
-3. `/usr/local/lib/rkvc/backends`；
-4. `/usr/lib/rkvc/backends`。
+2. 二进制旁目录：`<core 所在宿主二进制映射目录>/rkvc/backends`（dladdr
+   定位，适配"CLI 与插件同目录部署"布局）；
+3. 可移植包布局：`<二进制目录>/../lib/rkvc/backends`（即 `bin/rkvc` +
+   `lib/rkvc/backends`，`tools/portable/` 产出的包不带任何参数即可装载）；
+4. `/usr/local/lib/rkvc/backends`；
+5. `/usr/lib/rkvc/backends`。
 
 装载失败的最近一条诊断记录在 context 内部，排除问题时可 gdb
 断点 `rkvc::Context::load_plugin` 观察。`inspect backends` 可逐个
@@ -286,11 +288,21 @@ dlopen 探查握手结果。
 ### 4.3 插件依赖与部署
 
 插件 DSO 的第三方依赖（MPP 的 `librockchip_mpp.so.1`、rknnrt、SVT）走常规
-动态链接；部署到目标机时三选一：
+动态链接；部署到目标机时按下列任一方式满足（可移植包已用第 1 种）：
 
-1. 前缀按配置期路径原样存在（构建机即目标机/板载编译场景天然满足）；
-2. 目标机系统路径可解析依赖（如 `/usr/local/lib` 下的 `librockchip_mpp.so.1`）；
-3. 运行时 `LD_LIBRARY_PATH` 指向依赖库目录。
+1. 随包携带：插件 RUNPATH（`$ORIGIN/../..`）指向包内 `lib/`，整包搬迁
+   不用改配置；
+2. 前缀按配置期路径原样存在（构建机即目标机/板载编译场景天然满足）；
+3. 目标机系统路径可解析依赖（如 `/usr/local/lib` 下的 `librockchip_mpp.so.1`）；
+4. 运行时 `LD_LIBRARY_PATH` 指向依赖库目录。
+
+把 `tools/portable/` 产出的可移植包与宿主拼装（包内预编译 SDK 的
+`find_package`/`pkg-config` 用法、宿主落在包外的传参方式、落在 `<pkg>/lib/`
+的零配置摆法、工具链指纹约束与验收步骤）见
+[可移植包 × 宿主集成](portable-package.md)；注意插件不可单独搬运，否则
+RUNPATH 闭包破裂会让插件静默消失。
+链接包内 `librkvc.so` 时不走本节源码内嵌这条路（不必自持 core），但插件指纹
+约束同样适用。
 
 ### 4.4 backend_dir 传参
 
@@ -498,6 +510,7 @@ AIS_VIDEO_BACKEND_DIR=/abs/path/to/.build/rkvc ./test_video_codec
 
 | 日期       | 变更                                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-10 | 新增[可移植包 × 宿主集成](portable-package.md)（§4.3 交叉引用）：宿主落在 `<pkg>/lib/` 的零配置摆法、工具链指纹只取决于 GCC 版本号、插件不可单独搬运                                                                                                                                                                                                                                                |
 | 2026-09-10 | NPU 探测补 DRM 形态（161 无 `/dev/rknpu` 但 `renderD129` 可用，§5.5 + 排障行）；GLIBC 审计基线收口 2.34；caps 默认路径修正为 §4.1 后三条                                                                                                                                                                                                                                                            |
 | 2026-09-09 | 重写落地：全篇翻转为 C ABI 0.5.0 现状（`rkvc_session_*`、`rkvc-core-static` 内嵌、插件自包含无宿主导出、`rkvc_h264h265.so` 等新插件名、GLIBC ≤ 2.34 审计、`RKVC_BUILD_CLI/CODECS` 开关）；旧 C ABI 0.4 树已删除，时期标注移除                                                                                                                                                                       |
 | 2026-09-09 | 适配上游 2026-09 快照：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口为 `ais_video_open/send/recv/flush/caps`（`config_init`/`struct_size`/`ais_buffer_bitstream` 移除）；send 同步化、recv 恒阻塞；帧载荷改 `rkvc_frame_wrap`+`owned_` 驻留；caps 纳入 RKNN；新增 MLVC family；发现新适配层 DMABUF 回读缺失与解码 bitstream 注入缺口；`ais_video_example` 移除，回归改 `test_video_codec.c` |

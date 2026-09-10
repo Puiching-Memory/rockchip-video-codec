@@ -12,24 +12,49 @@ concurrency:
   cancel-in-progress: true
 
 # Codec projects only warn-and-skip when a dependency is missing, so both
-# jobs fetch what CI can provide (MPP headers, system SVT-AV1) and then
-# assert the expected test set, which turns silent skips into failures.
+# jobs fetch what CI can provide (MPP headers, SVT-AV1 4.2.0 built from the
+# pinned submodule) and then assert the expected test set, which turns silent
+# skips into failures. The distro package (noble: 1.7.0) is too old for the
+# av1 plugin, so SVT-AV1 is built from third_party/SVT-AV1 in both jobs.
 jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Fetch MPP headers
-        run: git submodule update --init --depth 1 third_party/mpp
       - name: Install tools
+        # nasm 是 SVT-AV1 在 x86 上 enable_language(ASM_NASM) 的前提。
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang-format-18 clang-tidy cmake g++ \
-            libsvtav1enc-dev ninja-build
+            ninja-build nasm
+      - name: Fetch submodules
+        run: |
+          git submodule update --init --depth 1 third_party/mpp \
+            third_party/SVT-AV1
+      - name: Cache SVT-AV1
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .build/svt-install
+          # EbSvtAv1.h 带版本宏，内容变化即换 key。
+          key: svt-av1-${{ runner.os }}-${{ hashFiles('third_party/SVT-AV1/Source/API/EbSvtAv1.h') }}
+      - name: Build SVT-AV1
+        run: |
+          if [ -f .build/svt-install/lib/libSvtAv1Enc.so ]; then
+            exit 0
+          fi
+          cmake -S third_party/SVT-AV1 -B .build/svt -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=OFF \
+            -DBUILD_TESTING=OFF -DSVT_AV1_LTO=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/.build/svt-install"
+          cmake --build .build/svt -j"$(nproc)"
+          cmake --install .build/svt
       - name: Check formatting
         run: tools/check-format.sh
       - name: Configure
-        run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
+        run: |
+          cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DRKVC_CORE_BUILD_TESTS=ON \
+            -DSVT_AV1_INSTALL_PREFIX="$PWD/.build/svt-install"
       - name: Run clang-tidy
         run: |
           # Shipped code only: test targets expand doctest.h, which costs ~7x
@@ -52,18 +77,39 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Fetch MPP headers
-        run: git submodule update --init --depth 1 third_party/mpp
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Install dependencies
+        # nasm 是 SVT-AV1 在 x86 上 enable_language(ASM_NASM) 的前提。
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake g++ libsvtav1enc-dev ninja-build
+          sudo apt-get install -y -qq cmake g++ ninja-build nasm
+      - name: Fetch submodules
+        run: |
+          git submodule update --init --depth 1 third_party/mpp \
+            third_party/SVT-AV1
+      - name: Cache SVT-AV1
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .build/svt-install
+          key: svt-av1-${{ runner.os }}-${{ hashFiles('third_party/SVT-AV1/Source/API/EbSvtAv1.h') }}
+      - name: Build SVT-AV1
+        run: |
+          if [ -f .build/svt-install/lib/libSvtAv1Enc.so ]; then
+            exit 0
+          fi
+          cmake -S third_party/SVT-AV1 -B .build/svt -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=OFF \
+            -DBUILD_TESTING=OFF -DSVT_AV1_LTO=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/.build/svt-install"
+          cmake --build .build/svt -j"$(nproc)"
+          cmake --install .build/svt
       - name: Configure and build
         run: |
-          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
+          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DRKVC_CORE_BUILD_TESTS=ON \
+            -DSVT_AV1_INSTALL_PREFIX="$PWD/.build/svt-install"
           cmake --build .build/tests
       - name: Assert the expected test set is registered
         run: |
@@ -89,3 +135,29 @@ jobs:
           for test_script in tests/bash/test_*.sh; do
             bash "$test_script"
           done
+
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # 包内随带 docs/，其配图走 git-lfs；不拉 LFS 就会打进 130 字节的
+          # 指针文件（build.sh 会因此报错）。
+          lfs: true
+      - name: Fetch cross-build submodules
+        run: |
+          git submodule update --init --depth 1 third_party/mpp \
+            third_party/SVT-AV1
+      - name: Build aarch64 portable package
+        # 脚本自带 docker 重入：构建 jammy 交叉镜像 → 交叉编译（rknnrt 按
+        # SHA-256 固定下载）→ 组装 → RUNPATH/依赖闭包/符号审计 → qemu
+        # 包内自测；tarball 落在 .build/dist/。
+        # 镜像内默认用 chsrc 换到国内镜像站；GitHub  runner 在境外，官方源
+        # 本就快，这里保持官方源。
+        env:
+          RKVC_CHSRC_MIRROR: default
+        run: tools/portable/build.sh
+      - name: Show package
+        run: |
+          ls -l .build/dist/
+          cat .build/dist/*.sha256

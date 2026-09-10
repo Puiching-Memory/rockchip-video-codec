@@ -1,0 +1,10 @@
+# rkvc SDK 的 pkg-config 描述文件。
+# prefix 由 pcfiledir 反推（本文件位于 <prefix>/<libdir>/pkgconfig），
+# 所以 SDK 目录整体移动/解包到任意路径后无需重新生成即可使用。
+prefix=${pcfiledir}/../..
+
+Name: rkvc
+Description: Rockchip video codec core (C ABI major @RKVC_ABI_MAJOR@, project @PROJECT_VERSION@)
+Version: @PROJECT_VERSION@
+Libs: -L${prefix}/@CMAKE_INSTALL_LIBDIR@ -lrkvc
+Cflags: -I${prefix}/@CMAKE_INSTALL_INCLUDEDIR@

@@ -22,8 +22,10 @@ option(RKVC_AV1_BUILD_TESTS "Build av1 tests" ON)
 
 if(RKVC_AV1_WITH_SVT)
     if(SVT_AV1_INSTALL_PREFIX)
+        # 前缀里头文件装在 include/svt-av1/（与发行版包布局一致）。
         find_path(SVT_INCLUDE_DIR NAMES EbSvtAv1Enc.h
-            PATHS ${SVT_AV1_INSTALL_PREFIX}/include NO_DEFAULT_PATH)
+            PATHS ${SVT_AV1_INSTALL_PREFIX}/include
+            PATH_SUFFIXES svt-av1 NO_DEFAULT_PATH)
         find_library(SVT_ENC_LIB NAMES SvtAv1Enc
             PATHS ${SVT_AV1_INSTALL_PREFIX}/lib
                   ${SVT_AV1_INSTALL_PREFIX}/lib64 NO_DEFAULT_PATH)
@@ -35,6 +37,29 @@ if(RKVC_AV1_WITH_SVT)
     if(NOT SVT_INCLUDE_DIR OR NOT SVT_ENC_LIB)
         message(STATUS "rkvc-av1: SVT-AV1 not found, encoder skipped")
         set(RKVC_AV1_WITH_SVT OFF)
+    else()
+        # 插件按 4.x API 写（init_handle 去掉 app_data、pred_structure 收紧为
+        # 枚举）；发行版包偏旧（noble 是 1.7.0）时当场说明，别让编译器在
+        # 头文件深处报一堆看不懂的错。
+        set(_svt_ver_major "")
+        foreach(h EbSvtAv1.h EbSvtAv1Enc.h)
+            if(SVT_INCLUDE_DIR AND EXISTS "${SVT_INCLUDE_DIR}/${h}")
+                file(STRINGS "${SVT_INCLUDE_DIR}/${h}" _svt_ver_line
+                    REGEX "^#define SVT_AV1_VERSION_MAJOR +[0-9]+")
+                if(_svt_ver_line)
+                    # 取整行再去掉前缀：不能直接 MATCH "[0-9]+"，宏名里的
+                    # "AV1" 会先被匹配中。
+                    string(REGEX REPLACE "^#define SVT_AV1_VERSION_MAJOR +" ""
+                        _svt_ver_major "${_svt_ver_line}")
+                    break()
+                endif()
+            endif()
+        endforeach()
+        if(_svt_ver_major AND _svt_ver_major LESS 4)
+            message(FATAL_ERROR "rkvc-av1: 需要 SVT-AV1 4.x，${SVT_INCLUDE_DIR} "
+                "是 ${_svt_ver_major}.x（构建 third_party/SVT-AV1 并传 "
+                "-DSVT_AV1_INSTALL_PREFIX）")
+        endif()
     endif()
 endif()
 

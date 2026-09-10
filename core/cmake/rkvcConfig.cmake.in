@@ -1,0 +1,8 @@
+@PACKAGE_INIT@
+
+# 由 configure_package_config_file 生成，PACKAGE_PREFIX_DIR 相对本文件定位，
+# 因此整个 SDK 目录可以整体移动位置（与包内 RPATH 用 $ORIGIN 的思路一致）。
+
+include("${CMAKE_CURRENT_LIST_DIR}/rkvcTargets.cmake")
+
+check_required_components(rkvc)

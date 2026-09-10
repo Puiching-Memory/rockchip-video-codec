@@ -190,12 +190,14 @@ RKMDL1 容器（魔数 `RKMDL1\x00\x00`，128B 头 + 88B 条目 + 多 qppatch �
 
 ## 发布
 
-本仓**没有打包器、不设 install 规则**：发布产物就是构建树
-（`rkvc` + `rkvc_*.so` 插件 + 所需 `.rkmodel`）。板端部署 = 复制这三样并用
-`--backend-dir/--model-dir`（或 `--model FILE`）指向它们；aarch64 产物另跑
-`tools/check-symbols.sh` 做 GLIBC 与 C++ 运行时审计。依赖（MPP / rknnrt /
-SVT）来自目标机系统路径或随包复制的前缀目录，由运行时链接器解析。
-历史可复现打包流程（rkvc-build / portable / SBOM）已随旧 C 树删除。
+`tools/portable/build.sh` 交叉构建 aarch64 可移植包
+（`rkvc-<版本>-linux-aarch64-portable.tar.gz`）：CLI + 全部 codec 插件 +
+随包运行库（MPP / rknnrt / SVT）+ 许可证 + 包内自测，整包可搬迁、装载
+插件免 `--backend-dir`。构建跑在 `tools/portable/Dockerfile` 的 jammy
+镜像里，产物 GLIBC ≤ 2.34 并自动过 `tools/check-symbols.sh`。
+不用包时，发布产物就是构建树（`rkvc` + `rkvc_*.so` 插件 + 所需
+`.rkmodel`），板端复制这三样并用 `--backend-dir/--model-dir` 指向它们。
+两套部署方式与包内容见 [docs/deployment.md](docs/deployment.md)。
 
 ## 文档
 

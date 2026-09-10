@@ -43,6 +43,10 @@ struct MppEncoderNode::Impl {
     MppApi* mpi = nullptr;
     MppCodingType coding = MPP_VIDEO_CodingUnused;
     MppBufferGroup group = nullptr;
+    // Caller-owned encode output buffer. MPP falls back to an internal buffer
+    // of only width * height bytes when the caller supplies no output packet,
+    // which an incompressible frame can exceed.
+    MppBuffer out_buf = nullptr;
     MppEncCfg cfg = nullptr;
     MppEncROICfg roi_cfg = {};
     MppEncROIRegion roi_regions[rkvc::kRoiMaxRegions] = {};
@@ -122,7 +126,10 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
                                                       : MPP_FMT_YUV420P;
 
     RK_S64 in_timeout = 5000;
-    RK_S64 out_timeout = MPP_TIMEOUT_NON_BLOCK;
+    // Output is drained up to the frame's EOI packet right after every
+    // put_frame, so get_packet must wait for that frame's output. The value
+    // only caps a stalled encoder.
+    RK_S64 out_timeout = 5000;
     MppEncHeaderMode header_mode = MPP_ENC_HEADER_MODE_EACH_IDR;
     if (mpp_create(&enc->ctx, &enc->mpi) != MPP_OK)
         return rkvc::Status::Hw;
@@ -212,6 +219,25 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
         enc->mpi = nullptr;
         return rkvc::Status::Hw;
     }
+    // MPP's own output packet buffer is only width * height bytes (see
+    // mpp_enc_check_pkt_buf), yet a high-entropy frame compresses to nearly its
+    // raw size. Without a caller buffer the encoder overruns that allocation
+    // and reports a packet whose position/length run past the end of the
+    // dmabuf, so copying the packet reads out of bounds. Hand it a full frame
+    // sized buffer like the MPP test encoders do.
+    uint32_t out_w = (enc->hor_stride + 63u) & ~63u;
+    uint32_t out_h = (enc->ver_stride + 63u) & ~63u;
+    size_t out_size = (size_t)out_w * out_h * 3 / 2;
+    if (mpp_buffer_get(enc->group, &enc->out_buf, out_size) != MPP_OK) {
+        if (diag)
+            diag->add("open", "mpp.encode", "output buffer alloc failed");
+        mpp_enc_cfg_deinit(cfg);
+        enc->cfg = nullptr;
+        mpp_destroy(enc->ctx);
+        enc->ctx = nullptr;
+        enc->mpi = nullptr;
+        return rkvc::Status::Hw;
+    }
     return rkvc::Status::Ok;
 }
 
@@ -270,6 +296,25 @@ rkvc::Status attach_roi(MppEncoderNode::Impl* enc, MppFrame frame,
     MppMeta meta = mpp_frame_get_meta(frame);
     if (!meta || mpp_meta_set_ptr(meta, KEY_ROI_DATA, &enc->roi_cfg) != MPP_OK)
         return rkvc::Status::Hw;
+    return rkvc::Status::Ok;
+}
+
+// Attaches the caller-owned output packet to the frame. MPP encodes into that
+// packet's buffer and returns the very same packet from encode_get_packet.
+rkvc::Status attach_output_packet(MppEncoderNode::Impl* enc, MppFrame frame) {
+    if (!enc->out_buf)
+        return rkvc::Status::Hw;
+    MppPacket packet = nullptr;
+    if (mpp_packet_init_with_buffer(&packet, enc->out_buf) != MPP_OK)
+        return rkvc::Status::Hw;
+    // NOTE: the reused packet must be reported as empty for the new frame.
+    mpp_packet_set_length(packet, 0);
+    MppMeta meta = mpp_frame_get_meta(frame);
+    if (!meta ||
+        mpp_meta_set_packet(meta, KEY_OUTPUT_PACKET, packet) != MPP_OK) {
+        mpp_packet_deinit(&packet);
+        return rkvc::Status::Hw;
+    }
     return rkvc::Status::Ok;
 }
 
@@ -333,6 +378,25 @@ rkvc::Status emit_packet(rkvc::Emit* emit, MppPacket packet) {
     fr.value()->set_pts(mpp_packet_get_pts(packet));
     fr.value()->set_dts(mpp_packet_get_dts(packet));
     return emit->emit(0, fr.value());
+}
+
+// Drains the output of the frame just submitted, up to and including the
+// packet flagged EOI. A packet that is not part of a partition sequence is a
+// complete frame on its own. Running out of packets is a stall: the output
+// buffer is reused by the next frame, so it must not be handed back while the
+// encoder may still be writing into it.
+rkvc::Status drain_frame_packets(MppEncoderNode::Impl* enc) {
+    for (;;) {
+        MppPacket packet = nullptr;
+        if (enc->mpi->encode_get_packet(enc->ctx, &packet) != MPP_OK || !packet)
+            return rkvc::Status::Hw;
+        bool last =
+            !mpp_packet_is_partition(packet) || mpp_packet_is_eoi(packet);
+        rkvc::Status st = emit_packet(enc->emit, packet);
+        mpp_packet_deinit(&packet);
+        if (st != rkvc::Status::Ok || last)
+            return st;
+    }
 }
 
 // Drain ready packets; until_eos must observe the EOS packet.
@@ -433,7 +497,9 @@ rkvc::Status MppEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     mpp_frame_set_fmt(frame, enc->format);
     mpp_frame_set_buffer(frame, buf);
     mpp_frame_set_pts(frame, input->pts());
-    rkvc::Status rc = attach_roi(enc, frame, input);
+    rkvc::Status rc = attach_output_packet(enc, frame);
+    if (rc == rkvc::Status::Ok)
+        rc = attach_roi(enc, frame, input);
     if (rc == rkvc::Status::Ok &&
         enc->mpi->encode_put_frame(enc->ctx, frame) != MPP_OK)
         rc = rkvc::Status::Hw;
@@ -442,7 +508,7 @@ rkvc::Status MppEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
         mpp_buffer_put(buf);
         return rc;
     }
-    rc = drain_packets(enc, false);
+    rc = drain_frame_packets(enc);
     mpp_buffer_put(buf);
     return rc;
 }
@@ -462,16 +528,13 @@ rkvc::Status MppEncoderNode::flush(rkvc::Diag* /*diag*/) {
     mpp_frame_set_ver_stride(frame, enc->ver_stride);
     mpp_frame_set_fmt(frame, enc->format);
     mpp_frame_set_eos(frame, 1);
-    rkvc::Status rc = enc->mpi->encode_put_frame(enc->ctx, frame) == MPP_OK
-                          ? rkvc::Status::Ok
-                          : rkvc::Status::Hw;
+    rkvc::Status rc = attach_output_packet(enc, frame);
+    if (rc == rkvc::Status::Ok &&
+        enc->mpi->encode_put_frame(enc->ctx, frame) != MPP_OK)
+        rc = rkvc::Status::Hw;
     mpp_frame_deinit(&frame);
     if (rc != rkvc::Status::Ok)
         return rc;
-    RK_S64 out_timeout = 5000;
-    if (enc->mpi->control(enc->ctx, MPP_SET_OUTPUT_TIMEOUT, &out_timeout) !=
-        MPP_OK)
-        return rkvc::Status::Hw;
     return drain_packets(enc, true);
 }
 
@@ -479,6 +542,10 @@ void MppEncoderNode::close() noexcept {
     Impl* enc = impl_.get();
     if (!enc)
         return;
+    if (enc->out_buf) {
+        mpp_buffer_put(enc->out_buf);
+        enc->out_buf = nullptr;
+    }
     if (enc->cfg) {
         mpp_enc_cfg_deinit(enc->cfg);
         enc->cfg = nullptr;

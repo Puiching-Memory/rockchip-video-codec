@@ -10,7 +10,7 @@
 | ---------- | -------------------------------------------------------------------------------------------------------- |
 | core       | 会话规划与执行、有界队列背压、EOS / 取消 / flush、FILE 与 FRAME_SINK 双端点、RKMDL1 模型注册表、文本诊断 |
 | `h264h265` | MPP H.264 / HEVC 硬编码与硬解码                                                                          |
-| `pspack` | GB28181 H.265/H.264 over PS 打包与解包（pack/system/PSM/PES，AU 组装）                                   |
+| `pspack`   | GB28181 H.265/H.264 over PS 打包与解包（pack/system/PSM/PES，AU 组装）                                   |
 | `av1`      | SVT-AV1 软件编码                                                                                         |
 | `mlvc`     | NPU 神经视频编解码，`.mlvc` 容器，P-only、无 B 帧                                                        |
 | `sr`       | Phase-RLFN 固定 3× NPU 超分（NHWC 输入 / NCHW 输出）                                                     |
@@ -26,6 +26,7 @@ MLVC 编解码链路：
 - [架构](architecture.md)：运行路径、插件握手、会话与端点、C ABI
 - [API 引用](api/)：C ABI 与 C++ 核心头文件的符号参考（Doxide 生成）
 - [部署](deployment.md)：发布产物、板端部署、第三方运行时、符号审计
+- [可移植包 × 宿主集成](portable-package.md)：包的三张面孔（CLI 自用 / 链 SDK / 源码内嵌）、SDK 用法、工具链指纹约束
 - [测试](testing.md)：C++ / Python / Bash 三类测试与板端回归
 - [MLVC RKNN 导出](mlvc-rknn-export.md)：ONNX → RKNN 模型生产与 NPU I/O 约定
 - [SR 模型规格](sr-model-yuv-spec.md)：Phase-RLFN I/O 契约与实测数据
