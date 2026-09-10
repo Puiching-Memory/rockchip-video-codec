@@ -23,11 +23,11 @@ bool parse(std::vector<std::string> words, std::string& cmd, cli::Args& a) {
 TEST_CASE("cli parses the board encode command") {
     std::string cmd;
     cli::Args a;
-    CHECK(parse({"rkvc", "encode", "--codec", "h264", "--input", "in.yuv",
-                 "--width", "640", "--height", "368", "--pixfmt", "nv12",
-                 "--output", "out.bin", "--backend-dir", "/tmp/x",
-                 "--qp", "21"},
-                cmd, a));
+    CHECK(
+        parse({"rkvc", "encode", "--codec", "h264", "--input", "in.yuv",
+               "--width", "640", "--height", "368", "--pixfmt", "nv12",
+               "--output", "out.bin", "--backend-dir", "/tmp/x", "--qp", "21"},
+              cmd, a));
     CHECK(cmd == "encode");
     CHECK(a.codec == "h264");
     CHECK(a.input == "in.yuv");
@@ -44,9 +44,9 @@ TEST_CASE("cli parses caps and optionals") {
     cli::Args a;
     CHECK(parse({"rkvc", "caps"}, cmd, a));
     CHECK(cmd == "caps");
-    CHECK(parse({"rkvc", "encode", "--codec", "av1", "--input", "i",
-                 "--width", "64", "--height", "64", "--pixfmt", "yuv420p",
-                 "--output", "o", "--bitrate", "1000000", "--gop", "30"},
+    CHECK(parse({"rkvc", "encode", "--codec", "av1", "--input", "i", "--width",
+                 "64", "--height", "64", "--pixfmt", "yuv420p", "--output", "o",
+                 "--bitrate", "1000000", "--gop", "30"},
                 cmd, a));
     CHECK(a.bitrate == 1000000);
     CHECK(a.gop == 30);
@@ -60,19 +60,20 @@ TEST_CASE("cli rejects bad input") {
     CHECK(!parse({"rkvc", "frobnicate"}, cmd, a));
     CHECK(!parse({"rkvc", "encode", "--bogus"}, cmd, a));
     CHECK(!parse({"rkvc", "encode", "--codec"}, cmd, a));
-    CHECK(!parse({"rkvc", "encode", "--codec", "h264", "--width", "6x4"},
-                 cmd, a));
+    CHECK(!parse({"rkvc", "encode", "--codec", "h264", "--width", "6x4"}, cmd,
+                 a));
 }
 
 TEST_CASE("cli parses model options") {
     std::string cmd;
     cli::Args a;
-    CHECK(parse({"rkvc", "encode", "--codec", "mlvc", "--input", "in.yuv",
-                 "--width", "640", "--height", "368", "--output", "out.bin",
-                 "--model", "a.rkmodel", "--model", "b.rkmodel",
-                 "--model-dir", "models/mlvc", "--model-id", "mlvc-rk3576",
-                 "--qp", "21"},
-                cmd, a));
+    CHECK(parse(
+        {"rkvc",      "encode",      "--codec",     "mlvc",       "--input",
+         "in.yuv",    "--width",     "640",         "--height",   "368",
+         "--output",  "out.bin",     "--model",     "a.rkmodel",  "--model",
+         "b.rkmodel", "--model-dir", "models/mlvc", "--model-id", "mlvc-rk3576",
+         "--qp",      "21"},
+        cmd, a));
     CHECK(a.models.size() == 2);
     CHECK(a.models[0] == "a.rkmodel");
     CHECK(a.models[1] == "b.rkmodel");
@@ -96,10 +97,10 @@ TEST_CASE("cli parses decode") {
 TEST_CASE("cli parses upscale") {
     std::string cmd;
     cli::Args a;
-    CHECK(parse({"rkvc", "upscale", "--input", "in.yuv", "--width", "640",
-                 "--height", "360", "--pixfmt", "nv12", "--output", "o.yuv",
-                 "--model-id", "sr-x3"},
-                cmd, a));
+    CHECK(parse(
+        {"rkvc", "upscale", "--input", "in.yuv", "--width", "640", "--height",
+         "360", "--pixfmt", "nv12", "--output", "o.yuv", "--model-id", "sr-x3"},
+        cmd, a));
     CHECK(cmd == "upscale");
     CHECK(a.width == 640);
     CHECK(a.model_id == "sr-x3");
@@ -111,19 +112,16 @@ TEST_CASE("cli parses version, inspect and fps") {
     CHECK(parse({"rkvc", "version", "--json"}, cmd, a));
     CHECK(cmd == "version");
     CHECK(a.json);
-    CHECK(parse({"rkvc", "inspect", "models", "--model-dir", "m",
-                 "--json"},
+    CHECK(parse({"rkvc", "inspect", "models", "--model-dir", "m", "--json"},
                 cmd, a));
     CHECK(cmd == "inspect");
     CHECK(a.sub == "models");
     CHECK(a.json);
-    CHECK(parse({"rkvc", "inspect", "backends", "--backend-dir", "b"},
-                cmd, a));
+    CHECK(parse({"rkvc", "inspect", "backends", "--backend-dir", "b"}, cmd, a));
     CHECK(a.sub == "backends");
     CHECK(!parse({"rkvc", "inspect", "frobnicate"}, cmd, a));
-    CHECK(parse({"rkvc", "encode", "--codec", "h264", "--input", "i",
-                 "--width", "64", "--height", "64", "--output", "o",
-                 "--fps", "120"},
+    CHECK(parse({"rkvc", "encode", "--codec", "h264", "--input", "i", "--width",
+                 "64", "--height", "64", "--output", "o", "--fps", "120"},
                 cmd, a));
     CHECK(a.fps == 120);
 }

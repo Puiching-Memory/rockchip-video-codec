@@ -9,8 +9,7 @@ namespace mlvc {
 namespace {
 
 uint32_t rd_u32(const uint8_t* p) noexcept {
-    return static_cast<uint32_t>(p[0]) |
-           (static_cast<uint32_t>(p[1]) << 8) |
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
            (static_cast<uint32_t>(p[2]) << 16) |
            (static_cast<uint32_t>(p[3]) << 24);
 }
@@ -27,8 +26,7 @@ constexpr uint32_t kMaxTab = 16u << 20;
 
 }  // namespace
 
-rkvc::Result<Pmf> load_pmf(const uint8_t* data, size_t size,
-                           rkvc::Diag* diag) {
+rkvc::Result<Pmf> load_pmf(const uint8_t* data, size_t size, rkvc::Diag* diag) {
     using R = rkvc::Result<Pmf>;
     auto bad = [&](const char* reason) {
         if (diag)
@@ -42,20 +40,18 @@ rkvc::Result<Pmf> load_pmf(const uint8_t* data, size_t size,
     uint32_t nT = rd_u32(data + 12);
     if (!nL || nL > kMaxLen || !nO || nO > kMaxLen || !nT || nT > kMaxTab)
         return bad("bad counts");
-    uint64_t need =
-        (static_cast<uint64_t>(nL) + nO + nT) * 4 + 4;
+    uint64_t need = (static_cast<uint64_t>(nL) + nO + nT) * 4 + 4;
     if (need > size - 16)
         return bad("truncated arrays");
     Pmf p;
     p.lengths.assign(reinterpret_cast<const int32_t*>(data + 16),
                      reinterpret_cast<const int32_t*>(data + 16 + nL * 4));
-    p.offsets.assign(reinterpret_cast<const int32_t*>(data + 16 + nL * 4),
-                     reinterpret_cast<const int32_t*>(data + 16 +
-                                                      (nL + nO) * 4));
-    p.table.assign(reinterpret_cast<const int32_t*>(data + 16 +
-                                                    (nL + nO) * 4),
-                   reinterpret_cast<const int32_t*>(data + 16 +
-                                                    (nL + nO + nT) * 4));
+    p.offsets.assign(
+        reinterpret_cast<const int32_t*>(data + 16 + nL * 4),
+        reinterpret_cast<const int32_t*>(data + 16 + (nL + nO) * 4));
+    p.table.assign(
+        reinterpret_cast<const int32_t*>(data + 16 + (nL + nO) * 4),
+        reinterpret_cast<const int32_t*>(data + 16 + (nL + nO + nT) * 4));
     const uint8_t* cur = data + 16 + (nL + nO + nT) * 4;
     uint32_t tag = rd_u32(cur);
     cur += 4;

@@ -90,8 +90,7 @@ TEST_CASE("identity plugin end to end") {
         CHECK(out.value()->pts() == 7);
         CHECK(out.value()->size() == buf.size());
         CHECK(out.value()->data() != nullptr);
-        const uint8_t* p =
-            static_cast<const uint8_t*>(out.value()->data());
+        const uint8_t* p = static_cast<const uint8_t*>(out.value()->data());
         CHECK(p[0] == 0xAB);
         CHECK(p[buf.size() - 1] == 0xAB);
     }

@@ -14,8 +14,8 @@ Result<std::shared_ptr<Session>> Session::create(Context& ctx,
     auto reject = [&](Status s, const char* reason) {
         if (diag)
             diag->add("create", "session", reason);
-        return Result<std::shared_ptr<Session>>::failure(
-            s, diag ? *diag : Diag{});
+        return Result<std::shared_ptr<Session>>::failure(s,
+                                                         diag ? *diag : Diag{});
     };
     if (!validate(req, diag))
         return reject(Status::Invalid, "bad request");
@@ -109,13 +109,21 @@ Status Session::push_eos() {
     return Status::Ok;
 }
 
-Result<FramePtr> Session::try_pull() { return out_->try_pop(); }
+Result<FramePtr> Session::try_pull() {
+    return out_->try_pop();
+}
 
-Result<FramePtr> Session::pull() { return out_->pop(); }
+Result<FramePtr> Session::pull() {
+    return out_->pop();
+}
 
-Status Session::wait() { return exec_.wait(); }
+Status Session::wait() {
+    return exec_.wait();
+}
 
-Diag Session::error_diag() const { return exec_.error_diag(); }
+Diag Session::error_diag() const {
+    return exec_.error_diag();
+}
 
 Status Session::close() {
     if (closed_)
@@ -129,6 +137,8 @@ Status Session::close() {
     return err;
 }
 
-Session::~Session() { close(); }
+Session::~Session() {
+    close();
+}
 
 }  // namespace rkvc

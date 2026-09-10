@@ -70,8 +70,7 @@ rkvc::Status resolve_entropy_geometry(EntropyConfig& cfg, int qp, int ZC,
 int nearest_rung(const std::vector<int>& rung_qp, int q) noexcept;
 void build_z_idx(std::vector<int32_t>& z_idx, int qp, int ZC, int ZH, int ZW);
 int find_input(const std::vector<NpuTensorInfo>& ts, const char* key) noexcept;
-int find_output(const std::vector<NpuTensorInfo>& ts,
-                const char* key) noexcept;
+int find_output(const std::vector<NpuTensorInfo>& ts, const char* key) noexcept;
 
 // MLVC neural encoder ("mlvc.encode") / decoder ("mlvc.decode"). The NPU
 // backend is injected (real RKNN in the plugin, fake in tests).

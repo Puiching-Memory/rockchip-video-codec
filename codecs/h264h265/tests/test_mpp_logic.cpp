@@ -7,8 +7,8 @@
 #include "h264h265/detail.hpp"
 
 TEST_CASE("annexb sniffing") {
-    using h264h265::detail::SniffedCodec;
     using h264h265::detail::sniff_annexb;
+    using h264h265::detail::SniffedCodec;
     // H.264 SPS (nal type 7) behind a 3-byte start code.
     const uint8_t h264[] = {0, 0, 1, 0x67, 0x42, 0x00, 0x1e, 0, 0, 1, 0x65};
     CHECK(sniff_annexb(h264, sizeof(h264)) == SniffedCodec::Avc);

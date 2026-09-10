@@ -20,8 +20,8 @@ const uint8_t kHevcP[] = {0, 0, 0, 1, 0x02, 0xCC};
 }  // namespace
 
 TEST_CASE("keyframe scan") {
-    using pspack::VideoCodec;
     using pspack::is_keyframe;
+    using pspack::VideoCodec;
     CHECK(is_keyframe(VideoCodec::Hevc, kHevcKey, sizeof(kHevcKey)));
     CHECK(!is_keyframe(VideoCodec::Hevc, kHevcP, sizeof(kHevcP)));
     const uint8_t avc_key[] = {0, 0, 1, 0x67, 0x42, 0, 0, 1, 0x65, 0x11};
@@ -33,9 +33,10 @@ TEST_CASE("keyframe scan") {
 }
 
 TEST_CASE("mux packet shape") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
-    auto key = mux_frame(VideoCodec::Hevc, kHevcKey, sizeof(kHevcKey), 9000, true);
+    using pspack::VideoCodec;
+    auto key =
+        mux_frame(VideoCodec::Hevc, kHevcKey, sizeof(kHevcKey), 9000, true);
     CHECK(key);
     if (key) {
         // pack(14) + system(15) + PSM(20) + video PES: fixed offsets.
@@ -59,7 +60,8 @@ TEST_CASE("mux packet shape") {
         const auto& ps = avc.value();
         bool psm_avc = false;
         for (size_t i = 0; i + 12 < ps.size(); ++i) {
-            if (ps[i] == 0 && ps[i + 1] == 0 && ps[i + 2] == 1 && ps[i + 3] == 0xBC)
+            if (ps[i] == 0 && ps[i + 1] == 0 && ps[i + 2] == 1 &&
+                ps[i + 3] == 0xBC)
                 psm_avc = ps[i + 12] == 0x1B;
         }
         CHECK(psm_avc);
@@ -67,8 +69,8 @@ TEST_CASE("mux packet shape") {
 }
 
 TEST_CASE("mux limits") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
+    using pspack::VideoCodec;
     CHECK(mux_frame(VideoCodec::Hevc, nullptr, 10, 0, true).status() ==
           rkvc::Status::Invalid);
     CHECK(mux_frame(VideoCodec::Hevc, kHevcP, 0, 0, true).status() ==
@@ -78,8 +80,8 @@ TEST_CASE("mux limits") {
 }
 
 TEST_CASE("roundtrip three frames") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
+    using pspack::VideoCodec;
     const int64_t pts[] = {0, 3000, 6000};
     const uint8_t* au[] = {kHevcKey, kHevcP, kHevcP};
     const size_t au_n[] = {sizeof(kHevcKey), sizeof(kHevcP), sizeof(kHevcP)};
@@ -118,9 +120,10 @@ TEST_CASE("roundtrip three frames") {
 }
 
 TEST_CASE("chunked feed and resync") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
-    auto r = mux_frame(VideoCodec::Hevc, kHevcKey, sizeof(kHevcKey), 3000, true);
+    using pspack::VideoCodec;
+    auto r =
+        mux_frame(VideoCodec::Hevc, kHevcKey, sizeof(kHevcKey), 3000, true);
     CHECK(r);
     auto r2 = mux_frame(VideoCodec::Hevc, kHevcP, sizeof(kHevcP), 6000, false);
     CHECK(r2);
@@ -155,8 +158,8 @@ TEST_CASE("chunked feed and resync") {
 }
 
 TEST_CASE("large frame splits across PES") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
+    using pspack::VideoCodec;
     std::vector<uint8_t> big = {0, 0, 0, 1, 0x26};
     big.insert(big.end(), 70000, 0xAB);
     auto r = mux_frame(VideoCodec::Hevc, big.data(), big.size(), 9000, true);
@@ -171,8 +174,7 @@ TEST_CASE("large frame splits across PES") {
     if (!tail)
         return;
     pspack::Demux demux;
-    CHECK(demux.append(r.value().data(), r.value().size()) ==
-          rkvc::Status::Ok);
+    CHECK(demux.append(r.value().data(), r.value().size()) == rkvc::Status::Ok);
     CHECK(demux.append(tail.value().data(), tail.value().size()) ==
           rkvc::Status::Ok);
     auto f = demux.next();
@@ -189,20 +191,20 @@ TEST_CASE("large frame splits across PES") {
 }
 
 TEST_CASE("pts wraps at 33 bits") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
+    using pspack::VideoCodec;
     int64_t pts = (1LL << 33) + 12345;
     auto r = mux_frame(VideoCodec::Hevc, kHevcP, sizeof(kHevcP), pts, false);
     CHECK(r);
     if (!r)
         return;
-    auto fin = mux_frame(VideoCodec::Hevc, kHevcP, sizeof(kHevcP), pts + 3000, false);
+    auto fin =
+        mux_frame(VideoCodec::Hevc, kHevcP, sizeof(kHevcP), pts + 3000, false);
     CHECK(fin);
     if (!fin)
         return;
     pspack::Demux demux;
-    CHECK(demux.append(r.value().data(), r.value().size()) ==
-          rkvc::Status::Ok);
+    CHECK(demux.append(r.value().data(), r.value().size()) == rkvc::Status::Ok);
     CHECK(demux.append(fin.value().data(), fin.value().size()) ==
           rkvc::Status::Ok);
     auto f = demux.next();
@@ -244,14 +246,15 @@ void put_video_pes(std::vector<uint8_t>& o, int64_t pts, bool with_dts,
 }  // namespace
 
 TEST_CASE("PSM decides the codec when the NALs are ambiguous") {
-    using pspack::VideoCodec;
     using pspack::mux_frame;
+    using pspack::VideoCodec;
     // 0x02 matches neither AVC (5/7) nor HEVC (19/20/32) NAL types, so the
     // AU alone cannot be sniffed: the PSM in the keyframe pack must win.
     const uint8_t ambiguous[] = {0, 0, 1, 0x02, 0x33};
     auto first =
         mux_frame(VideoCodec::Avc, ambiguous, sizeof(ambiguous), 9000, true);
-    auto second = mux_frame(VideoCodec::Avc, kHevcP, sizeof(kHevcP), 12000, false);
+    auto second =
+        mux_frame(VideoCodec::Avc, kHevcP, sizeof(kHevcP), 12000, false);
     CHECK(first);
     CHECK(second);
     if (!first || !second)

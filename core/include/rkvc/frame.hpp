@@ -73,11 +73,7 @@ public:
 
 private:
     Frame(Spec spec, void* data, size_t size, int fd, FrameHooks hooks)
-        : spec_(spec),
-          data_(data),
-          size_(size),
-          fd_(fd),
-          hooks_(hooks) {}
+        : spec_(spec), data_(data), size_(size), fd_(fd), hooks_(hooks) {}
 
     Spec spec_;
     void* data_ = nullptr;

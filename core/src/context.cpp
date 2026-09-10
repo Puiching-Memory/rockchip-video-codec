@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "rkvc/context.hpp"
 
+#include <dirent.h>
+#include <unistd.h>
 #include <cstdio>
 #include <cstring>
-#include <dirent.h>
 #include <string>
-#include <unistd.h>
 
 #include "builtin.hpp"
 
@@ -98,8 +98,7 @@ DeviceCaps Context::probe_device() {
         // NPU present bit; exact core count is refined by the RKNN backend
         // at registration (bare-context probe reports presence as 1).
         if (node_exists("/dev/rknpu") || node_exists("/dev/rknpu0") ||
-            node_exists("/dev/rknn") ||
-            dir_has("/dev/dri/by-path", "npu") ||
+            node_exists("/dev/rknn") || dir_has("/dev/dri/by-path", "npu") ||
             dir_has("/sys/class/devfreq", "npu")) {
             caps_.rknn = true;
             caps_.npu_cores = 1;
@@ -157,8 +156,7 @@ Result<Plan> Context::plan(const Request& req, Diag* diag) {
                 if (f->transport() == Transport::File)
                     st.candidates.push_back(f);
             if (st.candidates.empty())
-                return Result<void>::failure(Status::Unsupported,
-                                             Diag{});
+                return Result<void>::failure(Status::Unsupported, Diag{});
             p.steps.push_back(std::move(st));
             return Result<void>::success();
         }
@@ -171,8 +169,7 @@ Result<Plan> Context::plan(const Request& req, Diag* diag) {
         step.stage = st;
         step.candidates = registry_.candidates(st, req, caps);
         if (step.candidates.empty())
-            return reject(Status::NotFound,
-                          "required stage has no candidate");
+            return reject(Status::NotFound, "required stage has no candidate");
         p.steps.push_back(std::move(step));
     }
     if (!endpoint_step(req.output, false))

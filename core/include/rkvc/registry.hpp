@@ -33,8 +33,7 @@ struct Factory {
     virtual int priority() const noexcept { return 0; }
     virtual bool matches(const Request& r,
                          const DeviceCaps& caps) const noexcept = 0;
-    virtual int score(const Request& r,
-                      const DeviceCaps& caps) const noexcept {
+    virtual int score(const Request& r, const DeviceCaps& caps) const noexcept {
         (void)r;
         (void)caps;
         return 0;

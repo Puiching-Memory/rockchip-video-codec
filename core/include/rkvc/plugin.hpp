@@ -19,8 +19,7 @@ constexpr uint32_t kPluginAbi = 1;
 #define RKVC_PLUGIN_QUERY_SYMBOL "rkvc_plugin_query"
 
 /// g++ version + language/ABI switches that must match to share C++ types.
-#define RKVC_TOOLCHAIN_FINGERPRINT \
-    ("g++-" __VERSION__ "-c++20-noexc-nortti")
+#define RKVC_TOOLCHAIN_FINGERPRINT ("g++-" __VERSION__ "-c++20-noexc-nortti")
 
 struct HostServices {
     uint32_t abi = 0;  // kPluginAbi, filled by the host

@@ -37,18 +37,18 @@ public:
         owned_ = std::vector<uint8_t>(model.begin(), model.end());
         if (!patch.empty()) {
             rkvc::Diag d;
-            auto pr = apply_qppatch(owned_.data(), owned_.size(),
-                                    patch.data(), patch.size(), patch_qp, &d);
+            auto pr = apply_qppatch(owned_.data(), owned_.size(), patch.data(),
+                                    patch.size(), patch_qp, &d);
             if (!pr)
                 return rknn_failed(diag, "qppatch apply failed");
         }
-        if (rknn_init(&ctx_, (void*)owned_.data(), (uint32_t)owned_.size(),
-                      0, nullptr) != RKNN_SUCC) {
+        if (rknn_init(&ctx_, (void*)owned_.data(), (uint32_t)owned_.size(), 0,
+                      nullptr) != RKNN_SUCC) {
             ctx_ = 0;
             return rknn_failed(diag, "rknn_init failed");
         }
-        if (rknn_query(ctx_, RKNN_QUERY_IN_OUT_NUM, &io_,
-                       sizeof(io_)) != RKNN_SUCC ||
+        if (rknn_query(ctx_, RKNN_QUERY_IN_OUT_NUM, &io_, sizeof(io_)) !=
+                RKNN_SUCC ||
             io_.n_input == 0 || io_.n_input > 8 || io_.n_output == 0 ||
             io_.n_output > 8) {
             rknn_destroy(ctx_);
@@ -129,8 +129,7 @@ public:
         for (size_t i = 0; i < outs.size(); ++i) {
             size_t want = (size_t)out_attrs_[i].n_elems * 2;
             if (!outs[i].buf || outs[i].size < want) {
-                rknn_outputs_release(ctx_, (uint32_t)outs.size(),
-                                     outs.data());
+                rknn_outputs_release(ctx_, (uint32_t)outs.size(), outs.data());
                 return rknn_failed(diag, "short output");
             }
             const uint16_t* p = (const uint16_t*)outs[i].buf;

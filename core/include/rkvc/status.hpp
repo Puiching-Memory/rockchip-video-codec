@@ -23,7 +23,9 @@ enum class Status : int {
     Integrity = -16,
 };
 
-inline bool is_ok(Status s) { return s == Status::Ok; }
+inline bool is_ok(Status s) {
+    return s == Status::Ok;
+}
 inline bool is_flow(Status s) {
     return s == Status::Again || s == Status::Eof;
 }

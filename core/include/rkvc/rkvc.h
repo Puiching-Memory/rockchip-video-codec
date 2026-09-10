@@ -71,14 +71,14 @@ typedef enum rkvc_policy {
 
 /** 帧像素格式。 */
 typedef enum rkvc_frame_fmt {
-    RKVC_FRAME_FMT_UNKNOWN = 0,   /**< 未知 */
-    RKVC_FRAME_FMT_NV12 = 1,      /**< NV12 */
-    RKVC_FRAME_FMT_NV21 = 2,      /**< NV21 */
-    RKVC_FRAME_FMT_YUV420P = 3,   /**< YUV420P */
-    RKVC_FRAME_FMT_NV16 = 4,      /**< NV16 */
-    RKVC_FRAME_FMT_P010 = 5,      /**< P010（10-bit） */
-    RKVC_FRAME_FMT_RGB24 = 6,     /**< RGB24 */
-    RKVC_FRAME_FMT_BITSTREAM = 7  /**< 压缩比特流 */
+    RKVC_FRAME_FMT_UNKNOWN = 0,  /**< 未知 */
+    RKVC_FRAME_FMT_NV12 = 1,     /**< NV12 */
+    RKVC_FRAME_FMT_NV21 = 2,     /**< NV21 */
+    RKVC_FRAME_FMT_YUV420P = 3,  /**< YUV420P */
+    RKVC_FRAME_FMT_NV16 = 4,     /**< NV16 */
+    RKVC_FRAME_FMT_P010 = 5,     /**< P010（10-bit） */
+    RKVC_FRAME_FMT_RGB24 = 6,    /**< RGB24 */
+    RKVC_FRAME_FMT_BITSTREAM = 7 /**< 压缩比特流 */
 } rkvc_frame_fmt;
 
 /** 帧内存域。 */
@@ -94,13 +94,13 @@ typedef enum rkvc_endpoint_kind {
     RKVC_ENDPOINT_STREAM = 2      /**< 流式端点 */
 } rkvc_endpoint_kind;
 
-#define RKVC_FRAME_TS_UNKNOWN INT64_MIN  /**< 未知时间戳标记 */
+#define RKVC_FRAME_TS_UNKNOWN INT64_MIN /**< 未知时间戳标记 */
 
 /** 帧标志位。 */
 enum {
-    RKVC_FRAME_FLAG_KEYFRAME = 1u << 0,       /**< 关键帧 */
-    RKVC_FRAME_FLAG_DISCONTINUITY = 1u << 1,  /**< 流不连续 */
-    RKVC_FRAME_FLAG_CORRUPT = 1u << 2         /**< 数据损坏 */
+    RKVC_FRAME_FLAG_KEYFRAME = 1u << 0,      /**< 关键帧 */
+    RKVC_FRAME_FLAG_DISCONTINUITY = 1u << 1, /**< 流不连续 */
+    RKVC_FRAME_FLAG_CORRUPT = 1u << 2        /**< 数据损坏 */
 };
 
 /** 上下文创建选项。结构体自带 `struct_size`/`version` 用于前后向兼容演进。 */
@@ -144,26 +144,26 @@ typedef struct rkvc_session_request {
 
 /** 帧规格（宽/高/stride 为 0 表示通配或待探测）。 */
 typedef struct rkvc_frame_spec {
-    uint32_t width;        /**< 宽度 */
-    uint32_t height;       /**< 高度 */
-    rkvc_frame_fmt fmt;    /**< 像素格式 */
+    uint32_t width;         /**< 宽度 */
+    uint32_t height;        /**< 高度 */
+    rkvc_frame_fmt fmt;     /**< 像素格式 */
     rkvc_mem_domain domain; /**< 内存域 */
-    uint32_t stride;       /**< 行距 */
-    uint32_t ver_stride;   /**< 垂直行距（第二平面） */
-    uint64_t modifier;     /**< 内存修饰符 */
+    uint32_t stride;        /**< 行距 */
+    uint32_t ver_stride;    /**< 垂直行距（第二平面） */
+    uint64_t modifier;      /**< 内存修饰符 */
 } rkvc_frame_spec;
 
 /** 帧描述（包装与查询用）。 */
 typedef struct rkvc_frame_desc {
-    size_t struct_size;    /**< `sizeof` 校验 */
-    uint32_t version;      /**< 结构版本 */
-    rkvc_frame_spec spec;  /**< 帧规格 */
-    void *data;            /**< 数据指针（Host 域） */
-    size_t size;           /**< 数据大小 */
-    int fd;                /**< DMA-BUF fd（Dmabuf 域，可为 -1） */
-    int64_t pts;           /**< 显示时间戳 */
-    int64_t dts;           /**< 解码时间戳 */
-    uint32_t flags;        /**< RKVC_FRAME_FLAG_* 位标志 */
+    size_t struct_size;   /**< `sizeof` 校验 */
+    uint32_t version;     /**< 结构版本 */
+    rkvc_frame_spec spec; /**< 帧规格 */
+    void *data;           /**< 数据指针（Host 域） */
+    size_t size;          /**< 数据大小 */
+    int fd;               /**< DMA-BUF fd（Dmabuf 域，可为 -1） */
+    int64_t pts;          /**< 显示时间戳 */
+    int64_t dts;          /**< 解码时间戳 */
+    uint32_t flags;       /**< RKVC_FRAME_FLAG_* 位标志 */
 } rkvc_frame_desc;
 
 /** 设备能力探测结果。 */
@@ -247,7 +247,7 @@ void rkvc_session_destroy(rkvc_session *s);
 /** 取终端错误的阶段明细（wait 已排空后调用，立即返回；Ok 时 buf 置空）。
  * @param buf 输出缓冲区。
  * @param size 缓冲区大小。 */
-rkvc_status rkvc_session_error_text(rkvc_session* s, char* buf, size_t size);
+rkvc_status rkvc_session_error_text(rkvc_session *s, char *buf, size_t size);
 
 /** 初始化帧描述（填写 `struct_size`/`version`）。 */
 void rkvc_frame_desc_init(rkvc_frame_desc *desc, size_t size);

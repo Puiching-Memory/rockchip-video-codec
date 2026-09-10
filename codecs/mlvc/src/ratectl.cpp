@@ -66,11 +66,10 @@ void RateController::configure(double bitrate_bps) {
     if (bitrate_bps <= 0.0)
         return;
     LeakyBucket& b = alloc_.bucket;
-    int64_t excess = b.fill_bits - static_cast<int64_t>(
-                                        kInitLevel * b.capacity_bits);
+    int64_t excess =
+        b.fill_bits - static_cast<int64_t>(kInitLevel * b.capacity_bits);
     int64_t new_capacity = static_cast<int64_t>(bitrate_bps * kBucketSecs);
-    int64_t new_fill =
-        static_cast<int64_t>(kInitLevel * new_capacity) + excess;
+    int64_t new_fill = static_cast<int64_t>(kInitLevel * new_capacity) + excess;
     if (new_fill < 0)
         new_fill = 0;
     if (new_fill > new_capacity)
@@ -98,13 +97,12 @@ void RateController::lb_update(LeakyBucket& b, double pt, int64_t frame_bits) {
 
 int64_t RateController::ra_planned_excess(Allocator& a, double pt,
                                           double weight) {
-    double drain_secs = a.bucket.have_last_ts
-                            ? pt - a.bucket.last_drain_ts
-                            : 1.0 / a.bucket.fps;
+    double drain_secs = a.bucket.have_last_ts ? pt - a.bucket.last_drain_ts
+                                              : 1.0 / a.bucket.fps;
     int64_t decay = static_cast<int64_t>((drain_secs / kPlannedExcessTau) *
                                          a.accum_excess_bits);
-    int64_t excess = static_cast<int64_t>(
-        (weight - 1.0) * (a.bucket.bitrate / a.bucket.fps));
+    int64_t excess = static_cast<int64_t>((weight - 1.0) *
+                                          (a.bucket.bitrate / a.bucket.fps));
     int64_t max_excess =
         static_cast<int64_t>(0.5 * static_cast<double>(a.bucket.capacity_bits));
     if (excess < 0)
@@ -120,16 +118,15 @@ int64_t RateController::ra_planned_excess(Allocator& a, double pt,
 int64_t RateController::ra_allocate(Allocator& a, double pt, double weight,
                                     double undershoot_tau_override) {
     LeakyBucket& b = a.bucket;
-    int64_t nominal =
-        static_cast<int64_t>(weight * (b.bitrate / b.fps));
+    int64_t nominal = static_cast<int64_t>(weight * (b.bitrate / b.fps));
     int64_t planned_excess = ra_planned_excess(a, pt, weight);
-    int64_t target_fill = static_cast<int64_t>(kTargetLevel * b.capacity_bits) +
-                          planned_excess;
+    int64_t target_fill =
+        static_cast<int64_t>(kTargetLevel * b.capacity_bits) + planned_excess;
     int64_t current_fill = lb_calc_fill(b, pt);
     int64_t error_bits = target_fill - (current_fill + nominal);
     double tau = error_bits >= 0
                      ? (undershoot_tau_override > 0.0 ? undershoot_tau_override
-                                                     : kUndershootTau)
+                                                      : kUndershootTau)
                      : kOvershootTau;
     int64_t correction =
         static_cast<int64_t>((1.0 / (tau * b.fps)) * error_bits);
@@ -181,13 +178,11 @@ void RateController::rq_update(Rq& m, int q_index, double bpp) noexcept {
     m.num_updates++;
     if (m.have_beta_ramp) {
         double progress =
-            m.num_updates / (m.beta_ramp_duration > 1.0
-                                 ? m.beta_ramp_duration
-                                 : 1.0);
+            m.num_updates /
+            (m.beta_ramp_duration > 1.0 ? m.beta_ramp_duration : 1.0);
         if (progress > 1.0)
             progress = 1.0;
-        double new_beta =
-            m.beta + progress * (m.beta_ramp_target - m.beta);
+        double new_beta = m.beta + progress * (m.beta_ramp_target - m.beta);
         m.alpha *= exp((new_beta - m.cur_beta) * q_index);
         m.cur_beta = new_beta;
     }
@@ -203,8 +198,9 @@ RateController::Rq* RateController::model_for(RcFrameType t) noexcept {
 
 double RateController::frame_weight(RcFrameType t) noexcept {
     double w = prev_weight_ + (1.0 / 2.0) * (1.0 - prev_weight_);
-    double type_w =
-        t == RcFrameType::I ? 10.0 : t == RcFrameType::LtrRecovery ? 6.0 : 1.0;
+    double type_w = t == RcFrameType::I             ? 10.0
+                    : t == RcFrameType::LtrRecovery ? 6.0
+                                                    : 1.0;
     if (type_w > w)
         w = type_w;
     return w;
@@ -214,8 +210,7 @@ int RateController::solve(double presentation_time, RcFrameType frame_type,
                           int64_t reserved_overhead_bits) {
     double weight = frame_weight(frame_type);
     double undershoot_tau =
-        (frame_type == RcFrameType::I ||
-         frame_type == RcFrameType::LtrRecovery)
+        (frame_type == RcFrameType::I || frame_type == RcFrameType::LtrRecovery)
             ? 100.0
             : -1.0;
     int64_t allocated =

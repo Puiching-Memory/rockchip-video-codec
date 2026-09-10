@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "mlvc/codec.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <new>
 #include <span>
-#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -17,9 +17,13 @@ namespace mlvc {
 
 namespace {
 
-void free_buffer(void* p) noexcept { free(p); }
+void free_buffer(void* p) noexcept {
+    free(p);
+}
 
-bool fp16_finite(uint16_t h) noexcept { return (h & 0x7c00) != 0x7c00; }
+bool fp16_finite(uint16_t h) noexcept {
+    return (h & 0x7c00) != 0x7c00;
+}
 
 bool all_finite(std::span<const uint16_t> t) noexcept {
     for (uint16_t v : t)
@@ -83,7 +87,7 @@ struct MlvcDecoderNode::Impl {
 };
 
 MlvcDecoderNode::MlvcDecoderNode(rkvc::Request req, NpuModelFn make_model)
-    : impl_(new (std::nothrow) Impl()) {
+    : impl_(new(std::nothrow) Impl()) {
     if (impl_) {
         impl_->req = std::move(req);
         impl_->make_model = std::move(make_model);
@@ -105,8 +109,7 @@ std::vector<rkvc::Port> MlvcDecoderNode::make_ports() const {
 rkvc::Status MlvcDecoderNode::configure(std::vector<rkvc::Port>& ports,
                                         rkvc::Diag* diag) {
     for (const auto& p : ports) {
-        if (p.is_input &&
-            p.resolved.fmt != rkvc::PixelFormat::Unknown &&
+        if (p.is_input && p.resolved.fmt != rkvc::PixelFormat::Unknown &&
             p.resolved.fmt != rkvc::PixelFormat::Bitstream) {
             if (diag)
                 diag->add("configure", "mlvc.decode", "bitstream input only");
@@ -180,8 +183,8 @@ rkvc::Status resolve_dec_geom(MlvcDecoderNode::Impl* d, rkvc::Diag* diag) {
     const auto& rd = ins[d->dec_ref_in].dims;
     const auto& xd = outs[d->dec_x_out].dims;
     const auto& fd = outs[d->dec_ref_out].dims;
-    if (zd.size() != 4 || yd.size() != 4 || rd.size() != 4 ||
-        xd.size() != 4 || fd.size() != 4) {
+    if (zd.size() != 4 || yd.size() != 4 || rd.size() != 4 || xd.size() != 4 ||
+        fd.size() != 4) {
         if (diag)
             diag->add("bind", "mlvc.decode", "tensor rank mismatch");
         return rkvc::Status::Format;
@@ -243,8 +246,8 @@ rkvc::Status lazy_init(MlvcDecoderNode::Impl* d, rkvc::Diag* diag) {
     st = init_rungs(*d->model, rungs, d->make_model, d->rs, diag);
     if (st != rkvc::Status::Ok)
         return st;
-    st = setup_qrows(*d->model, *d->rs.models[d->rs.active], d->qptab,
-                     d->qrows, diag);
+    st = setup_qrows(*d->model, *d->rs.models[d->rs.active], d->qptab, d->qrows,
+                     diag);
     if (st != rkvc::Status::Ok)
         return st;
     if (d->qrows.present && d->rs.rung_qp.size() != 1) {
@@ -330,8 +333,8 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
         return bad(rkvc::Status::Format, "rANS stream open failed");
     if (dec.decode(d->b_coder, d->z_d, d->z_idx) != rkvc::Status::Ok)
         return bad(rkvc::Status::Format, "rANS z decode failed");
-    if (pixel::extract_scales(d->z_d.data(), d->s0.data(), d->s1.data(),
-                              d->y_c, d->y_h, d->y_w, d->z_c, d->z_h, d->z_w,
+    if (pixel::extract_scales(d->z_d.data(), d->s0.data(), d->s1.data(), d->y_c,
+                              d->y_h, d->y_w, d->z_c, d->z_h, d->z_w,
                               d->entropy.channel_repeat,
                               d->entropy.spatial_repeat,
                               d->entropy.scale_max_index) != rkvc::Status::Ok)
@@ -345,18 +348,17 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
     // NPU z/y inputs are NHWC; rANS yields NCHW int32.
     pixel::nchw_i32_to_nhwc_f16(d->z_d.data(), d->z_f16.data(), (int)d->z_c,
                                 (int)d->z_h, (int)d->z_w);
-    pixel::nchw_i32_to_nhwc_f16(d->y0_d.data(), d->y0_f16.data(),
-                                (int)d->y_c, (int)d->y_h, (int)d->y_w);
-    pixel::nchw_i32_to_nhwc_f16(d->y1_d.data(), d->y1_f16.data(),
-                                (int)d->y_c, (int)d->y_h, (int)d->y_w);
+    pixel::nchw_i32_to_nhwc_f16(d->y0_d.data(), d->y0_f16.data(), (int)d->y_c,
+                                (int)d->y_h, (int)d->y_w);
+    pixel::nchw_i32_to_nhwc_f16(d->y1_d.data(), d->y1_f16.data(), (int)d->y_c,
+                                (int)d->y_h, (int)d->y_w);
     const std::vector<uint16_t>& ref =
         ((rec_flags & kRecLtrRecovery) && d->have_ltr) ? d->ref_ltr
                                                        : d->ref_prev;
     // Reference slot is NCHW; the NPU takes NHWC.
     pixel::nchw_f16_to_nhwc(ref.data(), d->ref_feed.data(), (int)d->ref_c,
                             (int)d->ref_h, (int)d->ref_w);
-    rkvc::Status st =
-        npu.set_input(d->dec_z_in, d->z_f16);
+    rkvc::Status st = npu.set_input(d->dec_z_in, d->z_f16);
     if (st == rkvc::Status::Ok)
         st = npu.set_input(d->dec_y0_in, d->y0_f16);
     if (st == rkvc::Status::Ok)
@@ -368,8 +370,8 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
         size_t idx = d->qrows.rows[i].first;
         const QpTable* t = d->qrows.rows[i].second;
         const uint16_t* row = qptab_row(*t, (uint32_t)rec_q);
-        st = npu.set_input(idx, std::span<const uint16_t>(
-                                    row, row ? t->cols : 0));
+        st = npu.set_input(idx,
+                           std::span<const uint16_t>(row, row ? t->cols : 0));
     }
     if (st == rkvc::Status::Ok)
         st = npu.run(diag);
@@ -377,16 +379,14 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
         return bad(st, "NPU run failed");
     auto xh = npu.output(d->dec_x_out);
     auto fv = npu.output(d->dec_ref_out);
-    if (fv.size() != d->ref_prev.size() || !all_finite(xh) ||
-        !all_finite(fv)) {
+    if (fv.size() != d->ref_prev.size() || !all_finite(xh) || !all_finite(fv)) {
         return bad(rkvc::Status::Hw, "bad NPU outputs");
     }
     // Tail-extracted x_hat: CPU DCR to NCHW YUV, then shared saturate path.
     const uint16_t* yuv = xh.data();
     std::vector<uint16_t> d2s;
     if (d->x_d2s_bs > 0) {
-        size_t pre_n =
-            (size_t)d->x_pre_c * d->x_pre_h * d->x_pre_w;
+        size_t pre_n = (size_t)d->x_pre_c * d->x_pre_h * d->x_pre_w;
         if (xh.size() < pre_n)
             return bad(rkvc::Status::Hw, "short tail output");
         d2s.resize((size_t)3 * d->img_w * d->img_h);
@@ -403,9 +403,9 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
     uint8_t* nv12 = static_cast<uint8_t*>(malloc(nv12_size));
     if (!nv12)
         return bad(rkvc::Status::Nomem, "no memory");
-    pixel::nchw_yuv_fp16_to_nv12_planes(
-        yuv, d->img_w, d->img_h, nv12, d->img_w,
-        nv12 + (size_t)d->img_w * d->img_h, d->img_w);
+    pixel::nchw_yuv_fp16_to_nv12_planes(yuv, d->img_w, d->img_h, nv12, d->img_w,
+                                        nv12 + (size_t)d->img_w * d->img_h,
+                                        d->img_w);
 
     d->ref_prev.assign(fv.begin(), fv.end());
     if (rec_flags & kRecLtrMark) {
@@ -421,8 +421,8 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
     spec.fmt = rkvc::PixelFormat::Nv12;
     spec.stride = d->img_w;
     spec.ver_stride = d->img_h;
-    auto fr = rkvc::Frame::borrow_host(spec, nv12, nv12_size,
-                                       {free_buffer, nv12});
+    auto fr =
+        rkvc::Frame::borrow_host(spec, nv12, nv12_size, {free_buffer, nv12});
     if (!fr) {
         free(nv12);
         return bad(fr.status(), "output frame alloc failed");
@@ -488,8 +488,8 @@ rkvc::Status MlvcDecoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
                 spec.fmt = rkvc::PixelFormat::Nv12;
                 spec.stride = d->img_w;
                 spec.ver_stride = d->img_h;
-                auto fr = rkvc::Frame::borrow_host(
-                    spec, nv12, n, {free_buffer, nv12});
+                auto fr = rkvc::Frame::borrow_host(spec, nv12, n,
+                                                   {free_buffer, nv12});
                 if (!fr) {
                     free(nv12);
                     return bad(fr.status(), "drop frame alloc failed");
@@ -502,8 +502,8 @@ rkvc::Status MlvcDecoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
             d->demux.consume_record();
             continue;
         }
-        rkvc::Status st = decode_frame(d, v.data, v.size, v.q_index, v.flags,
-                                       diag);
+        rkvc::Status st =
+            decode_frame(d, v.data, v.size, v.q_index, v.flags, diag);
         if (st != rkvc::Status::Ok)
             return st;
         d->demux.consume_record();

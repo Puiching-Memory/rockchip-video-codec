@@ -1,0 +1,22 @@
+---
+# House style: Google's rules with a 4-space indent and an 80-column limit.
+# CI gates on this file, so the clang-format major version is pinned there
+# (clang-format-18): bumping it is a deliberate, reviewed reformat commit.
+BasedOnStyle: Google
+ColumnLimit: 80
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+IndentCaseLabels: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+IncludeBlocks: Preserve
+# Manual line breaks inside comments are meaningful (Chinese prose, aligned
+# option tables), so leave them alone.
+ReflowComments: false
+# Never split a string literal: it changes source text for no readability win.
+BreakStringLiterals: false
+# Macro continuations are hand-aligned; re-aligning them only adds trailing
+# whitespace that editors and `git diff --check` fight over.
+AlignEscapedNewlines: DontAlign

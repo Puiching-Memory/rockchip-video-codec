@@ -25,7 +25,9 @@ constexpr uint32_t kFps = 30;
 constexpr uint32_t kDefaultGop = 60;
 constexpr int64_t kTsBase = 90000;
 
-void release_packet(void* p) noexcept { free(p); }
+void release_packet(void* p) noexcept {
+    free(p);
+}
 
 #ifdef __linux__
 void dmabuf_read_sync(int fd, unsigned long flags) noexcept {
@@ -53,7 +55,7 @@ struct SvtEncoderNode::Impl {
 };
 
 SvtEncoderNode::SvtEncoderNode(rkvc::Request req)
-    : impl_(new (std::nothrow) Impl()) {
+    : impl_(new(std::nothrow) Impl()) {
     if (impl_)
         impl_->req = std::move(req);
 }
@@ -78,8 +80,7 @@ std::vector<rkvc::Port> SvtEncoderNode::make_ports() const {
 rkvc::Status SvtEncoderNode::configure(std::vector<rkvc::Port>& ports,
                                        rkvc::Diag* diag) {
     for (const auto& p : ports) {
-        if (p.is_input &&
-            p.resolved.fmt != rkvc::PixelFormat::Nv12 &&
+        if (p.is_input && p.resolved.fmt != rkvc::PixelFormat::Nv12 &&
             p.resolved.fmt != rkvc::PixelFormat::Yuv420P) {
             if (diag)
                 diag->add("configure", "svt.encode",
@@ -223,8 +224,8 @@ rkvc::Status SvtEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     if (spec.domain == rkvc::MemDomain::Dmabuf) {
         if (input->size() == 0 || input->fd() < 0)
             return rkvc::Status::Format;
-        mapped = mmap(nullptr, input->size(), PROT_READ, MAP_SHARED,
-                      input->fd(), 0);
+        mapped =
+            mmap(nullptr, input->size(), PROT_READ, MAP_SHARED, input->fd(), 0);
         if (mapped == MAP_FAILED)
             return rkvc::Status::Io;
         dmabuf_read_sync(input->fd(), DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ);
@@ -394,8 +395,8 @@ int SvtEncodeFactory::score(const rkvc::Request& r,
                : 0;
 }
 
-rkvc::Result<rkvc::NodePtr> SvtEncodeFactory::create(
-    const rkvc::Request& r, rkvc::Diag*) const {
+rkvc::Result<rkvc::NodePtr> SvtEncodeFactory::create(const rkvc::Request& r,
+                                                     rkvc::Diag*) const {
     rkvc::NodePtr n(new (std::nothrow) SvtEncoderNode(r));
     if (!n)
         return rkvc::Result<rkvc::NodePtr>::failure(rkvc::Status::Nomem);

@@ -76,8 +76,8 @@ rkvc::Status extract_scales(const int32_t* z_r, int32_t* s0, int32_t* s1,
         ZH <= 0 || ZW <= 0 || channel_repeat <= 0 || spatial_repeat <= 0 ||
         scale_max_index < 0)
         return rkvc::Status::Invalid;
-    int64_t need_z = (static_cast<int64_t>(2) * YC + channel_repeat - 1) /
-                     channel_repeat;
+    int64_t need_z =
+        (static_cast<int64_t>(2) * YC + channel_repeat - 1) / channel_repeat;
     if (need_z > ZC)
         return rkvc::Status::Invalid;
 
@@ -156,8 +156,8 @@ void detail::nc1hwc2_to_nchw_scalar(const uint16_t* src, int32_t* dst, int C,
         int c1 = c >> 3, c2 = c & 7;
         for (int y = 0; y < H; y++)
             for (int x = 0; x < W; x++)
-                dst[((size_t)c * H + y) * W + x] = lrintf(f16_to_f32(
-                    src[(((size_t)c1 * H + y) * W + x) * 8 + c2]));
+                dst[((size_t)c * H + y) * W + x] = lrintf(
+                    f16_to_f32(src[(((size_t)c1 * H + y) * W + x) * 8 + c2]));
     }
 }
 
@@ -190,8 +190,7 @@ void nc1hwc2_to_nchw(const uint16_t* src, int32_t* dst, int C, int H,
             int xt = x;
             for (; x < W; x++)
                 for (int k = 0; k < 8; k++)
-                    dp[k][x] =
-                        lrintf(f16_to_f32(sp[(size_t)(x - xt) * 8 + k]));
+                    dp[k][x] = lrintf(f16_to_f32(sp[(size_t)(x - xt) * 8 + k]));
         }
     }
 #else
@@ -200,7 +199,7 @@ void nc1hwc2_to_nchw(const uint16_t* src, int32_t* dst, int C, int H,
 }
 
 void nchw_to_nc1hwc2_fp16(const int32_t* src, uint16_t* dst, int C, int H,
-                           int W) noexcept {
+                          int W) noexcept {
     for (int c = 0; c < C; c++) {
         int c1 = c >> 3, c2 = c & 7;
         for (int y = 0; y < H; y++)
@@ -211,7 +210,7 @@ void nchw_to_nc1hwc2_fp16(const int32_t* src, uint16_t* dst, int C, int H,
 }
 
 void nchw_i32_to_nhwc_f16(const int32_t* src, uint16_t* dst, int C, int H,
-                           int W) noexcept {
+                          int W) noexcept {
     for (int y = 0; y < H; y++)
         for (int x = 0; x < W; x++)
             for (int c = 0; c < C; c++)
@@ -220,7 +219,7 @@ void nchw_i32_to_nhwc_f16(const int32_t* src, uint16_t* dst, int C, int H,
 }
 
 void nchw_f16_to_nhwc(const uint16_t* src, uint16_t* dst, int C, int H,
-                       int W) noexcept {
+                      int W) noexcept {
     for (int y = 0; y < H; y++)
         for (int x = 0; x < W; x++)
             for (int c = 0; c < C; c++)
@@ -228,22 +227,21 @@ void nchw_f16_to_nhwc(const uint16_t* src, uint16_t* dst, int C, int H,
                     src[((size_t)c * H + y) * W + x];
 }
 
-void nchw_d2s_dcr_f16(const uint16_t* src, uint16_t* dst, int OC, int H,
-                       int W, int bs) noexcept {
+void nchw_d2s_dcr_f16(const uint16_t* src, uint16_t* dst, int OC, int H, int W,
+                      int bs) noexcept {
     int OH = H * bs, OW = W * bs;
     for (int c = 0; c < OC; ++c)
         for (int y = 0; y < OH; ++y)
             for (int x = 0; x < OW; ++x) {
                 int dy = y % bs, dx = x % bs;
                 dst[((size_t)c * OH + y) * OW + x] =
-                    src[(((size_t)(dy * bs + dx) * OC + c) * H + y / bs) *
-                            W +
+                    src[(((size_t)(dy * bs + dx) * OC + c) * H + y / bs) * W +
                         x / bs];
             }
 }
 
 void nchw_f16_to_nc1hwc2(const uint16_t* src, uint16_t* dst, int C, int H,
-                          int W, int C2, int w_stride) noexcept {
+                         int W, int C2, int w_stride) noexcept {
     if (!src || !dst || C <= 0 || H <= 0 || W <= 0 || C2 <= 0)
         return;
     if (w_stride <= 0)
@@ -301,8 +299,7 @@ void nc1hwc2_d2s_dcr_f16(const uint16_t* src, uint16_t* out, int C1, int H,
             size_t choff[16];
             for (int dx = 0; dx < bs; dx++) {
                 int ic = dy * (bs * oc) + dx * oc + c;
-                choff[dx] =
-                    (size_t)(ic / C2) * H * W * C2 + (size_t)(ic % C2);
+                choff[dx] = (size_t)(ic / C2) * H * W * C2 + (size_t)(ic % C2);
             }
             for (int h = 0; h < H; h++) {
                 uint16_t* orow = out + ((size_t)c * oh + h * bs + dy) * ow;
@@ -316,8 +313,8 @@ void nc1hwc2_d2s_dcr_f16(const uint16_t* src, uint16_t* out, int C1, int H,
 }
 
 void yuv_to_nhwc_fp16(const uint8_t* yp, int y_stride, const uint8_t* up,
-                       const uint8_t* vp, int uv_stride, int nv12, int W,
-                       int H, uint16_t* nhwc) noexcept {
+                      const uint8_t* vp, int uv_stride, int nv12, int W, int H,
+                      uint16_t* nhwc) noexcept {
     uint16_t lut[256];
     for (int i = 0; i < 256; i++)
         lut[i] = f32_to_f16((float)i * (1.0f / 255.0f));
@@ -383,8 +380,8 @@ void detail::nchw_yuv_fp16_to_nv12_planes_scalar(const uint16_t* src, int W,
 }
 
 void nchw_yuv_fp16_to_nv12_planes(const uint16_t* src, int W, int H,
-                                   uint8_t* yp, int y_stride, uint8_t* uv,
-                                   int uv_stride) noexcept {
+                                  uint8_t* yp, int y_stride, uint8_t* uv,
+                                  int uv_stride) noexcept {
 #ifdef MLVC_PX_NEON
     size_t plane = (size_t)H * W;
     for (int y = 0; y < H; y++) {
@@ -424,14 +421,13 @@ void nchw_yuv_fp16_to_nv12_planes(const uint16_t* src, int W, int H,
 }
 
 void nc1hwc2_fp16_to_nv12_planes(const uint16_t* src, int W, int H, int c2,
-                                  uint8_t* yp, int y_stride, uint8_t* uv,
-                                  int uv_stride) noexcept {
+                                 uint8_t* yp, int y_stride, uint8_t* uv,
+                                 int uv_stride) noexcept {
     for (int y = 0; y < H; y++) {
         const uint16_t* sp = src + (size_t)y * W * c2;
         uint8_t* dp = yp + (size_t)y * y_stride;
         for (int x = 0; x < W; x++) {
-            int v =
-                (int)lrintf(f16_to_f32(sp[(size_t)x * c2]) * 255.0f);
+            int v = (int)lrintf(f16_to_f32(sp[(size_t)x * c2]) * 255.0f);
             dp[x] = (uint8_t)(v < 0 ? 0 : (v > 255 ? 255 : v));
         }
     }

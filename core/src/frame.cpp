@@ -16,8 +16,8 @@ Result<std::shared_ptr<Frame>> Frame::borrow_host(const Spec& spec, void* data,
     auto reject = [&](Status s, const char* reason) {
         if (diag)
             diag->add("wrap", "frame", reason);
-        return Result<std::shared_ptr<Frame>>::failure(
-            s, diag ? *diag : Diag{});
+        return Result<std::shared_ptr<Frame>>::failure(s,
+                                                       diag ? *diag : Diag{});
     };
     if (spec.domain != MemDomain::Host)
         return reject(Status::Invalid, "host borrow needs host domain");
@@ -42,8 +42,8 @@ Result<std::shared_ptr<Frame>> Frame::borrow_dmabuf(const Spec& spec, int fd,
     auto reject = [&](Status s, const char* reason) {
         if (diag)
             diag->add("wrap", "frame", reason);
-        return Result<std::shared_ptr<Frame>>::failure(
-            s, diag ? *diag : Diag{});
+        return Result<std::shared_ptr<Frame>>::failure(s,
+                                                       diag ? *diag : Diag{});
     };
     if (spec.domain != MemDomain::Dmabuf)
         return reject(Status::Invalid, "dmabuf borrow needs dmabuf domain");
@@ -59,12 +59,11 @@ Result<std::shared_ptr<Frame>> Frame::borrow_dmabuf(const Spec& spec, int fd,
 }
 
 Result<void> Frame::set_roi(const RoiRegion* regions, size_t count,
-                             Diag* diag) {
+                            Diag* diag) {
     auto reject = [&](const char* reason) {
         if (diag)
             diag->add("wrap", "roi", reason);
-        return Result<void>::failure(Status::Invalid,
-                                     diag ? *diag : Diag{});
+        return Result<void>::failure(Status::Invalid, diag ? *diag : Diag{});
     };
     if (count > kRoiMaxRegions)
         return reject("too many roi regions");

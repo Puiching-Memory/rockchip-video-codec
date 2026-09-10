@@ -5,6 +5,8 @@
 
 namespace mlvc {
 
-std::unique_ptr<NpuModel> make_rknn_model() { return nullptr; }
+std::unique_ptr<NpuModel> make_rknn_model() {
+    return nullptr;
+}
 
 }  // namespace mlvc

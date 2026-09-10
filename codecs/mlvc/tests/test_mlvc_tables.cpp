@@ -194,8 +194,7 @@ TEST_CASE("qpt1 tables with clamp") {
 
 TEST_CASE("crc32 isotest") {
     const char* v = "123456789";
-    CHECK(mlvc::crc32(reinterpret_cast<const uint8_t*>(v), 9) ==
-          0xCBF43926u);
+    CHECK(mlvc::crc32(reinterpret_cast<const uint8_t*>(v), 9) == 0xCBF43926u);
     CHECK(mlvc::crc32(nullptr, 0) == 0);
 }
 
@@ -225,7 +224,7 @@ TEST_CASE("qpp1 apply with crc") {
     CHECK(mlvc::apply_qppatch(base.data(), base.size(), patch.data(),
                               patch.size(), 22)
               .status() == rkvc::Status::Format);  // qp mismatch + crc moved
-    patch.back() ^= 0xff;  // corrupt payload
+    patch.back() ^= 0xff;                          // corrupt payload
     CHECK(mlvc::apply_qppatch(base.data(), base.size(), patch.data(),
                               patch.size(), -1)
               .status() == rkvc::Status::Format);

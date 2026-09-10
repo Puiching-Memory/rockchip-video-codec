@@ -16,8 +16,7 @@ Context::~Context() {
 Status Context::load_plugin(const std::string& path, Diag* diag) {
     auto reject = [&](Status s, const char* reason) {
         if (diag)
-            diag->add("load", path.empty() ? "<empty>" : path.c_str(),
-                      reason);
+            diag->add("load", path.empty() ? "<empty>" : path.c_str(), reason);
         return s;
     };
     if (path.empty())
@@ -31,8 +30,8 @@ Status Context::load_plugin(const std::string& path, Diag* diag) {
         }
         return Status::NotFound;
     }
-    auto query =
-        reinterpret_cast<PluginQueryFn>(dlsym(handle, RKVC_PLUGIN_QUERY_SYMBOL));
+    auto query = reinterpret_cast<PluginQueryFn>(
+        dlsym(handle, RKVC_PLUGIN_QUERY_SYMBOL));
     if (!query) {
         dlclose(handle);
         return reject(Status::NotFound, "missing query symbol");

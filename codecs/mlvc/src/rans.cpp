@@ -16,8 +16,7 @@ constexpr uint64_t k64Lower = 1ULL << 31;
 
 uint64_t mul64hi(uint64_t a, uint64_t b) noexcept {
 #if defined(__SIZEOF_INT128__)
-    return static_cast<uint64_t>(
-        (static_cast<__uint128_t>(a) * b) >> 64);
+    return static_cast<uint64_t>((static_cast<__uint128_t>(a) * b) >> 64);
 #else
     uint64_t a_lo = static_cast<uint32_t>(a), a_hi = a >> 32;
     uint64_t b_lo = static_cast<uint32_t>(b), b_hi = b >> 32;
@@ -126,14 +125,14 @@ rkvc::Result<RansCoder> RansCoder::create(RansVariant variant,
             int32_t start = 0;
             for (int32_t i = 0; i <= c.dists_[d].bypass_sentinel; ++i) {
                 int32_t freq = table[tbl];
-                if (!(freq > 0 && freq <= static_cast<int32_t>(max_freq - start)))
+                if (!(freq > 0 &&
+                      freq <= static_cast<int32_t>(max_freq - start)))
                     return bad(rkvc::Status::Format, "bad freq");
                 if (variant == RansVariant::Byte)
                     enc_sym_init_byte(c.enc_syms_[tbl], start, freq,
                                       symbol_bits);
                 else
-                    enc_sym_init_64(c.enc_syms_[tbl], start, freq,
-                                    symbol_bits);
+                    enc_sym_init_64(c.enc_syms_[tbl], start, freq, symbol_bits);
                 start += freq;
                 ++tbl;
             }
@@ -149,7 +148,8 @@ rkvc::Result<RansCoder> RansCoder::create(RansVariant variant,
             int32_t start = 0;
             for (int32_t i = 0; i <= desc.bypass_sentinel; ++i, ++tbl) {
                 int32_t freq = table[tbl];
-                if (!(freq > 0 && freq <= static_cast<int32_t>(max_freq - start)))
+                if (!(freq > 0 &&
+                      freq <= static_cast<int32_t>(max_freq - start)))
                     return bad(rkvc::Status::Format, "bad freq");
                 c.cdf_table_[tbl + d] = static_cast<uint32_t>(start);
                 start += freq;
@@ -233,9 +233,8 @@ void RansEncoder::renorm_64(uint64_t x_max) {
 void RansEncoder::put_sym_byte(const RansEncSym& s) {
     renorm_byte(s.x_max_hi);
     uint32_t x = static_cast<uint32_t>(state_);
-    uint32_t q =
-        static_cast<uint32_t>((static_cast<uint64_t>(x) * s.freq_rcp) >>
-                              s.freq_rcp_shift);
+    uint32_t q = static_cast<uint32_t>(
+        (static_cast<uint64_t>(x) * s.freq_rcp) >> s.freq_rcp_shift);
     x += q * s.freq_cmpl + s.bias;
     state_ = x;
 }
@@ -244,15 +243,13 @@ void RansEncoder::put_sym_64(const RansEncSym& s) {
     uint64_t x_max = static_cast<uint64_t>(s.x_max_hi) << 32;
     renorm_64(x_max);
     uint64_t x = state_;
-    uint64_t rcp =
-        (static_cast<uint64_t>(s.freq_rcp_hi) << 32) | s.freq_rcp;
+    uint64_t rcp = (static_cast<uint64_t>(s.freq_rcp_hi) << 32) | s.freq_rcp;
     uint64_t q = mul64hi(x, rcp) >> s.freq_rcp_shift;
     x += q * s.freq_cmpl + s.bias;
     state_ = x;
 }
 
-void RansEncoder::put_raw(uint32_t start, uint32_t freq,
-                          uint32_t scale_bits) {
+void RansEncoder::put_raw(uint32_t start, uint32_t freq, uint32_t scale_bits) {
     if (variant_ == RansVariant::Byte) {
         uint32_t x_max = freq << (kByteStateBits - scale_bits);
         renorm_byte(x_max);
@@ -260,8 +257,7 @@ void RansEncoder::put_raw(uint32_t start, uint32_t freq,
         x = ((x / freq) << scale_bits) + start + (x % freq);
         state_ = x;
     } else {
-        uint64_t x_max =
-            static_cast<uint64_t>(freq) << (63 - scale_bits);
+        uint64_t x_max = static_cast<uint64_t>(freq) << (63 - scale_bits);
         renorm_64(x_max);
         uint64_t x = state_;
         x = ((x / freq) << scale_bits) + start + (x % freq);
@@ -310,10 +306,10 @@ rkvc::Status RansEncoder::encode(const RansCoder& coder,
         const RansDist& desc = coder.dists()[index];
         int32_t value = values[k - 1] + desc.value_offset;
         if (value < 0 || value >= desc.bypass_sentinel) {
-            uint32_t bv = (value < 0)
-                              ? 2u * static_cast<uint32_t>(-value) - 1
-                              : 2u * static_cast<uint32_t>(value -
-                                                           desc.bypass_sentinel);
+            uint32_t bv =
+                (value < 0)
+                    ? 2u * static_cast<uint32_t>(-value) - 1
+                    : 2u * static_cast<uint32_t>(value - desc.bypass_sentinel);
             bypass(coder, bv);
             value = desc.bypass_sentinel;
         }
@@ -508,8 +504,7 @@ rkvc::Status RansDecoder::decode(const RansCoder& coder,
             index = static_cast<int32_t>(coder.dists().size()) - 1;
         const RansDist& desc = coder.dists()[index];
         uint32_t cum = get(coder.symbol_bits());
-        const uint32_t* base =
-            coder.cdf_table().data() + desc.dec_cdf_offset;
+        const uint32_t* base = coder.cdf_table().data() + desc.dec_cdf_offset;
         int32_t lo = 0;
         int32_t hi = desc.bypass_sentinel + 1;
         while (lo < hi) {
@@ -535,8 +530,7 @@ rkvc::Status RansDecoder::decode(const RansCoder& coder,
             if (bv & 1)
                 symbol = -static_cast<int32_t>(bv >> 1) - 1;
             else
-                symbol =
-                    static_cast<int32_t>(bv >> 1) + desc.bypass_sentinel;
+                symbol = static_cast<int32_t>(bv >> 1) + desc.bypass_sentinel;
         }
         values[i] = symbol - desc.value_offset;
     }
@@ -551,9 +545,10 @@ bool RansDecoder::check_eof() const noexcept {
     return state_ == k64Lower;
 }
 
-rkvc::Result<std::vector<uint8_t>> rans_encode(
-    const RansCoder& coder, std::span<const int32_t> indices,
-    std::span<const int32_t> values, rkvc::Diag* diag) {
+rkvc::Result<std::vector<uint8_t>> rans_encode(const RansCoder& coder,
+                                               std::span<const int32_t> indices,
+                                               std::span<const int32_t> values,
+                                               rkvc::Diag* diag) {
     using R = rkvc::Result<std::vector<uint8_t>>;
     RansVariant v = coder.variant();
     RansEncoder enc(v, 65536);

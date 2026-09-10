@@ -7,8 +7,8 @@
 #include <vector>
 
 #ifdef __linux__
-#include <algorithm>
 #include <dirent.h>
+#include <algorithm>
 #endif
 
 #include "args.hpp"
@@ -16,8 +16,8 @@
 #include "rkvc/rkvc.h"
 
 #ifdef __linux__
-#include "rkvc/plugin.hpp"
 #include <dlfcn.h>
+#include "rkvc/plugin.hpp"
 #endif
 
 namespace {
@@ -93,8 +93,7 @@ std::string json_escape(const std::string& s) {
 }
 
 #ifdef __linux__
-std::vector<std::string> scan_dir(const std::string& dir,
-                                  const char* suffix) {
+std::vector<std::string> scan_dir(const std::string& dir, const char* suffix) {
     std::vector<std::string> out;
     DIR* dp = opendir(dir.c_str());
     if (!dp)
@@ -117,12 +116,10 @@ int cmd_inspect(const cli::Args& a) {
         std::string text, json = "{\"backends\": [";
         for (const auto& dir : a.backend_dirs) {
             for (const auto& path : scan_dir(dir, ".so")) {
-                void* h =
-                    dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+                void* h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
                 if (!h)
                     continue;
-                auto query = (rkvc::PluginQueryFn)dlsym(
-                    h, "rkvc_plugin_query");
+                auto query = (rkvc::PluginQueryFn)dlsym(h, "rkvc_plugin_query");
                 const rkvc::PluginDescriptor* d =
                     query ? query(rkvc::kPluginAbi) : nullptr;
                 if (!d) {
@@ -136,8 +133,7 @@ int cmd_inspect(const cli::Args& a) {
                     names += d->factories[i]->id();
                 }
                 text += path + " " + (d->name ? d->name : "?") + " " +
-                        (d->version ? d->version : "?") + " [" + names +
-                        "]\n";
+                        (d->version ? d->version : "?") + " [" + names + "]\n";
                 if (!first)
                     json += ", ";
                 first = false;
@@ -180,8 +176,8 @@ int cmd_inspect(const cli::Args& a) {
             if (!m)
                 continue;
             const rkvc::Model& info = m.value();
-            text += path + " " + info.meta.id + " " + info.meta.family +
-                    " " + info.meta.role + " " + info.meta.target + "\n";
+            text += path + " " + info.meta.id + " " + info.meta.family + " " +
+                    info.meta.role + " " + info.meta.target + "\n";
             if (!first)
                 json += ", ";
             first = false;
@@ -206,7 +202,8 @@ int cmd_inspect(const cli::Args& a) {
 }
 #endif
 
-rkvc_codec parse_codec(const std::string& s) {    if (s == "h264")
+rkvc_codec parse_codec(const std::string& s) {
+    if (s == "h264")
         return RKVC_CODEC_H264;
     if (s == "hevc")
         return RKVC_CODEC_HEVC;
@@ -237,8 +234,7 @@ int load_models(rkvc_context* ctx, const cli::Args& a) {
     for (const auto& dir : a.model_dirs) {
         DIR* dp = opendir(dir.c_str());
         if (!dp) {
-            fprintf(stderr, "model: cannot open dir '%s'\n",
-                    dir.c_str());
+            fprintf(stderr, "model: cannot open dir '%s'\n", dir.c_str());
             return 2;
         }
         std::vector<std::string> files;
@@ -280,10 +276,10 @@ int cmd_encode(const cli::Args& a) {
         fprintf(stderr, "encode: unknown codec '%s'\n", a.codec.c_str());
         return 1;
     }
-    rkvc_frame_fmt raw = (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12
-                                              : RKVC_FRAME_FMT_YUV420P;
-    return run_file_session(a, RKVC_OP_ENCODE, "encode", raw, a.width,
-                            a.height, RKVC_FRAME_FMT_BITSTREAM, 0, 0, codec);
+    rkvc_frame_fmt raw =
+        (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12 : RKVC_FRAME_FMT_YUV420P;
+    return run_file_session(a, RKVC_OP_ENCODE, "encode", raw, a.width, a.height,
+                            RKVC_FRAME_FMT_BITSTREAM, 0, 0, codec);
 }
 
 int cmd_decode(const cli::Args& a) {
@@ -296,16 +292,16 @@ int cmd_decode(const cli::Args& a) {
         fprintf(stderr, "decode: unknown codec '%s'\n", a.codec.c_str());
         return 1;
     }
-    rkvc_frame_fmt raw = (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12
-                                              : RKVC_FRAME_FMT_YUV420P;
+    rkvc_frame_fmt raw =
+        (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12 : RKVC_FRAME_FMT_YUV420P;
     return run_file_session(a, RKVC_OP_DECODE, "decode",
                             RKVC_FRAME_FMT_BITSTREAM, a.width, a.height, raw,
                             a.width, a.height, codec);
 }
 
 int cmd_upscale(const cli::Args& a) {
-    rkvc_frame_fmt raw = (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12
-                                              : RKVC_FRAME_FMT_YUV420P;
+    rkvc_frame_fmt raw =
+        (a.pixfmt == "nv12") ? RKVC_FRAME_FMT_NV12 : RKVC_FRAME_FMT_YUV420P;
     return run_file_session(a, RKVC_OP_UPSCALE, "upscale", raw, a.width,
                             a.height, raw, a.width * 3, a.height * 3,
                             RKVC_CODEC_AUTO);
@@ -380,8 +376,8 @@ int run_file_session(const cli::Args& a, rkvc_operation op, const char* tag,
     if (st != RKVC_OK) {
         char err[2048];
         rkvc_session_error_text(s, err, sizeof(err));
-        fprintf(stderr, "%s: pipeline ended: %s\n%s", tag,
-                rkvc_status_str(st), err);
+        fprintf(stderr, "%s: pipeline ended: %s\n%s", tag, rkvc_status_str(st),
+                err);
     }
     rkvc_session_destroy(s);
     rkvc_context_destroy(ctx);

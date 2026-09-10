@@ -14,11 +14,12 @@ std::vector<int> run_scenario(mlvc::RateController& rc, int n, int ltr_at,
                               long pay_p) {
     std::vector<int> qs;
     for (int i = 0; i < n; ++i) {
-        mlvc::RcFrameType t = (i == 0) ? mlvc::RcFrameType::I
-                              : ((i == ltr_at) ? mlvc::RcFrameType::LtrRecovery
-                                               : mlvc::RcFrameType::P);
+        mlvc::RcFrameType t =
+            (i == 0) ? mlvc::RcFrameType::I
+                     : ((i == ltr_at) ? mlvc::RcFrameType::LtrRecovery
+                                      : mlvc::RcFrameType::P);
         double pt = i / fps;
-        long pay = (t == mlvc::RcFrameType::I)          ? pay_i
+        long pay = (t == mlvc::RcFrameType::I)             ? pay_i
                    : (t == mlvc::RcFrameType::LtrRecovery) ? pay_ltr
                                                            : pay_p;
         int q = rc.solve(pt, t, 128);
@@ -45,9 +46,9 @@ TEST_CASE("ratectl matches C golden S1") {
     if (!rc)
         return;
     auto qs = run_scenario(*rc.value(), 32, 16, 30.0, 30000, 15000, 8000);
-    check_eq(qs, {59, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
-                  63, 60, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
-                  63, 63});
+    check_eq(qs,
+             {59, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
+              60, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63});
 }
 
 TEST_CASE("ratectl matches C golden S2 with drops") {
@@ -65,8 +66,8 @@ TEST_CASE("ratectl matches C golden S3") {
     if (!rc)
         return;
     auto qs = run_scenario(*rc.value(), 20, -1, 30.0, 60000, 0, 16000);
-    check_eq(qs, {49, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
-                  63, 63, 63, 63, 63});
+    check_eq(qs, {49, 63, 63, 63, 63, 63, 63, 63, 63, 63,
+                  63, 63, 63, 63, 63, 63, 63, 63, 63, 63});
 }
 
 TEST_CASE("ratectl create and configure validation") {

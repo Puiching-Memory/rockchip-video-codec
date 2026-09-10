@@ -16,8 +16,8 @@ namespace {
 class FakeEncoder : public NpuModel {
 public:
     explicit FakeEncoder(FakeNpuGeometry g) : g_(g) {}
-    rkvc::Status init(std::span<const uint8_t>, std::span<const uint8_t>,
-                      int, rkvc::Diag*) override {
+    rkvc::Status init(std::span<const uint8_t>, std::span<const uint8_t>, int,
+                      rkvc::Diag*) override {
         return rkvc::Status::Ok;
     }
     std::vector<NpuTensorInfo> inputs() const override {
@@ -59,8 +59,7 @@ public:
                         }
                     acc /= S * S;
                     float v = acc * 2 + (c < 3 ? (int)c - 1 : 0);
-                    y0_[(c * g_.y_hw + y) * g_.y_hw + x] =
-                        pixel::f32_to_f16(v);
+                    y0_[(c * g_.y_hw + y) * g_.y_hw + x] = pixel::f32_to_f16(v);
                 }
             }
         }
@@ -98,8 +97,8 @@ private:
 class FakeDecoder : public NpuModel {
 public:
     explicit FakeDecoder(FakeNpuGeometry g) : g_(g) {}
-    rkvc::Status init(std::span<const uint8_t>, std::span<const uint8_t>,
-                      int, rkvc::Diag*) override {
+    rkvc::Status init(std::span<const uint8_t>, std::span<const uint8_t>, int,
+                      rkvc::Diag*) override {
         return rkvc::Status::Ok;
     }
     std::vector<NpuTensorInfo> inputs() const override {

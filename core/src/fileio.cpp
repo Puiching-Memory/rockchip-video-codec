@@ -13,7 +13,9 @@ namespace rkvc {
 
 namespace {
 
-void delete_bytes(void* p) noexcept { delete[] static_cast<uint8_t*>(p); }
+void delete_bytes(void* p) noexcept {
+    delete[] static_cast<uint8_t*>(p);
+}
 
 class FileSourceNode : public Node {
 public:
@@ -203,8 +205,7 @@ struct FileSourceFactory : public Factory {
         return r.input.kind == EndpointKind::File;
     }
     Result<NodePtr> create(const Request& r, Diag*) const override {
-        NodePtr n(new (std::nothrow)
-                      FileSourceNode(r.input.uri, r.input_spec));
+        NodePtr n(new (std::nothrow) FileSourceNode(r.input.uri, r.input_spec));
         if (!n)
             return Result<NodePtr>::failure(Status::Nomem);
         return Result<NodePtr>::success(std::move(n));
@@ -219,8 +220,7 @@ struct FileSinkFactory : public Factory {
         return r.output.kind == EndpointKind::File;
     }
     Result<NodePtr> create(const Request& r, Diag*) const override {
-        NodePtr n(new (std::nothrow)
-                      FileSinkNode(r.output.uri, r.output_spec));
+        NodePtr n(new (std::nothrow) FileSinkNode(r.output.uri, r.output_spec));
         if (!n)
             return Result<NodePtr>::failure(Status::Nomem);
         return Result<NodePtr>::success(std::move(n));
@@ -231,8 +231,7 @@ struct FileSinkFactory : public Factory {
 
 void register_builtin_fileio(Registry& registry) {
     // Builtin and infallible in practice (fixed ids, first registration).
-    registry.add(
-        std::unique_ptr<Factory>(new FileSourceFactory()));
+    registry.add(std::unique_ptr<Factory>(new FileSourceFactory()));
     registry.add(std::unique_ptr<Factory>(new FileSinkFactory()));
 }
 

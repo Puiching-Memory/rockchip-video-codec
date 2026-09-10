@@ -57,8 +57,12 @@ static_assert((int)RKVC_MODEL == (int)rkvc::Status::Model);
 static_assert((int)RKVC_LICENSE == (int)rkvc::Status::License);
 static_assert((int)RKVC_INTEGRITY == (int)rkvc::Status::Integrity);
 
-rkvc::Status cs(rkvc_status s) { return static_cast<rkvc::Status>((int)s); }
-rkvc_status sc(rkvc::Status s) { return static_cast<rkvc_status>((int)s); }
+rkvc::Status cs(rkvc_status s) {
+    return static_cast<rkvc::Status>((int)s);
+}
+rkvc_status sc(rkvc::Status s) {
+    return static_cast<rkvc_status>((int)s);
+}
 
 bool check_struct(size_t size, uint32_t version, size_t want) {
     return size >= want && version == RKVC_ABI_VERSION;
@@ -112,7 +116,7 @@ rkvc::Spec map_spec(const rkvc_frame_spec& s) {
     o.height = s.height;
     o.fmt = map_fmt(s.fmt);
     o.domain = (s.domain == RKVC_MEM_DOMAIN_DMABUF) ? rkvc::MemDomain::Dmabuf
-                                                   : rkvc::MemDomain::Host;
+                                                    : rkvc::MemDomain::Host;
     o.stride = s.stride;
     o.ver_stride = s.ver_stride;
     o.modifier = s.modifier;
@@ -124,9 +128,8 @@ rkvc_frame_spec unmap_spec(const rkvc::Spec& s) {
     o.width = s.width;
     o.height = s.height;
     o.fmt = unmap_fmt(s.fmt);
-    o.domain = (s.domain == rkvc::MemDomain::Dmabuf)
-                   ? RKVC_MEM_DOMAIN_DMABUF
-                   : RKVC_MEM_DOMAIN_HOST;
+    o.domain = (s.domain == rkvc::MemDomain::Dmabuf) ? RKVC_MEM_DOMAIN_DMABUF
+                                                     : RKVC_MEM_DOMAIN_HOST;
     o.stride = s.stride;
     o.ver_stride = s.ver_stride;
     o.modifier = s.modifier;
@@ -201,7 +204,8 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
         std::string self = info.dli_fname;
         size_t slash = self.rfind('/');
         if (slash != std::string::npos)
-            discover_dir(ctx->ctx, (self.substr(0, slash) + "/rkvc/backends").c_str());
+            discover_dir(ctx->ctx,
+                         (self.substr(0, slash) + "/rkvc/backends").c_str());
     }
     discover_dir(ctx->ctx, "/usr/local/lib/rkvc/backends");
     discover_dir(ctx->ctx, "/usr/lib/rkvc/backends");
@@ -210,7 +214,9 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
     return RKVC_OK;
 }
 
-void rkvc_context_destroy(rkvc_context* ctx) { delete ctx; }
+void rkvc_context_destroy(rkvc_context* ctx) {
+    delete ctx;
+}
 
 rkvc_status rkvc_context_add_model_file(rkvc_context* ctx, const char* path,
                                         rkvc_diagnostic** diag) {
@@ -469,7 +475,9 @@ rkvc_status rkvc_session_error_text(rkvc_session* s, char* buf, size_t size) {
     return sc(s->s->wait());
 }
 
-void rkvc_session_destroy(rkvc_session* s) { delete s; }
+void rkvc_session_destroy(rkvc_session* s) {
+    delete s;
+}
 
 void rkvc_frame_desc_init(rkvc_frame_desc* desc, size_t size) {
     if (!desc || size < sizeof(*desc))
@@ -522,7 +530,9 @@ rkvc_status rkvc_frame_get_desc(const rkvc_frame* f, rkvc_frame_desc* desc) {
     return RKVC_OK;
 }
 
-void rkvc_frame_release(rkvc_frame* f) { delete f; }
+void rkvc_frame_release(rkvc_frame* f) {
+    delete f;
+}
 
 void rkvc_diag_fmt_text(const rkvc_diagnostic* diag, char* buf, size_t size) {
     if (!buf || !size)
@@ -544,4 +554,6 @@ void rkvc_diag_fmt_text(const rkvc_diagnostic* diag, char* buf, size_t size) {
         append(diag->diag.at(i));
 }
 
-void rkvc_diag_release(rkvc_diagnostic* diag) { delete diag; }
+void rkvc_diag_release(rkvc_diagnostic* diag) {
+    delete diag;
+}

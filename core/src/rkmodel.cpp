@@ -33,8 +33,7 @@ void put64le(uint8_t* p, uint64_t v) noexcept {
 }
 
 uint32_t get32le(const uint8_t* p) noexcept {
-    return static_cast<uint32_t>(p[0]) |
-           (static_cast<uint32_t>(p[1]) << 8) |
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
            (static_cast<uint32_t>(p[2]) << 16) |
            (static_cast<uint32_t>(p[3]) << 24);
 }
@@ -77,8 +76,7 @@ Result<std::vector<uint8_t>> pack_model(const Model& m, Diag* diag) {
     auto reject = [&](Status s, const char* reason) {
         if (diag)
             diag->add("pack", "rkmodel", reason);
-        return Result<std::vector<uint8_t>>::failure(
-            s, diag ? *diag : Diag{});
+        return Result<std::vector<uint8_t>>::failure(s, diag ? *diag : Diag{});
     };
     if (m.payloads.size() > kMaxPayloads)
         return reject(Status::Invalid, "too many payloads");
@@ -100,8 +98,7 @@ Result<std::vector<uint8_t>> pack_model(const Model& m, Diag* diag) {
     std::vector<uint8_t> out(total);
     memcpy(out.data(), kMagic, 8);
     put32le(out.data() + 8, static_cast<uint32_t>(kHeaderSize));
-    put32le(out.data() + 12,
-            static_cast<uint32_t>(m.payloads.size()));
+    put32le(out.data() + 12, static_cast<uint32_t>(m.payloads.size()));
     if (!put_str(out.data() + 16, kIdLen, m.meta.id) ||
         !put_str(out.data() + 48, kWordLen, m.meta.family) ||
         !put_str(out.data() + 64, kWordLen, m.meta.role) ||

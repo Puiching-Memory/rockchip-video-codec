@@ -7,8 +7,7 @@
 
 #include "rk_mpi.h"
 
-MPP_RET mpp_create(MppCtx *ctx, MppApi **mpi)
-{
+MPP_RET mpp_create(MppCtx *ctx, MppApi **mpi) {
     if (ctx)
         *ctx = NULL;
     if (mpi)
@@ -16,22 +15,19 @@ MPP_RET mpp_create(MppCtx *ctx, MppApi **mpi)
     return MPP_NOK;
 }
 
-MPP_RET mpp_destroy(MppCtx ctx)
-{
+MPP_RET mpp_destroy(MppCtx ctx) {
     (void)ctx;
     return MPP_OK;
 }
 
-MPP_RET mpp_init(MppCtx ctx, MppCtxType type, MppCodingType coding)
-{
+MPP_RET mpp_init(MppCtx ctx, MppCtxType type, MppCodingType coding) {
     (void)ctx;
     (void)type;
     (void)coding;
     return MPP_NOK;
 }
 
-MPP_RET mpp_check_support_format(MppCtxType type, MppCodingType coding)
-{
+MPP_RET mpp_check_support_format(MppCtxType type, MppCodingType coding) {
     (void)type;
     (void)coding;
     return MPP_NOK;
@@ -39,8 +35,7 @@ MPP_RET mpp_check_support_format(MppCtxType type, MppCodingType coding)
 
 MPP_RET mpp_buffer_import_with_tag(MppBufferGroup group, MppBufferInfo *info,
                                    MppBuffer *buffer, const char *tag,
-                                   const char *caller)
-{
+                                   const char *caller) {
     (void)group;
     (void)info;
     (void)buffer;
@@ -51,8 +46,7 @@ MPP_RET mpp_buffer_import_with_tag(MppBufferGroup group, MppBufferInfo *info,
 
 MPP_RET mpp_buffer_get_with_tag(MppBufferGroup group, MppBuffer *buffer,
                                 size_t size, const char *tag,
-                                const char *caller)
-{
+                                const char *caller) {
     (void)group;
     (void)buffer;
     (void)size;
@@ -61,8 +55,7 @@ MPP_RET mpp_buffer_get_with_tag(MppBufferGroup group, MppBuffer *buffer,
     return MPP_NOK;
 }
 
-MPP_RET mpp_buffer_put_with_caller(MppBuffer buffer, const char *caller)
-{
+MPP_RET mpp_buffer_put_with_caller(MppBuffer buffer, const char *caller) {
     (void)buffer;
     (void)caller;
     return MPP_NOK;
@@ -70,8 +63,7 @@ MPP_RET mpp_buffer_put_with_caller(MppBuffer buffer, const char *caller)
 
 MPP_RET mpp_buffer_group_get(MppBufferGroup *group, MppBufferType type,
                              MppBufferMode mode, const char *tag,
-                             const char *caller)
-{
+                             const char *caller) {
     (void)group;
     (void)type;
     (void)mode;
@@ -80,203 +72,171 @@ MPP_RET mpp_buffer_group_get(MppBufferGroup *group, MppBufferType type,
     return MPP_NOK;
 }
 
-MPP_RET mpp_buffer_group_put(MppBufferGroup group)
-{
+MPP_RET mpp_buffer_group_put(MppBufferGroup group) {
     (void)group;
     return MPP_OK;
 }
 
-void *mpp_buffer_get_ptr_with_caller(MppBuffer buffer, const char *caller)
-{
+void *mpp_buffer_get_ptr_with_caller(MppBuffer buffer, const char *caller) {
     (void)buffer;
     (void)caller;
     return NULL;
 }
 
-int mpp_buffer_get_fd_with_caller(MppBuffer buffer, const char *caller)
-{
+int mpp_buffer_get_fd_with_caller(MppBuffer buffer, const char *caller) {
     (void)buffer;
     (void)caller;
     return -1;
 }
 
-size_t mpp_buffer_get_size_with_caller(MppBuffer buffer, const char *caller)
-{
+size_t mpp_buffer_get_size_with_caller(MppBuffer buffer, const char *caller) {
     (void)buffer;
     (void)caller;
     return 0;
 }
 
-MPP_RET mpp_enc_cfg_init(MppEncCfg *cfg)
-{
+MPP_RET mpp_enc_cfg_init(MppEncCfg *cfg) {
     if (cfg)
         *cfg = NULL;
     return MPP_NOK;
 }
 
-MPP_RET mpp_enc_cfg_deinit(MppEncCfg cfg)
-{
+MPP_RET mpp_enc_cfg_deinit(MppEncCfg cfg) {
     (void)cfg;
     return MPP_OK;
 }
 
-MPP_RET mpp_enc_cfg_set_s32(MppEncCfg cfg, const char *name, RK_S32 val)
-{
+MPP_RET mpp_enc_cfg_set_s32(MppEncCfg cfg, const char *name, RK_S32 val) {
     (void)cfg;
     (void)name;
     (void)val;
     return MPP_NOK;
 }
 
-MPP_RET mpp_frame_init(MppFrame *frame)
-{
+MPP_RET mpp_frame_init(MppFrame *frame) {
     if (frame)
         *frame = NULL;
     return MPP_NOK;
 }
 
-MPP_RET mpp_frame_deinit(MppFrame *frame)
-{
+MPP_RET mpp_frame_deinit(MppFrame *frame) {
     (void)frame;
     return MPP_OK;
 }
 
-MppBuffer mpp_frame_get_buffer(const MppFrame frame)
-{
+MppBuffer mpp_frame_get_buffer(const MppFrame frame) {
     (void)frame;
     return NULL;
 }
 
-MppFrameFormat mpp_frame_get_fmt(MppFrame frame)
-{
+MppFrameFormat mpp_frame_get_fmt(MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_width(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_width(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_height(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_height(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_hor_stride(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_hor_stride(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_ver_stride(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_ver_stride(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_S64 mpp_frame_get_pts(const MppFrame frame)
-{
+RK_S64 mpp_frame_get_pts(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_S64 mpp_frame_get_dts(const MppFrame frame)
-{
+RK_S64 mpp_frame_get_dts(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_errinfo(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_errinfo(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_discard(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_discard(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_info_change(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_info_change(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-RK_U32 mpp_frame_get_eos(const MppFrame frame)
-{
+RK_U32 mpp_frame_get_eos(const MppFrame frame) {
     (void)frame;
     return 0;
 }
 
-MppMeta mpp_frame_get_meta(const MppFrame frame)
-{
+MppMeta mpp_frame_get_meta(const MppFrame frame) {
     (void)frame;
     return NULL;
 }
 
-void mpp_frame_set_buffer(MppFrame frame, MppBuffer buffer)
-{
+void mpp_frame_set_buffer(MppFrame frame, MppBuffer buffer) {
     (void)frame;
     (void)buffer;
 }
 
-void mpp_frame_set_width(MppFrame frame, RK_U32 width)
-{
+void mpp_frame_set_width(MppFrame frame, RK_U32 width) {
     (void)frame;
     (void)width;
 }
 
-void mpp_frame_set_height(MppFrame frame, RK_U32 height)
-{
+void mpp_frame_set_height(MppFrame frame, RK_U32 height) {
     (void)frame;
     (void)height;
 }
 
-void mpp_frame_set_hor_stride(MppFrame frame, RK_U32 stride)
-{
+void mpp_frame_set_hor_stride(MppFrame frame, RK_U32 stride) {
     (void)frame;
     (void)stride;
 }
 
-void mpp_frame_set_ver_stride(MppFrame frame, RK_U32 stride)
-{
+void mpp_frame_set_ver_stride(MppFrame frame, RK_U32 stride) {
     (void)frame;
     (void)stride;
 }
 
-void mpp_frame_set_fmt(MppFrame frame, MppFrameFormat fmt)
-{
+void mpp_frame_set_fmt(MppFrame frame, MppFrameFormat fmt) {
     (void)frame;
     (void)fmt;
 }
 
-void mpp_frame_set_pts(MppFrame frame, RK_S64 pts)
-{
+void mpp_frame_set_pts(MppFrame frame, RK_S64 pts) {
     (void)frame;
     (void)pts;
 }
 
-void mpp_frame_set_eos(MppFrame frame, RK_U32 eos)
-{
+void mpp_frame_set_eos(MppFrame frame, RK_U32 eos) {
     (void)frame;
     (void)eos;
 }
 
-MPP_RET mpp_meta_set_ptr(MppMeta meta, MppMetaKey key, void *val)
-{
+MPP_RET mpp_meta_set_ptr(MppMeta meta, MppMetaKey key, void *val) {
     (void)meta;
     (void)key;
     (void)val;
     return MPP_NOK;
 }
 
-MPP_RET mpp_packet_init(MppPacket *packet, void *data, size_t size)
-{
+MPP_RET mpp_packet_init(MppPacket *packet, void *data, size_t size) {
     (void)data;
     (void)size;
     if (packet)
@@ -284,56 +244,47 @@ MPP_RET mpp_packet_init(MppPacket *packet, void *data, size_t size)
     return MPP_NOK;
 }
 
-MPP_RET mpp_packet_deinit(MppPacket *packet)
-{
+MPP_RET mpp_packet_deinit(MppPacket *packet) {
     (void)packet;
     return MPP_OK;
 }
 
-void *mpp_packet_get_pos(const MppPacket packet)
-{
+void *mpp_packet_get_pos(const MppPacket packet) {
     (void)packet;
     return NULL;
 }
 
-size_t mpp_packet_get_length(const MppPacket packet)
-{
+size_t mpp_packet_get_length(const MppPacket packet) {
     (void)packet;
     return 0;
 }
 
-RK_S64 mpp_packet_get_pts(const MppPacket packet)
-{
+RK_S64 mpp_packet_get_pts(const MppPacket packet) {
     (void)packet;
     return 0;
 }
 
-RK_S64 mpp_packet_get_dts(const MppPacket packet)
-{
+RK_S64 mpp_packet_get_dts(const MppPacket packet) {
     (void)packet;
     return 0;
 }
 
-RK_U32 mpp_packet_get_eos(const MppPacket packet)
-{
+RK_U32 mpp_packet_get_eos(const MppPacket packet) {
     (void)packet;
     return 0;
 }
 
-void mpp_packet_set_pts(MppPacket packet, RK_S64 pts)
-{
+void mpp_packet_set_pts(MppPacket packet, RK_S64 pts) {
     (void)packet;
     (void)pts;
 }
 
-void mpp_packet_set_dts(MppPacket packet, RK_S64 dts)
-{
+void mpp_packet_set_dts(MppPacket packet, RK_S64 dts) {
     (void)packet;
     (void)dts;
 }
 
-MPP_RET mpp_packet_set_eos(MppPacket packet)
-{
+MPP_RET mpp_packet_set_eos(MppPacket packet) {
     (void)packet;
     return MPP_NOK;
 }

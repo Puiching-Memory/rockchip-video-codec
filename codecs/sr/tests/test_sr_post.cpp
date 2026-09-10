@@ -41,8 +41,8 @@ TEST_CASE("bicubic constant and identity") {
         CHECK(v == 100);
     // Same-size upscale preserves a constant frame bit-exactly.
     std::vector<uint8_t> same(W * H * 3 / 2, 0);
-    CHECK(sr::post::bicubic_nv12(src.data(), W, H, W, H, same.data(), W,
-                                 H) == rkvc::Status::Ok);
+    CHECK(sr::post::bicubic_nv12(src.data(), W, H, W, H, same.data(), W, H) ==
+          rkvc::Status::Ok);
     for (uint8_t v : same)
         CHECK(v == 100);
 }
@@ -51,25 +51,24 @@ TEST_CASE("residual add identity and hand check") {
     const uint32_t rw = 2, rh = 2, W = 12, H = 12;
     std::vector<uint8_t> img(W * H * 3 / 2, 50);
     std::vector<float> res(108 * rw * rh, 0.0f);
-    CHECK(sr::post::add_phase_residual(res.data(), rw, rh, img.data(), W,
-                                       H) == rkvc::Status::Ok);
+    CHECK(sr::post::add_phase_residual(res.data(), rw, rh, img.data(), W, H) ==
+          rkvc::Status::Ok);
     for (uint8_t v : img)
         CHECK(v == 50);
     // Single +10.0 residual tap on Y phase (ch0, dy0, dx0) hits pixel (0,0).
     size_t plane = rw * rh;
     res[(0 * 36 + 0 * 6 + 0) * plane + 0] = 10.0f;
-    CHECK(sr::post::add_phase_residual(res.data(), rw, rh, img.data(), W,
-                                       H) == rkvc::Status::Ok);
+    CHECK(sr::post::add_phase_residual(res.data(), rw, rh, img.data(), W, H) ==
+          rkvc::Status::Ok);
     CHECK(img[0] == 60);
     CHECK(img[1] == 50);
-    CHECK(sr::post::add_phase_residual(res.data(), rw, rh, img.data(), 10,
-                                       H) == rkvc::Status::Invalid);
+    CHECK(sr::post::add_phase_residual(res.data(), rw, rh, img.data(), 10, H) ==
+          rkvc::Status::Invalid);
 }
 
 TEST_CASE("upscale node validation without runtime") {
     rkvc::Context ctx;
-    auto f = std::unique_ptr<sr::SrUpscaleFactory>(
-        new sr::SrUpscaleFactory());
+    auto f = std::unique_ptr<sr::SrUpscaleFactory>(new sr::SrUpscaleFactory());
     CHECK(ctx.registry().add(std::move(f)) == rkvc::Status::Ok);
     // No model registered: build淘汰 with Negotiate (wants_model, none).
     rkvc::Request r;

@@ -28,14 +28,12 @@ TEST_CASE("sha256 known answers") {
     };
     for (int i = 0; i < 2; ++i) {
         std::string in(Ns[i]);
-        auto h = sha256(reinterpret_cast<const uint8_t*>(in.data()),
-                        in.size());
+        auto h = sha256(reinterpret_cast<const uint8_t*>(in.data()), in.size());
         CHECK(hex_of(h.data(), h.size()) == want[i]);
     }
     for (int n : {55, 56, 64, 1000}) {
         std::string in(static_cast<size_t>(n), 'a');
-        auto h = sha256(reinterpret_cast<const uint8_t*>(in.data()),
-                        in.size());
+        auto h = sha256(reinterpret_cast<const uint8_t*>(in.data()), in.size());
         const char* w = nullptr;
         if (n == 55)
             w = "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f"

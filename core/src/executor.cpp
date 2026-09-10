@@ -5,7 +5,9 @@
 
 namespace rkvc {
 
-Executor::~Executor() { shutdown(); }
+Executor::~Executor() {
+    shutdown();
+}
 
 Status Executor::launch(Graph& g, FrameQueue* in_q, FrameQueue* out_q) {
     if (launched_ || !in_q || !out_q || g.node_count() < 2)

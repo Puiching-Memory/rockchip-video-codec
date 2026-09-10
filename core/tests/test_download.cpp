@@ -152,15 +152,18 @@ TEST_CASE("download destrides padded nv12 to packed host") {
     Sink sink;
     NodePtr node = open_download(sink, img.spec);
     CHECK(node);
-    if (!node) return;
+    if (!node)
+        return;
     FramePtr in = img.wrap();
     CHECK(in);
-    if (!in) return;
+    if (!in)
+        return;
     in->set_pts(123);
     in->set_flags(7);
     CHECK(node->process(std::move(in), nullptr) == Status::Ok);
     CHECK(sink.frames.size() == 1);
-    if (sink.frames.size() != 1) return;
+    if (sink.frames.size() != 1)
+        return;
     const FramePtr& out = sink.frames[0];
     CHECK(out->spec().width == kW);
     CHECK(out->spec().height == kH);
@@ -176,13 +179,16 @@ TEST_CASE("download honors padded ver_stride") {
     Sink sink;
     NodePtr node = open_download(sink, img.spec);
     CHECK(node);
-    if (!node) return;
+    if (!node)
+        return;
     FramePtr in = img.wrap();
     CHECK(in);
-    if (!in) return;
+    if (!in)
+        return;
     CHECK(node->process(std::move(in), nullptr) == Status::Ok);
     CHECK(sink.frames.size() == 1);
-    if (sink.frames.size() != 1) return;
+    if (sink.frames.size() != 1)
+        return;
     CHECK(is_packed_nv12(*sink.frames[0], 48, 16));
 }
 
@@ -192,11 +198,13 @@ TEST_CASE("download rejects odd height for nv12") {
     Sink sink;
     NodePtr node = open_download(sink, nv12_dmabuf(6, 4, 8));
     CHECK(node);
-    if (!node) return;
+    if (!node)
+        return;
     // Odd-height input cannot match min_size's plane*3/2 sizing: refused.
     FramePtr in = img.wrap();
     CHECK(in);
-    if (!in) return;
+    if (!in)
+        return;
     CHECK(node->process(std::move(in), nullptr) == Status::Unsupported);
     CHECK(sink.frames.empty());
 }
@@ -219,10 +227,12 @@ TEST_CASE("download copies bitstream payload flat") {
     Sink sink;
     NodePtr node = open_download(sink, s);
     CHECK(node);
-    if (!node) return;
+    if (!node)
+        return;
     CHECK(node->process(std::move(r.value()), nullptr) == Status::Ok);
     CHECK(sink.frames.size() == 1);
-    if (sink.frames.size() != 1) return;
+    if (sink.frames.size() != 1)
+        return;
     const FramePtr& out = sink.frames[0];
     CHECK(out->spec().domain == MemDomain::Host);
     CHECK(out->spec().fmt == PixelFormat::Bitstream);
@@ -235,14 +245,15 @@ TEST_CASE("download rejects host input") {
     std::vector<uint8_t> buf(min_size(nv12_dmabuf(kW, kH, kW)), 0);
     Spec host = nv12_dmabuf(kW, kH, kW);
     host.domain = MemDomain::Host;
-    auto r = Frame::borrow_host(host, buf.data(), buf.size(), FrameHooks{},
-                                nullptr);
+    auto r =
+        Frame::borrow_host(host, buf.data(), buf.size(), FrameHooks{}, nullptr);
     CHECK(r);
     Sink sink;
     // Node opens against a Dmabuf spec; the Host frame is rejected at process.
     NodePtr node = open_download(sink, nv12_dmabuf(kW, kH, kW));
     CHECK(node);
-    if (!node) return;
+    if (!node)
+        return;
     CHECK(node->process(std::move(r.value()), nullptr) == Status::Invalid);
     CHECK(sink.frames.empty());
 }
@@ -343,7 +354,8 @@ TEST_CASE("session auto-splices download between dmabuf and host") {
     CHECK(session->push_eos() == Status::Ok);
     auto out = session->pull();
     CHECK(out);
-    if (!out) return;
+    if (!out)
+        return;
     CHECK(is_packed_nv12(*out.value(), kW, kH));
     CHECK(out.value()->pts() == 42);
     CHECK(session->pull().status() == Status::Eof);

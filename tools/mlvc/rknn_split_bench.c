@@ -22,33 +22,30 @@
 #include <time.h>
 
 #define MAX_IO 8
-#define CHECK(x)                                                               \
-    do {                                                                       \
-        int _rc = (x);                                                         \
-        if (_rc != RKNN_SUCC) {                                                \
-            fprintf(stderr, "RKNN error %d at %s:%d\n", _rc, __FILE__,         \
-                    __LINE__);                                                 \
-            return -1;                                                         \
-        }                                                                      \
+#define CHECK(x) \
+    do { \
+        int _rc = (x); \
+        if (_rc != RKNN_SUCC) { \
+            fprintf(stderr, "RKNN error %d at %s:%d\n", _rc, __FILE__, \
+                    __LINE__); \
+            return -1; \
+        } \
     } while (0)
 
-static inline uint16_t f32_to_f16(float f)
-{
+static inline uint16_t f32_to_f16(float f) {
     __fp16 h = (__fp16)f;
     uint16_t r;
     memcpy(&r, &h, 2);
     return r;
 }
 
-static inline float f16_to_f32(uint16_t h)
-{
+static inline float f16_to_f32(uint16_t h) {
     __fp16 p;
     memcpy(&p, &h, 2);
     return (float)p;
 }
 
-static double now_ms(void)
-{
+static double now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
@@ -69,8 +66,7 @@ typedef struct {
     int custom;
 } model_t;
 
-static int find_name(const rknn_tensor_attr *a, uint32_t n, const char *key)
-{
+static int find_name(const rknn_tensor_attr *a, uint32_t n, const char *key) {
     for (uint32_t i = 0; i < n; i++)
         if (strstr(a[i].name, key))
             return (int)i;
@@ -78,8 +74,7 @@ static int find_name(const rknn_tensor_attr *a, uint32_t n, const char *key)
 }
 
 static void space_to_depth_nhwc_f16(const uint16_t *in, uint16_t *out, int H,
-                                    int W, int C, int bs)
-{
+                                    int W, int C, int bs) {
     int oh = H / bs, ow = W / bs, oc = C * bs * bs;
     for (int h = 0; h < oh; h++) {
         for (int w = 0; w < ow; w++) {
@@ -97,8 +92,7 @@ static void space_to_depth_nhwc_f16(const uint16_t *in, uint16_t *out, int H,
 }
 
 static void space_to_depth_nchw_f16(const uint16_t *in, uint16_t *out, int C,
-                                    int H, int W, int bs)
-{
+                                    int H, int W, int bs) {
     int oh = H / bs, ow = W / bs;
     for (int c = 0; c < C; c++) {
         for (int dy = 0; dy < bs; dy++) {
@@ -115,9 +109,8 @@ static void space_to_depth_nchw_f16(const uint16_t *in, uint16_t *out, int C,
     }
 }
 
-static void depth_to_space_nchw_crd_f16(const uint16_t *in, uint16_t *out, int C,
-                                        int H, int W, int bs)
-{
+static void depth_to_space_nchw_crd_f16(const uint16_t *in, uint16_t *out,
+                                        int C, int H, int W, int bs) {
     int oc = C / (bs * bs);
     int oh = H * bs, ow = W * bs;
     for (int c = 0; c < oc; c++) {
@@ -135,9 +128,8 @@ static void depth_to_space_nchw_crd_f16(const uint16_t *in, uint16_t *out, int C
     }
 }
 
-static void depth_to_space_nchw_dcr_f16(const uint16_t *in, uint16_t *out, int C,
-                                        int H, int W, int bs)
-{
+static void depth_to_space_nchw_dcr_f16(const uint16_t *in, uint16_t *out,
+                                        int C, int H, int W, int bs) {
     int oc = C / (bs * bs);
     int oh = H * bs, ow = W * bs;
     for (int c = 0; c < oc; c++) {
@@ -156,8 +148,7 @@ static void depth_to_space_nchw_dcr_f16(const uint16_t *in, uint16_t *out, int C
 }
 
 static void space_to_depth_nchw_f32(const float *in, float *out, int C, int H,
-                                    int W, int bs)
-{
+                                    int W, int bs) {
     int oh = H / bs, ow = W / bs;
     for (int c = 0; c < C; c++) {
         for (int dy = 0; dy < bs; dy++) {
@@ -175,8 +166,7 @@ static void space_to_depth_nchw_f32(const float *in, float *out, int C, int H,
 }
 
 static void space_to_depth_nhwc_f32(const float *in, float *out, int H, int W,
-                                    int C, int bs)
-{
+                                    int C, int bs) {
     int oh = H / bs, ow = W / bs, oc = C * bs * bs;
     for (int h = 0; h < oh; h++) {
         for (int w = 0; w < ow; w++) {
@@ -193,8 +183,7 @@ static void space_to_depth_nhwc_f32(const float *in, float *out, int H, int W,
     }
 }
 
-static void clip01_f16_inplace(uint16_t *p, size_t n)
-{
+static void clip01_f16_inplace(uint16_t *p, size_t n) {
     for (size_t i = 0; i < n; i++) {
         float f = f16_to_f32(p[i]);
         if (f <= 0.0f)
@@ -206,8 +195,7 @@ static void clip01_f16_inplace(uint16_t *p, size_t n)
 }
 
 static void nc1hwc2_to_nchw_f16(const uint16_t *src, uint16_t *dst, int C1,
-                                int H, int W, int C2)
-{
+                                int H, int W, int C2) {
     int C = C1 * C2;
     for (int c = 0; c < C; c++) {
         int c1 = c / C2, c2 = c % C2;
@@ -221,8 +209,7 @@ static void nc1hwc2_to_nchw_f16(const uint16_t *src, uint16_t *dst, int C1,
 static int custom_std_compute(rknn_custom_op_context *op_ctx,
                               rknn_custom_op_tensor *inputs, uint32_t n_inputs,
                               rknn_custom_op_tensor *outputs,
-                              uint32_t n_outputs)
-{
+                              uint32_t n_outputs) {
     (void)op_ctx;
     if (n_inputs < 1 || n_outputs < 1)
         return -1;
@@ -242,32 +229,37 @@ static int custom_std_compute(rknn_custom_op_context *op_ctx,
             bs = (int)*(int64_t *)attr.data;
     }
     if (g_custom_hits == 1) {
-        fprintf(stderr,
-                "custom SpaceToDepth bs=%d in fmt=%s n_dims=%u dims=%u,%u,%u,%u "
-                "type=%s n_elems=%u | out fmt=%s n_dims=%u dims=%u,%u,%u,%u n_elems=%u\n",
-                bs, get_format_string(ia->fmt), ia->n_dims, ia->dims[0],
-                ia->dims[1], ia->dims[2], ia->dims[3], get_type_string(ia->type),
-                ia->n_elems, get_format_string(oa->fmt), oa->n_dims,
-                oa->dims[0], oa->dims[1], oa->dims[2], oa->dims[3], oa->n_elems);
+        fprintf(
+            stderr,
+            "custom SpaceToDepth bs=%d in fmt=%s n_dims=%u dims=%u,%u,%u,%u "
+            "type=%s n_elems=%u | out fmt=%s n_dims=%u dims=%u,%u,%u,%u n_elems=%u\n",
+            bs, get_format_string(ia->fmt), ia->n_dims, ia->dims[0],
+            ia->dims[1], ia->dims[2], ia->dims[3], get_type_string(ia->type),
+            ia->n_elems, get_format_string(oa->fmt), oa->n_dims, oa->dims[0],
+            oa->dims[1], oa->dims[2], oa->dims[3], oa->n_elems);
     }
     if (ia->type == RKNN_TENSOR_FLOAT16) {
         if (ia->fmt == RKNN_TENSOR_NHWC) {
-            int H = (int)ia->dims[1], W = (int)ia->dims[2], C = (int)ia->dims[3];
-            space_to_depth_nhwc_f16((const uint16_t *)in, (uint16_t *)out, H, W, C,
-                                    bs);
+            int H = (int)ia->dims[1], W = (int)ia->dims[2],
+                C = (int)ia->dims[3];
+            space_to_depth_nhwc_f16((const uint16_t *)in, (uint16_t *)out, H, W,
+                                    C, bs);
         } else {
-            int C = (int)ia->dims[1], H = (int)ia->dims[2], W = (int)ia->dims[3];
-            space_to_depth_nchw_f16((const uint16_t *)in, (uint16_t *)out, C, H, W,
-                                    bs);
+            int C = (int)ia->dims[1], H = (int)ia->dims[2],
+                W = (int)ia->dims[3];
+            space_to_depth_nchw_f16((const uint16_t *)in, (uint16_t *)out, C, H,
+                                    W, bs);
         }
     } else {
         const float *fin = (const float *)in;
         float *fout = (float *)out;
         if (ia->fmt == RKNN_TENSOR_NHWC) {
-            int H = (int)ia->dims[1], W = (int)ia->dims[2], C = (int)ia->dims[3];
+            int H = (int)ia->dims[1], W = (int)ia->dims[2],
+                C = (int)ia->dims[3];
             space_to_depth_nhwc_f32(fin, fout, H, W, C, bs);
         } else {
-            int C = (int)ia->dims[1], H = (int)ia->dims[2], W = (int)ia->dims[3];
+            int C = (int)ia->dims[1], H = (int)ia->dims[2],
+                W = (int)ia->dims[3];
             space_to_depth_nchw_f32(fin, fout, C, H, W, bs);
         }
     }
@@ -275,8 +267,7 @@ static int custom_std_compute(rknn_custom_op_context *op_ctx,
     return 0;
 }
 
-static int register_std(rknn_context ctx)
-{
+static int register_std(rknn_context ctx) {
     rknn_custom_op op;
     memset(&op, 0, sizeof(op));
     op.version = 1;
@@ -286,8 +277,7 @@ static int register_std(rknn_context ctx)
     return rknn_register_custom_ops(ctx, &op, 1);
 }
 
-static void model_free(model_t *m)
-{
+static void model_free(model_t *m) {
     if (!m)
         return;
     for (uint32_t i = 0; i < MAX_IO; i++) {
@@ -302,8 +292,7 @@ static void model_free(model_t *m)
     memset(m, 0, sizeof(*m));
 }
 
-static int model_load(model_t *m, const char *path, int custom)
-{
+static int model_load(model_t *m, const char *path, int custom) {
     memset(m, 0, sizeof(*m));
     m->custom = custom;
     FILE *fp = fopen(path, "rb");
@@ -360,11 +349,10 @@ static int model_load(model_t *m, const char *path, int custom)
         if (!m->in_mem[i])
             return -1;
         CHECK(rknn_set_io_mem(m->ctx, m->in_mem[i], &a));
-        printf("  IN[%u] %-24s fmt=%s dims=%u,%u,%u,%u n_elems=%u\n", i,
-               a.name, get_format_string(m->in_attr[i].fmt),
-               m->in_attr[i].dims[0], m->in_attr[i].dims[1],
-               m->in_attr[i].dims[2], m->in_attr[i].dims[3],
-               m->in_attr[i].n_elems);
+        printf("  IN[%u] %-24s fmt=%s dims=%u,%u,%u,%u n_elems=%u\n", i, a.name,
+               get_format_string(m->in_attr[i].fmt), m->in_attr[i].dims[0],
+               m->in_attr[i].dims[1], m->in_attr[i].dims[2],
+               m->in_attr[i].dims[3], m->in_attr[i].n_elems);
     }
     for (uint32_t i = 0; i < m->io.n_output; i++) {
         m->out_attr[i].index = i;
@@ -389,27 +377,23 @@ static int model_load(model_t *m, const char *path, int custom)
     return 0;
 }
 
-static void write_in(model_t *m, int i, const uint16_t *data, size_t n_elem)
-{
+static void write_in(model_t *m, int i, const uint16_t *data, size_t n_elem) {
     memcpy(m->in_mem[i]->virt_addr, data, n_elem * 2);
     rknn_mem_sync(m->ctx, m->in_mem[i], RKNN_MEMORY_SYNC_TO_DEVICE);
 }
 
-static const uint16_t *read_out(model_t *m, int i)
-{
+static const uint16_t *read_out(model_t *m, int i) {
     rknn_mem_sync(m->ctx, m->out_mem[i], RKNN_MEMORY_SYNC_FROM_DEVICE);
     return (const uint16_t *)m->out_mem[i]->virt_addr;
 }
 
-static void fill_pat(uint16_t *p, size_t n)
-{
+static void fill_pat(uint16_t *p, size_t n) {
     for (size_t i = 0; i < n; i++)
         p[i] = f32_to_f16((float)((i * 17u + 31u) % 240 + 8) / 255.0f);
 }
 
 static int native_geom(const rknn_tensor_attr *a, int *C1, int *H, int *W,
-                       int *C2)
-{
+                       int *C2) {
     *C1 = (int)a->dims[1];
     *H = (int)a->dims[2];
     *W = (int)a->dims[3];
@@ -417,8 +401,7 @@ static int native_geom(const rknn_tensor_attr *a, int *C1, int *H, int *W,
     return *C1 * *C2 * *H * *W;
 }
 
-static int pack_out(model_t *m, int i, uint16_t *dst, int *C, int *H, int *W)
-{
+static int pack_out(model_t *m, int i, uint16_t *dst, int *C, int *H, int *W) {
     int C1, C2;
     native_geom(&m->native_out[i], &C1, H, W, &C2);
     *C = C1 * C2;
@@ -427,8 +410,7 @@ static int pack_out(model_t *m, int i, uint16_t *dst, int *C, int *H, int *W)
 }
 
 static int compare_nchw(const uint16_t *a, const uint16_t *b, int C, int H,
-                        int W, int valid_c, const char *tag)
-{
+                        int W, int valid_c, const char *tag) {
     size_t n = (size_t)valid_c * H * W;
     size_t diff = 0;
     float max_abs = 0;
@@ -450,22 +432,24 @@ static int compare_nchw(const uint16_t *a, const uint16_t *b, int C, int H,
     return 1;
 }
 
-static int run_model(model_t *m)
-{
+static int run_model(model_t *m) {
     CHECK(rknn_run(m->ctx, NULL));
     return 0;
 }
 
-static int nhwc_c(const rknn_tensor_attr *a)
-{
+static int nhwc_c(const rknn_tensor_attr *a) {
     /* node_mlvc 按 NHWC 写：dims[1]=H dims[2]=W dims[3]=C；若 fmt 已是 NHWC 同此。 */
     if (a->n_dims >= 4)
         return (int)a->dims[3];
     return 0;
 }
 
-static int nhwc_h(const rknn_tensor_attr *a) { return (int)a->dims[1]; }
-static int nhwc_w(const rknn_tensor_attr *a) { return (int)a->dims[2]; }
+static int nhwc_h(const rknn_tensor_attr *a) {
+    return (int)a->dims[1];
+}
+static int nhwc_w(const rknn_tensor_attr *a) {
+    return (int)a->dims[2];
+}
 
 typedef struct {
     int match;
@@ -476,8 +460,7 @@ typedef struct {
     double b_std;
 } bench_result;
 
-static void stats(const double *v, int n, double *mean, double *sd)
-{
+static void stats(const double *v, int n, double *mean, double *sd) {
     double s = 0, q = 0;
     for (int i = 0; i < n; i++)
         s += v[i];
@@ -490,8 +473,7 @@ static void stats(const double *v, int n, double *mean, double *sd)
 }
 
 static int bench_enc_std(model_t *A, model_t *B, int warmup, int frames,
-                         bench_result *out)
-{
+                         bench_result *out) {
     int ax = find_name(A->in_attr, A->io.n_input, "x");
     int ar = find_name(A->in_attr, A->io.n_input, "ref_feature");
     int bx = find_name(B->in_attr, B->io.n_input, "x");
@@ -544,7 +526,8 @@ static int bench_enc_std(model_t *A, model_t *B, int warmup, int frames,
     if (run_model(A) || run_model(B))
         return -1;
     if (A->io.n_output != B->io.n_output) {
-        fprintf(stderr, "output count %u vs %u\n", A->io.n_output, B->io.n_output);
+        fprintf(stderr, "output count %u vs %u\n", A->io.n_output,
+                B->io.n_output);
         mismatch = 1;
     }
     for (uint32_t i = 0; i < A->io.n_output && !mismatch; i++) {
@@ -597,8 +580,7 @@ static int bench_enc_std(model_t *A, model_t *B, int warmup, int frames,
     return 0;
 }
 
-static int logical_c(const rknn_tensor_attr *a)
-{
+static int logical_c(const rknn_tensor_attr *a) {
     /* 输出 attr：NCHW 时 dims[1]=C，NHWC 时 dims[3]=C */
     if (a->fmt == RKNN_TENSOR_NHWC && a->n_dims >= 4)
         return (int)a->dims[3];
@@ -608,8 +590,7 @@ static int logical_c(const rknn_tensor_attr *a)
 }
 
 static int bench_dec_d2s(model_t *A, model_t *B, int warmup, int frames,
-                         bench_result *out)
-{
+                         bench_result *out) {
     const char *keys[] = {"z_raw", "y_raw_0", "y_raw_1", "ref_feature"};
     int ai[4], bi[4];
     for (int k = 0; k < 4; k++) {
@@ -657,8 +638,9 @@ static int bench_dec_d2s(model_t *A, model_t *B, int warmup, int frames,
     int valid_c = logical_c(&A->out_attr[ax]);
     if (valid_c <= 0)
         valid_c = 3;
-    printf("  DepthToSpace CPU bs=%d  B %dx%dx%d → expect %dx%dx%d (valid_c=%d)\n",
-           bs, Cb, Hb, Wb, valid_c, Hb * bs, Wb * bs, valid_c);
+    printf(
+        "  DepthToSpace CPU bs=%d  B %dx%dx%d → expect %dx%dx%d (valid_c=%d)\n",
+        bs, Cb, Hb, Wb, valid_c, Hb * bs, Wb * bs, valid_c);
     size_t n_img = (size_t)valid_c * (Hb * bs) * (Wb * bs);
     uint16_t *crd = malloc(n_img * 2);
     uint16_t *dcr = malloc(n_img * 2);
@@ -670,8 +652,8 @@ static int bench_dec_d2s(model_t *A, model_t *B, int warmup, int frames,
     clip01_f16_inplace(dcr, n_img);
     int mismatch = 0;
     if (Ha != Hb * bs || Wa != Wb * bs) {
-        printf("  spatial mismatch A %d,%d B after d2s %d,%d\n", Ha, Wa, Hb * bs,
-               Wb * bs);
+        printf("  spatial mismatch A %d,%d B after d2s %d,%d\n", Ha, Wa,
+               Hb * bs, Wb * bs);
         mismatch = 1;
     } else {
         printf("  try CRD:\n");
@@ -733,8 +715,7 @@ static int bench_dec_d2s(model_t *A, model_t *B, int warmup, int frames,
 }
 
 static int bench_custom_std(model_t *A, model_t *B, int warmup, int frames,
-                            bench_result *out)
-{
+                            bench_result *out) {
     /* A 无 custom，B 有 custom，同一份权重。输入相同。 */
     g_custom_hits = 0;
     int ax = find_name(A->in_attr, A->io.n_input, "x");
@@ -803,14 +784,14 @@ static int bench_custom_std(model_t *A, model_t *B, int warmup, int frames,
     return 0;
 }
 
-static void print_result(const char *exp, const bench_result *r)
-{
+static void print_result(const char *exp, const bench_result *r) {
     int faster = r->b_ms + 0.5 < r->a_ms; /* 至少快 0.5ms，避免噪声 */
     int pass = r->match && faster;
-    printf("\nRESULT exp=%s match=%d a_ms=%.3f±%.3f b_ms=%.3f±%.3f "
-           "delta_ms=%.3f custom_hits=%d faster=%d PASS=%d\n",
-           exp, r->match, r->a_ms, r->a_std, r->b_ms, r->b_std,
-           r->a_ms - r->b_ms, r->custom_hits, faster, pass);
+    printf(
+        "\nRESULT exp=%s match=%d a_ms=%.3f±%.3f b_ms=%.3f±%.3f "
+        "delta_ms=%.3f custom_hits=%d faster=%d PASS=%d\n",
+        exp, r->match, r->a_ms, r->a_std, r->b_ms, r->b_std, r->a_ms - r->b_ms,
+        r->custom_hits, faster, pass);
     if (!r->match)
         printf("  判定: 输出不是 1:1，丢弃（即使更快）\n");
     else if (!faster)
@@ -819,8 +800,7 @@ static void print_result(const char *exp, const bench_result *r)
         printf("  判定: 1:1 且更快，保留\n");
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     const char *exp = NULL, *path_a = NULL, *path_b = NULL;
     int warmup = 10, frames = 40;
     for (int i = 1; i < argc; i++) {
@@ -840,8 +820,9 @@ int main(int argc, char **argv)
         }
     }
     if (!exp || !path_a) {
-        fprintf(stderr, "usage: rknn_split_bench --exp enc_std|dec_d2s|custom_std "
-                        "--a a.rknn [--b b.rknn]\n");
+        fprintf(stderr,
+                "usage: rknn_split_bench --exp enc_std|dec_d2s|custom_std "
+                "--a a.rknn [--b b.rknn]\n");
         return 2;
     }
     model_t A, B;

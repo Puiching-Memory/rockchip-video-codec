@@ -54,12 +54,12 @@ rkvc::Status init_rans_coders(const rkvc::Model& model, RansCoder& g,
         !bpmf.channels ||
         (uint64_t)bpmf.qp_num * bpmf.channels != bpmf.lengths.size())
         return bad("pmf contract mismatch");
-    auto gr = RansCoder::create(RansVariant::Byte, gpmf.lengths,
-                                gpmf.offsets, gpmf.table, 16, 2, diag);
+    auto gr = RansCoder::create(RansVariant::Byte, gpmf.lengths, gpmf.offsets,
+                                gpmf.table, 16, 2, diag);
     if (!gr)
         return bad("gaussian coder init failed");
-    auto br = RansCoder::create(RansVariant::Byte, bpmf.lengths,
-                                bpmf.offsets, bpmf.table, 16, 2, diag);
+    auto br = RansCoder::create(RansVariant::Byte, bpmf.lengths, bpmf.offsets,
+                                bpmf.table, 16, 2, diag);
     if (!br)
         return bad("bitest coder init failed");
     g = std::move(gr.value());
@@ -122,8 +122,7 @@ rkvc::Status init_rungs(const rkvc::Model& model,
                 break;
             }
         }
-        std::unique_ptr<NpuModel> npu =
-            make_model ? make_model() : nullptr;
+        std::unique_ptr<NpuModel> npu = make_model ? make_model() : nullptr;
         if (!npu) {
             if (diag)
                 diag->add("bind", "npu", "no npu backend");
@@ -200,9 +199,8 @@ rkvc::Status resolve_entropy_geometry(EntropyConfig& cfg, int qp, int ZC,
             diag->add("bind", "entropy", "geometry mismatch");
         return rkvc::Status::Format;
     };
-    if (qp < 0 || (uint32_t)qp >= cfg.qp_num || ZC <= 0 || ZH <= 0 ||
-        ZW <= 0 || YC <= 0 || YH <= 0 || YW <= 0 ||
-        (uint32_t)ZC != cfg.z_channels)
+    if (qp < 0 || (uint32_t)qp >= cfg.qp_num || ZC <= 0 || ZH <= 0 || ZW <= 0 ||
+        YC <= 0 || YH <= 0 || YW <= 0 || (uint32_t)ZC != cfg.z_channels)
         return bad();
     auto ceil_div = [](int v, int d) { return (v + d - 1) / d; };
     if (ZH == ceil_div(YH, 8) && ZW == ceil_div(YW, 8)) {
@@ -232,8 +230,7 @@ int nearest_rung(const std::vector<int>& rung_qp, int q) noexcept {
     return best;
 }
 
-void build_z_idx(std::vector<int32_t>& z_idx, int qp, int ZC, int ZH,
-                 int ZW) {
+void build_z_idx(std::vector<int32_t>& z_idx, int qp, int ZC, int ZH, int ZW) {
     z_idx.assign((size_t)ZC * ZH * ZW, 0);
     for (int c = 0; c < ZC; c++) {
         int32_t* p = z_idx.data() + (size_t)c * ZH * ZW;
@@ -243,8 +240,7 @@ void build_z_idx(std::vector<int32_t>& z_idx, int qp, int ZC, int ZH,
     }
 }
 
-int find_input(const std::vector<NpuTensorInfo>& ts,
-               const char* key) noexcept {
+int find_input(const std::vector<NpuTensorInfo>& ts, const char* key) noexcept {
     if (!key)
         return -1;
     for (size_t i = 0; i < ts.size(); ++i)
@@ -258,19 +254,17 @@ int find_output(const std::vector<NpuTensorInfo>& ts,
     return find_input(ts, key);
 }
 
-rkvc::Result<rkvc::NodePtr> MlvcEncodeFactory::create(
-    const rkvc::Request& r, rkvc::Diag*) const {
-    rkvc::NodePtr n(
-        new (std::nothrow) MlvcEncoderNode(r, make_model_));
+rkvc::Result<rkvc::NodePtr> MlvcEncodeFactory::create(const rkvc::Request& r,
+                                                      rkvc::Diag*) const {
+    rkvc::NodePtr n(new (std::nothrow) MlvcEncoderNode(r, make_model_));
     if (!n)
         return rkvc::Result<rkvc::NodePtr>::failure(rkvc::Status::Nomem);
     return rkvc::Result<rkvc::NodePtr>::success(std::move(n));
 }
 
-rkvc::Result<rkvc::NodePtr> MlvcDecodeFactory::create(
-    const rkvc::Request& r, rkvc::Diag*) const {
-    rkvc::NodePtr n(
-        new (std::nothrow) MlvcDecoderNode(r, make_model_));
+rkvc::Result<rkvc::NodePtr> MlvcDecodeFactory::create(const rkvc::Request& r,
+                                                      rkvc::Diag*) const {
+    rkvc::NodePtr n(new (std::nothrow) MlvcDecoderNode(r, make_model_));
     if (!n)
         return rkvc::Result<rkvc::NodePtr>::failure(rkvc::Status::Nomem);
     return rkvc::Result<rkvc::NodePtr>::success(std::move(n));

@@ -81,9 +81,7 @@ void bicubic_channel(const uint8_t* src, uint32_t sw, uint32_t sh,
                     float wx = cubic_weight(sx - (float)(ix + kx));
                     uint32_t px = clamp_index(ix + kx, sw);
                     float w = wx * wy;
-                    total += src[(size_t)py * s_stride +
-                                 (size_t)px * s_px] *
-                             w;
+                    total += src[(size_t)py * s_stride + (size_t)px * s_px] * w;
                     weights += w;
                 }
             }
@@ -103,9 +101,9 @@ size_t residual_offset(size_t plane, uint32_t rw, uint32_t ch, uint32_t dy,
 }  // namespace
 
 rkvc::Status phase_pack_nv12(const uint8_t* y, uint32_t y_stride,
-                              const uint8_t* uv, uint32_t uv_stride,
-                              uint32_t w, uint32_t h, uint8_t* phases,
-                              size_t phases_size) noexcept {
+                             const uint8_t* uv, uint32_t uv_stride, uint32_t w,
+                             uint32_t h, uint8_t* phases,
+                             size_t phases_size) noexcept {
     if (!y || !uv || !phases || !w || !h || y_stride < w || uv_stride < w ||
         (w % kPhaseInFactor) || (h % kPhaseInFactor))
         return rkvc::Status::Invalid;
@@ -122,8 +120,8 @@ rkvc::Status phase_pack_nv12(const uint8_t* y, uint32_t y_stride,
                     for (uint32_t cx = 0; cx < cw; ++cx) {
                         uint32_t sx = cx * 2 + dx;
                         phases[((size_t)cy * cw + cx) * kPhaseInCh + pc] =
-                            channel_at(y, y_stride, uv, uv_stride, w, h, c,
-                                       sy, sx);
+                            channel_at(y, y_stride, uv, uv_stride, w, h, c, sy,
+                                       sx);
                     }
                 }
             }
@@ -131,26 +129,24 @@ rkvc::Status phase_pack_nv12(const uint8_t* y, uint32_t y_stride,
 }
 
 rkvc::Status bicubic_nv12(const uint8_t* src, uint32_t sw, uint32_t sh,
-                           uint32_t s_stride, uint32_t s_vstride,
-                           uint8_t* dst, uint32_t dw, uint32_t dh) noexcept {
+                          uint32_t s_stride, uint32_t s_vstride, uint8_t* dst,
+                          uint32_t dw, uint32_t dh) noexcept {
     if (!src || !dst || !sw || !sh || !dw || !dh || (sw & 1u) || (sh & 1u) ||
         (dw & 1u) || (dh & 1u) || s_stride < sw || s_vstride < sh)
         return rkvc::Status::Invalid;
     const uint8_t* src_uv = src + (size_t)s_stride * s_vstride;
     uint8_t* dst_uv = dst + (size_t)dw * dh;
     bicubic_channel(src, sw, sh, s_stride, 1, dst, dw, dh, dw, 1);
-    bicubic_channel(src_uv, sw / 2, sh / 2, s_stride, 2, dst_uv, dw / 2,
+    bicubic_channel(src_uv, sw / 2, sh / 2, s_stride, 2, dst_uv, dw / 2, dh / 2,
+                    dw, 2);
+    bicubic_channel(src_uv + 1, sw / 2, sh / 2, s_stride, 2, dst_uv + 1, dw / 2,
                     dh / 2, dw, 2);
-    bicubic_channel(src_uv + 1, sw / 2, sh / 2, s_stride, 2, dst_uv + 1,
-                    dw / 2, dh / 2, dw, 2);
     return rkvc::Status::Ok;
 }
 
-rkvc::Status add_phase_residual(const float* residual, uint32_t rw,
-                                uint32_t rh, uint8_t* dst, uint32_t w,
-                                uint32_t h) noexcept {
-    if (!residual || !dst || w != rw * 6 || h != rh * 6 || (w & 1u) ||
-        (h & 1u))
+rkvc::Status add_phase_residual(const float* residual, uint32_t rw, uint32_t rh,
+                                uint8_t* dst, uint32_t w, uint32_t h) noexcept {
+    if (!residual || !dst || w != rw * 6 || h != rh * 6 || (w & 1u) || (h & 1u))
         return rkvc::Status::Invalid;
     size_t plane = (size_t)rw * rh;
     uint8_t* y_plane = dst;

@@ -86,9 +86,7 @@ TEST_CASE("release hook fires on last release") {
     s.fmt = PixelFormat::Nv12;
     std::vector<uint8_t> buf(min_size(s));
     int fired = 0;
-    FrameHooks hooks{[](void* ctx) noexcept {
-                         *static_cast<int*>(ctx) += 1;
-                     },
+    FrameHooks hooks{[](void* ctx) noexcept { *static_cast<int*>(ctx) += 1; },
                      &fired};
     auto ok = Frame::borrow_host(s, buf.data(), buf.size(), hooks);
     CHECK(ok);

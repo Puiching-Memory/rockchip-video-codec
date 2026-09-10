@@ -32,20 +32,19 @@ constexpr uint8_t kVideoStreamId = 0xE0;
 // Annex-B NAL scan (3/4-byte start codes).
 bool is_keyframe(VideoCodec codec, const uint8_t* data, size_t size) noexcept;
 
-rkvc::Result<std::vector<uint8_t>> mux_frame(VideoCodec codec,
-                                             const uint8_t* annexb, size_t size,
-                                             int64_t pts90, bool keyframe,
-                                             const MuxOptions& opts = MuxOptions{});
+rkvc::Result<std::vector<uint8_t>> mux_frame(
+    VideoCodec codec, const uint8_t* annexb, size_t size, int64_t pts90,
+    bool keyframe, const MuxOptions& opts = MuxOptions{});
 
 // AU assembler: emits AU N when AU N+1 begins (one-AU delay, PTS-correct),
 // or on flush() at end of stream. Again = need more bytes.
 class Demux {
-  public:
+public:
     rkvc::Status append(const uint8_t* data, size_t size);
     rkvc::Result<Frame> next();
     rkvc::Result<Frame> flush();
 
-  private:
+private:
     rkvc::Result<Frame> emit_au();
 
     std::vector<uint8_t> buf_;

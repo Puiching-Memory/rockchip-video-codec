@@ -33,8 +33,7 @@ struct ClampedRoi {
 
 // Align to 16px, clip into the frame. Invalid rects yield Invalid/Format.
 rkvc::Result<std::vector<ClampedRoi>> clamp_roi(const rkvc::RoiRegion* regions,
-                                                size_t count,
-                                                uint32_t frame_w,
+                                                size_t count, uint32_t frame_w,
                                                 uint32_t frame_h,
                                                 rkvc::Diag* diag = nullptr);
 

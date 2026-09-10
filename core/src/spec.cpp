@@ -3,7 +3,9 @@
 
 namespace rkvc {
 
-bool is_linear(const Spec& s) noexcept { return s.modifier == 0; }
+bool is_linear(const Spec& s) noexcept {
+    return s.modifier == 0;
+}
 
 static uint32_t bpp(const Spec& s) noexcept {
     switch (s.fmt) {
@@ -64,14 +66,22 @@ size_t min_size(const Spec& s) noexcept {
 
 const char* to_string(PixelFormat f) noexcept {
     switch (f) {
-        case PixelFormat::Unknown: return "unknown";
-        case PixelFormat::Nv12: return "nv12";
-        case PixelFormat::Nv21: return "nv21";
-        case PixelFormat::Yuv420P: return "yuv420p";
-        case PixelFormat::Nv16: return "nv16";
-        case PixelFormat::P010: return "p010";
-        case PixelFormat::Rgb24: return "rgb24";
-        case PixelFormat::Bitstream: return "bitstream";
+        case PixelFormat::Unknown:
+            return "unknown";
+        case PixelFormat::Nv12:
+            return "nv12";
+        case PixelFormat::Nv21:
+            return "nv21";
+        case PixelFormat::Yuv420P:
+            return "yuv420p";
+        case PixelFormat::Nv16:
+            return "nv16";
+        case PixelFormat::P010:
+            return "p010";
+        case PixelFormat::Rgb24:
+            return "rgb24";
+        case PixelFormat::Bitstream:
+            return "bitstream";
     }
     return "unknown";
 }
@@ -92,8 +102,7 @@ Result<Spec> unify(const Spec& a, const Spec& b, Diag* diag) {
     auto reject = [&](const char* reason) {
         if (diag)
             diag->add("negotiate", "spec", reason);
-        return Result<Spec>::failure(Status::Negotiate,
-                                     diag ? *diag : Diag{});
+        return Result<Spec>::failure(Status::Negotiate, diag ? *diag : Diag{});
     };
     if (a.fmt != b.fmt)
         return reject("pixel format mismatch");

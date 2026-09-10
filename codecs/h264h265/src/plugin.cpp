@@ -9,7 +9,7 @@ namespace {
 h264h265::MppDecodeFactory g_decode_factory;
 h264h265::MppEncodeFactory g_encode_factory;
 const rkvc::Factory* g_factories[] = {&g_decode_factory, &g_encode_factory};
-rkvc::PluginDescriptor g_desc{rkvc::kPluginAbi, "h264h265", "0.5.0",
+rkvc::PluginDescriptor g_desc{rkvc::kPluginAbi,           "h264h265",  "0.5.0",
                               RKVC_TOOLCHAIN_FINGERPRINT, g_factories, 2};
 
 }  // namespace

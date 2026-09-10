@@ -42,8 +42,8 @@ struct Header {
 void write_header(uint8_t out[kHdrSize], const Header& hdr);
 // Ok: parsed. Again: fewer than 64 bytes. Format: magic/format/dims bad.
 rkvc::Result<Header> parse_header(const uint8_t* data, size_t size);
-void write_record(uint8_t out[kRecSize], uint32_t payload_size,
-                  int32_t q_index, uint32_t flags);
+void write_record(uint8_t out[kRecSize], uint32_t payload_size, int32_t q_index,
+                  uint32_t flags);
 
 // Streaming demuxer: append bytes, pull records, consume each record.
 // next(): Ok(view into internal buffer) / Again (need data) / Format

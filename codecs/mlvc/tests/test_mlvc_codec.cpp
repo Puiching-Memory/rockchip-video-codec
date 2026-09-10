@@ -101,16 +101,14 @@ std::vector<uint8_t> white_nv12() {
 
 void register_fake(rkvc::Context& ctx) {
     auto enc = std::unique_ptr<mlvc::MlvcEncodeFactory>(
-        new mlvc::MlvcEncodeFactory(
-            []() -> std::unique_ptr<mlvc::NpuModel> {
-                return mlvc::make_fake_encoder();
-            }));
+        new mlvc::MlvcEncodeFactory([]() -> std::unique_ptr<mlvc::NpuModel> {
+            return mlvc::make_fake_encoder();
+        }));
     CHECK(ctx.registry().add(std::move(enc)) == rkvc::Status::Ok);
     auto dec = std::unique_ptr<mlvc::MlvcDecodeFactory>(
-        new mlvc::MlvcDecodeFactory(
-            []() -> std::unique_ptr<mlvc::NpuModel> {
-                return mlvc::make_fake_decoder();
-            }));
+        new mlvc::MlvcDecodeFactory([]() -> std::unique_ptr<mlvc::NpuModel> {
+            return mlvc::make_fake_decoder();
+        }));
     CHECK(ctx.registry().add(std::move(dec)) == rkvc::Status::Ok);
 }
 
@@ -127,10 +125,8 @@ TEST_CASE("mlvc plugin loads without rknn") {
 TEST_CASE("mlvc fake roundtrip") {
     rkvc::Context ctx;
     register_fake(ctx);
-    CHECK(ctx.add_model(make_model("fake-enc", "encoder")) ==
-          rkvc::Status::Ok);
-    CHECK(ctx.add_model(make_model("fake-dec", "decoder")) ==
-          rkvc::Status::Ok);
+    CHECK(ctx.add_model(make_model("fake-enc", "encoder")) == rkvc::Status::Ok);
+    CHECK(ctx.add_model(make_model("fake-dec", "decoder")) == rkvc::Status::Ok);
 
     rkvc::Request er;
     er.operation = rkvc::Operation::Encode;
@@ -168,8 +164,7 @@ TEST_CASE("mlvc fake roundtrip") {
         }
         if (packets == 0)
             first_big = f.value()->size() > 64 + 16;
-        const uint8_t* p =
-            static_cast<const uint8_t*>(f.value()->data());
+        const uint8_t* p = static_cast<const uint8_t*>(f.value()->data());
         stream.insert(stream.end(), p, p + f.value()->size());
         ++packets;
     }
@@ -214,8 +209,7 @@ TEST_CASE("mlvc fake roundtrip") {
         CHECK(f.value()->spec().width == 64);
         CHECK(f.value()->spec().height == 64);
         CHECK(f.value()->size() == 64 * 64 * 3 / 2);
-        const uint8_t* p =
-            static_cast<const uint8_t*>(f.value()->data());
+        const uint8_t* p = static_cast<const uint8_t*>(f.value()->data());
         // White in -> Y reconstructs to 128 through the fake stub.
         for (int i = 0; i < 64 * 64; ++i)
             CHECK(p[i] == 128);
@@ -227,10 +221,8 @@ TEST_CASE("mlvc fake roundtrip") {
 TEST_CASE("mlvc ltr scheduling runs") {
     rkvc::Context ctx;
     register_fake(ctx);
-    CHECK(ctx.add_model(make_model("fake-enc", "encoder")) ==
-          rkvc::Status::Ok);
-    CHECK(ctx.add_model(make_model("fake-dec", "decoder")) ==
-          rkvc::Status::Ok);
+    CHECK(ctx.add_model(make_model("fake-enc", "encoder")) == rkvc::Status::Ok);
+    CHECK(ctx.add_model(make_model("fake-dec", "decoder")) == rkvc::Status::Ok);
     rkvc::Request er;
     er.operation = rkvc::Operation::Encode;
     er.codec = rkvc::Codec::Mlvc;
@@ -265,8 +257,7 @@ TEST_CASE("mlvc ltr scheduling runs") {
         auto f = enc->pull();
         if (!f)
             break;
-        const uint8_t* p =
-            static_cast<const uint8_t*>(f.value()->data());
+        const uint8_t* p = static_cast<const uint8_t*>(f.value()->data());
         stream.insert(stream.end(), p, p + f.value()->size());
         ++packets;
     }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "h264h265/decoder.hpp"
 
+#include <unistd.h>
 #include <ctime>
 #include <new>
-#include <unistd.h>
 #include <utility>
 
 #include "h264h265/detail.hpp"
@@ -56,13 +56,15 @@ struct MppDecoderNode::Impl {
 };
 
 MppDecoderNode::MppDecoderNode(rkvc::Request req)
-    : impl_(new (std::nothrow) Impl()) {
+    : impl_(new(std::nothrow) Impl()) {
     if (impl_)
         impl_->req = std::move(req);
 }
 
 // Qualified: cleanup must not depend on virtual dispatch from a destructor.
-MppDecoderNode::~MppDecoderNode() { MppDecoderNode::close(); }
+MppDecoderNode::~MppDecoderNode() {
+    MppDecoderNode::close();
+}
 
 std::vector<rkvc::Port> MppDecoderNode::make_ports() const {
     rkvc::Port in, out;
@@ -355,8 +357,8 @@ int MppDecodeFactory::score(const rkvc::Request& r,
     return r.policy == rkvc::Policy::Realtime ? 100 : 50;
 }
 
-rkvc::Result<rkvc::NodePtr> MppDecodeFactory::create(
-    const rkvc::Request& r, rkvc::Diag*) const {
+rkvc::Result<rkvc::NodePtr> MppDecodeFactory::create(const rkvc::Request& r,
+                                                     rkvc::Diag*) const {
     rkvc::NodePtr n(new (std::nothrow) MppDecoderNode(r));
     if (!n)
         return rkvc::Result<rkvc::NodePtr>::failure(rkvc::Status::Nomem);
@@ -371,8 +373,7 @@ bool mpp_device_present() noexcept {
         return false;
     return mpp_check_support_format(MPP_CTX_DEC, MPP_VIDEO_CodingAVC) ==
                MPP_OK ||
-           mpp_check_support_format(MPP_CTX_ENC, MPP_VIDEO_CodingAVC) ==
-               MPP_OK;
+           mpp_check_support_format(MPP_CTX_ENC, MPP_VIDEO_CodingAVC) == MPP_OK;
 }
 
 }  // namespace detail

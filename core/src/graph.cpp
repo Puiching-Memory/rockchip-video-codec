@@ -171,7 +171,8 @@ public:
             return fail(diag, Status::Invalid, "empty dmabuf");
         // NB: dma-buf exporters reject MAP_PRIVATE; read-only MAP_SHARED is
         // safe here because the mapping is never written through.
-        void* map = mmap(nullptr, mapped, PROT_READ, MAP_SHARED, input->fd(), 0);
+        void* map =
+            mmap(nullptr, mapped, PROT_READ, MAP_SHARED, input->fd(), 0);
         if (map == MAP_FAILED)
             return fail(diag, Status::Hw, "mmap failed");
         Status st = copy(input, s, map, mapped, diag);
@@ -229,10 +230,9 @@ private:
             }
             const size_t start =
                 static_cast<size_t>(src_stride) * planes[p].ver_off;
-            const size_t end = start +
-                               static_cast<size_t>(planes[p].lines - 1) *
-                                   src_stride +
-                               planes[p].line_bytes;
+            const size_t end =
+                start + static_cast<size_t>(planes[p].lines - 1) * src_stride +
+                planes[p].line_bytes;
             if (end > mapped) {
                 std::free(dst);
                 return fail(diag, Status::Invalid, "plane exceeds mapping");
@@ -293,8 +293,8 @@ private:
                 return false;
         }
     }
-    Status finish_flat(const FramePtr& input, const void* map,
-                       size_t mapped, Diag* diag) {
+    Status finish_flat(const FramePtr& input, const void* map, size_t mapped,
+                       Diag* diag) {
         void* dst = std::malloc(mapped);
         if (!dst)
             return fail(diag, Status::Nomem, "host alloc failed");
@@ -375,16 +375,15 @@ bool Plan::advance(size_t failed_step) noexcept {
 
 Result<std::unique_ptr<Graph>> Graph::build(const Plan& plan, Context& ctx,
                                             const Request& req,
-                                            FrameQueue* in_q,
-                                            FrameQueue* out_q,
+                                            FrameQueue* in_q, FrameQueue* out_q,
                                             size_t* failed_step, Diag* diag) {
     auto fail_step = [&](size_t i, Status s, const char* reason) {
         if (failed_step)
             *failed_step = i;
         if (diag)
             diag->add("build", "graph", reason);
-        return Result<std::unique_ptr<Graph>>::failure(
-            s, diag ? *diag : Diag{});
+        return Result<std::unique_ptr<Graph>>::failure(s,
+                                                       diag ? *diag : Diag{});
     };
     auto fail_chain = [&](size_t i, Status s, const Diag& chain) {
         if (failed_step)
@@ -426,8 +425,7 @@ Result<std::unique_ptr<Graph>> Graph::build(const Plan& plan, Context& ctx,
             if (!node)
                 return fail_step(i, Status::Nomem, "sink alloc failed");
         } else {
-            if (st.index >= st.candidates.size() ||
-                !st.candidates[st.index])
+            if (st.index >= st.candidates.size() || !st.candidates[st.index])
                 return fail_step(i, Status::NotFound,
                                  "required stage has no candidate");
             auto r = st.candidates[st.index]->create(req, diag);
@@ -446,7 +444,7 @@ Result<std::unique_ptr<Graph>> Graph::build(const Plan& plan, Context& ctx,
                 ++outs;
             p.resolved = p.desired;
         }
-        bool arity = (i == 0) ? (ins == 0 && outs == 1)
+        bool arity = (i == 0)       ? (ins == 0 && outs == 1)
                      : (i + 1 == n) ? (ins == 1 && outs == 0)
                                     : (ins == 1 && outs == 1);
         if (!arity)
@@ -477,8 +475,8 @@ Result<std::unique_ptr<Graph>> Graph::build(const Plan& plan, Context& ctx,
     n = g->nodes_.size();
 
     for (size_t i = 0; i + 1 < n; ++i) {
-        std::unique_ptr<FrameQueue> q(
-            new (std::nothrow) FrameQueue(req.queue_capacity));
+        std::unique_ptr<FrameQueue> q(new (std::nothrow)
+                                          FrameQueue(req.queue_capacity));
         if (!q)
             return fail_step(i + 1, Status::Nomem, "queue alloc failed");
         g->edges_.push_back(std::move(q));

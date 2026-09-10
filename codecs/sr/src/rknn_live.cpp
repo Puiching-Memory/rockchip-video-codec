@@ -18,8 +18,8 @@ bool rknn_host_input_acceptable(const rknn_tensor_attr& a) noexcept {
         a.type == RKNN_TENSOR_FLOAT32)
         return true;
     // w8a8 quantized exports reinterpret uint8 bytes (real = q - zp).
-    return a.type == RKNN_TENSOR_INT8 &&
-           a.qnt_type != RKNN_TENSOR_QNT_NONE && a.zp == -128;
+    return a.type == RKNN_TENSOR_INT8 && a.qnt_type != RKNN_TENSOR_QNT_NONE &&
+           a.zp == -128;
 }
 
 class RknnRuntime : public SrRuntime {
@@ -75,21 +75,17 @@ public:
             }
             return c > 0 && h > 0 && w > 0;
         };
-        uint32_t in_c = 0, in_h = 0, in_w = 0, out_c = 0, out_h = 0,
-                 out_w = 0;
+        uint32_t in_c = 0, in_h = 0, in_w = 0, out_c = 0, out_h = 0, out_w = 0;
         if (!chw(in_attr_, in_c, in_h, in_w) ||
             !chw(out_attr_, out_c, out_h, out_w) ||
             in_attr_.fmt != RKNN_TENSOR_NHWC ||
-            out_attr_.fmt != RKNN_TENSOR_NCHW ||
-            in_c != post::kPhaseInCh || out_c != post::kPhaseOutCh ||
-            in_w != out_w || in_h != out_h ||
+            out_attr_.fmt != RKNN_TENSOR_NCHW || in_c != post::kPhaseInCh ||
+            out_c != post::kPhaseOutCh || in_w != out_w || in_h != out_h ||
             in_w > post::kMaxDim / post::kPhaseOutFactor ||
             in_h > post::kMaxDim / post::kPhaseOutFactor ||
             !rknn_host_input_acceptable(in_attr_) ||
-            in_attr_.n_elems !=
-                (size_t)post::kPhaseInCh * in_w * in_h ||
-            out_attr_.n_elems !=
-                (size_t)post::kPhaseOutCh * in_w * in_h) {
+            in_attr_.n_elems != (size_t)post::kPhaseInCh * in_w * in_h ||
+            out_attr_.n_elems != (size_t)post::kPhaseOutCh * in_w * in_h) {
             rknn_destroy(ctx_);
             ctx_ = 0;
             return bad("tensor contract mismatch");
@@ -102,8 +98,8 @@ public:
         g.out_h = out_h * post::kPhaseOutFactor;
         return rkvc::Status::Ok;
     }
-    rkvc::Status run(std::span<const uint8_t> packed,
-                     std::span<float> residual, rkvc::Diag* diag) override {
+    rkvc::Status run(std::span<const uint8_t> packed, std::span<float> residual,
+                     rkvc::Diag* diag) override {
         auto bad = [&](const char* reason) {
             if (diag)
                 diag->add("process", "rknn.upscale", reason);
@@ -127,8 +123,7 @@ public:
         out.want_float = 1;
         if (rknn_outputs_get(ctx_, 1, &out, nullptr) != RKNN_SUCC)
             return bad("output retrieval failed");
-        if (!out.buf ||
-            out.size < out_attr_.n_elems * sizeof(float)) {
+        if (!out.buf || out.size < out_attr_.n_elems * sizeof(float)) {
             rknn_outputs_release(ctx_, 1, &out);
             return bad("short output");
         }

@@ -7,8 +7,7 @@ Result<void> validate(const Request& r, Diag* diag) {
     auto reject = [&](const char* reason) {
         if (diag)
             diag->add("validate", "request", reason);
-        return Result<void>::failure(Status::Invalid,
-                                     diag ? *diag : Diag{});
+        return Result<void>::failure(Status::Invalid, diag ? *diag : Diag{});
     };
     if (r.queue_capacity == 0)
         return reject("queue capacity must be nonzero");

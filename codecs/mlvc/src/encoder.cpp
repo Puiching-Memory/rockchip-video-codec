@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "mlvc/codec.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <new>
 #include <span>
-#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -17,9 +17,13 @@ namespace mlvc {
 
 namespace {
 
-void free_buffer(void* p) noexcept { free(p); }
+void free_buffer(void* p) noexcept {
+    free(p);
+}
 
-bool fp16_finite(uint16_t h) noexcept { return (h & 0x7c00) != 0x7c00; }
+bool fp16_finite(uint16_t h) noexcept {
+    return (h & 0x7c00) != 0x7c00;
+}
 
 bool all_finite(std::span<const uint16_t> t) noexcept {
     for (uint16_t v : t)
@@ -82,7 +86,7 @@ struct MlvcEncoderNode::Impl {
 };
 
 MlvcEncoderNode::MlvcEncoderNode(rkvc::Request req, NpuModelFn make_model)
-    : impl_(new (std::nothrow) Impl()) {
+    : impl_(new(std::nothrow) Impl()) {
     if (impl_) {
         impl_->req = std::move(req);
         impl_->make_model = std::move(make_model);
@@ -188,8 +192,8 @@ rkvc::Status MlvcEncoderNode::bind_model(const rkvc::Model& model,
     const auto& zd = outs[e->enc_z_out].dims;
     const auto& yd = outs[e->enc_y0_out].dims;
     const auto& fd = outs[e->enc_feat_out].dims;
-    if (xd.size() != 4 || rd.size() != 4 || zd.size() != 4 ||
-        yd.size() != 4 || fd.size() != 4)
+    if (xd.size() != 4 || rd.size() != 4 || zd.size() != 4 || yd.size() != 4 ||
+        fd.size() != 4)
         return bad(rkvc::Status::Format, "tensor rank mismatch");
     e->img_h = xd[1];
     e->img_w = xd[2];
@@ -242,8 +246,7 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     if (!input || input->spec().fmt != rkvc::PixelFormat::Nv12 ||
         input->spec().domain != rkvc::MemDomain::Host || !input->data())
         return bad(rkvc::Status::Format, "NV12 host input only");
-    if (input->spec().width != e->img_w ||
-        input->spec().height != e->img_h)
+    if (input->spec().width != e->img_w || input->spec().height != e->img_h)
         return bad(rkvc::Status::Format, "geometry mismatch");
     const uint8_t* base = static_cast<const uint8_t*>(input->data());
 
@@ -277,7 +280,7 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     uint32_t rec_flags = (is_idr ? kRecKeyframe : 0) |
                          (mark_ltr ? kRecLtrMark : 0) |
                          (is_recovery ? kRecLtrRecovery : 0);
-    RcFrameType rc_type = is_idr ? RcFrameType::I
+    RcFrameType rc_type = is_idr        ? RcFrameType::I
                           : is_recovery ? RcFrameType::LtrRecovery
                                         : RcFrameType::P;
 
@@ -287,15 +290,14 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
         int solved = e->rc->solve(pt, rc_type, kRecSize * 8);
         if (solved == kQDrop) {
             if (rc_type == RcFrameType::P && !mark_ltr) {
-                uint8_t* record =
-                    static_cast<uint8_t*>(malloc(kRecSize));
+                uint8_t* record = static_cast<uint8_t*>(malloc(kRecSize));
                 if (!record)
                     return bad(rkvc::Status::Nomem, "no memory");
                 write_record(record, 0, kQindexDropped, 0);
                 rkvc::Spec spec;
                 spec.fmt = rkvc::PixelFormat::Bitstream;
-                auto fr = rkvc::Frame::borrow_host(
-                    spec, record, kRecSize, {free_buffer, record});
+                auto fr = rkvc::Frame::borrow_host(spec, record, kRecSize,
+                                                   {free_buffer, record});
                 if (!fr) {
                     free(record);
                     return bad(fr.status(), "drop frame alloc failed");
@@ -329,14 +331,13 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     }
 
     {
-        uint32_t stride = input->spec().stride ? input->spec().stride
-                                               : input->spec().width;
-        uint32_t vstride = input->spec().ver_stride
-                               ? input->spec().ver_stride
-                               : input->spec().height;
+        uint32_t stride =
+            input->spec().stride ? input->spec().stride : input->spec().width;
+        uint32_t vstride = input->spec().ver_stride ? input->spec().ver_stride
+                                                    : input->spec().height;
         const uint8_t* uv = base + (size_t)stride * vstride;
-        pixel::yuv_to_nhwc_fp16(base, stride, uv, uv + 1, stride, 1,
-                                e->img_w, e->img_h, e->x_nhwc.data());
+        pixel::yuv_to_nhwc_fp16(base, stride, uv, uv + 1, stride, 1, e->img_w,
+                                e->img_h, e->x_nhwc.data());
     }
 
     const std::vector<uint16_t>& ref =
@@ -352,8 +353,8 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
         size_t idx = e->qrows.rows[i].first;
         const QpTable* t = e->qrows.rows[i].second;
         const uint16_t* row = qptab_row(*t, (uint32_t)used_qp);
-        st = npu.set_input(idx, std::span<const uint16_t>(
-                                    row, row ? t->cols : 0));
+        st = npu.set_input(idx,
+                           std::span<const uint16_t>(row, row ? t->cols : 0));
     }
     if (st == rkvc::Status::Ok)
         st = npu.run(diag);
@@ -367,8 +368,7 @@ rkvc::Status MlvcEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     size_t y_n = e->y0_r.size();
     if (out_z.size() < z_n || out_y0.size() < y_n || out_y1.size() < y_n ||
         out_feat.size() != e->ref_prev.size() || !all_finite(out_z) ||
-        !all_finite(out_y0) || !all_finite(out_y1) ||
-        !all_finite(out_feat))
+        !all_finite(out_y0) || !all_finite(out_y1) || !all_finite(out_feat))
         return bad(rkvc::Status::Hw, "bad NPU outputs");
     for (size_t i = 0; i < z_n; ++i)
         e->z_r[i] = std::lrintf(pixel::f16_to_f32(out_z[i]));

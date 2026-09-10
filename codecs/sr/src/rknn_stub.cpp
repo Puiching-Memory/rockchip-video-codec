@@ -4,6 +4,8 @@
 
 namespace sr {
 
-std::unique_ptr<SrRuntime> make_rknn_runtime() { return nullptr; }
+std::unique_ptr<SrRuntime> make_rknn_runtime() {
+    return nullptr;
+}
 
 }  // namespace sr

@@ -54,11 +54,9 @@ void fill_pattern(std::vector<int32_t>& idx, std::vector<int32_t>& val) {
 }
 
 mlvc::RansCoder make_coder(mlvc::RansVariant v) {
-    auto r = mlvc::RansCoder::create(
-        v,
-        std::span<const int32_t>(kLengths, 2),
-        std::span<const int32_t>(kOffsets, 2),
-        std::span<const int32_t>(kTable, 9), 8, 2);
+    auto r = mlvc::RansCoder::create(v, std::span<const int32_t>(kLengths, 2),
+                                     std::span<const int32_t>(kOffsets, 2),
+                                     std::span<const int32_t>(kTable, 9), 8, 2);
     CHECK(r);
     if (!r)
         return mlvc::RansCoder{};
@@ -68,9 +66,8 @@ mlvc::RansCoder make_coder(mlvc::RansVariant v) {
 }  // namespace
 
 TEST_CASE("rans decodes C goldens") {
-    for (auto [v, hx] :
-         {std::pair{mlvc::RansVariant::Byte, kByteHex},
-          std::pair{mlvc::RansVariant::Rans64, k64Hex}}) {
+    for (auto [v, hx] : {std::pair{mlvc::RansVariant::Byte, kByteHex},
+                         std::pair{mlvc::RansVariant::Rans64, k64Hex}}) {
         mlvc::RansCoder coder = make_coder(v);
         std::vector<int32_t> idx, val;
         fill_pattern(idx, val);
@@ -85,9 +82,8 @@ TEST_CASE("rans decodes C goldens") {
 }
 
 TEST_CASE("rans encodes byte-identical goldens") {
-    for (auto [v, hx] :
-         {std::pair{mlvc::RansVariant::Byte, kByteHex},
-          std::pair{mlvc::RansVariant::Rans64, k64Hex}}) {
+    for (auto [v, hx] : {std::pair{mlvc::RansVariant::Byte, kByteHex},
+                         std::pair{mlvc::RansVariant::Rans64, k64Hex}}) {
         mlvc::RansCoder coder = make_coder(v);
         std::vector<int32_t> idx, val;
         fill_pattern(idx, val);
@@ -109,12 +105,10 @@ TEST_CASE("rans streaming roundtrip with two coders") {
     }
     mlvc::RansEncoder enc(mlvc::RansVariant::Byte);
     // Two coders / two calls share one stream, like gaussian + bitest.
-    CHECK(enc.encode(coder,
-                     std::span<const int32_t>(idx.data(), 128),
+    CHECK(enc.encode(coder, std::span<const int32_t>(idx.data(), 128),
                      std::span<const int32_t>(val.data(), 128)) ==
           rkvc::Status::Ok);
-    CHECK(enc.encode(coder,
-                     std::span<const int32_t>(idx.data() + 128, 128),
+    CHECK(enc.encode(coder, std::span<const int32_t>(idx.data() + 128, 128),
                      std::span<const int32_t>(val.data() + 128, 128)) ==
           rkvc::Status::Ok);
     const uint8_t* out = nullptr;
@@ -153,17 +147,15 @@ TEST_CASE("rans rejects bad input") {
     rkvc::Status st = mlvc::rans_decode(coder, back, idx, bytes);
     CHECK(st != rkvc::Status::Ok);
     // Bad coder params.
-    CHECK(mlvc::RansCoder::create(
-                  mlvc::RansVariant::Byte,
-                  std::span<const int32_t>(kLengths, 2),
-                  std::span<const int32_t>(kOffsets, 1),
-                  std::span<const int32_t>(kTable, 9), 8, 2)
+    CHECK(mlvc::RansCoder::create(mlvc::RansVariant::Byte,
+                                  std::span<const int32_t>(kLengths, 2),
+                                  std::span<const int32_t>(kOffsets, 1),
+                                  std::span<const int32_t>(kTable, 9), 8, 2)
               .status() == rkvc::Status::Invalid);
     const int32_t bad_table[] = {64, 64, 64, 32, 33, 128, 64, 32, 32};
-    CHECK(mlvc::RansCoder::create(
-                  mlvc::RansVariant::Byte,
-                  std::span<const int32_t>(kLengths, 2),
-                  std::span<const int32_t>(kOffsets, 2),
-                  std::span<const int32_t>(bad_table, 9), 8, 2)
+    CHECK(mlvc::RansCoder::create(mlvc::RansVariant::Byte,
+                                  std::span<const int32_t>(kLengths, 2),
+                                  std::span<const int32_t>(kOffsets, 2),
+                                  std::span<const int32_t>(bad_table, 9), 8, 2)
               .status() == rkvc::Status::Format);
 }

@@ -34,7 +34,7 @@ struct SrUpscaleNode::Impl {
 };
 
 SrUpscaleNode::SrUpscaleNode(rkvc::Request req, std::unique_ptr<SrRuntime> rt)
-    : impl_(new (std::nothrow) Impl()) {
+    : impl_(new(std::nothrow) Impl()) {
     if (impl_) {
         impl_->req = std::move(req);
         impl_->rt = std::move(rt);
@@ -103,9 +103,8 @@ rkvc::Status SrUpscaleNode::open(rkvc::Emit* emit, rkvc::Diag* diag) {
             diag->add("open", "rknn.upscale", "request geometry mismatch");
         return rkvc::Status::Format;
     }
-    up->packed.assign((size_t)post::kPhaseInCh * up->geom.core_w *
-                          up->geom.core_h,
-                      0);
+    up->packed.assign(
+        (size_t)post::kPhaseInCh * up->geom.core_w * up->geom.core_h, 0);
     up->residual.assign(
         (size_t)post::kPhaseOutCh * up->geom.core_w * up->geom.core_h, 0.0f);
     up->emit = emit;
@@ -133,15 +132,14 @@ rkvc::Status SrUpscaleNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
         input->size() < (size_t)stride * vstride * 3 / 2)
         return bad(rkvc::Status::Format, "short input");
 
-    const uint8_t* base =
-        static_cast<const uint8_t*>(input->data());
+    const uint8_t* base = static_cast<const uint8_t*>(input->data());
     void* mapped = nullptr;
 #ifdef __linux__
     if (spec.domain == rkvc::MemDomain::Dmabuf) {
         if (input->fd() < 0 || spec.modifier != 0)
             return bad(rkvc::Status::Format, "linear dmabuf only");
-        mapped = mmap(nullptr, input->size(), PROT_READ, MAP_SHARED,
-                      input->fd(), 0);
+        mapped =
+            mmap(nullptr, input->size(), PROT_READ, MAP_SHARED, input->fd(), 0);
         if (mapped == MAP_FAILED)
             return bad(rkvc::Status::Io, "dmabuf map failed");
         struct dma_buf_sync sync = {};
@@ -197,8 +195,7 @@ rkvc::Status SrUpscaleNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     ospec.stride = up->geom.out_w;
     ospec.ver_stride = up->geom.out_h;
     auto fr = rkvc::Frame::borrow_host(
-        ospec, out, out_size,
-        {[](void* p) noexcept { free(p); }, out});
+        ospec, out, out_size, {[](void* p) noexcept { free(p); }, out});
     if (!fr) {
         free(out);
         return bad(fr.status(), "output frame alloc failed");
@@ -245,10 +242,9 @@ bool SrUpscaleFactory::npu_present() noexcept {
     return false;
 }
 
-rkvc::Result<rkvc::NodePtr> SrUpscaleFactory::create(
-    const rkvc::Request& r, rkvc::Diag*) const {
-    rkvc::NodePtr n(
-        new (std::nothrow) SrUpscaleNode(r, make_rknn_runtime()));
+rkvc::Result<rkvc::NodePtr> SrUpscaleFactory::create(const rkvc::Request& r,
+                                                     rkvc::Diag*) const {
+    rkvc::NodePtr n(new (std::nothrow) SrUpscaleNode(r, make_rknn_runtime()));
     if (!n)
         return rkvc::Result<rkvc::NodePtr>::failure(rkvc::Status::Nomem);
     return rkvc::Result<rkvc::NodePtr>::success(std::move(n));

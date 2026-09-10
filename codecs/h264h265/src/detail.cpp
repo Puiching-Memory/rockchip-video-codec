@@ -29,9 +29,10 @@ SniffedCodec sniff_annexb(const uint8_t* data, size_t size) noexcept {
     return SniffedCodec::Unknown;
 }
 
-rkvc::Result<std::vector<ClampedRoi>> clamp_roi(
-    const rkvc::RoiRegion* regions, size_t count, uint32_t frame_w,
-    uint32_t frame_h, rkvc::Diag* diag) {
+rkvc::Result<std::vector<ClampedRoi>> clamp_roi(const rkvc::RoiRegion* regions,
+                                                size_t count, uint32_t frame_w,
+                                                uint32_t frame_h,
+                                                rkvc::Diag* diag) {
     using R = rkvc::Result<std::vector<ClampedRoi>>;
     if (count > rkvc::kRoiMaxRegions) {
         if (diag)

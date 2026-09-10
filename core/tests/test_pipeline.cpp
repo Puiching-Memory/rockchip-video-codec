@@ -146,8 +146,8 @@ Request encode_req() {
 
 void add_pipe(Context& ctx, const char* id, int prio,
               Status create_status = Status::Ok) {
-    auto f = std::unique_ptr<FakeFactory>(
-        new FakeFactory(id, prio, create_status));
+    auto f =
+        std::unique_ptr<FakeFactory>(new FakeFactory(id, prio, create_status));
     CHECK(ctx.registry().add(std::move(f)) == Status::Ok);
 }
 

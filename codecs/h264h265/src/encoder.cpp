@@ -20,7 +20,9 @@ namespace {
 constexpr uint32_t kDefaultFps = 30;
 constexpr uint32_t kDefaultGop = 60;
 
-void free_packet(void* p) noexcept { free(p); }
+void free_packet(void* p) noexcept {
+    free(p);
+}
 
 MppCodingType to_mpp_coding(rkvc::Codec c) noexcept {
     switch (c) {
@@ -57,13 +59,15 @@ struct MppEncoderNode::Impl {
 };
 
 MppEncoderNode::MppEncoderNode(rkvc::Request req)
-    : impl_(new (std::nothrow) Impl()) {
+    : impl_(new(std::nothrow) Impl()) {
     if (impl_)
         impl_->req = std::move(req);
 }
 
 // Qualified: cleanup must not depend on virtual dispatch from a destructor.
-MppEncoderNode::~MppEncoderNode() { MppEncoderNode::close(); }
+MppEncoderNode::~MppEncoderNode() {
+    MppEncoderNode::close();
+}
 
 std::vector<rkvc::Port> MppEncoderNode::make_ports() const {
     rkvc::Port in, out;
@@ -115,7 +119,7 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
     enc->hor_stride = in.stride ? in.stride : enc->width;
     enc->ver_stride = in.ver_stride ? in.ver_stride : enc->height;
     enc->format = (in.fmt == rkvc::PixelFormat::Nv12) ? MPP_FMT_YUV420SP
-                                                     : MPP_FMT_YUV420P;
+                                                      : MPP_FMT_YUV420P;
 
     RK_S64 in_timeout = 5000;
     RK_S64 out_timeout = MPP_TIMEOUT_NON_BLOCK;
@@ -144,9 +148,9 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_flex", 0);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_num", fps);
     mpp_enc_cfg_set_s32(cfg, "rc:fps_out_denom", 1);
-    mpp_enc_cfg_set_s32(cfg, "rc:gop",
-                        enc->req.quality.gop_size ? enc->req.quality.gop_size
-                                                  : kDefaultGop);
+    mpp_enc_cfg_set_s32(
+        cfg, "rc:gop",
+        enc->req.quality.gop_size ? enc->req.quality.gop_size : kDefaultGop);
     if (enc->req.quality.qp >= 0) {
         int32_t qp = enc->req.quality.qp;
         mpp_enc_cfg_set_s32(cfg, "rc:mode", MPP_ENC_RC_MODE_FIXQP);
@@ -170,8 +174,8 @@ rkvc::Status init_from_spec(MppEncoderNode::Impl* enc, const rkvc::Spec& in,
         mpp_enc_cfg_set_s32(cfg, "rc:bps_min", (RK_S32)(bps * 15 / 16));
         enc->applied_bps = (int32_t)bps;
     }
-    enc->applied_gop = enc->req.quality.gop_size ? enc->req.quality.gop_size
-                                                 : kDefaultGop;
+    enc->applied_gop =
+        enc->req.quality.gop_size ? enc->req.quality.gop_size : kDefaultGop;
     auto fail = [&] {
         if (diag)
             diag->add("open", "mpp.encode", "mpp encoder init failed");
@@ -218,8 +222,7 @@ rkvc::Status apply_control(MppEncoderNode::Impl* enc,
         mpp_enc_cfg_set_s32(enc->cfg, "rc:gop", c.gop_size);
         changed = true;
     }
-    if (!enc->fixqp && c.bitrate_bps > 0 &&
-        c.bitrate_bps != enc->applied_bps) {
+    if (!enc->fixqp && c.bitrate_bps > 0 && c.bitrate_bps != enc->applied_bps) {
         int64_t bps = c.bitrate_bps;
         mpp_enc_cfg_set_s32(enc->cfg, "rc:bps_target", (RK_S32)bps);
         mpp_enc_cfg_set_s32(enc->cfg, "rc:bps_max", (RK_S32)(bps * 17 / 16));
@@ -279,18 +282,17 @@ MppBuffer host_copy(MppEncoderNode::Impl* enc, const uint8_t* src,
         return nullptr;
     uint8_t* dst = static_cast<uint8_t*>(mpp_buffer_get_ptr(buf));
     for (uint32_t y = 0; y < enc->height; ++y)
-        memcpy(dst + (size_t)y * enc->hor_stride,
-               src + (size_t)y * src_row, enc->width);
+        memcpy(dst + (size_t)y * enc->hor_stride, src + (size_t)y * src_row,
+               enc->width);
     dst += (size_t)enc->hor_stride * enc->ver_stride;
     src += (size_t)src_row * src_ver;
     for (uint32_t y = 0; y < enc->height / 2; ++y)
-        memcpy(dst + (size_t)y * enc->hor_stride,
-               src + (size_t)y * src_row, enc->width);
+        memcpy(dst + (size_t)y * enc->hor_stride, src + (size_t)y * src_row,
+               enc->width);
     return buf;
 }
 
-MppBuffer dmabuf_wrap(MppEncoderNode::Impl* enc,
-                      const rkvc::FramePtr& input) {
+MppBuffer dmabuf_wrap(MppEncoderNode::Impl* enc, const rkvc::FramePtr& input) {
     MppBufferInfo info = {};
     info.type = MPP_BUFFER_TYPE_DMA_HEAP;
     info.size = input->size();
@@ -507,8 +509,8 @@ int MppEncodeFactory::score(const rkvc::Request& r,
     return r.policy == rkvc::Policy::Realtime ? 100 : 50;
 }
 
-rkvc::Result<rkvc::NodePtr> MppEncodeFactory::create(
-    const rkvc::Request& r, rkvc::Diag*) const {
+rkvc::Result<rkvc::NodePtr> MppEncodeFactory::create(const rkvc::Request& r,
+                                                     rkvc::Diag*) const {
     rkvc::NodePtr n(new (std::nothrow) MppEncoderNode(r));
     if (!n)
         return rkvc::Result<rkvc::NodePtr>::failure(rkvc::Status::Nomem);

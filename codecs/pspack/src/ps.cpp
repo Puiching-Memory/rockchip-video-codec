@@ -9,7 +9,7 @@ constexpr size_t kPesChunk = 60000;  // max ES bytes per PES packet.
 constexpr size_t kNpos = static_cast<size_t>(-1);
 
 class BitWriter {
-  public:
+public:
     void put(uint32_t v, int n) noexcept {
         for (int i = n - 1; i >= 0; --i) {
             cur_ = static_cast<uint8_t>((cur_ << 1) | ((v >> i) & 1u));
@@ -59,7 +59,8 @@ void wr_pts(std::vector<uint8_t>& o, int64_t pts) {
 
 int64_t rd_pts(const uint8_t* p) noexcept {
     uint64_t v = (static_cast<uint64_t>(p[0] >> 1) & 7) << 30;
-    v |= static_cast<uint64_t>((static_cast<uint16_t>(p[1]) << 8 | p[2]) >> 1) << 15;
+    v |= static_cast<uint64_t>((static_cast<uint16_t>(p[1]) << 8 | p[2]) >> 1)
+         << 15;
     v |= static_cast<uint64_t>(static_cast<uint16_t>(p[3]) << 8 | p[4]) >> 1;
     return static_cast<int64_t>(v);
 }
@@ -146,8 +147,9 @@ bool is_keyframe(VideoCodec codec, const uint8_t* data, size_t size) noexcept {
     return key;
 }
 
-rkvc::Result<std::vector<uint8_t>> mux_frame(VideoCodec codec, const uint8_t* annexb,
-                                             size_t size, int64_t pts90, bool keyframe,
+rkvc::Result<std::vector<uint8_t>> mux_frame(VideoCodec codec,
+                                             const uint8_t* annexb, size_t size,
+                                             int64_t pts90, bool keyframe,
                                              const MuxOptions& opts) {
     using R = rkvc::Result<std::vector<uint8_t>>;
     if (size && !annexb)
@@ -158,7 +160,8 @@ rkvc::Result<std::vector<uint8_t>> mux_frame(VideoCodec codec, const uint8_t* an
         return R::failure(rkvc::Status::Format);
     std::vector<uint8_t> out;
     out.reserve(64 + size);
-    uint64_t scr = (pts90 < 0 ? 0u : static_cast<uint64_t>(pts90)) & 0x1FFFFFFFFULL;
+    uint64_t scr =
+        (pts90 < 0 ? 0u : static_cast<uint64_t>(pts90)) & 0x1FFFFFFFFULL;
     uint32_t rate = opts.mux_rate_50bs & 0x3FFFFFu;
     // One AU per call, fragmented into explicit-length PES packets; the
     // first carries PTS and data_alignment=1 so the demuxer can reassemble.
@@ -207,8 +210,16 @@ rkvc::Result<std::vector<uint8_t>> mux_frame(VideoCodec codec, const uint8_t* an
             w.put(1, 1);
             w.put(230, 13);
             wr_start(out, 0xBC);
-            const uint8_t map[] = {0xC0, 0xFF, 0x00, 0x00, 0x00, 0x04,
-                                   stream_type(codec), kVideoStreamId, 0x00, 0x00};
+            const uint8_t map[] = {0xC0,
+                                   0xFF,
+                                   0x00,
+                                   0x00,
+                                   0x00,
+                                   0x04,
+                                   stream_type(codec),
+                                   kVideoStreamId,
+                                   0x00,
+                                   0x00};
             wr_u16(out, static_cast<uint16_t>(sizeof(map) + 4));
             out.insert(out.end(), map, map + sizeof(map));
             wr_u32be(out, crc32(map, sizeof(map)));
@@ -351,7 +362,8 @@ rkvc::Result<Frame> Demux::next() {
         size_t end;
         if (len == 0) {
             if (id >= 0xE0)
-                return R::failure(rkvc::Status::Format);  // pairs with mux framing.
+                return R::failure(
+                    rkvc::Status::Format);  // pairs with mux framing.
             size_t nx = find_sc(d, pay, n);
             if (nx == kNpos) {
                 cursor_ = sc;

@@ -61,8 +61,8 @@ struct Request {
     Endpoint output;
     Spec input_spec;   // FrameSink caller-side format (UNKNOWN = decide later)
     Spec output_spec;  // FrameSink caller-side format (UNKNOWN = decide later)
-    uint32_t width = 0;   // 0: follow source
-    uint32_t height = 0;  // 0: follow source
+    uint32_t width = 0;    // 0: follow source
+    uint32_t height = 0;   // 0: follow source
     std::string model_id;  // empty: automatic
     uint32_t queue_capacity = 4;
 };

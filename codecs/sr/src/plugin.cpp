@@ -6,7 +6,7 @@ namespace {
 
 sr::SrUpscaleFactory g_factory;
 const rkvc::Factory* g_factories[] = {&g_factory};
-rkvc::PluginDescriptor g_desc{rkvc::kPluginAbi, "sr", "0.5.0",
+rkvc::PluginDescriptor g_desc{rkvc::kPluginAbi,           "sr",        "0.5.0",
                               RKVC_TOOLCHAIN_FINGERPRINT, g_factories, 1};
 
 }  // namespace

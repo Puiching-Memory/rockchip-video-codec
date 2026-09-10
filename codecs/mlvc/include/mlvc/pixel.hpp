@@ -48,8 +48,7 @@ inline uint16_t f32_to_f16(float f) noexcept {
     if (exp >= 31)
         return static_cast<uint16_t>(sign | 0x7c00);
     uint32_t mant16 = mant >> 13;
-    if ((mant & 0x1fff) > 0x1000 ||
-        ((mant & 0x1fff) == 0x1000 && (mant16 & 1)))
+    if ((mant & 0x1fff) > 0x1000 || ((mant & 0x1fff) == 0x1000 && (mant16 & 1)))
         ++mant16;
     if (mant16 == 0x400) {
         mant16 = 0;
@@ -99,34 +98,34 @@ void nc1hwc2_to_nchw(const uint16_t* src, int32_t* dst, int C, int H,
                      int W) noexcept;
 // NCHW int32 -> NC1HWC2(C2=8) fp16.
 void nchw_to_nc1hwc2_fp16(const int32_t* src, uint16_t* dst, int C, int H,
-                           int W) noexcept;
+                          int W) noexcept;
 // NCHW fp16 -> NC1HWC2 fp16, bit-preserving. w_stride 0 means W.
 void nchw_f16_to_nc1hwc2(const uint16_t* src, uint16_t* dst, int C, int H,
-                          int W, int C2, int w_stride) noexcept;
+                         int W, int C2, int w_stride) noexcept;
 // NC1HWC2 -> ONNX DepthToSpace(DCR) fused, NCHW fp16 out.
 void nc1hwc2_d2s_dcr_f16(const uint16_t* src, uint16_t* out, int C1, int H,
                          int W, int C2, int bs) noexcept;
 // NCHW int32 -> NHWC fp16 (host I/O path: NPU takes NHWC, returns NCHW).
 void nchw_i32_to_nhwc_f16(const int32_t* src, uint16_t* dst, int C, int H,
-                           int W) noexcept;
+                          int W) noexcept;
 // NCHW fp16 -> NHWC fp16, bit-preserving reorder.
 void nchw_f16_to_nhwc(const uint16_t* src, uint16_t* dst, int C, int H,
-                       int W) noexcept;
+                      int W) noexcept;
 // NCHW fp16 DepthToSpace(DCR): [oc*bs*bs,h,w] -> [oc,h*bs,w*bs].
-void nchw_d2s_dcr_f16(const uint16_t* src, uint16_t* dst, int OC, int H,
-                       int W, int bs) noexcept;
+void nchw_d2s_dcr_f16(const uint16_t* src, uint16_t* dst, int OC, int H, int W,
+                      int bs) noexcept;
 // YUV planes (NV12 or I420) -> NHWC fp16 (x1/255).
 void yuv_to_nhwc_fp16(const uint8_t* yp, int y_stride, const uint8_t* up,
-                       const uint8_t* vp, int uv_stride, int nv12, int W,
-                       int H, uint16_t* nhwc) noexcept;
+                      const uint8_t* vp, int uv_stride, int nv12, int W, int H,
+                      uint16_t* nhwc) noexcept;
 // NCHW fp16 YUV (3 planes) -> NV12 u8.
 void nchw_yuv_fp16_to_nv12_planes(const uint16_t* src, int W, int H,
-                                   uint8_t* yp, int y_stride, uint8_t* uv,
-                                   int uv_stride) noexcept;
-// NC1HWC2 fp16 (Y/U/V first) -> NV12 u8.
-void nc1hwc2_fp16_to_nv12_planes(const uint16_t* src, int W, int H, int c2,
                                   uint8_t* yp, int y_stride, uint8_t* uv,
                                   int uv_stride) noexcept;
+// NC1HWC2 fp16 (Y/U/V first) -> NV12 u8.
+void nc1hwc2_fp16_to_nv12_planes(const uint16_t* src, int W, int H, int c2,
+                                 uint8_t* yp, int y_stride, uint8_t* uv,
+                                 int uv_stride) noexcept;
 
 namespace detail {
 // Scalar references, always compiled: the board cross-check runs these
@@ -134,8 +133,7 @@ namespace detail {
 void nc1hwc2_to_nchw_scalar(const uint16_t* src, int32_t* dst, int C, int H,
                             int W) noexcept;
 void nchw_yuv_fp16_to_nv12_planes_scalar(const uint16_t* src, int W, int H,
-                                         uint8_t* yp, int y_stride,
-                                         uint8_t* uv,
+                                         uint8_t* yp, int y_stride, uint8_t* uv,
                                          int uv_stride) noexcept;
 }  // namespace detail
 

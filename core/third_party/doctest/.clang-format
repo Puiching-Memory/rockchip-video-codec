@@ -1,0 +1,4 @@
+---
+# Vendored single-header test framework: never reformat, never re-sort includes.
+DisableFormat: true
+SortIncludes: Never

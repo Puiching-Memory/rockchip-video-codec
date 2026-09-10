@@ -17,7 +17,7 @@ MlvcPlugin& plugin() {
     return p;
 }
 
-rkvc::PluginDescriptor g_desc{rkvc::kPluginAbi, "mlvc", "0.5.0",
+rkvc::PluginDescriptor g_desc{rkvc::kPluginAbi,           "mlvc",  "0.5.0",
                               RKVC_TOOLCHAIN_FINGERPRINT, nullptr, 0};
 
 }  // namespace

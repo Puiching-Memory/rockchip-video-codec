@@ -36,12 +36,9 @@ using FrameQueue = BoundedQueue<FramePtr>;
 
 class Graph {
 public:
-    static Result<std::unique_ptr<Graph>> build(const Plan& plan, Context& ctx,
-                                                const Request& req,
-                                                FrameQueue* in_q,
-                                                FrameQueue* out_q,
-                                                size_t* failed_step,
-                                                Diag* diag = nullptr);
+    static Result<std::unique_ptr<Graph>> build(
+        const Plan& plan, Context& ctx, const Request& req, FrameQueue* in_q,
+        FrameQueue* out_q, size_t* failed_step, Diag* diag = nullptr);
     Status open(Diag* diag = nullptr);
     void close_nodes() noexcept;
 

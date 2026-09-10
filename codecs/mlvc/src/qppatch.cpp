@@ -9,8 +9,7 @@ namespace mlvc {
 namespace {
 
 uint32_t rd_u32(const uint8_t* p) noexcept {
-    return static_cast<uint32_t>(p[0]) |
-           (static_cast<uint32_t>(p[1]) << 8) |
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
            (static_cast<uint32_t>(p[2]) << 16) |
            (static_cast<uint32_t>(p[3]) << 24);
 }

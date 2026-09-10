@@ -35,7 +35,8 @@ public:
             diag_ = std::move(o.diag_);
         }
     }
-    Result& operator=(Result&& o) noexcept(std::is_nothrow_move_assignable_v<T>) {
+    Result& operator=(Result&& o) noexcept(
+        std::is_nothrow_move_assignable_v<T>) {
         if (this != &o) {
             reset();
             ok_ = o.ok_;

@@ -86,8 +86,8 @@ TEST_CASE("extract scales checkerboard") {
     // YC=2, 4x4, Z 2x1x1, cr=2, sr=2: both channels see pair (5, -9).
     int32_t z[] = {5, -9};
     std::vector<int32_t> s0(2 * 16, 0), s1(2 * 16, 0);
-    CHECK(extract_scales(z, s0.data(), s1.data(), 2, 4, 4, 2, 1, 1, 2, 2,
-                         63) == rkvc::Status::Ok);
+    CHECK(extract_scales(z, s0.data(), s1.data(), 2, 4, 4, 2, 1, 1, 2, 2, 63) ==
+          rkvc::Status::Ok);
     for (int c = 0; c < 2; ++c) {
         for (int y = 0; y < 4; ++y) {
             for (int x = 0; x < 4; ++x) {
@@ -103,8 +103,8 @@ TEST_CASE("extract scales checkerboard") {
     CHECK(extract_scales(zmin, a0.data(), a1.data(), 1, 4, 4, 2, 1, 1, 2, 2,
                          63) == rkvc::Status::Ok);
     CHECK(a0[0] == 63);
-    CHECK(extract_scales(nullptr, a0.data(), a1.data(), 1, 4, 4, 2, 1, 1, 2,
-                         2, 63) == rkvc::Status::Invalid);
+    CHECK(extract_scales(nullptr, a0.data(), a1.data(), 1, 4, 4, 2, 1, 1, 2, 2,
+                         63) == rkvc::Status::Invalid);
     CHECK(extract_scales(zmin, a0.data(), a1.data(), 0, 4, 4, 2, 1, 1, 2, 2,
                          63) == rkvc::Status::Invalid);
 }
@@ -120,15 +120,13 @@ TEST_CASE("nc1hwc2 to nchw against naive") {
     for (int c = 0; c < C; ++c)
         for (int y = 0; y < H; ++y)
             for (int x = 0; x < W; ++x) {
-                uint16_t h =
-                    src[(((c >> 3) * H + y) * W + x) * 8 + (c & 7)];
-                ref[(c * H + y) * W + x] = lrintf(
-                    mlvc::pixel::f16_to_f32(h));
+                uint16_t h = src[(((c >> 3) * H + y) * W + x) * 8 + (c & 7)];
+                ref[(c * H + y) * W + x] = lrintf(mlvc::pixel::f16_to_f32(h));
             }
     CHECK(got == ref);
     std::vector<int32_t> scalar(C * H * W, 0);
-    mlvc::pixel::detail::nc1hwc2_to_nchw_scalar(src.data(), scalar.data(), C,
-                                               H, W);
+    mlvc::pixel::detail::nc1hwc2_to_nchw_scalar(src.data(), scalar.data(), C, H,
+                                                W);
     CHECK(scalar == ref);
 }
 
@@ -151,8 +149,7 @@ TEST_CASE("nchw f16 to nc1hwc2 with stride and zero fill") {
         src[i] = static_cast<uint16_t>(i & 0xffff);
     int C1 = (C + C2 - 1) / C2;
     std::vector<uint16_t> dst(C1 * H * WS * C2, 0xbeef);
-    mlvc::pixel::nchw_f16_to_nc1hwc2(src.data(), dst.data(), C, H, W, C2,
-                                     WS);
+    mlvc::pixel::nchw_f16_to_nc1hwc2(src.data(), dst.data(), C, H, W, C2, WS);
     for (int c = 0; c < C; ++c)
         for (int y = 0; y < H; ++y)
             for (int x = 0; x < W; ++x)
@@ -165,7 +162,7 @@ TEST_CASE("nchw f16 to nc1hwc2 with stride and zero fill") {
                 for (int k = 0; k < C2; ++k) {
                     int c = c1 * C2 + k;
                     if (c >= C || x >= W)
-                        CHECK(dst[(((c1) * H + y) * WS + x) * C2 + k] == 0);
+                        CHECK(dst[(((c1)*H + y) * WS + x) * C2 + k] == 0);
                 }
 }
 
@@ -176,8 +173,7 @@ TEST_CASE("d2s dcr against naive two step") {
     for (size_t i = 0; i < src.size(); ++i)
         src[i] = static_cast<uint16_t>((i * 7) & 0xffff);
     std::vector<uint16_t> got(oc * oh * ow, 0), ref(oc * oh * ow, 0);
-    mlvc::pixel::nc1hwc2_d2s_dcr_f16(src.data(), got.data(), C1, H, W, C2,
-                                     bs);
+    mlvc::pixel::nc1hwc2_d2s_dcr_f16(src.data(), got.data(), C1, H, W, C2, bs);
     // Naive: NC1HWC2 -> NCHW, then DCR shuffle.
     std::vector<uint16_t> nchw(C * H * W);
     for (int c = 0; c < C; ++c)
@@ -191,8 +187,7 @@ TEST_CASE("d2s dcr against naive two step") {
                 int ho = h / bs, wo = w / bs;
                 int dy = h % bs, dx = w % bs;
                 int src_c = dy * (bs * oc) + dx * oc + c;
-                ref[(c * oh + h) * ow + w] =
-                    nchw[(src_c * H + ho) * W + wo];
+                ref[(c * oh + h) * ow + w] = nchw[(src_c * H + ho) * W + wo];
             }
     CHECK(got == ref);
 }
@@ -220,8 +215,7 @@ TEST_CASE("host io transposes are exact") {
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x)
             for (int c = 0; c < C; ++c)
-                CHECK(back[(y * W + x) * C + c] ==
-                      nchw_f[(c * H + y) * W + x]);
+                CHECK(back[(y * W + x) * C + c] == nchw_f[(c * H + y) * W + x]);
 }
 
 TEST_CASE("nchw d2s dcr against naive") {
@@ -251,8 +245,8 @@ TEST_CASE("yuv to nhwc odd height and strides") {
         uv[i] = static_cast<uint8_t>((i * 5 + 1) & 0xff);
     std::vector<uint16_t> got(W * H * 3, 0);
     // NV12 interleaved: vp points one byte past up in the same buffer.
-    mlvc::pixel::yuv_to_nhwc_fp16(yp.data(), YS, uv.data(), uv.data() + 1,
-                                  UVS, 1, W, H, got.data());
+    mlvc::pixel::yuv_to_nhwc_fp16(yp.data(), YS, uv.data(), uv.data() + 1, UVS,
+                                  1, W, H, got.data());
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x) {
             uint8_t yy = yp[y * YS + x];
@@ -272,16 +266,14 @@ TEST_CASE("yuv to nhwc odd height and strides") {
         pv[i] = static_cast<uint8_t>((i * 11 + 3) & 0xff);
     }
     std::vector<uint16_t> got2(W * H * 3, 0);
-    mlvc::pixel::yuv_to_nhwc_fp16(yp.data(), YS, pu.data(), pv.data(), UVS,
-                                  0, W, H, got2.data());
+    mlvc::pixel::yuv_to_nhwc_fp16(yp.data(), YS, pu.data(), pv.data(), UVS, 0,
+                                  W, H, got2.data());
     for (int y = 0; y < H; ++y)
         for (int x = 0; x < W; ++x) {
             CHECK(got2[(y * W + x) * 3 + 1] ==
-                  mlvc::pixel::f32_to_f16(pu[(y / 2) * UVS + x / 2] /
-                                          255.0f));
+                  mlvc::pixel::f32_to_f16(pu[(y / 2) * UVS + x / 2] / 255.0f));
             CHECK(got2[(y * W + x) * 3 + 2] ==
-                  mlvc::pixel::f32_to_f16(pv[(y / 2) * UVS + x / 2] /
-                                          255.0f));
+                  mlvc::pixel::f32_to_f16(pv[(y / 2) * UVS + x / 2] / 255.0f));
         }
 }
 
@@ -305,10 +297,9 @@ TEST_CASE("nchw yuv to nv12 saturation and sampling") {
         CHECK(yp[i] == sat(mlvc::pixel::f16_to_f32(src[i])));
     for (int y = 0; y < H / 2; ++y)
         for (int x = 0; x < W / 2; ++x) {
-            float u = mlvc::pixel::f16_to_f32(
-                src[W * H + (y * 2) * W + x * 2]);
-            float v = mlvc::pixel::f16_to_f32(
-                src[2 * W * H + (y * 2) * W + x * 2]);
+            float u = mlvc::pixel::f16_to_f32(src[W * H + (y * 2) * W + x * 2]);
+            float v =
+                mlvc::pixel::f16_to_f32(src[2 * W * H + (y * 2) * W + x * 2]);
             CHECK(uv[y * W + x * 2] == sat(u));
             CHECK(uv[y * W + x * 2 + 1] == sat(v));
         }
@@ -331,11 +322,10 @@ TEST_CASE("nc1hwc2 to nv12 matches nchw path") {
                 packed[(y * W + x) * C2 + c] = nchw[(c * H + y) * W + x];
     std::vector<uint8_t> a_yp(W * H, 0), a_uv(W * H / 2, 0);
     std::vector<uint8_t> b_yp(W * H, 0), b_uv(W * H / 2, 0);
-    mlvc::pixel::nchw_yuv_fp16_to_nv12_planes(nchw.data(), W, H, a_yp.data(),
-                                              W, a_uv.data(), W);
+    mlvc::pixel::nchw_yuv_fp16_to_nv12_planes(nchw.data(), W, H, a_yp.data(), W,
+                                              a_uv.data(), W);
     mlvc::pixel::nc1hwc2_fp16_to_nv12_planes(packed.data(), W, H, C2,
-                                             b_yp.data(), W, b_uv.data(),
-                                             W);
+                                             b_yp.data(), W, b_uv.data(), W);
     CHECK(a_yp == b_yp);
     CHECK(a_uv == b_uv);
 }
