@@ -2,6 +2,7 @@
 FROM alpine:3.20 AS chsrc-fetch
 ARG TARGETARCH
 RUN set -eu; \
+    apk add --no-cache curl; \
     case "$TARGETARCH" in \
         amd64) asset=chsrc-x64-linux; \
                sha=70d236dbd346e969a3d2abe507343eb07419be494ff40fd117cad44c619465d5 ;; \
@@ -9,7 +10,7 @@ RUN set -eu; \
                sha=64e176a6cdcfdaa7f25a604ed2be62587d81dfe1e048608302384da1c4063703 ;; \
         *) echo "不支持的构建架构: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
-    wget -qO /chsrc \
+    curl -fsSL -o /chsrc \
         "https://github.com/RubyMetric/chsrc/releases/download/v0.2.7/$asset"; \
     echo "$sha  /chsrc" | sha256sum -c -; \
     chmod 755 /chsrc
