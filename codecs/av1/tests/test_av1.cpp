@@ -22,6 +22,9 @@ rkvc::Request av1_req() {
     r.operation = rkvc::Operation::Encode;
     r.codec = rkvc::Codec::Av1;
     r.input_spec = nv12_32();
+    // push is non-blocking (Again when full) and the test pushes 5 frames
+    // back to back, so ask for a queue deeper than the default 4.
+    r.queue_capacity = 8;
     rkvc::Spec out;
     out.fmt = rkvc::PixelFormat::Bitstream;
     r.output_spec = out;
