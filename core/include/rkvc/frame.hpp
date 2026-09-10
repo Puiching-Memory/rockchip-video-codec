@@ -31,14 +31,14 @@ struct EncodeControl {
     bool force_idr = false;
 };
 
-// Backend release hook, invoked when the last Frame reference drops.
+/// Backend release hook, invoked when the last Frame reference drops.
 struct FrameHooks {
     void (*release)(void* ctx) noexcept = nullptr;
     void* ctx = nullptr;
 };
 
-// Reference-counted media object. Borrowed payload outlives the Frame;
-// the hook fires on last release (e.g. frees the sender-side copy).
+/// Reference-counted media object. Borrowed payload outlives the Frame;
+/// the hook fires on last release (e.g. frees the sender-side copy).
 class Frame {
 public:
     static Result<std::shared_ptr<Frame>> borrow_host(const Spec& spec,

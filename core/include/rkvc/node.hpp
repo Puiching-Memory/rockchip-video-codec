@@ -33,15 +33,15 @@ struct Port {
     Spec resolved;  // negotiated value, filled by the graph
 };
 
-// Downstream delivery. Blocking with cancel; safe to call from process().
+/// Downstream delivery. Blocking with cancel; safe to call from process().
 class Emit {
 public:
     virtual ~Emit() = default;
     virtual Status emit(size_t port, FramePtr f) = 0;
 };
 
-// Node contract: configure() never touches hardware; the input frame is
-// only borrowed for the duration of process() (retain a copy to keep it).
+/// Node contract: configure() never touches hardware; the input frame is
+/// only borrowed for the duration of process() (retain a copy to keep it).
 class Node {
 public:
     virtual ~Node() = default;

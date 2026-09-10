@@ -51,7 +51,7 @@ struct Endpoint {
     std::string uri;  // File/Stream address
 };
 
-// One media request: intent only, the planner picks the path.
+/// One media request: intent only, the planner picks the path.
 struct Request {
     Operation operation = Operation::Encode;
     Codec codec = Codec::Auto;

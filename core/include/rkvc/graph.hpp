@@ -15,7 +15,7 @@ namespace rkvc {
 
 class Context;
 
-// Linear plan: adapter or candidate-factory steps with backtracking fallback.
+/// Linear plan: adapter or candidate-factory steps with backtracking fallback.
 struct PlanStep {
     NodeStage stage = NodeStage::Transform;
     std::vector<const Factory*> candidates;
@@ -28,7 +28,7 @@ struct Plan {
     static constexpr size_t kMaxFallbacks = 8;
     std::vector<PlanStep> steps;
     size_t fallbacks = 0;
-    // Advance the failed step to its next candidate. False = exhausted.
+    /// Advance the failed step to its next candidate. False = exhausted.
     bool advance(size_t failed_step) noexcept;
 };
 
@@ -49,7 +49,7 @@ public:
     size_t node_count() const noexcept { return nodes_.size(); }
     Node* node(size_t i) const noexcept { return nodes_[i].get(); }
     std::vector<Port>& ports(size_t i) noexcept { return ports_[i]; }
-    // Edge i connects node i to node i+1; edge_count = node_count - 1.
+    /// Edge i connects node i to node i+1; edge_count = node_count - 1.
     FrameQueue* edge(size_t i) const noexcept { return edges_[i].get(); }
     size_t edge_count() const noexcept { return edges_.size(); }
     Emit* emit(size_t i) const noexcept { return emits_[i].get(); }
@@ -63,13 +63,13 @@ private:
     size_t failure_step_ = 0;
 };
 
-// FRAME_SINK endpoint adapters built directly into the plan.
+/// FRAME_SINK endpoint adapters built directly into the plan.
 NodePtr make_queue_source(FrameQueue* in_q, const Spec& spec);
 NodePtr make_queue_sink(FrameQueue* out_q, const Spec& spec);
 
-// CPU download bridge (linear Dmabuf in, packed Host out). Graph::build
-// splices one in wherever a Dmabuf producer would otherwise face a Host
-// consumer with no other spec conflict.
+/// CPU download bridge (linear Dmabuf in, packed Host out). Graph::build
+/// splices one in wherever a Dmabuf producer would otherwise face a Host
+/// consumer with no other spec conflict.
 NodePtr make_download_node();
 
 }  // namespace rkvc

@@ -9,9 +9,9 @@
 
 namespace rkvc {
 
-// .rkmodel container, new design. Format is coupled to the code release:
-// no version field, no backward/forward compatibility window. Old "RKMF"
-// files are rejected by magic.
+/// .rkmodel container, new design. Format is coupled to the code release:
+/// no version field, no backward/forward compatibility window. Old "RKMF"
+/// files are rejected by magic.
 struct ModelMeta {
     std::string id;
     std::string family;

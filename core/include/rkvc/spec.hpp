@@ -24,7 +24,7 @@ enum class MemDomain : uint32_t {
     Dmabuf,
 };
 
-// Negotiation object between ports. Zero width/height/stride means wildcard.
+/// Negotiation object between ports. Zero width/height/stride means wildcard.
 struct Spec {
     uint32_t width = 0;
     uint32_t height = 0;
@@ -40,11 +40,11 @@ constexpr int64_t kTsUnknown = INT64_MIN;
 bool is_linear(const Spec& s) noexcept;
 uint32_t eff_stride(const Spec& s) noexcept;
 uint32_t eff_ver_stride(const Spec& s) noexcept;
-// Minimum host bytes for the spec; 0 means unbounded (probe/bitstream).
+/// Minimum host bytes for the spec; 0 means unbounded (probe/bitstream).
 size_t min_size(const Spec& s) noexcept;
 const char* to_string(PixelFormat f) noexcept;
 
-// Field-level wildcard merge; conflict yields Negotiate with diag context.
+/// Field-level wildcard merge; conflict yields Negotiate with diag context.
 Result<Spec> unify(const Spec& a, const Spec& b, Diag* diag = nullptr);
 
 }  // namespace rkvc

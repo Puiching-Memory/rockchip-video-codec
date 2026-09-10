@@ -8,17 +8,17 @@
 
 namespace rkvc {
 
-// Codec plugin ABI. Rules for both sides (same toolchain, same release):
-// - every virtual returns Status (or a trivial value); no exception crosses
-//   the boundary (core builds -fno-exceptions -fno-rtti; plugins must too);
-// - interface classes carry no data members; factories and nodes stay owned
-//   by the plugin, nodes created per session are owned by the graph;
-// - ownership never crosses: strings are views, frames are shared_ptr on a
-//   shared heap, descriptors are plugin-static storage.
+/// Codec plugin ABI. Rules for both sides (same toolchain, same release):
+/// - every virtual returns Status (or a trivial value); no exception crosses
+///   the boundary (core builds -fno-exceptions -fno-rtti; plugins must too);
+/// - interface classes carry no data members; factories and nodes stay owned
+///   by the plugin, nodes created per session are owned by the graph;
+/// - ownership never crosses: strings are views, frames are shared_ptr on a
+///   shared heap, descriptors are plugin-static storage.
 constexpr uint32_t kPluginAbi = 1;
 #define RKVC_PLUGIN_QUERY_SYMBOL "rkvc_plugin_query"
 
-// g++ version + language/ABI switches that must match to share C++ types.
+/// g++ version + language/ABI switches that must match to share C++ types.
 #define RKVC_TOOLCHAIN_FINGERPRINT \
     ("g++-" __VERSION__ "-c++20-noexc-nortti")
 

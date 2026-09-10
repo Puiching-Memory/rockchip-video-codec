@@ -10,8 +10,8 @@
 
 namespace rkvc {
 
-// Bounded FIFO with tri-state pop: item / Eof (closed+drained) / error.
-// Buffered items are always delivered before the terminal state.
+/// Bounded FIFO with tri-state pop: item / Eof (closed+drained) / error.
+/// Buffered items are always delivered before the terminal state.
 template <typename T>
 class BoundedQueue {
 public:

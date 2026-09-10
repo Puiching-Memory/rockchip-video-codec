@@ -6,7 +6,7 @@ on:
     paths:
       - .github/workflows/docs.yml
       - CMakeLists.txt
-      - Doxyfile.in
+      - doxide.yaml
       - README.md
       - zensical.toml
       - docs/**
@@ -32,20 +32,25 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq doxygen
-          pip install zensical
-      - name: Build API docs
+          sudo apt-get install -y -qq curl gpg
+          echo 'deb http://download.indii.org/deb noble main' | \
+            sudo tee /etc/apt/sources.list.d/indii.org.list
+          curl -fsSL https://download.indii.org/deb/Release.key | \
+            sudo gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/indii.org.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq doxide
+          pip install zensical mkdocs-material
+      - name: Build API references (Doxide)
         run: |
-          mkdir -p .build/docs
-          sed -e 's/@PROJECT_NAME@/rkvc/' -e 's/@PROJECT_VERSION@/0.5.0/' \
-            -e "s|@CMAKE_CURRENT_SOURCE_DIR@|$PWD|" \
-            -e "s|@CMAKE_CURRENT_BINARY_DIR@|$PWD/.build/docs|" \
-            Doxyfile.in > .build/docs/Doxyfile
-          doxygen .build/docs/Doxyfile
+          mkdir -p .build/api
+          cp -r .doxide/* .build/api/
+          cd .build/api
+          doxide build
+          mkdocs build -d api-site
       - name: Build site
         run: |
           zensical build --clean
-          cp -r .build/docs/docs/html site/doxygen
+          cp -r .build/api/api-site site/api
           touch site/.nojekyll
       - uses: JamesIves/github-pages-deploy-action@v4
         with:

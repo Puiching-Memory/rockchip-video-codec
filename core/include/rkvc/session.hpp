@@ -13,8 +13,8 @@ namespace rkvc {
 
 class Context;
 
-// Streaming session: push (non-blocking) / pull (blocking) / try_pull
-// (non-blocking) / push_eos. Triple-state contract: Ok / Eof / Again.
+/// Streaming session: push (non-blocking) / pull (blocking) / try_pull
+/// (non-blocking) / push_eos. Triple-state contract: Ok / Eof / Again.
 class Session {
 public:
     static Result<std::shared_ptr<Session>> create(Context& ctx,
@@ -25,10 +25,10 @@ public:
     Status push_eos();
     Result<FramePtr> try_pull();
     Result<FramePtr> pull();
-    // Blocks until the pipeline drains; returns the first error or Ok.
+    /// Blocks until the pipeline drains; returns the first error or Ok.
     Status wait();
     Status close();
-    // Terminal error detail (empty when wait() returned Ok).
+    /// Terminal error detail (empty when wait() returned Ok).
     Diag error_diag() const;
     ~Session();
 

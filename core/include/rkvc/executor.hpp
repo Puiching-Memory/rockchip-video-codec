@@ -13,8 +13,8 @@
 
 namespace rkvc {
 
-// Owns per-node worker threads: source ticks, middles pop/process/push,
-// sink drains to the session output queue. First error cancels everything.
+/// Owns per-node worker threads: source ticks, middles pop/process/push,
+/// sink drains to the session output queue. First error cancels everything.
 class Executor {
 public:
     Executor() = default;
@@ -24,7 +24,7 @@ public:
 
     Status launch(Graph& g, FrameQueue* in_q, FrameQueue* out_q);
     void shutdown();
-    // Blocks until all workers exit; returns the first error or Ok.
+    /// Blocks until all workers exit; returns the first error or Ok.
     Status wait();
     Status error() const noexcept;
     Diag error_diag() const;

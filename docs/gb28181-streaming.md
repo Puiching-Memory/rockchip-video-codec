@@ -1,8 +1,9 @@
 # GB28181 H.265 推流（PS over RTP）
 
 > 范围：GB/T 28181-2022 的 H.265 媒体面（PS 封装 + RTP 承载）与本仓
-> `codecs/pspack` 的实现口径。SIP 信令只记流程，信令栈归宿主；
-> MLVC 承载见 [mlvc-streaming-spec.md](mlvc-streaming-spec.md)。
+> `codecs/pspack` 的实现口径。SIP 信令只记流程，信令栈归宿主。
+> `pspack` 只覆盖 AVC / HEVC（`stream_type` 0x1B / 0x24），
+> MLVC 的 `.mlvc` 容器格式见 `codecs/mlvc/include/mlvc/container.hpp`。
 
 ## 1. 角色与流程
 
