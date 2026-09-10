@@ -12,24 +12,48 @@ concurrency:
   cancel-in-progress: true
 
 # Codec projects only warn-and-skip when a dependency is missing, so both
-# jobs fetch what CI can provide (MPP headers, system SVT-AV1) and then
-# assert the expected test set, which turns silent skips into failures.
+# jobs fetch what CI can provide (MPP headers, SVT-AV1 4.2.0 built from the
+# pinned submodule) and then assert the expected test set, which turns silent
+# skips into failures. The distro package (noble: 1.7.0) is too old for the
+# av1 plugin, so SVT-AV1 is built from third_party/SVT-AV1 in both jobs.
 jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Fetch MPP headers
-        run: git submodule update --init --depth 1 third_party/mpp
+      - name: Fetch submodules
+        run: |
+          git submodule update --init --depth 1 third_party/mpp \
+            third_party/SVT-AV1
+      - name: Cache SVT-AV1
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .build/svt-install
+          # EbSvtAv1.h 带版本宏，内容变化即换 key。
+          key: svt-av1-${{ runner.os }}-${{ hashFiles('third_party/SVT-AV1/Source/API/EbSvtAv1.h') }}
+      - name: Build SVT-AV1
+        run: |
+          if [ -f .build/svt-install/lib/libSvtAv1Enc.so ]; then
+            exit 0
+          fi
+          cmake -S third_party/SVT-AV1 -B .build/svt -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=OFF \
+            -DBUILD_TESTING=OFF -DSVT_AV1_LTO=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/.build/svt-install"
+          cmake --build .build/svt -j"$(nproc)"
+          cmake --install .build/svt
       - name: Install tools
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang-format-18 clang-tidy cmake g++ \
-            libsvtav1enc-dev ninja-build
+            ninja-build
       - name: Check formatting
         run: tools/check-format.sh
       - name: Configure
-        run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
+        run: |
+          cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DRKVC_CORE_BUILD_TESTS=ON \
+            -DSVT_AV1_INSTALL_PREFIX="$PWD/.build/svt-install"
       - name: Run clang-tidy
         run: |
           # Shipped code only: test targets expand doctest.h, which costs ~7x
@@ -52,18 +76,38 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Fetch MPP headers
-        run: git submodule update --init --depth 1 third_party/mpp
+      - name: Fetch submodules
+        run: |
+          git submodule update --init --depth 1 third_party/mpp \
+            third_party/SVT-AV1
+      - name: Cache SVT-AV1
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .build/svt-install
+          key: svt-av1-${{ runner.os }}-${{ hashFiles('third_party/SVT-AV1/Source/API/EbSvtAv1.h') }}
+      - name: Build SVT-AV1
+        run: |
+          if [ -f .build/svt-install/lib/libSvtAv1Enc.so ]; then
+            exit 0
+          fi
+          cmake -S third_party/SVT-AV1 -B .build/svt -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=OFF \
+            -DBUILD_TESTING=OFF -DSVT_AV1_LTO=OFF \
+            -DCMAKE_INSTALL_PREFIX="$PWD/.build/svt-install"
+          cmake --build .build/svt -j"$(nproc)"
+          cmake --install .build/svt
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake g++ libsvtav1enc-dev ninja-build
+          sudo apt-get install -y -qq cmake g++ ninja-build
       - name: Configure and build
         run: |
-          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
+          cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DRKVC_CORE_BUILD_TESTS=ON \
+            -DSVT_AV1_INSTALL_PREFIX="$PWD/.build/svt-install"
           cmake --build .build/tests
       - name: Assert the expected test set is registered
         run: |

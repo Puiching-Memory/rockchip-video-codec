@@ -31,6 +31,20 @@ SVT-AV1 少 1 个（`av1`），两者都缺时注册 16 个用例、齐备时 19
 断言这份清单都已注册（依赖缺失即失败，不再静默跳过）。x86 只覆盖纯软
 路径；MPP / NPU 用例在板端跑同一条 `ctest`。
 
+av1 插件按 **SVT-AV1 4.2.0** API 写（子模块钉的版本），发行版包太旧——
+noble 是 1.7.0，配置期会被版本门挡下并提示。本地要跑 av1 用例先从子模块
+构建，再带上前缀：
+
+~~~bash
+cmake -S third_party/SVT-AV1 -B .build/svt -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release -DBUILD_APPS=OFF -DBUILD_TESTING=OFF \
+    -DSVT_AV1_LTO=OFF -DCMAKE_INSTALL_PREFIX="$PWD/.build/svt-install"
+cmake --build .build/svt -j"$(nproc)" && cmake --install .build/svt
+cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+    -DRKVC_CORE_BUILD_TESTS=ON \
+    -DSVT_AV1_INSTALL_PREFIX="$PWD/.build/svt-install"
+~~~
+
 ## Python 测试
 
 | 测试                                    | 覆盖                                                                                              |
