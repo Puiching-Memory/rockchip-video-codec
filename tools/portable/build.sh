@@ -236,6 +236,11 @@ configure_and_build() {
         -DRKVC_SR_BUILD_TESTS=OFF
         -DRKVC_PSPACK_BUILD_TESTS=OFF
         -DRKVC_CLI_BUILD_TESTS=OFF
+        # 复合产品第二面：预编译 SDK（librkvc.so + 头文件 + CMake config + pc）。
+        -DRKVC_INSTALL_SDK=ON
+        -DCMAKE_INSTALL_PREFIX="$pkg"
+        -DCMAKE_INSTALL_LIBDIR=lib
+        -DCMAKE_INSTALL_INCLUDEDIR=include
     )
     if ((with_av1)); then
         args+=(-DSVT_AV1_INSTALL_PREFIX="$deps/svt")
@@ -271,10 +276,24 @@ collect_artifacts() {
     plugin_sos=("${artifacts[@]:1}")
 }
 
+install_sdk() {
+    # 复合产品第二面：SDK。走标准 install 流程，include/lib/lib/cmake/lib/pkgconfig
+    # 的布局由 core/CMakeLists.txt 决定；前缀在配置期已固化为 $pkg，因此这里不加
+    # --prefix——包文件里的前缀是相对自身推算的，整包搬走后照样能用。
+    run_logged "$logs/install-sdk.log" "SDK 安装" cmake --install "$build/build"
+    local so
+    for so in "$pkg/lib"/librkvc.so.*.*; do
+        # 带调试符号的 .so 会让可移植包体积翻倍；运行不需要符号。
+        aarch64-linux-gnu-strip --strip-unneeded "$so" 2>/dev/null ||
+            strip --strip-unneeded "$so" 2>/dev/null || true
+    done
+}
+
 bundle_runtime_libs() {
     # 只收 NEEDED 里出现、且不在系统清单里的运行库；来源限定已构建前缀，
     # 防止把宿主 x86 库混进包。
     local dep src dev
+
     for dep in $(
         for f in "${artifacts[@]}"; do readelf -d "$f"; done |
             sed -n 's/.*NEEDED.*\[\(.*\)\].*/\1/p' | sort -u
@@ -389,6 +408,7 @@ assemble_package() {
     for so in "${plugin_sos[@]}"; do
         install -m 755 "$so" "$pkg/lib/rkvc/backends/"
     done
+    install_sdk
     bundle_runtime_libs
     collect_licenses
     pack_docs_and_examples
@@ -436,7 +456,51 @@ verify_package() {
     done
     run_logged "$logs/check-symbols.log" "符号审计" \
         bash "$REPO_ROOT/tools/check-symbols.sh" \
-        "$pkg/bin/rkvc" "$pkg"/lib/rkvc/backends/*.so
+        "$pkg/bin/rkvc" "$pkg"/lib/rkvc/backends/*.so "$pkg"/lib/librkvc.so
+}
+
+build_examples() {
+    # 复合产品第三面：示例。它们既是文档样板，也是「上游如何接 SDK」的可执行契约，
+    # 所以对着包内 SDK 真编一遍：find_package → 头文件 → 链接 → 运行全覆盖。
+    # 工具链把 CMAKE_INSTALL_RPATH 钉成 $ORIGIN/../..（给 install 树用），示例得靠
+    # RPATH_USE_LINK_PATH 把 $pkg/lib 补进来，否则运行时加载不到 librkvc.so.0。
+    local e name
+    for e in "$REPO_ROOT"/examples/*/; do
+        name="$(basename "$e")"
+        run_logged "$logs/example-$name.log" "示例 $name 配置" \
+            cmake -S "$e" -B "$build/examples/$name" -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$TOOLCHAIN" -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON \
+            -Drkvc_DIR="$pkg/lib/cmake/rkvc"
+        run_logged "$logs/example-$name.log" "示例 $name 构建" \
+            cmake --build "$build/examples/$name" -j "$jobs"
+    done
+    # 真跑一次：intc_encode 自造帧，只需插件路径与尺寸，是最短的 SDK 端到端路径。
+    # 只在原生 aarch64 上跑：FrameSink 推帧 + SVT-AV1 在 qemu-user 下必崩
+    # （用静态 core 编同一示例同样崩、板卡上正常，已定性为模拟器局限，
+    # 不是包或示例的问题）。CI 走 qemu，所以这里以编译链接为准，运行留给板卡。
+    local probe="$build/examples/integration-c/intc_encode"
+    local so="$pkg/lib/rkvc/backends/rkvc_av1.so"
+    if [[ ! -x "$probe" ]]; then
+        echo "错误: 示例产物缺失: $probe" >&2
+        exit 1
+    fi
+    if command -v qemu-aarch64-static >/dev/null 2>&1; then
+        echo "-- 该机非 aarch64：示例只做编译链接校验，运行校验请在目标板执行"
+        echo "   （板卡: cd <pkg> && gcc -Iinclude examples/integration-c/main.c -Llib -lrkvc -o /tmp/intc -Wl,-rpath,\$PWD/lib && /tmp/intc lib/rkvc/backends/rkvc_av1.so 640 368 3）"
+        return
+    fi
+    if [[ ! -f "$so" ]]; then
+        echo "-- 跳过示例运行: 未打包 av1 插件（请在目标板跑）"
+        return
+    fi
+    if "$probe" "$so" 640 368 3 >"$logs/example-run.log" 2>&1; then
+        echo "-- 示例 intc_encode 对着包内 SDK 跑通（AV1 3 帧）"
+    else
+        echo "错误: 示例 intc_encode 运行失败（$logs/example-run.log）:" >&2
+        tail -n 20 "$logs/example-run.log" >&2
+        exit 1
+    fi
 }
 
 run_selftest() {
@@ -477,5 +541,6 @@ configure_and_build
 collect_artifacts
 assemble_package
 verify_package
+build_examples
 run_selftest
 make_tarball

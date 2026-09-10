@@ -25,6 +25,10 @@ docker 时脚本自动重入）：镜像固定交叉工具链，目标 glibc 2.3
 ~~~text
 bin/rkvc                       # CLI（C++ 运行时静态链接）
 lib/rkvc/backends/rkvc_*.so    # h264h265 / av1 / mlvc / sr 插件
+lib/librkvc.so.0.5.0           # SDK 主体（预编译 core，供上游链接；§SDK 面）
+include/rkvc/                  # 16 个公开头文件（rkvc.h + C++ 头）
+lib/cmake/rkvc/                # find_package(rkvc CONFIG) 的包文件
+lib/pkgconfig/rkvc.pc          # pkg-config（前缀由 pcfiledir 反推，可搬迁）
 lib/librockchip_mpp.so.1       # MPP（h264h265 插件用）
 lib/librknnrt.so               # RKNN 运行库 2.3.2（mlvc/sr 用，SHA-256 固定）
 lib/libSvtAv1Enc.so.4          # SVT-AV1（av1 插件用）
@@ -33,14 +37,20 @@ examples/                      # 三个 C ABI 样板（integration-c/decode-file
 models/*.rkmodel               # 可选，--models 收录
 licenses/                      # AGPLv3 + 第三方文本 + PROVENANCE.txt
 CHANGELOG.md                   # 版本历史（docs 里有链接引到这里）
-test.sh                        # 包内自测
+test.sh                        # 包内自测（含 SDK 面校验与 C 消费者冒烟）
 MANIFEST.sha256                # 全包校验和
 ~~~
 
+包是复合产品：`bin/rkvc` 供直接使用，`include/ + lib/librkvc.so + lib/cmake +
+lib/pkgconfig` 供上游链接（三种用法与 SDK 细节见
+[可移植包 × 宿主集成 §1–§2](portable-package.md)）。`librkvc.so` 与包内插件
+同源同编译器，插件指纹天然一致；它自己只依赖 glibc（C++ 运行时静态链入）。
+
 `docs/`、`examples/` 都是仓库里那两份原样收录，不为包单独维护副本；不含
 doxide 生成的 `docs/api/`（按头文件现生成、不入库，入包会让包内容随构建机
-变化）。示例要 rkvc 源码树才能构建（`-DRKVC_CORE_DIR=<core 目录>`），随包是
-作 C ABI 契约样板；`docs/` 里提到的 `tools/` 等路径指的是仓库，不在包内。
+变化）。示例两种构建方式都支持：`-Drkvc_DIR=<pkg>/lib/cmake/rkvc`（用包内
+SDK，不需要源码树）或 `-DRKVC_CORE_DIR=<core 目录>`（自带源码）。
+`docs/` 里提到的 `tools/` 等路径指的是仓库，不在包内。
 文档图片走 git-lfs，构建机未拉全时 `build.sh` 会直接报错而不是交付坏图。
 
 ## 板端部署
@@ -54,8 +64,9 @@ doxide 生成的 `docs/api/`（按头文件现生成、不入库，入包会让�
 宿主（如 `semantic-codec-sdk`）与这个包怎么拼装——插件发现位、工具链指纹
 约束、验收与排障——见[可移植包 × 宿主集成](portable-package.md)。
 
-先跑 `./test.sh`：覆盖布局、校验和、依赖解析、插件握手、av1 软编码与
-MPP 硬编解码冒烟，无硬件项自动跳过。`librknnrt.so` 自身动态依赖目标机的
+先跑 `./test.sh`：覆盖布局、校验和、依赖解析、插件握手、SDK 面（头文件/
+`librkvc.so`/CMake config/pkg-config + 纯 C 消费者零配置建会话）、av1 软编码与
+MPP 硬编解码冒烟，无硬件项自动跳过（缺编译器时 SDK 段跳过）。`librknnrt.so` 自身动态依赖目标机的
 `libstdc++.so.6` / `libgcc_s.so.1`，系统自带即可。
 
 ## 直接部署构建树

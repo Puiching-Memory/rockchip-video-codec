@@ -9,7 +9,17 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 find_package(Threads REQUIRED)
 
-add_library(rkvc-core-static STATIC
+# SONAME 依据：从公开头文件读 C ABI 主版本（唯一权威来源，避免两处手写漂移）。
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/include/rkvc/rkvc.h" _rkvc_abi_line
+    REGEX "^#define RKVC_ABI_VERSION_MAJOR +[0-9]+")
+if(NOT _rkvc_abi_line)
+    message(FATAL_ERROR "无法从 rkvc.h 解析 RKVC_ABI_VERSION_MAJOR")
+endif()
+string(REGEX REPLACE "^#define RKVC_ABI_VERSION_MAJOR +" ""
+    RKVC_ABI_MAJOR "${_rkvc_abi_line}")
+
+# 官方支持的源文件清单：静态库与 SDK 共享库共用，避免两份漂移。
+set(RKVC_CORE_SOURCES
     src/status.cpp
     src/diag.cpp
     src/spec.cpp
@@ -27,6 +37,8 @@ add_library(rkvc-core-static STATIC
     src/fileio.cpp
     src/c_api.cpp
 )
+
+add_library(rkvc-core-static STATIC ${RKVC_CORE_SOURCES})
 add_library(rkvc::core ALIAS rkvc-core-static)
 
 # Header-only doctest for downstream test targets.
@@ -53,8 +65,70 @@ foreach(t rkvc-core-static)
 endforeach()
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    # Final links (tests, plugins, CLIs) carry no dynamic C++ runtime.
+    # Final links (tests, shared core, plugins, CLIs) carry no dynamic C++ runtime.
+    # 必须排在 SDK 共享库之前：add_link_options 只作用于其后创建的目标。
     add_link_options(-static-libstdc++ -static-libgcc)
+endif()
+
+# SDK 面：预编译 librkvc.so + 头文件 + CMake config + pkg-config，供下游直接
+# 链接而无需自持 core 源码（tools/portable/build.sh 打开）。共享 core 与包内
+# 插件同源同编译器，插件指纹天然一致——这正是它比「宿主自编 core」省事的地方。
+option(RKVC_INSTALL_SDK "构建 librkvc.so 并生成可安装的 SDK（头文件/config/pc）" OFF)
+if(RKVC_INSTALL_SDK)
+    add_library(rkvc-shared SHARED ${RKVC_CORE_SOURCES})
+    set_target_properties(rkvc-shared PROPERTIES
+        OUTPUT_NAME rkvc
+        VERSION ${PROJECT_VERSION}
+        # SONAME 跟 C ABI 主版本，不跟项目版本：0.x 期间改 ABI 也升 SONAME。
+        SOVERSION ${RKVC_ABI_MAJOR}
+        # 同目录即包内 lib/，比自己多跳两级更贴合实际布局。
+        INSTALL_RPATH "\$ORIGIN"
+        EXPORT_NAME core)
+    target_include_directories(rkvc-shared
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>)
+    target_link_libraries(rkvc-shared PRIVATE Threads::Threads
+        ${CMAKE_DL_LIBS})
+    target_compile_options(rkvc-shared PRIVATE -fno-exceptions -fno-rtti
+        -Wall -Wextra -Werror=return-type)
+    target_compile_definitions(rkvc-shared PRIVATE RKVC_NO_EXCEPTIONS=1)
+
+    include(GNUInstallDirs)
+    include(CMakePackageConfigHelpers)
+
+    set(RKVC_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/rkvc"
+        CACHE STRING "rkvc CMake 包文件安装位置（相对前缀）")
+
+    install(TARGETS rkvc-shared EXPORT rkvcTargets
+        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        RUNTIME DESTINATION bin)
+    install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/rkvc"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+        FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+    install(EXPORT rkvcTargets
+        NAMESPACE rkvc::
+        DESTINATION "${RKVC_INSTALL_CMAKEDIR}")
+
+    # 两个包文件都写成「相对自身定位前缀」，包整体搬目录/解压到别处后仍可用。
+    configure_package_config_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rkvcConfig.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/rkvcConfig.cmake"
+        INSTALL_DESTINATION "${RKVC_INSTALL_CMAKEDIR}")
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/rkvcConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion)
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/rkvcConfig.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/rkvcConfigVersion.cmake"
+        DESTINATION "${RKVC_INSTALL_CMAKEDIR}")
+
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/rkvc.pc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc" @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/rkvc.pc"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 endif()
 
 if(RKVC_CORE_BUILD_TESTS)

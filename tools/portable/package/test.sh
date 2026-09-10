@@ -120,6 +120,99 @@ else
     bad "inspect backends --backend-dir 执行"
 fi
 
+echo "== SDK（预编译核心库，供上游直接链接）=="
+for f in include/rkvc/rkvc.h include/rkvc/plugin.hpp lib/librkvc.so \
+    lib/cmake/rkvc/rkvcConfig.cmake lib/cmake/rkvc/rkvcConfigVersion.cmake \
+    lib/pkgconfig/rkvc.pc; do
+    if [[ -s "$ROOT/$f" ]]; then ok "$f"; else bad "$f 缺失"; fi
+done
+# 前缀必须由文件位置反推，整包搬走后仍可用；pkg-config 是最好的一把量尺。
+if command -v pkg-config >/dev/null 2>&1; then
+    if PKG_CONFIG_PATH="$ROOT/lib/pkgconfig" pkg-config --libs rkvc 2>/dev/null |
+        grep -qF -- "-L$ROOT/lib"; then
+        ok "pkg-config 反推出包内路径"
+    else
+        bad "pkg-config 前缀（应指向包内 lib/）"
+    fi
+else
+    skip "pkg-config（未安装）"
+fi
+
+# 纯 C 消费者：头文件自洽 + 能链接 + 不填 backend_dirs 也能发现包内插件
+# （靠 librkvc.so 自身位置反查 lib/rkvc/backends，与 CLI 的 bin/ 反查同源）。
+cc=""
+for c in aarch64-linux-gnu-gcc cc gcc gcc-11; do
+    if command -v "$c" >/dev/null 2>&1; then
+        cc="$c"
+        break
+    fi
+done
+if [[ -n "$cc" ]]; then
+    cat >"$tmp/sdk_probe.c" <<'PROBE_EOF'
+/* SDK 面冒烟：零配置发现靠 librkvc.so 自己的位置。 */
+#include <stdio.h>
+
+#include "rkvc/rkvc.h"
+
+int main(void) {
+    rkvc_context_options opts;
+    rkvc_context_options_init(&opts, sizeof(opts)); /* 不填 backend_dirs */
+    rkvc_context *ctx = NULL;
+    if (rkvc_context_create(&opts, &ctx) != RKVC_OK) {
+        fprintf(stderr, "sdk_probe: context create failed\n");
+        return 2;
+    }
+
+    rkvc_session_request req;
+    rkvc_session_request_init(&req, sizeof(req));
+    req.operation = RKVC_OP_ENCODE;
+    req.codec = RKVC_CODEC_AV1; /* 软编，不依赖硬件节点 */
+    req.input.kind = RKVC_ENDPOINT_FRAME_SINK;
+    req.input.fmt = RKVC_FRAME_FMT_NV12;
+    req.input.width = 640;
+    req.input.height = 368;
+    req.output.kind = RKVC_ENDPOINT_FRAME_SINK;
+    req.output.fmt = RKVC_FRAME_FMT_BITSTREAM;
+
+    rkvc_session *s = NULL;
+    rkvc_diagnostic *diag = NULL;
+    rkvc_status st = rkvc_session_create(ctx, &req, &s, &diag);
+    if (st != RKVC_OK) {
+        char buf[1024];
+        fprintf(stderr, "sdk_probe: session create failed: %s\n",
+                rkvc_status_str(st));
+        if (diag) {
+            rkvc_diag_fmt_text(diag, buf, sizeof(buf));
+            fputs(buf, stderr);
+            rkvc_diag_release(diag);
+        }
+        return 3;
+    }
+    rkvc_session_destroy(s);
+    rkvc_context_destroy(ctx);
+    puts("sdk_probe: ok");
+    return 0;
+}
+PROBE_EOF
+    if "$cc" -std=c99 -Wall -I"$ROOT/include" "$tmp/sdk_probe.c" \
+        -L"$ROOT/lib" -Wl,-rpath,"$ROOT/lib" -lrkvc \
+        -o "$tmp/sdk_probe" 2>"$tmp/sdk_probe.log"; then
+        ok "C 消费者编译链接（$cc）"
+        if [[ ! -f "$BACKENDS/rkvc_av1.so" ]]; then
+            skip "SDK 零配置发现（未打包 av1 插件）"
+        elif "${RUNNER[@]}" "$tmp/sdk_probe" >/dev/null 2>&1; then
+            ok "SDK 零配置发现并建会话"
+        else
+            bad "SDK 零配置发现"
+        fi
+    else
+        bad "C 消费者编译链接（$cc）"
+        sed -n '1,5p' "$tmp/sdk_probe.log"
+    fi
+else
+    skip "SDK 消费者编译（无 C 编译器）"
+fi
+
 echo "== av1 软编码冒烟（无硬件依赖；顺带验证插件自动发现）=="
 if [[ -f "$BACKENDS/rkvc_av1.so" ]]; then
     head -c $((3 * 640 * 360 * 3 / 2)) /dev/urandom >"$tmp/in.nv12"
