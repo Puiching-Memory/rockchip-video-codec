@@ -1,9 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "rkvc/context.hpp"
 
+#include <cstdio>
+#include <cstring>
+#include <string>
+#include <unistd.h>
+
 #include "builtin.hpp"
 
 namespace rkvc {
+
+namespace {
+
+// First "rockchip,<soc>" token from the device-tree compatible list
+// (NUL-separated strings); empty when not on Rockchip hardware.
+std::string probe_soc() {
+    FILE* fp = std::fopen("/proc/device-tree/compatible", "rb");
+    if (!fp)
+        return {};
+    char buf[1024];
+    size_t n = std::fread(buf, 1, sizeof(buf) - 1, fp);
+    std::fclose(fp);
+    buf[n] = '\0';
+    for (size_t i = 0; i + 1 < n;) {
+        if (buf[i] == '\0') {
+            ++i;
+            continue;
+        }
+        if (std::strncmp(&buf[i], "rockchip,", 9) == 0)
+            return {&buf[i + 9]};
+        i += std::strlen(&buf[i]);
+    }
+    return {};
+}
+
+bool node_exists(const char* path) noexcept {
+    return ::access(path, F_OK) == 0;
+}
+
+}  // namespace
 
 Context::Context(ContextOptions opts) : opts_(std::move(opts)) {
     register_builtin_fileio(registry_);
@@ -32,6 +67,15 @@ const Model* Context::first_model() const noexcept {
 DeviceCaps Context::probe_device() {
     if (!caps_probed_) {
         caps_ = DeviceCaps{};
+        caps_.soc = probe_soc();
+        // Advisory only: planner still rejects unsupported stages per node.
+        // NPU bits stay 0 here (as in the 0.4 tree); backends refine at
+        // registration when they actually probe hardware.
+        if (node_exists("/dev/mpp_service")) {
+            caps_.mpp_encode = true;
+            caps_.mpp_decode = true;
+        }
+        caps_.rga = node_exists("/dev/rga");
         caps_probed_ = true;
     }
     return caps_;
