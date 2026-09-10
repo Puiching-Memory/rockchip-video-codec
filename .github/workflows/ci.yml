@@ -4,42 +4,72 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+# Codec projects only warn-and-skip when a dependency is missing, so both
+# jobs fetch what CI can provide (MPP headers, system SVT-AV1) and then
+# assert the expected test set, which turns silent skips into failures.
 jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Fetch MPP headers
+        run: git submodule update --init --depth 1 third_party/mpp
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang-tidy cmake g++ ninja-build
+          sudo apt-get install -y -qq clang-tidy cmake g++ jq libsvtav1enc-dev ninja-build
       - name: Configure
-        run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
       - name: Run clang-tidy
         run: |
-          mapfile -t SOURCES < <(find core cli codecs -name '*.cpp' -print | sort)
+          # Lint exactly what the build compiles: deriving the list from the
+          # compile DB avoids "no compile command" diagnostics for files that
+          # belong to targets this configuration does not create.
+          mapfile -t SOURCES < <(jq -r '.[].file' .build/lint/compile_commands.json | sort -u)
           clang-tidy -p .build/lint "${SOURCES[@]}" 2>&1 | tee tidy-report.txt
-          ! grep "error:" tidy-report.txt
+          # Warnings are not errors yet: doctest expands into clang-analyzer
+          # false positives, so only real compiler errors fail the job.
+          ! grep -E "error:" tidy-report.txt
 
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Fetch MPP headers
+        run: git submodule update --init --depth 1 third_party/mpp
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake g++ ninja-build
+          sudo apt-get install -y -qq cmake g++ libsvtav1enc-dev ninja-build
       - name: Configure and build
         run: |
           cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
           cmake --build .build/tests
+      - name: Assert the expected test set is registered
+        run: |
+          ctest --test-dir .build/tests -N > tests.txt
+          missing=0
+          for t in test_status_result test_spec_frame test_rkmodel test_queue \
+                   test_pipeline test_c_abi test_download test_plugin test_cli \
+                   test_ps test_rans test_pixel test_ratectl test_mlvc_tables \
+                   test_mlvc_codec test_sr_post test_mpp_logic test_mpp_plugin \
+                   test_av1; do
+            grep -qE "Test +#[0-9]+: ${t}$" tests.txt || {
+              echo "缺少测试: $t" >&2
+              missing=1
+            }
+          done
+          exit "$missing"
       - name: Run C++ tests
         run: ctest --test-dir .build/tests --output-on-failure
       - name: Run Python tests

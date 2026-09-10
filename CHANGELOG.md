@@ -4,13 +4,13 @@
 
 ## [0.5.0] - 2026-09-10
 
-C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli/4 codec工程），C ABI 0.5.0，插件 ABI 1。
+C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli/5 个 codec 工程），C ABI 0.5.0，插件 ABI 1。
 
 ### 新增
 
 - **core**：无异常错误模型（`Status`/`Result<T>`/`Diag`，`-fno-exceptions -fno-rtti`）+ `Spec` 协商 + `Frame` 借用语义 + 自研 SHA-256 + RKMDL1 模型容器（魔数 `RKMDL1\x00\x00`、128B 头、88B 条目、多 qppatch 载荷）+ 有界队列管线/执行器（两阶段错误终止，在途帧不丢）+ 设备探测（SoC/MPP/RGA/RKNPU）+ Dmabuf→Host 自动桥接。
 - **插件 ABI**：`rkvc_plugin_query(host_abi)` 握手 + 工具链指纹 + 坏 ABI 淘汰；内建 fileio；doctest 2.4.11（NO_EXCEPTIONS）全绿，ASan/UBSan（`-fno-sanitize-recover=all`）7/7 全绿。
-- **四个独立 codec 工程**：h264h265（MPP 编解码节点，解码背压 5s 重试）、mlvc（container/pmf/qptab/qppatch/ratectl/rANS/pixel 全部 C golden 对拍 + fake-NPU 精确回环）、av1（SVT-AV1 编码节点，容器出包）、sr（Phase-RLFN 后处理 + SrUpscaleNode + 双后端门控）。
+- **五个独立 codec 工程**：h264h265（MPP 编解码节点，出帧走阻塞背压不丢帧）、mlvc（container/pmf/qptab/qppatch/ratectl/rANS/pixel 全部 C golden 对拍 + fake-NPU 精确回环）、av1（SVT-AV1 编码节点，容器出包）、sr（Phase-RLFN 后处理 + SrUpscaleNode + 双后端门控）、pspack（GB28181 PS 打包/解包：pack/system/PSM/PES 与 AU 组装，静态库无插件入口，核心直接链接）。
 - **CLI + 样板**：`rkvc caps/version/inspect/encode/decode/upscale`（`--qp/--bitrate/--gop/--fps`，`--backend-dir/--model-dir/--model-id`，参数解析单测覆盖）+ `examples/` 三个 C ABI 样板（`integration-c` 流式、`decode-file`、`upscale-file`）。
 - **审计**：aarch64 最终链接 `-static-libstdc++ -static-libgcc` + `tools/check-symbols.sh`（GLIBC 上限 2.34；NEEDED 禁动态 C++ 运行时；导出面白名单）。
 

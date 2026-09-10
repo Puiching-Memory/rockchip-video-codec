@@ -286,8 +286,10 @@ rkvc::Result<Frame> Demux::next() {
                 // Parse the ES map, ignore the trailing CRC.
                 size_t p = sc + 6;
                 size_t map_end = end - 4;
-                size_t ps_info = rd_u16(d + p + 1);
-                size_t q = p + 3 + ps_info;
+                // program_stream_info_length follows the version and marker
+                // bytes; the ES map starts past those descriptors.
+                size_t ps_info = rd_u16(d + p + 2) & 0x7FFF;
+                size_t q = p + 4 + ps_info;
                 if (q + 2 <= map_end) {
                     size_t es_len = rd_u16(d + q);
                     q += 2;
@@ -336,7 +338,9 @@ rkvc::Result<Frame> Demux::next() {
             return R::failure(rkvc::Status::Again);
         }
         int64_t pts = 0;
-        if ((flags2 & 0xC0) == 0x80) {
+        // PTS is the first 5-byte field for both '10' (PTS) and
+        // '11' (PTS+DTS); only '00'/'01' carry no presentation time.
+        if (flags2 & 0x80) {
             if (sc + 14 > n) {
                 cursor_ = sc;
                 return R::failure(rkvc::Status::Again);
@@ -371,7 +375,7 @@ rkvc::Result<Frame> Demux::next() {
         if ((d[sc + 6] & 0x04) != 0) {  // data_alignment: new AU.
             rkvc::Result<Frame> done = emit_au();
             au_.assign(d + pay, d + end);
-            au_pts_ = ((flags2 & 0xC0) == 0x80) ? pts : 0;
+            au_pts_ = (flags2 & 0x80) ? pts : 0;
             au_open_ = true;
             cursor_ = end;
             if (done)

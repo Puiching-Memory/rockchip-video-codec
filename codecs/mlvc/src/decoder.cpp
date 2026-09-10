@@ -291,6 +291,14 @@ rkvc::Status decode_frame(MlvcDecoderNode::Impl* d, const uint8_t* payload,
 
     if (d->qrows.present) {
         d->rs.active = 0;
+        // q_index selects a FiLM row: qptab_row() clamps an out-of-range
+        // value silently and build_z_idx would overflow, so reject it here.
+        for (const auto& r : d->qrows.rows) {
+            const QpTable* t = r.second;
+            if (!t || rec_q < 0 || static_cast<uint32_t>(rec_q) >= t->rows)
+                return bad(rkvc::Status::Format,
+                           "record q_index outside the qp table");
+        }
     } else if (rec_q != d->rs.rung_qp[d->rs.active]) {
         int found = -1;
         for (size_t i = 0; i < d->rs.rung_qp.size(); ++i)

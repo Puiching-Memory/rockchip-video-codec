@@ -90,7 +90,8 @@ rkvc::Result<RansCoder> RansCoder::create(RansVariant variant,
     };
     if (lengths.empty() || lengths.size() != offsets.size() || table.empty())
         return bad(rkvc::Status::Invalid, "bad pmf spans");
-    uint32_t max_scale = (variant == RansVariant::Byte) ? kByteMaxScale : 32;
+    // 31 caps both 1u << bypass_bits and freq << (63 - symbol_bits).
+    uint32_t max_scale = (variant == RansVariant::Byte) ? kByteMaxScale : 31;
     if (symbol_bits < 2 || static_cast<uint32_t>(symbol_bits) > max_scale ||
         bypass_bits < 2 || static_cast<uint32_t>(bypass_bits) > max_scale)
         return bad(rkvc::Status::Invalid, "bad scale bits");
@@ -464,13 +465,18 @@ bool RansDecoder::bypass(const RansCoder& c, uint32_t& out) noexcept {
     uint32_t value = get(c.bypass_bits());
     if (!advance(value, 1, c.bypass_bits()))
         return false;
+    // Prefix symbols sum to a digit count; each digit is bypass_bits wide and
+    // the assembled value must fit the 32-bit result, so bound it in bits.
+    const uint32_t max_digits = 32u / static_cast<uint32_t>(c.bypass_bits());
     uint32_t count = value;
+    if (count > max_digits)
+        return false;
     while (value == c.bypass_max()) {
         value = get(c.bypass_bits());
         if (!advance(value, 1, c.bypass_bits()))
             return false;
         count += value;
-        if (count > 32)
+        if (count > max_digits)
             return false;
     }
     uint32_t encoded = 0;
@@ -514,6 +520,10 @@ rkvc::Status RansDecoder::decode(const RansCoder& coder,
                 hi = mid;
         }
         int32_t symbol = lo;
+        // lo can land on the search upper bound (sentinel + 1); its range
+        // would read past this distribution's CDF segment.
+        if (symbol > desc.bypass_sentinel)
+            return rkvc::Status::Format;
         uint32_t start = base[symbol];
         uint32_t freq = base[symbol + 1] - base[symbol];
         if (!advance(start, freq, coder.symbol_bits()))

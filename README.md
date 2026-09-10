@@ -2,10 +2,10 @@
 
 rkvc 是面向 Rockchip Linux 的 C++20 会话式媒体运行库（无异常、无 RTTI）。
 它只保留**一个稳定 C ABI**（当前 0.5.0：context / session / frame /
-diagnostic）、**一个核心静态库**（`rkvc-core-static`）、**四个独立的 codec
-插件工程**与**一个 `rkvc` CLI**。媒体实现经 `rkvc_plugin_query` 握手
-（`kPluginAbi=1` + 工具链指纹）接入，核心不链接 MPP、RGA、RKNN 或
-SVT 类型。
+diagnostic）、**一个核心静态库**（`rkvc-core-static`）、**四个 codec 插件
+工程**、**一个 pspack 静态库**与**一个 `rkvc` CLI**。媒体实现经
+`rkvc_plugin_query` 握手（`kPluginAbi=1` + 工具链指纹）接入，核心不链接
+MPP、RGA、RKNN 或 SVT 类型。
 
 ## 能力
 
@@ -17,6 +17,8 @@ SVT 类型。
   `0x02`），P-only，无 B 帧
 - **sr**（`codecs/sr/`）：Phase-RLFN 固定 3× NPU 超分（NHWC 输入 / NCHW
   输出，以 `core_w` / `core_h` 拆分非方形）
+- **pspack**（`codecs/pspack/`）：GB28181 PS 打包与解包（pack / system /
+  PSM / PES，AU 组装），静态库，无插件入口
 - **CLI**（`cli/`）：`caps` / `version` / `inspect` / `encode` / `decode` /
   `upscale`，长选项，无转码、无 `-i/-o` 短选项、无 low-delay 开关
   （MLVC 天生 P-only，MPP 默认无 B 帧）
@@ -45,10 +47,10 @@ cmake --build --preset default
 预设只有三个：`default`、`debug`、`tests`（后者多开
 `RKVC_CORE_BUILD_TESTS=ON`）。顶层开关只有两个：
 
-| 选项                | 默认 | 说明                |
-| ------------------- | ---- | ------------------- |
-| `RKVC_BUILD_CLI`    | ON   | 构建 `rkvc` CLI     |
-| `RKVC_BUILD_CODECS` | ON   | 构建四个 codec 插件 |
+| 选项                | 默认 | 说明                               |
+| ------------------- | ---- | ---------------------------------- |
+| `RKVC_BUILD_CLI`    | ON   | 构建 `rkvc` CLI                    |
+| `RKVC_BUILD_CODECS` | ON   | 构建 codec 工程（4 插件 + pspack） |
 
 各 codec/test 工程的测试开关（`RKVC_*_BUILD_TESTS`）默认全开，core 的
 `RKVC_CORE_BUILD_TESTS` 默认关闭、由 `tests` 预设或 CI 打开。
@@ -57,7 +59,7 @@ aarch64 链接自动加 `-static-libstdc++ -static-libgcc`，产物审计见
 x86 构建产物天然动态链接 libstdc++，不跑此审计）。
 
 MPP / SVT / RKNN 等第三方依赖以前缀方式提供，见各 codec 工程的
-`third_party/` 与 `cmake/` 说明；在 x86 本机只能构建与测试纯软路径
+`CMakeLists.txt` 与 `third_party/` 说明；在 x86 本机只能构建与测试纯软路径
 （SVT 编码、MLVC 算法表、SR 后处理），MPP / NPU 路径须上板验证。
 
 ## CLI

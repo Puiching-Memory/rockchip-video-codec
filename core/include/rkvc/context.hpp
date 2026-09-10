@@ -37,9 +37,6 @@ public:
     const Model* find_model(const std::string& id) const noexcept;
     const Model* first_model() const noexcept;
 
-    /// Declared before registry_: borrowed plugin factories must drop before
-    /// dlclose, and members destroy in reverse declaration order.
-    std::vector<LoadedPlugin> plugins_;
     DeviceCaps probe_device();
     void override_device_caps(const DeviceCaps& caps);
 
@@ -47,6 +44,9 @@ public:
 
 private:
     ContextOptions opts_;
+    /// Declared before registry_: borrowed plugin factories must drop before
+    /// dlclose, and members destroy in reverse declaration order.
+    std::vector<LoadedPlugin> plugins_;
     Registry registry_;
     std::vector<Model> models_;
     DeviceCaps caps_;

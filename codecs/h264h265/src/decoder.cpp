@@ -147,26 +147,11 @@ rkvc::Status emit_mpp_frame(rkvc::Emit* emit, MppFrame frame) {
         fr.value()->set_flags(rkvc::kFlagCorrupt);
     fr.value()->set_pts(mpp_frame_get_pts(frame));
     fr.value()->set_dts(mpp_frame_get_dts(frame));
+    // Emit blocks until the downstream queue has room, so Again is a broken
+    // emitter contract; the Executor treats Again as recoverable and would
+    // strand the sink waiting on a queue nobody cancels, so fail hard here.
     rkvc::Status st = emit->emit(0, fr.value());
-    if (st != rkvc::Status::Again)
-        return st;
-    // emit-backpressure-retry: the MPP packet is already consumed, so a
-    // dropped frame is unrecoverable; the consumer drains concurrently,
-    // spin-retry the emit for up to 5s and only then fail loud with Hw.
-    struct timespec dl = {};
-    clock_gettime(CLOCK_MONOTONIC, &dl);
-    dl.tv_sec += 5;
-    const struct timespec nap = {0, 2000000};
-    do {
-        nanosleep(&nap, nullptr);
-        st = emit->emit(0, fr.value());
-        struct timespec now = {};
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        if (now.tv_sec > dl.tv_sec ||
-            (now.tv_sec == dl.tv_sec && now.tv_nsec >= dl.tv_nsec))
-            break;
-    } while (st == rkvc::Status::Again);
-    return st;
+    return st == rkvc::Status::Again ? rkvc::Status::Hw : st;
 }
 
 // Drain decoded frames; until_eos must observe the EOS frame.

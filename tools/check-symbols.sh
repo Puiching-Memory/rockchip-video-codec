@@ -14,12 +14,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 mkdir -p "$PROJECT_DIR/.temp"
 
+if [[ $# -eq 0 ]]; then
+    echo "用法: $0 <elf> [<elf>...]" >&2
+    exit 2
+fi
+
 fail=0
 for ELF in "$@"; do
-    if [[ $# -eq 0 ]]; then
-        echo "用法: $0 <elf> [<elf>...]" >&2
-        exit 2
-    fi
     if [[ ! -f "$ELF" ]]; then
         echo "错误: 文件不存在: $ELF" >&2
         exit 2

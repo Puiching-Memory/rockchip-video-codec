@@ -10,14 +10,15 @@
 
 ## C++ 测试
 
-| 工程     | 测试                                                               | 覆盖                                                            |
-| -------- | ------------------------------------------------------------------ | --------------------------------------------------------------- |
-| core     | status_result、spec_frame、rkmodel、queue、plugin、pipeline、c_abi | Status/Result/Diag、帧规约、RKMDL1、队列、插件握手、管线、C ABI |
-| mlvc     | tables、ratectl、rans、pixel、mlvc_codec                           | 算法表、码控、熵编码、像素打包、编解码往返                      |
-| av1      | av1                                                                | SVT 软编逻辑                                                    |
-| sr       | sr_post                                                            | 超分后处理（非方形 `core_w`/`core_h` 拆分）                     |
-| h264h265 | mpp_logic、mpp_plugin                                              | MPP 参数逻辑、插件装载                                          |
-| cli      | cli                                                                | 长选项解析（含 `--fps/--json`，无 `--low-delay`）               |
+| 工程     | 测试                                                                         | 覆盖                                                                           |
+| -------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| core     | status_result、spec_frame、rkmodel、queue、plugin、pipeline、c_abi、download | Status/Result/Diag、帧规约、RKMDL1、队列、插件握手、管线、C ABI、Dmabuf 下载桥 |
+| mlvc     | tables、ratectl、rans、pixel、mlvc_codec                                     | 算法表、码控、熵编码、像素打包、编解码往返                                     |
+| av1      | av1                                                                          | SVT 软编逻辑                                                                   |
+| sr       | sr_post                                                                      | 超分后处理（非方形 `core_w`/`core_h` 拆分）                                    |
+| h264h265 | mpp_logic、mpp_plugin                                                        | MPP 参数逻辑、插件装载                                                         |
+| pspack   | ps                                                                           | GB28181 PS 打包 / 解包、PSM 与 PTS、AU 组装                                    |
+| cli      | cli                                                                          | 长选项解析（含 `--fps/--json`，无 `--low-delay`）                              |
 
 ~~~bash
 cmake --preset tests && cmake --build --preset tests
@@ -25,8 +26,9 @@ ctest --test-dir .build/tests --output-on-failure
 ~~~
 
 `tests` 预设多开 `RKVC_CORE_BUILD_TESTS=ON`（core 测试默认关闭，其余工程
-测试开关默认全开）。8/8（codec + cli）与 15/15（含 core）是合入前必须全绿
-的两档。x86 只覆盖纯软路径；MPP / NPU 用例在板端跑同一条 `ctest`。
+测试开关默认全开）。缺 MPP 头 / SVT-AV1 时注册 16 个用例，两者齐备时 19 个；
+CI 逐个断言这份清单都已注册（依赖缺失即失败，不再静默跳过）。x86 只覆盖纯软
+路径；MPP / NPU 用例在板端跑同一条 `ctest`。
 
 ## Python 测试
 

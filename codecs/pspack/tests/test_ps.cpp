@@ -210,3 +210,83 @@ TEST_CASE("pts wraps at 33 bits") {
     if (f)
         CHECK(f.value().pts90 == 12345);
 }
+
+namespace {
+
+// 5-byte PTS field, marker bits interleaved (ISO/IEC 13818-1).
+void put_pts(std::vector<uint8_t>& o, int64_t pts) {
+    const uint64_t p = static_cast<uint64_t>(pts) & 0x1FFFFFFFFULL;
+    o.push_back(static_cast<uint8_t>(0x20 | (((p >> 30) & 7) << 1) | 1));
+    o.push_back(static_cast<uint8_t>(p >> 22));
+    o.push_back(static_cast<uint8_t>(((p >> 14) & 0xFE) | 1));
+    o.push_back(static_cast<uint8_t>(p >> 7));
+    o.push_back(static_cast<uint8_t>(((p << 1) & 0xFE) | 1));
+}
+
+// One video PES with data_alignment (AU start) and an explicit PTS; with_dts
+// switches the PTS_DTS_flags to '11' and appends a throwaway DTS.
+void put_video_pes(std::vector<uint8_t>& o, int64_t pts, bool with_dts,
+                   const std::vector<uint8_t>& payload) {
+    const size_t hlen = with_dts ? 10 : 5;
+    o.insert(o.end(), {0, 0, 1, 0xE0});
+    const size_t len = 3 + hlen + payload.size();
+    o.push_back(static_cast<uint8_t>(len >> 8));
+    o.push_back(static_cast<uint8_t>(len));
+    o.push_back(0x84);
+    o.push_back(with_dts ? 0xC0 : 0x80);
+    o.push_back(static_cast<uint8_t>(hlen));
+    put_pts(o, pts);
+    if (with_dts)
+        put_pts(o, pts);
+    o.insert(o.end(), payload.begin(), payload.end());
+}
+
+}  // namespace
+
+TEST_CASE("PSM decides the codec when the NALs are ambiguous") {
+    using pspack::VideoCodec;
+    using pspack::mux_frame;
+    // 0x02 matches neither AVC (5/7) nor HEVC (19/20/32) NAL types, so the
+    // AU alone cannot be sniffed: the PSM in the keyframe pack must win.
+    const uint8_t ambiguous[] = {0, 0, 1, 0x02, 0x33};
+    auto first =
+        mux_frame(VideoCodec::Avc, ambiguous, sizeof(ambiguous), 9000, true);
+    auto second = mux_frame(VideoCodec::Avc, kHevcP, sizeof(kHevcP), 12000, false);
+    CHECK(first);
+    CHECK(second);
+    if (!first || !second)
+        return;
+    pspack::Demux demux;
+    CHECK(demux.append(first.value().data(), first.value().size()) ==
+          rkvc::Status::Ok);
+    CHECK(demux.append(second.value().data(), second.value().size()) ==
+          rkvc::Status::Ok);
+    auto f = demux.next();
+    CHECK(f);
+    if (f) {
+        CHECK(f.value().codec == VideoCodec::Avc);
+        CHECK(f.value().annexb ==
+              std::vector<uint8_t>(ambiguous, ambiguous + sizeof(ambiguous)));
+        CHECK(f.value().pts90 == 9000);
+    }
+}
+
+TEST_CASE("PTS+DTS flagged PES keeps the presentation time") {
+    const std::vector<uint8_t> au0 = {0, 0, 1, 0x02, 0xAA};
+    const std::vector<uint8_t> au1 = {0, 0, 1, 0x02, 0xBB};
+    std::vector<uint8_t> stream;
+    put_video_pes(stream, 123456, true, au0);
+    put_video_pes(stream, 126456, false, au1);
+    pspack::Demux demux;
+    CHECK(demux.append(stream.data(), stream.size()) == rkvc::Status::Ok);
+    auto f = demux.next();
+    CHECK(f);
+    if (f) {
+        CHECK(f.value().pts90 == 123456);
+        CHECK(f.value().annexb == au0);
+    }
+    auto tail = demux.flush();
+    CHECK(tail);
+    if (tail)
+        CHECK(tail.value().pts90 == 126456);
+}
