@@ -51,9 +51,21 @@ if [[ -z "${RKVC_PORTABLE_IN_CONTAINER:-}" ]] &&
         echo "错误: 需要 docker，或直接在 tools/portable/Dockerfile 镜像内运行" >&2
         exit 2
     fi
-    docker build -q -t rkvc-portable-cross "$SCRIPT_DIR" >/dev/null
+    # 无直连环境（内网机）里构建容器同样需要代理：标准走代理变量设置了就转发，
+    # 未设置则什么都不加。
+    build_args=()
+    run_env=(--network=host)
+    for v in http_proxy https_proxy all_proxy no_proxy \
+        HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY; do
+        if [[ -n "${!v:-}" ]]; then
+            build_args+=(--build-arg "$v=${!v}")
+            run_env+=(-e "$v=${!v}")
+        fi
+    done
+    docker build -q "${build_args[@]}" -t rkvc-portable-cross "$SCRIPT_DIR" \
+        >/dev/null
     exec docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
-        -e RKVC_PORTABLE_IN_CONTAINER=1 \
+        -e RKVC_PORTABLE_IN_CONTAINER=1 "${run_env[@]}" \
         -v "$REPO_ROOT:$REPO_ROOT" -w "$REPO_ROOT" \
         rkvc-portable-cross "$SCRIPT_DIR/build.sh" "$@"
 fi
