@@ -3,7 +3,7 @@
 //
 // Usage:
 //   decode_file <backend_dir> <h264|hevc|av1|mlvc> <width> <height>
-//               <nv12|yuv420p> <in.bit> <out.raw> [model.rkmdl ...]
+//               <nv12|yuv420p> <in.bit> <out.raw> [model.rkmodel ...]
 //
 // The width/height describe the coded picture; the raw output keeps the same
 // geometry. MLVC decode needs its decoder model registered (--model-id is the
@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     if (argc < 8) {
         fprintf(stderr,
                 "usage: %s <backend_dir> <codec> <width> <height> <pixfmt> "
-                "<in.bit> <out.raw> [model.rkmdl ...]\n",
+                "<in.bit> <out.raw> [model.rkmodel ...]\n",
                 argv[0]);
         return 1;
     }

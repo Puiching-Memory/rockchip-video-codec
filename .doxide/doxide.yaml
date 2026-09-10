@@ -1,9 +1,11 @@
-# Doxide 配置：生成 rkvc API 引用（Markdown 站源）。
+# Doxide 配置：生成 rkvc API 引用（Markdown 页，交给 zensical 一起出站）。
 # 注意：0.9.0 的 files 通配不支持 "**" 递归段，用单层 glob。
-# files 相对本文件目录；CI 中本目录被拷贝为 .build/api/，路径仍指向仓库根。
-# 用法：cd .doxide && doxide build && mkdocs build -d api-site
+# 通配符和 output 都相对 doxide 的当前工作目录展开（不是配置文件所在目录），
+# 所以本地和 CI 都必须 cd .doxide 后再构建，否则匹配不到任何头文件。
+# 用法：cd .doxide && doxide build && cd .. && zensical serve
 title: rkvc API 引用
 description: Rockchip 媒体图运行库（C++20 会话式媒体运行库，稳定 C ABI 0.5.0）API 引用
+output: ../docs/api
 files:
   - "../core/include/rkvc/*.hpp"
   - "../core/include/rkvc/*.h"

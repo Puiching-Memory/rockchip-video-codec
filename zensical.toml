@@ -5,6 +5,11 @@ site_url = "https://puiching-memory.github.io/rockchip-video-codec/"
 repo_url = "https://github.com/Puiching-Memory/rockchip-video-codec"
 repo_name = "rkvc"
 
+# API 页里 doxide 生成的实体块（!!! function / variable / typedef …）需要配套图标样式
+extra_css = [
+  "stylesheets/doxide.css",
+]
+
 nav = [
   { "首页" = "index.md" },
   { "快速开始" = "getting-started.md" },
@@ -12,6 +17,10 @@ nav = [
   { "API 引用" = "api/" },
   { "部署" = "deployment.md" },
   { "测试" = "testing.md" },
+  { "MLVC RKNN 导出" = "mlvc-rknn-export.md" },
+  { "SR 模型规格" = "sr-model-yuv-spec.md" },
+  { "语义编解码 SDK 集成" = "semantic-codec-sdk-integration.md" },
+  { "GB28181 推流" = "gb28181-streaming.md" },
 ]
 
 [theme]

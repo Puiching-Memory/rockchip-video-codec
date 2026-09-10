@@ -3,8 +3,8 @@ project(rkvc-upscale-file LANGUAGES C CXX)
 
 # Standalone fixed-3x upscale sample (mirrors `rkvc upscale`):
 #   cmake -S . -B build -DRKVC_CORE_DIR=/path/to/core \
-#     -DRKVC_MODEL=/path/to/phase-rlfn-bench.rkmdl
-#   ./build/upscale_file <plugin-dir> <w> <h> nv12 <model-id> in.nv12 out.nv12 <model.rkmdl>
+#     -DRKVC_MODEL=/path/to/phase-rlfn-bench.rkmodel
+#   ./build/upscale_file <plugin-dir> <w> <h> nv12 <model-id> in.nv12 out.nv12 <model.rkmodel>
 set(RKVC_CORE_DIR "" CACHE PATH "rkvc core source dir")
 if(NOT RKVC_CORE_DIR)
     message(FATAL_ERROR "RKVC_CORE_DIR is required")

@@ -63,7 +63,8 @@ session_wait (FILE) / pull 至 EOF (FRAME_SINK)
 所有可扩展公开结构版本优先：先调 `xxx_init(&x, sizeof(x))` 填
 `struct_size`（与 `version`），尺寸不匹配即拒收，保证前向兼容。
 
-- `operation`：`RKVC_OP_ENCODE / DECODE / UPSCALE`（无转码）；
+- `operation`：`RKVC_OP_ENCODE / DECODE / UPSCALE`（枚举另有
+  `RKVC_OP_TRANSCODE`，规划器按解码 + 编码展开，CLI 不暴露）；
   `codec`：`H264 / HEVC / AV1 / MLVC`（`AUTO` 留给 upscale）。
 - `model_id` 透传到模型注册表（导出 stem，如 `mlvc_rk3576_qp21_decoder`）；
   `rkvc_context_add_model_file` 逐个注册 RKMDL1。

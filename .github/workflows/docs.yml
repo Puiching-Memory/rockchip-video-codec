@@ -45,18 +45,20 @@ jobs:
             sudo tee /etc/apt/sources.list.d/indii.org.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq doxide
-          pip install zensical mkdocs-material
+          pip install zensical
       - name: Build API references (Doxide)
         run: |
-          mkdir -p .build/api
-          cp -r .doxide/* .build/api/
-          cd .build/api
+          # doxide 在 CWD 找 doxide.yaml，且 files 通配符按 CWD 展开，
+          # 所以只能在 .doxide/ 下就地构建；产物写入 docs/api，由 zensical 一并出站。
+          cd .doxide
           doxide build
-          mkdocs build -d api-site
+          # doxide 对没匹配上的通配符静默跳过，这里兜底，避免再部署出空站点。
+          count=$(find ../docs/api -name '*.md' | wc -l)
+          echo "generated markdown pages: $count"
+          test "$count" -gt 1
       - name: Build site
         run: |
           zensical build --clean
-          cp -r .build/api/api-site site/api
           touch site/.nojekyll
       - uses: JamesIves/github-pages-deploy-action@fa24774553152dd7873cd16ebd8d959b010c5445 # v4
         with:

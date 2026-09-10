@@ -26,8 +26,9 @@ ctest --test-dir .build/tests --output-on-failure
 ~~~
 
 `tests` 预设多开 `RKVC_CORE_BUILD_TESTS=ON`（core 测试默认关闭，其余工程
-测试开关默认全开）。缺 MPP 头 / SVT-AV1 时注册 16 个用例，两者齐备时 19 个；
-CI 逐个断言这份清单都已注册（依赖缺失即失败，不再静默跳过）。x86 只覆盖纯软
+测试开关默认全开）。缺 MPP 头少 2 个（`mpp_logic` / `mpp_plugin`）、缺
+SVT-AV1 少 1 个（`av1`），两者都缺时注册 16 个用例、齐备时 19 个；CI 逐个
+断言这份清单都已注册（依赖缺失即失败，不再静默跳过）。x86 只覆盖纯软
 路径；MPP / NPU 用例在板端跑同一条 `ctest`。
 
 ## Python 测试

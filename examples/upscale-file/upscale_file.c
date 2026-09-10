@@ -3,7 +3,7 @@
 //
 // Usage:
 //   upscale_file <backend_dir> <width> <height> <nv12|yuv420p> <model-id>
-//                <in.raw> <out.raw> [model.rkmdl ...]
+//                <in.raw> <out.raw> [model.rkmodel ...]
 //
 // The SR node is fixed-3x: output geometry is (3w, 3h). The model id selects
 // a registered RKMDL1 file (export stem, e.g. phase-rlfn-bench).
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     if (argc < 8) {
         fprintf(stderr,
                 "usage: %s <backend_dir> <width> <height> <pixfmt> <model-id> "
-                "<in.raw> <out.raw> [model.rkmdl ...]\n",
+                "<in.raw> <out.raw> [model.rkmodel ...]\n",
                 argv[0]);
         return 1;
     }

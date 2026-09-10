@@ -12,7 +12,7 @@ SBOM/provenance 流水线与 glibc 2.31 基线，以及 `portable/`、`deps/`、
 ~~~text
 .build/release/rkvc            # CLI
 .build/release/rkvc_*.so       # 所需 codec 插件
-<模型目录>/*.rkmdl              # RKMDL1 模型（tools/mlvc、tools/sr 导出）
+<模型目录>/*.rkmodel           # RKMDL1 模型（tools/mlvc、tools/sr 导出）
 ~~~
 
 ## 板端部署

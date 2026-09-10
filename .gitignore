@@ -63,6 +63,8 @@ bench_results/
 
 # Docs
 site/
+# doxide 生成的 API 页（doxide build 写入，随 zensical 一起出站，不入库）
+docs/api/
 
 # IDE
 .vscode/

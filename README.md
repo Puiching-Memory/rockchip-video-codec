@@ -147,8 +147,9 @@ rkvc_context_destroy(ctx);
 
 - **C++**（doctest 2.4.11，`DOCTEST_CONFIG_NO_EXCEPTIONS`，随各工程构建、
   CTest 执行）：core（status/result、spec/frame、rkmdl1、queue、plugin、
-  pipeline、C ABI）7 套；mlvc（tables、ratectl、rans、pixel、codec）5 套；
-  av1、sr 后处理、h264h265 逻辑、CLI 参数各 1 套
+  pipeline、C ABI、download）8 套；mlvc（tables、ratectl、rans、pixel、
+  codec）5 套；h264h265（逻辑 + 插件装载）2 套；av1、sr 后处理、pspack
+  PS 组装、CLI 参数各 1 套
 - **Python**（`tests/python/`，`unittest`）：rd 核算、`benchmark.py` 命令生成、
   RKMDL1 容器、MLVC / SR 导出
 - **Bash**（`tests/bash/`）：MLVC / 超分导出链路入口（优先 `.venv` 回退
@@ -190,7 +191,7 @@ RKMDL1 容器（魔数 `RKMDL1\x00\x00`，128B 头 + 88B 条目 + 多 qppatch �
 ## 发布
 
 本仓**没有打包器、不设 install 规则**：发布产物就是构建树
-（`rkvc` + `rkvc_*.so` 插件 + 所需 `.rkmdl`）。板端部署 = 复制这三样并用
+（`rkvc` + `rkvc_*.so` 插件 + 所需 `.rkmodel`）。板端部署 = 复制这三样并用
 `--backend-dir/--model-dir`（或 `--model FILE`）指向它们；aarch64 产物另跑
 `tools/check-symbols.sh` 做 GLIBC 与 C++ 运行时审计。依赖（MPP / rknnrt /
 SVT）来自目标机系统路径或随包复制的前缀目录，由运行时链接器解析。
@@ -202,7 +203,8 @@ SVT）来自目标机系统路径或随包复制的前缀目录，由运行时�
   [部署](docs/deployment.md) · [测试](docs/testing.md)
 - [MLVC RKNN 导出](docs/mlvc-rknn-export.md) ·
   [SR 模型规格](docs/sr-model-yuv-spec.md) ·
-  [语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md)
+  [语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md) ·
+  [GB28181 推流](docs/gb28181-streaming.md)
 
 ## 许可
 

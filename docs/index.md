@@ -1,8 +1,8 @@
 # rkvc
 
 面向 Rockchip Linux 的 C++20 会话式媒体运行库：一个稳定 C ABI（0.5.0）、
-一个核心静态库（`rkvc-core-static`）、四个独立 codec 插件与一个 `rkvc` CLI。
-无异常、无 RTTI。
+一个核心静态库（`rkvc-core-static`）、四个独立 codec 插件、一个 pspack
+静态库与一个 `rkvc` CLI。无异常、无 RTTI。
 
 ## 能力
 
