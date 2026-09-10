@@ -288,3 +288,32 @@ MPP_RET mpp_packet_set_eos(MppPacket packet) {
     (void)packet;
     return MPP_NOK;
 }
+
+MPP_RET mpp_packet_init_with_buffer(MppPacket *packet, MppBuffer buffer) {
+    (void)buffer;
+    if (packet)
+        *packet = NULL;
+    return MPP_NOK;
+}
+
+void mpp_packet_set_length(MppPacket packet, size_t size) {
+    (void)packet;
+    (void)size;
+}
+
+RK_U32 mpp_packet_is_partition(const MppPacket packet) {
+    (void)packet;
+    return 0;
+}
+
+RK_U32 mpp_packet_is_eoi(const MppPacket packet) {
+    (void)packet;
+    return 0;
+}
+
+MPP_RET mpp_meta_set_packet(MppMeta meta, MppMetaKey key, MppPacket val) {
+    (void)meta;
+    (void)key;
+    (void)val;
+    return MPP_NOK;
+}
