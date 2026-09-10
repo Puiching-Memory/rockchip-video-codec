@@ -28,11 +28,20 @@ lib/rkvc/backends/rkvc_*.so    # h264h265 / av1 / mlvc / sr 插件
 lib/librockchip_mpp.so.1       # MPP（h264h265 插件用）
 lib/librknnrt.so               # RKNN 运行库 2.3.2（mlvc/sr 用，SHA-256 固定）
 lib/libSvtAv1Enc.so.4          # SVT-AV1（av1 插件用）
+docs/                          # 全套文档（原样收录，入口 docs/index.md）
+examples/                      # 三个 C ABI 样板（integration-c/decode-file/upscale-file）
 models/*.rkmodel               # 可选，--models 收录
 licenses/                      # AGPLv3 + 第三方文本 + PROVENANCE.txt
+CHANGELOG.md                   # 版本历史（docs 里有链接引到这里）
 test.sh                        # 包内自测
 MANIFEST.sha256                # 全包校验和
 ~~~
+
+`docs/`、`examples/` 都是仓库里那两份原样收录，不为包单独维护副本；不含
+doxide 生成的 `docs/api/`（按头文件现生成、不入库，入包会让包内容随构建机
+变化）。示例要 rkvc 源码树才能构建（`-DRKVC_CORE_DIR=<core 目录>`），随包是
+作 C ABI 契约样板；`docs/` 里提到的 `tools/` 等路径指的是仓库，不在包内。
+文档图片走 git-lfs，构建机未拉全时 `build.sh` 会直接报错而不是交付坏图。
 
 ## 板端部署
 

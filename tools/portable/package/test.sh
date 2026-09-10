@@ -56,6 +56,26 @@ fi
 for f in README.md MANIFEST.sha256 licenses/PROVENANCE.txt; do
     if [[ -s "$ROOT/$f" ]]; then ok "$f 存在"; else bad "$f 存在"; fi
 done
+docs_pages="$(find "$ROOT/docs" -name '*.md' 2>/dev/null | wc -l)"
+if ((docs_pages >= 10)); then
+    ok "docs/ 文档 $docs_pages 个页面"
+else
+    bad "docs/ 文档页面数（$docs_pages，需 ≥10）"
+fi
+# 图片走 git-lfs：指针文件只有 130 字节，是真图就远大于此。
+if [[ -s "$ROOT/docs/images/mlvc-architecture.png" ]] &&
+    ! grep -q '^version https://git-lfs' \
+        "$ROOT/docs/images/mlvc-architecture.png"; then
+    ok "docs/ 图片为真实文件（非 lfs 指针）"
+else
+    bad "docs/ 图片为 git-lfs 指针"
+fi
+samples="$(find "$ROOT/examples" -name CMakeLists.txt 2>/dev/null | wc -l)"
+if ((samples == 3)); then
+    ok "examples/ 三个 C ABI 样板"
+else
+    bad "examples/ 样板数（$samples，需 3）"
+fi
 
 echo "== 完整性 =="
 if command -v sha256sum >/dev/null 2>&1; then

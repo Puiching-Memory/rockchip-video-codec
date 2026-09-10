@@ -9,11 +9,19 @@
 bin/rkvc                   CLI（C++ 运行时已静态链接）
 lib/rkvc/backends/*.so     codec 插件（h264h265 / av1 / mlvc / sr，按构建开关）
 lib/*.so*                  随包运行库（rockchip_mpp / rknnrt / SvtAv1Enc，按需）
+docs/                      全套文档（入口 docs/index.md）
+examples/                  三个 C ABI 样板（integration-c / decode-file / upscale-file）
 models/*.rkmodel           可选 RKMDL1 模型（构建时 --models 收录）
 licenses/                  许可证文本与来源清单（PROVENANCE.txt）
+CHANGELOG.md               版本历史（docs 里有链接引到这里）
 test.sh                    包内自测
 MANIFEST.sha256            全包校验和
 ```
+
+`docs/` 与 `examples/` 是仓库里那两份原样收录（不含 doxide 生成的 `docs/api/`，
+它按头文件现生成、不入库）。示例要 rkvc 源码树才能构建（各自 `CMakeLists.txt`
+需 `-DRKVC_CORE_DIR=<core 目录>`），这里作为 C ABI 契约样板随包；`docs/` 里
+提到的 `tools/` 之类路径指的是仓库，不在包内。
 
 ## 快速开始
 

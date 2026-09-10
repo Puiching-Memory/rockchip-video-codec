@@ -14,6 +14,7 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 - **CLI + 样板**：`rkvc caps/version/inspect/encode/decode/upscale`（`--qp/--bitrate/--gop/--fps`，`--backend-dir/--model-dir/--model-id`，参数解析单测覆盖）+ `examples/` 三个 C ABI 样板（`integration-c` 流式、`decode-file`、`upscale-file`）。
 - **审计**：aarch64 最终链接 `-static-libstdc++ -static-libgcc` + `tools/check-symbols.sh`（GLIBC 上限 2.34；NEEDED 禁动态 C++ 运行时；导出面白名单）。
 - **可移植包流水线**（新写，非旧 C 树 rkvc-build 的复活）：`tools/portable/` 由四件套组成——jammy 交叉镜像 `Dockerfile`（工具链固定点，目标 glibc 2.35、产物 GLIBC ≤ 2.34）、`aarch64-portable.cmake`（链接期即写入 `$ORIGIN` 相对 RUNPATH，产物天然按包布局摆放）、`build.sh`（MPP / SVT-AV1 按子模块 commit 缓存交叉构建 + rknnrt 2.3.2 按 SHA-256 固定下载 + 组装 + RUNPATH/依赖闭包审计 + `check-symbols.sh` + qemu 包内自测 + tarball）、包内 `test.sh`（布局/校验和/依赖解析/插件握手/av1 与 MPP 冒烟，无硬件自动跳过）。
+- **包内随带全套文档与示例**：`docs/`（18 个页面 + 配图）、`examples/`（三个 C ABI 样板）、`CHANGELOG.md` 原样收录，不为包另建副本；排除 doxide 现生成的 `docs/api/` 以免包内容随构建机变化。文档图片走 git-lfs，构建时检测到 130 字节指针文件即报错退出，不交付坏图。
 - **插件发现新增包布局目录**：`<二进制目录>/../lib/rkvc/backends`（即 `bin/rkvc` + `lib/rkvc/backends` 的可移植包，装载插件不再需要 `--backend-dir`）。
 
 ### 修复

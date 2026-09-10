@@ -140,6 +140,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # 包内随带 docs/，其配图走 git-lfs；不拉 LFS 就会打进 130 字节的
+          # 指针文件（build.sh 会因此报错）。
+          lfs: true
       - name: Fetch cross-build submodules
         run: |
           git submodule update --init --depth 1 third_party/mpp \

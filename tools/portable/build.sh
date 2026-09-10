@@ -339,6 +339,29 @@ pack_models() {
     echo "-- models: 收录 $count 个 .rkmodel"
 }
 
+pack_docs_and_examples() {
+    # 文档与示例直接复用仓库现有内容，不为包另写一份。
+    # docs/api 是 doxide 生成物（.gitignore 掉了），存在与否取决于构建机，
+    # 入包会让包内容不确定；示例要 rkvc 源码树才能构建，入包是作为 C ABI
+    # 契约样板。CHANGELOG.md 跟到包根：docs 里有指向 ../CHANGELOG.md 的链接。
+    cp -a "$REPO_ROOT/docs" "$pkg/docs"
+    rm -rf "$pkg/docs/api"
+    cp -a "$REPO_ROOT/examples" "$pkg/examples"
+    cp -f "$REPO_ROOT/CHANGELOG.md" "$pkg/CHANGELOG.md"
+    # 图片走 git-lfs，未拉全时留下的是 130 字节指针文件——入包等于交付坏图，
+    # 且 MANIFEST 照样通过，所以这里必须拦住。
+    local ptr
+    ptr="$({ grep -rl '^version https://git-lfs' "$pkg/docs" 2>/dev/null ||
+        true; } | wc -l)"
+    if ((ptr > 0)); then
+        echo "错误: docs/ 下有 $ptr 个 git-lfs 指针（真实文件未拉取）" >&2
+        echo "  修复: git lfs install && git lfs pull" >&2
+        exit 1
+    fi
+    echo "-- docs: $(find "$pkg/docs" -name '*.md' | wc -l) 个页面, examples:" \
+        "$(find "$pkg/examples" -name 'CMakeLists.txt' | wc -l) 个样板"
+}
+
 render_files() {
     local date
     date="$(date -u +%Y-%m-%d)"
@@ -368,6 +391,7 @@ assemble_package() {
     done
     bundle_runtime_libs
     collect_licenses
+    pack_docs_and_examples
     if [[ -n "$models_dir" ]]; then
         pack_models
     else
