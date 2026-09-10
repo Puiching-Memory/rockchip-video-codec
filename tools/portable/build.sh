@@ -272,7 +272,7 @@ collect_artifacts() {
 }
 
 bundle_runtime_libs() {
-    # 只收 NEODED 里出现、且不在系统清单里的运行库；来源限定已构建前缀，
+    # 只收 NEEDED 里出现、且不在系统清单里的运行库；来源限定已构建前缀，
     # 防止把宿主 x86 库混进包。
     local dep src dev
     for dep in $(

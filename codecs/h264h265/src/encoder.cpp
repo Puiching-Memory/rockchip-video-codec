@@ -382,13 +382,14 @@ rkvc::Status emit_packet(rkvc::Emit* emit, MppPacket packet) {
 
 // Drains the output of the frame just submitted, up to and including the
 // packet flagged EOI. A packet that is not part of a partition sequence is a
-// complete frame on its own.
+// complete frame on its own. Running out of packets is a stall: the output
+// buffer is reused by the next frame, so it must not be handed back while the
+// encoder may still be writing into it.
 rkvc::Status drain_frame_packets(MppEncoderNode::Impl* enc) {
     for (;;) {
         MppPacket packet = nullptr;
-        MPP_RET ret = enc->mpi->encode_get_packet(enc->ctx, &packet);
-        if (ret != MPP_OK || !packet)
-            return rkvc::Status::Ok;
+        if (enc->mpi->encode_get_packet(enc->ctx, &packet) != MPP_OK || !packet)
+            return rkvc::Status::Hw;
         bool last =
             !mpp_packet_is_partition(packet) || mpp_packet_is_eoi(packet);
         rkvc::Status st = emit_packet(enc->emit, packet);
