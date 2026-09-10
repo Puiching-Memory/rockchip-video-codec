@@ -69,13 +69,20 @@ DeviceCaps Context::probe_device() {
         caps_ = DeviceCaps{};
         caps_.soc = probe_soc();
         // Advisory only: planner still rejects unsupported stages per node.
-        // NPU bits stay 0 here (as in the 0.4 tree); backends refine at
-        // registration when they actually probe hardware.
+        // query_caps probes a bare context (no plugins loaded), so backend
+        // registration cannot refine these bits in that flow; device nodes
+        // are the only signal available here.
         if (node_exists("/dev/mpp_service")) {
             caps_.mpp_encode = true;
             caps_.mpp_decode = true;
         }
         caps_.rga = node_exists("/dev/rga");
+        // NPU present bit; exact core count is refined by the RKNN backend
+        // at registration (bare-context probe reports presence as 1).
+        if (node_exists("/dev/rknpu") || node_exists("/dev/rknpu0")) {
+            caps_.rknn = true;
+            caps_.npu_cores = 1;
+        }
         caps_probed_ = true;
     }
     return caps_;
