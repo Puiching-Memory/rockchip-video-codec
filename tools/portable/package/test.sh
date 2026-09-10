@@ -86,19 +86,11 @@ grep_out "version 报 $VERSION" "rkvc $VERSION" run version
 run_ok "version --json" run version --json
 run_ok "caps" run caps
 
-echo "== 插件握手（包内自动发现，不带 --backend-dir）=="
-if out="$(run inspect backends 2>&1)"; then
-    n="$(printf '%s\n' "$out" | grep -c .)"
-    if [[ "$n" == "${#plugins[@]}" ]]; then
-        ok "inspect backends 全部装载（$n/${#plugins[@]}）"
-    else
-        bad "inspect backends 装载 $n/${#plugins[@]}，输出: $out"
-    fi
-else
-    bad "inspect backends 执行"
-fi
+echo "== 插件握手 =="
+# inspect backends 只扫显式给的目录；插件自动发现（bin/../lib/rkvc/backends）
+# 由下面的编码冒烟验证——那条路径走的是 context 的发现顺序。
 if out="$(run inspect backends --backend-dir "$BACKENDS" 2>&1)"; then
-    n="$(printf '%s\n' "$out" | grep -c .)"
+    n="$(grep -cE 'rkvc_[a-z0-9]+\.so' <<<"$out")"
     if [[ "$n" == "${#plugins[@]}" ]]; then
         ok "inspect backends --backend-dir（$n/${#plugins[@]}）"
     else
@@ -108,7 +100,7 @@ else
     bad "inspect backends --backend-dir 执行"
 fi
 
-echo "== av1 软编码冒烟（无硬件依赖）=="
+echo "== av1 软编码冒烟（无硬件依赖；顺带验证插件自动发现）=="
 if [[ -f "$BACKENDS/rkvc_av1.so" ]]; then
     head -c $((3 * 640 * 360 * 3 / 2)) /dev/urandom >"$tmp/in.nv12"
     if run encode --codec av1 --input "$tmp/in.nv12" --width 640 \

@@ -349,10 +349,11 @@ render_files() {
 }
 
 write_manifest() {
+    # 路径相对包根（不带包名前缀），解压后进包内可直接 sha256sum -c。
     (
-        cd "$stage"
-        find "$pkg_name" -type f ! -name MANIFEST.sha256 | LC_ALL=C sort |
-            xargs sha256sum >"$pkg/MANIFEST.sha256"
+        cd "$pkg"
+        find . -type f ! -name MANIFEST.sha256 | sed 's|^\./||' |
+            LC_ALL=C sort | xargs sha256sum >MANIFEST.sha256
     )
 }
 
