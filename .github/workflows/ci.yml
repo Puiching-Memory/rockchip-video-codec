@@ -24,7 +24,10 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang-tidy cmake g++ libsvtav1enc-dev ninja-build
+          sudo apt-get install -y -qq clang-format-18 clang-tidy cmake g++ \
+            libsvtav1enc-dev ninja-build
+      - name: Check formatting
+        run: tools/check-format.sh
       - name: Configure
         run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
       - name: Run clang-tidy
