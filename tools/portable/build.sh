@@ -59,8 +59,10 @@ if [[ -z "${RKVC_PORTABLE_IN_CONTAINER:-}" ]]; then
                 run_env+=(-e "$v=${!v}")
             fi
         done
-        docker build -q "${build_args[@]}" -t rkvc-portable-cross "$SCRIPT_DIR" \
-            >/dev/null
+        # --network=host：镜像内 apt 与容器内 curl 都要能碰到宿主 loopback
+        # 上的代理（内网机代理通常只监听 127.0.0.1）。
+        docker build -q --network=host "${build_args[@]}" \
+            -t rkvc-portable-cross "$SCRIPT_DIR" >/dev/null
         exec docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -e RKVC_PORTABLE_IN_CONTAINER=1 "${run_env[@]}" \
             -v "$REPO_ROOT:$REPO_ROOT" -w "$REPO_ROOT" \
