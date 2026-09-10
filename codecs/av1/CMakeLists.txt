@@ -22,8 +22,10 @@ option(RKVC_AV1_BUILD_TESTS "Build av1 tests" ON)
 
 if(RKVC_AV1_WITH_SVT)
     if(SVT_AV1_INSTALL_PREFIX)
+        # 前缀里头文件装在 include/svt-av1/（与发行版包布局一致）。
         find_path(SVT_INCLUDE_DIR NAMES EbSvtAv1Enc.h
-            PATHS ${SVT_AV1_INSTALL_PREFIX}/include NO_DEFAULT_PATH)
+            PATHS ${SVT_AV1_INSTALL_PREFIX}/include
+            PATH_SUFFIXES svt-av1 NO_DEFAULT_PATH)
         find_library(SVT_ENC_LIB NAMES SvtAv1Enc
             PATHS ${SVT_AV1_INSTALL_PREFIX}/lib
                   ${SVT_AV1_INSTALL_PREFIX}/lib64 NO_DEFAULT_PATH)

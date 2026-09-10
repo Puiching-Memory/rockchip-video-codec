@@ -89,3 +89,21 @@ jobs:
           for test_script in tests/bash/test_*.sh; do
             bash "$test_script"
           done
+
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Fetch cross-build submodules
+        run: |
+          git submodule update --init --depth 1 third_party/mpp \
+            third_party/SVT-AV1
+      - name: Build aarch64 portable package
+        # 脚本自带 docker 重入：构建 jammy 交叉镜像 → 交叉编译（rknnrt 按
+        # SHA-256 固定下载）→ 组装 → RUNPATH/依赖闭包/符号审计 → qemu
+        # 包内自测；tarball 落在 .build/dist/。
+        run: tools/portable/build.sh
+      - name: Show package
+        run: |
+          ls -l .build/dist/
+          cat .build/dist/*.sha256

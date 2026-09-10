@@ -263,10 +263,12 @@ add_subdirectory(${AIS_SDK_ROOT}/codec/video sdk-video)
 
 1. 调用方经 `rkvc_context_options.backend_dirs` 传入的可信目录
    （宿主应把用户参数透传到此，参考宿主的 `cfg.backend_dir`）；
-2. 包内目录：`<core 所在宿主二进制映射目录>/rkvc/backends`（dladdr 定位，
-   适配"CLI 与插件同目录部署"布局）；
-3. `/usr/local/lib/rkvc/backends`；
-4. `/usr/lib/rkvc/backends`。
+2. 二进制旁目录：`<core 所在宿主二进制映射目录>/rkvc/backends`（dladdr
+   定位，适配"CLI 与插件同目录部署"布局）；
+3. 可移植包布局：`<二进制目录>/../lib/rkvc/backends`（即 `bin/rkvc` +
+   `lib/rkvc/backends`，`tools/portable/` 产出的包不带任何参数即可装载）；
+4. `/usr/local/lib/rkvc/backends`；
+5. `/usr/lib/rkvc/backends`。
 
 装载失败的最近一条诊断记录在 context 内部，排除问题时可 gdb
 断点 `rkvc::Context::load_plugin` 观察。`inspect backends` 可逐个
@@ -286,11 +288,13 @@ dlopen 探查握手结果。
 ### 4.3 插件依赖与部署
 
 插件 DSO 的第三方依赖（MPP 的 `librockchip_mpp.so.1`、rknnrt、SVT）走常规
-动态链接；部署到目标机时三选一：
+动态链接；部署到目标机时按下列任一方式满足（可移植包已用第 1 种）：
 
-1. 前缀按配置期路径原样存在（构建机即目标机/板载编译场景天然满足）；
-2. 目标机系统路径可解析依赖（如 `/usr/local/lib` 下的 `librockchip_mpp.so.1`）；
-3. 运行时 `LD_LIBRARY_PATH` 指向依赖库目录。
+1. 随包携带：插件 RUNPATH（`$ORIGIN/../..`）指向包内 `lib/`，整包搬迁
+   不用改配置；
+2. 前缀按配置期路径原样存在（构建机即目标机/板载编译场景天然满足）；
+3. 目标机系统路径可解析依赖（如 `/usr/local/lib` 下的 `librockchip_mpp.so.1`）；
+4. 运行时 `LD_LIBRARY_PATH` 指向依赖库目录。
 
 ### 4.4 backend_dir 传参
 

@@ -4,6 +4,7 @@
 
 - `check-symbols.sh`：新 C++ 产物的 GLIBC 上限、NEEDED 与导出面审计。
 - `check-format.sh`：C/C++ 源码格式校验（`--fix` 就地修复）。
+- `portable/`：aarch64 可移植包（交叉工具链镜像、构建/审计/包内自测）。
 - `bench/`：Rockchip 实机性能基准。
 - `mlvc/`、`sr/`：模型导出及转换工具。
 

@@ -31,6 +31,8 @@ session_wait (FILE) / pull 至 EOF (FRAME_SINK)
 唯一导出 `rkvc_plugin_query(host_abi)`，返回 `PluginDescriptor`
 （`kPluginAbi=1` + 工具链指纹 + 工厂表）。指纹或 ABI 对不上即拒载，
 只记诊断不中断。宿主经 `--backend-dir`（可重复）传入可信目录并扫描 `.so`；
+二进制旁的 `rkvc/backends`、包布局的 `../lib/rkvc/backends` 与系统目录
+按序补位（顺序见 [语义编解码 SDK 集成](semantic-codec-sdk-integration.md)）；
 `inspect backends` 可逐个 dlopen 探查。
 
 ## 会话与端点

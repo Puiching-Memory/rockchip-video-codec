@@ -203,9 +203,13 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
     if (dladdr((const void*)rkvc_context_create, &info) && info.dli_fname) {
         std::string self = info.dli_fname;
         size_t slash = self.rfind('/');
-        if (slash != std::string::npos)
-            discover_dir(ctx->ctx,
-                         (self.substr(0, slash) + "/rkvc/backends").c_str());
+        if (slash != std::string::npos) {
+            std::string dir = self.substr(0, slash);
+            // Sibling layout first, then the portable package layout
+            // (bin/rkvc with the plugins in lib/rkvc/backends).
+            discover_dir(ctx->ctx, (dir + "/rkvc/backends").c_str());
+            discover_dir(ctx->ctx, (dir + "/../lib/rkvc/backends").c_str());
+        }
     }
     discover_dir(ctx->ctx, "/usr/local/lib/rkvc/backends");
     discover_dir(ctx->ctx, "/usr/lib/rkvc/backends");

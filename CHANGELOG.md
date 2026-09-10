@@ -13,6 +13,12 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 - **五个独立 codec 工程**：h264h265（MPP 编解码节点，出帧走阻塞背压不丢帧）、mlvc（container/pmf/qptab/qppatch/ratectl/rANS/pixel 全部 C golden 对拍 + fake-NPU 精确回环）、av1（SVT-AV1 编码节点，容器出包）、sr（Phase-RLFN 后处理 + SrUpscaleNode + 双后端门控）、pspack（GB28181 PS 打包/解包：pack/system/PSM/PES 与 AU 组装，静态库无插件入口，核心直接链接）。
 - **CLI + 样板**：`rkvc caps/version/inspect/encode/decode/upscale`（`--qp/--bitrate/--gop/--fps`，`--backend-dir/--model-dir/--model-id`，参数解析单测覆盖）+ `examples/` 三个 C ABI 样板（`integration-c` 流式、`decode-file`、`upscale-file`）。
 - **审计**：aarch64 最终链接 `-static-libstdc++ -static-libgcc` + `tools/check-symbols.sh`（GLIBC 上限 2.34；NEEDED 禁动态 C++ 运行时；导出面白名单）。
+- **可移植包流水线**（新写，非旧 C 树 rkvc-build 的复活）：`tools/portable/` 由四件套组成——jammy 交叉镜像 `Dockerfile`（工具链固定点，目标 glibc 2.35、产物 GLIBC ≤ 2.34）、`aarch64-portable.cmake`（链接期即写入 `$ORIGIN` 相对 RUNPATH，产物天然按包布局摆放）、`build.sh`（MPP / SVT-AV1 按子模块 commit 缓存交叉构建 + rknnrt 2.3.2 按 SHA-256 固定下载 + 组装 + RUNPATH/依赖闭包审计 + `check-symbols.sh` + qemu 包内自测 + tarball）、包内 `test.sh`（布局/校验和/依赖解析/插件握手/av1 与 MPP 冒烟，无硬件自动跳过）。
+- **插件发现新增包布局目录**：`<二进制目录>/../lib/rkvc/backends`（即 `bin/rkvc` + `lib/rkvc/backends` 的可移植包，装载插件不再需要 `--backend-dir`）。
+
+### 修复
+
+- **`SVT_AV1_INSTALL_PREFIX` 起始查找**：`codecs/av1` 在前缀分支里找 `include/EbSvtAv1Enc.h`，而 SVT-AV1 实际装到 `include/svt-av1/`，配置期只报一句 "SVT-AV1 not found" 就把 av1 插件静默跳过；补 `PATH_SUFFIXES svt-av1`，与文档记录的前缀布局一致。
 
 ### 板级基线（RK3576/161 + RV1126B/214，2026-09-09）
 
