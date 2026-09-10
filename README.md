@@ -45,10 +45,10 @@ cmake --build --preset default
 预设只有三个：`default`、`debug`、`tests`（后者多开
 `RKVC_CORE_BUILD_TESTS=ON`）。顶层开关只有两个：
 
-| 选项               | 默认 | 说明           |
-| ------------------ | ---- | -------------- |
-| `RKVC_BUILD_CLI`   | ON   | 构建 `rkvc` CLI |
-| `RKVC_BUILD_CODECS` | ON  | 构建四个 codec 插件 |
+| 选项                | 默认 | 说明                |
+| ------------------- | ---- | ------------------- |
+| `RKVC_BUILD_CLI`    | ON   | 构建 `rkvc` CLI     |
+| `RKVC_BUILD_CODECS` | ON   | 构建四个 codec 插件 |
 
 各 codec/test 工程的测试开关（`RKVC_*_BUILD_TESTS`）默认全开，core 的
 `RKVC_CORE_BUILD_TESTS` 默认关闭、由 `tests` 预设或 CI 打开。
@@ -95,11 +95,11 @@ MPP / SVT / RKNN 等第三方依赖以前缀方式提供，见各 codec 工程�
 `core/` 源码、直链 `rkvc-core-static`；内嵌形态见
 [语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md)）：
 
-| 示例 | 端点 | 说明 |
-| ---- | ---- | ---- |
+| 示例                      | 端点            | 说明                                                         |
+| ------------------------- | --------------- | ------------------------------------------------------------ |
 | `examples/integration-c/` | FRAME_SINK 流式 | AV1 编码：wrap → push/try_pull 背压 → push_eos → pull 至 EOF |
-| `examples/decode-file/` | FILE | 解码裸码流/` .mlvc` 到裸帧（与 `rkvc decode` 同参数形状） |
-| `examples/upscale-file/` | FILE | 固定 3× 超分（与 `rkvc upscale` 同参数形状） |
+| `examples/decode-file/`   | FILE            | 解码裸码流/` .mlvc` 到裸帧（与 `rkvc decode` 同参数形状）    |
+| `examples/upscale-file/`  | FILE            | 固定 3× 超分（与 `rkvc upscale` 同参数形状）                 |
 
 ## API
 
