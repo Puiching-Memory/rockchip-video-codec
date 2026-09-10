@@ -49,7 +49,7 @@ if [[ -z "${RKVC_PORTABLE_IN_CONTAINER:-}" ]]; then
     # 直接用现场工具链（等价环境，如镜像内手工执行），基线由审计兜底。
     if command -v docker >/dev/null 2>&1; then
         # 无直连环境（内网机）里构建容器同样需要代理：标准代理变量设置了就
-        # 转发，未设置则什么都不加。
+        # 转发，未设置则什么都不加。镜像内 apt 会用 chsrc 换源后直连镜像站。
         build_args=()
         run_env=(--network=host)
         for v in http_proxy https_proxy all_proxy no_proxy \
@@ -59,6 +59,9 @@ if [[ -z "${RKVC_PORTABLE_IN_CONTAINER:-}" ]]; then
                 run_env+=(-e "$v=${!v}")
             fi
         done
+        if [[ -n "${RKVC_CHSRC_MIRROR:-}" ]]; then
+            build_args+=(--build-arg "CHSRC_MIRROR=$RKVC_CHSRC_MIRROR")
+        fi
         # --network=host：镜像内 apt 与容器内 curl 都要能碰到宿主 loopback
         # 上的代理（内网机代理通常只监听 127.0.0.1）。
         docker build -q --network=host "${build_args[@]}" \

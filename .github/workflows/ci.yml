@@ -102,6 +102,10 @@ jobs:
         # 脚本自带 docker 重入：构建 jammy 交叉镜像 → 交叉编译（rknnrt 按
         # SHA-256 固定下载）→ 组装 → RUNPATH/依赖闭包/符号审计 → qemu
         # 包内自测；tarball 落在 .build/dist/。
+        # 镜像内默认用 chsrc 换到国内镜像站；GitHub  runner 在境外，官方源
+        # 本就快，这里保持官方源。
+        env:
+          RKVC_CHSRC_MIRROR: default
         run: tools/portable/build.sh
       - name: Show package
         run: |
