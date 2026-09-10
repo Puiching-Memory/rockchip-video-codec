@@ -62,7 +62,8 @@ MppEncoderNode::MppEncoderNode(rkvc::Request req)
         impl_->req = std::move(req);
 }
 
-MppEncoderNode::~MppEncoderNode() { close(); }
+// Qualified: cleanup must not depend on virtual dispatch from a destructor.
+MppEncoderNode::~MppEncoderNode() { MppEncoderNode::close(); }
 
 std::vector<rkvc::Port> MppEncoderNode::make_ports() const {
     rkvc::Port in, out;

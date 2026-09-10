@@ -24,19 +24,26 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq clang-tidy cmake g++ jq libsvtav1enc-dev ninja-build
+          sudo apt-get install -y -qq clang-tidy cmake g++ libsvtav1enc-dev ninja-build
       - name: Configure
         run: cmake -B .build/lint -G Ninja -DCMAKE_BUILD_TYPE=Debug -DRKVC_CORE_BUILD_TESTS=ON
       - name: Run clang-tidy
         run: |
-          # Lint exactly what the build compiles: deriving the list from the
-          # compile DB avoids "no compile command" diagnostics for files that
-          # belong to targets this configuration does not create.
-          mapfile -t SOURCES < <(jq -r '.[].file' .build/lint/compile_commands.json | sort -u)
-          clang-tidy -p .build/lint "${SOURCES[@]}" 2>&1 | tee tidy-report.txt
-          # Warnings are not errors yet: doctest expands into clang-analyzer
-          # false positives, so only real compiler errors fail the job.
-          ! grep -E "error:" tidy-report.txt
+          # Shipped code only: test targets expand doctest.h, which costs ~7x
+          # the whole lint run and feeds clang-analyzer false positives.
+          # clang-analyzer findings are fatal; the rest stay advisory and are
+          # summarized, so the log stays readable.
+          run-clang-tidy -p .build/lint -j "$(nproc)" -quiet \
+            -warnings-as-errors 'clang-analyzer-*' '(^|/)(src|include)/' \
+            > tidy-report.txt 2>&1
+          sed -i 's/\x1b\[[0-9;]*m//g' tidy-report.txt
+          echo "--- findings by check ---"
+          grep -oE '\[[^]]+\]$' tidy-report.txt | sort | uniq -c | sort -rn || true
+          if grep -qE "error:" tidy-report.txt; then
+            echo "--- errors ---"
+            grep -E "error:" tidy-report.txt
+            exit 1
+          fi
 
   test:
     runs-on: ubuntu-24.04

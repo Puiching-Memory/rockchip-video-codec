@@ -61,7 +61,8 @@ MppDecoderNode::MppDecoderNode(rkvc::Request req)
         impl_->req = std::move(req);
 }
 
-MppDecoderNode::~MppDecoderNode() { close(); }
+// Qualified: cleanup must not depend on virtual dispatch from a destructor.
+MppDecoderNode::~MppDecoderNode() { MppDecoderNode::close(); }
 
 std::vector<rkvc::Port> MppDecoderNode::make_ports() const {
     rkvc::Port in, out;

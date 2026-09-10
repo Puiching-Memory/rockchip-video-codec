@@ -232,7 +232,9 @@ rkvc::Status SvtEncoderNode::process(rkvc::FramePtr input, rkvc::Diag* diag) {
     } else
 #endif
     {
-        if (!base && input->size())
+        // Every later memcpy reads from this buffer, so a null base is fatal
+        // regardless of the advertised size.
+        if (!base)
             return rkvc::Status::Format;
     }
     auto unmap = [&] {
