@@ -31,6 +31,10 @@ head -c $((640*368*3/2*30)) /dev/urandom > in.nv12
 模型用 `--model-dir models`（或逐个 `--model FILE`），`--model-id` 按导出
 stem 选择。
 
+把本包拼进下游宿主（如 `semantic-codec-sdk`）时的摆法、工具链指纹约束与
+验收步骤，见仓库 `docs/portable-package.md`；注意插件不能单独搬运——它靠
+`$ORIGIN/../..` 解析本包 `lib/` 里的第三方库。
+
 ## 运行环境
 
 - aarch64 Linux，glibc ≥ 2.34（构建自 Ubuntu 22.04 交叉工具链）。

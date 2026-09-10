@@ -42,6 +42,9 @@ MANIFEST.sha256                # 全包校验和
 `--backend-dir` 也能装载。要指向包外的插件/模型仍可显式传
 `--backend-dir` / `--model-dir`（或逐个 `--model`）。
 
+宿主（如 `semantic-codec-sdk`）与这个包怎么拼装——插件发现位、工具链指纹
+约束、验收与排障——见[可移植包 × 宿主集成](portable-package.md)。
+
 先跑 `./test.sh`：覆盖布局、校验和、依赖解析、插件握手、av1 软编码与
 MPP 硬编解码冒烟，无硬件项自动跳过。`librknnrt.so` 自身动态依赖目标机的
 `libstdc++.so.6` / `libgcc_s.so.1`，系统自带即可。

@@ -26,6 +26,7 @@ MLVC 编解码链路：
 - [架构](architecture.md)：运行路径、插件握手、会话与端点、C ABI
 - [API 引用](api/)：C ABI 与 C++ 核心头文件的符号参考（Doxide 生成）
 - [部署](deployment.md)：发布产物、板端部署、第三方运行时、符号审计
+- [可移植包 × 宿主集成](portable-package.md)：包与下游宿主的拼装方式、工具链指纹约束
 - [测试](testing.md)：C++ / Python / Bash 三类测试与板端回归
 - [MLVC RKNN 导出](mlvc-rknn-export.md)：ONNX → RKNN 模型生产与 NPU I/O 约定
 - [SR 模型规格](sr-model-yuv-spec.md)：Phase-RLFN I/O 契约与实测数据
