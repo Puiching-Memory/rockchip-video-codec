@@ -67,4 +67,9 @@ private:
 NodePtr make_queue_source(FrameQueue* in_q, const Spec& spec);
 NodePtr make_queue_sink(FrameQueue* out_q, const Spec& spec);
 
+// CPU download bridge (linear Dmabuf in, packed Host out). Graph::build
+// splices one in wherever a Dmabuf producer would otherwise face a Host
+// consumer with no other spec conflict.
+NodePtr make_download_node();
+
 }  // namespace rkvc
