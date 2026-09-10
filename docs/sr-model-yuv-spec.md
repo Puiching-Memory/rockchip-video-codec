@@ -79,8 +79,7 @@ INT8 相对 FP16 仅 −0.05dB / −0.001 SSIM，但 NPU 侧快约 1.5×、体�
 其他实测要点：
 
 - 融合阶段（`add_phase_residual`，旧名 `rkvc_sr_phase_add_residual_nv12`）是单线程 CPU 热路径，对大小核
-  敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 按 `docs/mlvc-npu-profile.md` 的
-  约定用 `taskset -c 4-7` 固定到大核簇。
+  敏感：A72 22ms/帧 vs A53 70ms/帧。 profiling 用 `taskset -c 4-7` 固定到大核簇。
 - `rknn_outputs_get(want_float=1)` 的 FP32 转换要占 15–20ms/帧（输出 6.2M 元素）；
   改为 `want_float=0` 取回原生布局可再省 7ms（FP16）/11ms（INT8），但融合
   路径需自行反量化。

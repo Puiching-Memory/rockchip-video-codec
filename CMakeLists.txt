@@ -14,6 +14,7 @@ option(RKVC_BUILD_CODECS "Build the codec plugins" ON)
 add_subdirectory(core)
 
 if(RKVC_BUILD_CODECS)
+    add_subdirectory(codecs/pspack)
     add_subdirectory(codecs/h264h265)
     add_subdirectory(codecs/mlvc)
     add_subdirectory(codecs/av1)

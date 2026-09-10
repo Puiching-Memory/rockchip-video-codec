@@ -2,7 +2,7 @@
 # Copyright (c) 2026 梦归云帆
 """为 RKNN 准备 MLVC ONNX：折叠 ``q_index_shifted``，并把 CPU fallback 算子换成 NPU 友好等价图。
 
-对齐 ``docs/mlvc-npu-profile.md`` §7.2：
+对齐 ``docs/mlvc-rknn-export.md`` 的算子替换约定：
 
 - SpaceToDepth → Reshape + Transpose + Reshape
 - Max(x, const) / Min(x, const) → Clip

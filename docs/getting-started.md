@@ -33,8 +33,22 @@ head -c $((640*360*3/2)) /dev/urandom > in.nv12
 
 MLVC 与超分需要 NPU 与已注册的 RKMDL1（`--model FILE` 或
 `--model-dir DIR`，`--model-id` 按导出 stem 选择），见
-[RKNN 导出](mlvc-rknn-export.md)。
+[MLVC RKNN 导出](mlvc-rknn-export.md)。
 
-各子工程可独立配置（codec 工程自动回退 `add_subdirectory(core)`），
-顶层只有 `RKVC_BUILD_CLI` / `RKVC_BUILD_CODECS` 两个开关。
-测试与基准见 [测试](testing.md)，目录约定见 [构建目录](build-layout.md)。
+## 构建目录与开关
+
+`.build/` 下只有三个预设目录（见 `CMakePresets.json`）：
+
+| 路径              | 内容                                                             |
+| ----------------- | ---------------------------------------------------------------- |
+| `.build/release/` | `default` 预设：Release 构建（`rkvc` + `rkvc_*.so`）             |
+| `.build/debug/`   | `debug` 预设：Debug 构建                                         |
+| `.build/tests/`   | `tests` 预设：Debug + `RKVC_CORE_BUILD_TESTS=ON`，`ctest` 在此跑 |
+
+各子工程可独立配置（codec 工程自动回退 `add_subdirectory(core)`）。顶层只有
+`RKVC_BUILD_CLI` / `RKVC_BUILD_CODECS` 两个开关；各 codec 与测试工程的
+`RKVC_*_BUILD_TESTS` 默认全开，core 的 `RKVC_CORE_BUILD_TESTS` 默认关闭，
+由 `tests` 预设或 CI 打开。
+
+本仓没有 install 规则、不产安装树，板端部署见 [部署](deployment.md)；
+测试与基准见 [测试](testing.md)。

@@ -138,7 +138,7 @@ rkvc_context_destroy(ctx);
 流式用法（FRAME_SINK：wrap → push / try_pull / pull → push_eos）见
 `examples/integration-c/main.c`。全部声明在
 [core/include/rkvc/rkvc.h](core/include/rkvc/rkvc.h)，
-语义见 [docs/api.md](docs/api.md)。注意所有结构体都走
+语义见 [docs/architecture.md](docs/architecture.md)。注意所有结构体都走
 `xxx_init(&x, sizeof(x))` 版本优先初始化，`struct_size` 不匹配即拒收。
 
 ## 测试
@@ -197,13 +197,10 @@ SVT）来自目标机系统路径或随包复制的前缀目录，由运行时�
 ## 文档
 
 - [快速开始](docs/getting-started.md) · [架构](docs/architecture.md) ·
-  [API](docs/api.md) · [测试](docs/testing.md) · [构建目录](docs/build-layout.md) ·
-  [打包](docs/packaging.md)
-- MLVC：[流格式](docs/mlvc-streaming-spec.md) ·
-  [NPU 剖析](docs/mlvc-npu-profile.md) ·
-  [RKNN 导出](docs/mlvc-rknn-export.md) ·
+  [部署](docs/deployment.md) · [测试](docs/testing.md)
+- [MLVC RKNN 导出](docs/mlvc-rknn-export.md) ·
+  [SR 模型规格](docs/sr-model-yuv-spec.md) ·
   [语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md)
-- [C++ 重写计划](docs/cpp-rewrite-plan.md)（已完成，保留为历史记录）
 
 ## 许可
 

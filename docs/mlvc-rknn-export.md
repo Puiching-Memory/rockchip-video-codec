@@ -118,7 +118,7 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁经 `--pack`
   metadata.json
 ```
 
-`--target-device` 建议 `generic` 或 `intel`。**不要用 `qualcomm`**：官方 Qualcomm 优化会把 PixelUnshuffle 收成 `SpaceToDepth`、把 Clip 收成 `Max`，在 RKNN 上都会 CPU fallback（见 [mlvc-npu-profile.md](mlvc-npu-profile.md) §7.2）。即便 generic 默认 pass 里仍可能出现 `SpaceToDepth`，本工具会再写回 NPU 友好算子。
+`--target-device` 建议 `generic` 或 `intel`。**不要用 `qualcomm`**：官方 Qualcomm 优化会把 PixelUnshuffle 收成 `SpaceToDepth`、把 Clip 收成 `Max`，在 RKNN 上都会 CPU fallback。即便 generic 默认 pass 里仍可能出现 `SpaceToDepth`，本工具会再写回 NPU 友好算子（替换项见 `tools/mlvc/onnx_rewrite.py` 头部）。
 
 公开 checkpoint（约 70 MB）落到 `.build/deps/mlvc-data/pretrained/mlvc-psnr-v1.ckpt`。tracing 用占位 I420（640×360 灰帧；模型 640×368 由上游 EDGE padding）。`convert.py` 默认还会做导出后校验，本包装器用 `--no-validate-conversion` 跳过。
 
@@ -136,9 +136,9 @@ ONNX 导出只需一次，后续用 `--onnx-dir` 复用。QP 补丁经 `--pack`
 
 | 选项                            | 说明                                                                                                         |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `--qp 21`                       | 折进图的 `q_index`（默认 21）                                                           |
+| `--qp 21`                       | 折进图的 `q_index`（默认 21）                                                                                |
 | `--qp-list 10,21,30,40`         | 每个 qp 一份模型，写入 `{out-dir}/{platform}_qp_models/qpXX/`；`--qp` 若在列表中则再拷到 bundle 根目录作默认 |
-| `--qp-dynamic`                  | 全 QP 单模型（QPT1）：Gather 改 q 行输入，q 表外置随 `.rkmodel` 分发；与 `--qp-list`/QPP1 互斥 |
+| `--qp-dynamic`                  | 全 QP 单模型（QPT1）：Gather 改 q 行输入，q 表外置随 `.rkmodel` 分发；与 `--qp-list`/QPP1 互斥               |
 | `--skip-rknn`                   | 只做 PMF + ONNX 折叠/重写（无 toolkit 的 CI / 板端可用）                                                     |
 | `--pmf-only`                    | 只把 JSON 写成 `gaussian.bin` / `bitest.bin`                                                                 |
 | `--inspect`                     | 只打印 ONNX I/O                                                                                              |
@@ -250,10 +250,10 @@ FP16 `[1,C,1,1]` 图输入（行向量），q 表本体摘出图外随 `.rkmodel
 
 模型 I/O 契约（encoder 追加 3 输入、decoder 追加 3 输入，均 FP16 未量化）：
 
-| 部件   | q 行输入                                        | 对应表（rows×cols）                  |
-| ------ | ----------------------------------------------- | ------------------------------------- |
+| 部件   | q 行输入                                            | 对应表（rows×cols）                  |
+| ------ | --------------------------------------------------- | ------------------------------------ |
 | 编码器 | `q_encoder_row` / `q_decoder_row` / `q_feature_row` | `[72,256]` / `[72,128]` / `[72,256]` |
-| 解码器 | `q_feature_row` / `q_decoder_row` / `q_recon_row`   | 均 `[72,256]`                         |
+| 解码器 | `q_feature_row` / `q_decoder_row` / `q_recon_row`   | 均 `[72,256]`                        |
 
 `qptab_{encoder,decoder}.bin` 为 **QPT1** 线格式：`"QPT1"` magic +
 u32 表数；每表 u32 name_len + name（≤32B，无 NUL）+ u32 rows + u32 cols +
