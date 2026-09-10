@@ -44,9 +44,12 @@ if(RKVC_AV1_WITH_SVT)
         foreach(h EbSvtAv1.h EbSvtAv1Enc.h)
             if(SVT_INCLUDE_DIR AND EXISTS "${SVT_INCLUDE_DIR}/${h}")
                 file(STRINGS "${SVT_INCLUDE_DIR}/${h}" _svt_ver_line
-                    REGEX "#define SVT_AV1_VERSION_MAJOR +[0-9]+")
-                string(REGEX MATCH "[0-9]+" _svt_ver_major "${_svt_ver_line}")
-                if(_svt_ver_major)
+                    REGEX "^#define SVT_AV1_VERSION_MAJOR +[0-9]+")
+                if(_svt_ver_line)
+                    # 取整行再去掉前缀：不能直接 MATCH "[0-9]+"，宏名里的
+                    # "AV1" 会先被匹配中。
+                    string(REGEX REPLACE "^#define SVT_AV1_VERSION_MAJOR +" ""
+                        _svt_ver_major "${_svt_ver_line}")
                     break()
                 endif()
             endif()
