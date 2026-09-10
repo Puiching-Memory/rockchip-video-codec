@@ -32,8 +32,10 @@ ARG CHSRC_MIRROR=first
 RUN set -eu; \
     if [ "$CHSRC_MIRROR" != default ]; then \
         http_proxy= https_proxy= all_proxy= \
-            chsrc set ubuntu "$CHSRC_MIRROR" >/tmp/chsrc.log 2>&1 ||
-            { cat /tmp/chsrc.log >&2; exit 1; }; \
+            chsrc set ubuntu "$CHSRC_MIRROR" >/tmp/chsrc.log 2>&1 || { \
+            cat /tmp/chsrc.log >&2; \
+            exit 1; \
+        }; \
         rm -f /tmp/chsrc.log; \
         unset http_proxy https_proxy all_proxy; \
     fi; \
