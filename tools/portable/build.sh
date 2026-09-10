@@ -43,31 +43,33 @@ usage() {
 EOF
 }
 
-if [[ -z "${RKVC_PORTABLE_IN_CONTAINER:-}" ]] &&
-    ! command -v aarch64-linux-gnu-g++ >/dev/null 2>&1; then
-    # 宿主机入口：镜像按需重建（层缓存命中时开销可忽略），然后原路径重入，
-    # 便于日志与产物路径和直接执行时完全一致。
-    if ! command -v docker >/dev/null 2>&1; then
+if [[ -z "${RKVC_PORTABLE_IN_CONTAINER:-}" ]]; then
+    # 宿主机入口：有 docker 就重入固定镜像——宿主自带的交叉工具链可能是
+    # noble 的 gcc-13（目标 glibc 2.39），会顶穿 2.34 基线；没有 docker 才
+    # 直接用现场工具链（等价环境，如镜像内手工执行），基线由审计兜底。
+    if command -v docker >/dev/null 2>&1; then
+        # 无直连环境（内网机）里构建容器同样需要代理：标准代理变量设置了就
+        # 转发，未设置则什么都不加。
+        build_args=()
+        run_env=(--network=host)
+        for v in http_proxy https_proxy all_proxy no_proxy \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY; do
+            if [[ -n "${!v:-}" ]]; then
+                build_args+=(--build-arg "$v=${!v}")
+                run_env+=(-e "$v=${!v}")
+            fi
+        done
+        docker build -q "${build_args[@]}" -t rkvc-portable-cross "$SCRIPT_DIR" \
+            >/dev/null
+        exec docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -e RKVC_PORTABLE_IN_CONTAINER=1 "${run_env[@]}" \
+            -v "$REPO_ROOT:$REPO_ROOT" -w "$REPO_ROOT" \
+            rkvc-portable-cross "$SCRIPT_DIR/build.sh" "$@"
+    fi
+    if ! command -v aarch64-linux-gnu-g++ >/dev/null 2>&1; then
         echo "错误: 需要 docker，或直接在 tools/portable/Dockerfile 镜像内运行" >&2
         exit 2
     fi
-    # 无直连环境（内网机）里构建容器同样需要代理：标准走代理变量设置了就转发，
-    # 未设置则什么都不加。
-    build_args=()
-    run_env=(--network=host)
-    for v in http_proxy https_proxy all_proxy no_proxy \
-        HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY; do
-        if [[ -n "${!v:-}" ]]; then
-            build_args+=(--build-arg "$v=${!v}")
-            run_env+=(-e "$v=${!v}")
-        fi
-    done
-    docker build -q "${build_args[@]}" -t rkvc-portable-cross "$SCRIPT_DIR" \
-        >/dev/null
-    exec docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
-        -e RKVC_PORTABLE_IN_CONTAINER=1 "${run_env[@]}" \
-        -v "$REPO_ROOT:$REPO_ROOT" -w "$REPO_ROOT" \
-        rkvc-portable-cross "$SCRIPT_DIR/build.sh" "$@"
 fi
 
 jobs="$(nproc)"
