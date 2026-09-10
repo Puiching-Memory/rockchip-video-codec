@@ -290,9 +290,10 @@ bundle_runtime_libs() {
         fi
         cp -Lf "$src" "$pkg/lib/$dep"
         chmod 644 "$pkg/lib/$dep"
-        dev="${dep%%.so.*}.so"
-        if [[ "$dev" != "$dep" ]]; then
-            ln -sfn "$dep" "$pkg/lib/$dev"
+        # 版本化 soname 补一个开发名（libfoo.so.1 → libfoo.so），方便随包
+        # 链接；无版本后缀（librknnrt.so）不需要，别造出 ".so.so"。
+        if [[ "$dep" =~ ^(.*\.so)\.[0-9] ]]; then
+            ln -sfn "$dep" "$pkg/lib/${BASH_REMATCH[1]}"
         fi
     done
 }
