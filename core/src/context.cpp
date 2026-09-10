@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <dirent.h>
 #include <string>
 #include <unistd.h>
 
@@ -36,6 +37,23 @@ std::string probe_soc() {
 
 bool node_exists(const char* path) noexcept {
     return ::access(path, F_OK) == 0;
+}
+
+// DRM-based rknpu driver exposes no /dev/rknpu; the NPU shows up as DRI
+// card/render nodes instead (161: platform-27700000.npu-card/render).
+bool dir_has(const char* dir, const char* needle) noexcept {
+    DIR* dp = ::opendir(dir);
+    if (!dp)
+        return false;
+    bool hit = false;
+    while (dirent* e = ::readdir(dp)) {
+        if (std::strstr(e->d_name, needle)) {
+            hit = true;
+            break;
+        }
+    }
+    ::closedir(dp);
+    return hit;
 }
 
 }  // namespace
@@ -79,7 +97,10 @@ DeviceCaps Context::probe_device() {
         caps_.rga = node_exists("/dev/rga");
         // NPU present bit; exact core count is refined by the RKNN backend
         // at registration (bare-context probe reports presence as 1).
-        if (node_exists("/dev/rknpu") || node_exists("/dev/rknpu0")) {
+        if (node_exists("/dev/rknpu") || node_exists("/dev/rknpu0") ||
+            node_exists("/dev/rknn") ||
+            dir_has("/dev/dri/by-path", "npu") ||
+            dir_has("/sys/class/devfreq", "npu")) {
             caps_.rknn = true;
             caps_.npu_cores = 1;
         }

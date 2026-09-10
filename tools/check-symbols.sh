@@ -5,9 +5,8 @@
 set -euo pipefail
 
 MAX_GLIBC_MAJOR=2
-# Ceiling 2.34, not 2.17: pthread_once/key/dlopen and __libc_start_main
-# bind 2.34 even in the old production librkvc.so.0.4.0 (board-verified).
-# librknnrt's 2.17 stays the aspiration pending a 2.17 sysroot; 2.34 keeps
+# Ceiling 2.34: pthread_once/key/dlopen and __libc_start_main bind 2.34
+# even in the old production librkvc.so.0.4.0 (board-verified); 2.34 keeps
 # every artifact runnable on the glibc-2.35 fleet with one version margin.
 MAX_GLIBC_MINOR=34
 
@@ -46,7 +45,7 @@ for ELF in "$@"; do
         fi
     done
     if [[ -n "$worst" ]]; then
-        echo "错误: $ELF 引用 $worst，超出 GLIBC_2.17 上限" >&2
+        echo "错误: $ELF 引用 $worst，超出 GLIBC_2.34 上限" >&2
         fail=1
     fi
 

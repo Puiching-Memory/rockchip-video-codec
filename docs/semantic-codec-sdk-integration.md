@@ -1,12 +1,10 @@
 # semantic-codec-sdk 向上集成指南
 
-> 目标：为把 rkvc（本仓库）内嵌进上层 SDK 提供所需的全部信息，单点收口、避免跑偏。
-> 参考宿主：`semantic-codec-sdk`（ais SDK，2026-09 快照）。
-> 与 [cpp-rewrite-plan.md](cpp-rewrite-plan.md) 的分工：计划管 rkvc 自身如何重写
-> （工程布局/错误模型/插件 ABI/阶段步骤）；本文管**集成面**——rkvc 向宿主提供什么、
-> 宿主侧必须做什么、如何验证与排障。重写已落地合入，本文描述 **C ABI 0.5.0 现状**；
-> 旧 C ABI 0.4（`backends/`、`lib/`、`include/rkvc/` 树）已整树删除，
-> 下文不再保留时期标注，历史差异见 §9。
+> 目标：宿主（`semantic-codec-sdk`，ais SDK）内嵌 rkvc 所需的全部信息，
+> 单点收口、避免跑偏。本文只写**向上集成**——rkvc 向宿主提供什么、宿主侧
+> 必须做什么、如何验证与排障；rkvc 内部设计见 [architecture.md](architecture.md)，
+> 版本变更见 [CHANGELOG.md](../CHANGELOG.md)。
+> 参考宿主快照：2026-09。本文描述 **C ABI 0.5.0 现状**。
 
 ## 1. 集成模型
 
@@ -22,14 +20,14 @@
    （C ABI 0.5.0）消费 rkvc；原生 C++ API 是进程内第二面，
    不对宿主做跨编译器承诺。
 
-| 项        | 现状（C ABI 0.5.0）                                                                                   |
-| --------- | ----------------------------------------------------------------------------------------------------- |
-| 链接形态  | `add_subdirectory(core)` + `rkvc-core-static`；`examples/` 三个 C 样板为对接契约                       |
+| 项        | 现状（C ABI 0.5.0）                                                                                                                                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 链接形态  | `add_subdirectory(core)` + `rkvc-core-static`；`examples/` 三个 C 样板为对接契约                                                                           |
 | codec DSO | 四 codec 工程插件（`rkvc_h264h265.so` / `rkvc_mlvc.so` / `rkvc_av1.so` / `rkvc_sr.so`），`rkvc_plugin_query(host_abi)` 握手（`kPluginAbi=1` + 工具链指纹） |
-| 依赖      | Threads + dl（+ 各 codec 前缀：MPP / rknnrt / SVT）                                                   |
-| 工具链    | C++20；自有源 `-fno-exceptions -fno-rtti`；aarch64 `-static-libstdc++ -static-libgcc`                  |
-| 符号审计  | `tools/check-symbols.sh`（GLIBC ≤ 2.34 + NEEDED 禁动态 C++ 运行时；板端审计，x86 不跑）                |
-| SDK 对接  | 适配层按本 C ABI 重写（仓库外），以 `examples/integration-c/` 样板为契约                               |
+| 依赖      | Threads + dl（+ 各 codec 前缀：MPP / rknnrt / SVT）                                                                                                        |
+| 工具链    | C++20；自有源 `-fno-exceptions -fno-rtti`；aarch64 `-static-libstdc++ -static-libgcc`                                                                      |
+| 符号审计  | `tools/check-symbols.sh`（GLIBC ≤ 2.34 + NEEDED 禁动态 C++ 运行时；板端审计，x86 不跑）                                                                    |
+| SDK 对接  | 适配层按本 C ABI 重写（仓库外），以 `examples/integration-c/` 样板为契约                                                                                   |
 
 ```mermaid
 flowchart LR
@@ -52,16 +50,14 @@ flowchart LR
 2026-09-09 实测）消费面，按新 C ABI（handle 式 context/**session**/frame，
 结构体 size/version 首字段演化）逐项覆盖：
 
-| 类      | 符号 |
-| ------- | ---- |
-| options | `rkvc_context_options_init` |
-| context | `rkvc_context_create`（带 `backend_dirs`）/ `rkvc_context_destroy` / `rkvc_probe_device` / `rkvc_context_add_model_file` |
+| 类      | 符号                                                                                                                                                                                                                                                            |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| options | `rkvc_context_options_init`                                                                                                                                                                                                                                     |
+| context | `rkvc_context_create`（带 `backend_dirs`）/ `rkvc_context_destroy` / `rkvc_probe_device` / `rkvc_context_add_model_file`                                                                                                                                        |
 | session | `rkvc_session_request_init` / `rkvc_session_create`（带 diag）/ `rkvc_session_start` / `rkvc_session_push` / `rkvc_session_try_pull` / `rkvc_session_pull` / `rkvc_session_push_eos` / `rkvc_session_wait` / `rkvc_session_destroy` / `rkvc_session_error_text` |
-| frame   | `rkvc_frame_desc_init` / `rkvc_frame_wrap` / `rkvc_frame_get_desc` / `rkvc_frame_release` |
-| diag    | `rkvc_diag_fmt_text` / `rkvc_diag_release` / `rkvc_status_str` |
-| 枚举    | STATUS / CODEC / POLICY / OPERATION / FRAME_FMT / MEM_DOMAIN / ENDPOINT / `RKVC_FRAME_TS_UNKNOWN` |
-
-旧 `rkvc_job_*` 即新 `rkvc_session_*`（改名，无语义差）。
+| frame   | `rkvc_frame_desc_init` / `rkvc_frame_wrap` / `rkvc_frame_get_desc` / `rkvc_frame_release`                                                                                                                                                                       |
+| diag    | `rkvc_diag_fmt_text` / `rkvc_diag_release` / `rkvc_status_str`                                                                                                                                                                                                  |
+| 枚举    | STATUS / CODEC / POLICY / OPERATION / FRAME_FMT / MEM_DOMAIN / ENDPOINT / `RKVC_FRAME_TS_UNKNOWN`                                                                                                                                                               |
 
 ### 2.2 行为契约
 
@@ -90,13 +86,13 @@ flowchart LR
 
 上游 `map_status()`（`video_runtime.cpp`）按 C ABI 0.5.0 状态枚举映射：
 
-| rkvc 状态 | 宿主映射 | 说明 |
-| --------- | -------- | ---- |
-| `OK` / `AGAIN` / `EOF` / `NOMEM` | 同名 `AIS_*` | AGAIN 只出现在内部背压路径，send/recv 均不对外暴露（§3.3） |
-| `INVALID` / `NEGOTIATE` | `AIS_ERR_INVALID_ARG` | |
+| rkvc 状态                                                    | 宿主映射              | 说明                                                              |
+| ------------------------------------------------------------ | --------------------- | ----------------------------------------------------------------- |
+| `OK` / `AGAIN` / `EOF` / `NOMEM`                             | 同名 `AIS_*`          | AGAIN 只出现在内部背压路径，send/recv 均不对外暴露（§3.3）        |
+| `INVALID` / `NEGOTIATE`                                      | `AIS_ERR_INVALID_ARG` |                                                                   |
 | `NOT_FOUND` / `UNSUPPORTED` / `FORMAT` / `PERMISSION` / `HW` | `AIS_ERR_UNSUPPORTED` | 注意 `HW` 也映到 UNSUPPORTED，open 阶段硬件失败对外表现为"不支持" |
-| `MODEL` / `LICENSE` / `INTEGRITY` | `AIS_ERR_MODEL` | 模型/许可证类 |
-| 其他（`IO` / `CANCELED` / `INTERNAL`） | `AIS_ERR_INTERNAL` | |
+| `MODEL` / `LICENSE` / `INTEGRITY`                            | `AIS_ERR_MODEL`       | 模型/许可证类                                                     |
+| 其他（`IO` / `CANCELED` / `INTERNAL`）                       | `AIS_ERR_INTERNAL`    |                                                                   |
 
 视频路径当前不使用 `AIS_ERR_ENCODE` / `AIS_ERR_DECODE`（留给图像式一次性
 调用）。`Status` 负值枚举保留 AGAIN/EOF 流控语义，分层（流控/参数/格式/
@@ -232,10 +228,10 @@ add_subdirectory(${AIS_SDK_ROOT}/codec/video sdk-video)
   `rkvc_frame_wrap`，没有带释放回调的帧创建函数；长流/大帧场景宿主必须自持
   载荷、按引用归零释放，上游升级时注意别被其 `owned_` 实现回退。
 - **caps**：`ais_video_caps(caps)` 无 `backend_dir` 参数（临时 context 以
-  NULL options 创建，只走默认搜索路径 §4.1 前三条），`cfg.backend_dir` 对
+  NULL options 创建，只走默认搜索路径 §4.1 后三条），`cfg.backend_dir` 对
   caps 无效。语义（2026-09 起）：`has_encoder = has_mpp_encoder || has_rknn`、
   `has_decoder = has_mpp_decoder || has_rknn`（RKNN 计入编/解能力）、
-  `has_npu = npu_cores > 0`；`soc` 截断 63B。caps 只反映设备探测，不代表
+  `has_npu = npu_cores > 0`（NPU 探测路径见 §5.5）；`soc` 截断 63B。caps 只反映设备探测，不代表
   已装载后端集合。
 - **死锁反模式**（gdb 实证）：flush 前"send 数帧 → `while (recv==OK)` 排空"。
   硬件编码器攒帧不产包，阻塞 recv 永等输出、后端等新输入——主线程、
@@ -319,21 +315,21 @@ dlopen 探查握手结果。
 
 ### 4.6 rkvc 构建开关与典型配置
 
-| 开关 | 默认 | 说明 |
-| ---- | ---- | ---- |
-| `RKVC_BUILD_CLI` | ON | 构建 `rkvc` CLI；内嵌关 |
-| `RKVC_BUILD_CODECS` | ON | 构建四个 codec 插件；内嵌关 |
-| `RKVC_CORE_BUILD_TESTS` | OFF | core 单测；`tests` 预设/CI 开 |
-| 各 codec `RKVC_*_BUILD_TESTS` / `RKVC_CLI_BUILD_TESTS` | ON | 内嵌按需关 |
+| 开关                                                   | 默认 | 说明                          |
+| ------------------------------------------------------ | ---- | ----------------------------- |
+| `RKVC_BUILD_CLI`                                       | ON   | 构建 `rkvc` CLI；内嵌关       |
+| `RKVC_BUILD_CODECS`                                    | ON   | 构建四个 codec 插件；内嵌关   |
+| `RKVC_CORE_BUILD_TESTS`                                | OFF  | core 单测；`tests` 预设/CI 开 |
+| 各 codec `RKVC_*_BUILD_TESTS` / `RKVC_CLI_BUILD_TESTS` | ON   | 内嵌按需关                    |
 
 第三方前缀（各 codec 工程独立声明，缺失时对应插件关 NPU/MPP 硬件路径，
 纯软逻辑仍可构建测试）：
 
-| 前缀 | 消费方 | 内容 |
-| ---- | ------ | ---- |
-| `MPP_INSTALL_PREFIX` | h264h265 | `lib/librockchip_mpp.so` + 头 |
-| `SVT_AV1_INSTALL_PREFIX` | av1 | `lib/libSvtAv1Enc.so` + `include/svt-av1/` |
-| `RKNN_INSTALL_PREFIX` | mlvc、sr | `lib/librknnrt.so` + `rknn_api.h` |
+| 前缀                     | 消费方   | 内容                                       |
+| ------------------------ | -------- | ------------------------------------------ |
+| `MPP_INSTALL_PREFIX`     | h264h265 | `lib/librockchip_mpp.so` + 头              |
+| `SVT_AV1_INSTALL_PREFIX` | av1      | `lib/libSvtAv1Enc.so` + `include/svt-av1/` |
+| `RKNN_INSTALL_PREFIX`    | mlvc、sr | `lib/librknnrt.so` + `rknn_api.h`          |
 
 依赖前缀用板卡/系统自带安装或目标架构前缀目录；交叉务必用目标架构前缀，
 混入宿主架构库运行期才暴露。
@@ -372,8 +368,6 @@ NEGOTIATE）注入首节点输入端口、`req.output.fmt` 注入末节点输出
 
 ### 5.2 MPP 后端排空与超时（§2.2-6 排空有界性的当前实现）
 
-已修复并完成 RK3576 板测：
-
 - process 路径输出超时 `MPP_TIMEOUT_NON_BLOCK`（编码器尚未产包时 worker
   不卡在 `encode_get_packet`）；输入沿用同步 task/frame 所有权语义，设
   5000ms 有限超时，硬件异常时可失败退出；
@@ -399,6 +393,14 @@ MPP 后端装载探测 = `access("/dev/mpp_service", R_OK|W_OK)`（旧节点名
 `/dev/mpp-service` 兼容）+ `mpp_check_support_format` AVC 编/解任一支持。
 RK3576 实测：DEC AVC/HEVC/AV1/VP9 均可，ENC 仅 AVC/HEVC（AV1/VP9 编码返回
 不支持，属硬件能力，非缺陷）。
+
+### 5.5 NPU 探测条件
+
+NPU 存在位任一命中即置位：`/dev/rknpu`、`/dev/rknpu0`、`/dev/rknn`，
+或 DRI/设备指纹（`/dev/dri/by-path/` 下 `*npu*`、`/sys/class/devfreq/` 下
+`*npu*`）。161（RKNPU 0.9.8 DRM 形态）无 `/dev/rknpu`，NPU 以
+`card1/renderD129`（`platform-27700000.npu-card/render`）存在——只认
+`/dev/rknpu*` 的旧检出在此板误报无 NPU（`has_npu=0`），更新 core/sr 即可。
 
 ## 6. 端到端验证
 
@@ -455,20 +457,21 @@ AIS_VIDEO_BACKEND_DIR=/abs/path/to/.build/rkvc ./test_video_codec
 
 ## 7. 故障排查速查
 
-| 错误特征                                                  | 根因                                                                                  | 处置                                                          |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| 视频接口全部返回 `AIS_ERR_UNSUPPORTED`，测试恒"跳过"      | 顶层缺 `target_compile_definitions(... AIS_VIDEO_CODEC_RKVC=1)`，编出退化实现（§3.1） | 补编译定义后全量重建                                          |
-| 无候选（`required stage has no candidate`）               | 插件未装载（目录无 .so / 路径非绝对 / 握手失败）                                     | gdb 断 `rkvc::Context::load_plugin` 看装载流；`inspect backends` 看拒载原因；确认 §4.1/§4.4 |
-| 插件拒载（ABI/指纹）                                      | 插件与 core 非同一次构建（`kPluginAbi` 或工具链指纹不一致）                          | 插件与宿主链的 core 同源重建；`inspect backends` 确认          |
-| `session_start failed: format (-8)`（MPP 硬编）           | 旧检出无 FRAME_SINK 格式注入，编码器读到 UNKNOWN                                     | §5.1 修复（`core/src/graph.cpp` 注入段）                       |
-| 三方互等挂死（pull / queue / MPP）                        | flush 前"send 数帧 → `while (recv==OK)` 排空"反模式（recv 恒阻塞，无超时）            | §3.3：排空只在 flush 后进行                                   |
-| `drain_pending` 吞帧/误判 EOF，send 背压后丢输出          | 旧版队列 try_pop 成功弹帧后仍报空，被误判成 EOS                                       | 更新 core；用 queue/session 非阻塞回归测试确认（§2.2-1）       |
-| 解码输出为全零帧但返回成功                                | 新适配层未处理 DMABUF 域（`desc.data==NULL` 跳过 memcpy）                             | §3.4-1：自持 DMABUF 回读补丁                                  |
-| `caps enc=0/dec=0` 但 NPU 可用                            | caps 新语义把 RKNN 计入编/解能力，MPP 探针失败时不体现                                | §3.3 caps（先确认语义，再查 MPP probe 条件 §5.4）             |
-| 编码质量异常（码率失控/全黑）                             | `memset` 配置后未显式 `qp=-1`，`qp=0` 被当固定 QP 0                                   | §3.2                                                          |
-| 长流 RSS 线性增长                                         | 适配层 `owned_` 会话级驻留，close 前不释放（C ABI 无释放回调创建函数）                | §3.3：宿主自持载荷、按引用归零释放                            |
-| 编译报 `CLOCK_MONOTONIC` 未声明等                         | 宿主目录属性污染 core 子目录                                                         | §3.1 属性隔离                                                 |
-| 链接失败引用 `__isoc23_strtoul` / `arc4random`            | 交叉 libstdc++ 与低版本 sysroot glibc 不兼容                                          | §4.5：换板载编译（§4.6 配置 C）                               |
+| 错误特征                                             | 根因                                                                                  | 处置                                                                                        |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 视频接口全部返回 `AIS_ERR_UNSUPPORTED`，测试恒"跳过" | 顶层缺 `target_compile_definitions(... AIS_VIDEO_CODEC_RKVC=1)`，编出退化实现（§3.1） | 补编译定义后全量重建                                                                        |
+| 无候选（`required stage has no candidate`）          | 插件未装载（目录无 .so / 路径非绝对 / 握手失败）                                      | gdb 断 `rkvc::Context::load_plugin` 看装载流；`inspect backends` 看拒载原因；确认 §4.1/§4.4 |
+| 插件拒载（ABI/指纹）                                 | 插件与 core 非同一次构建（`kPluginAbi` 或工具链指纹不一致）                           | 插件与宿主链的 core 同源重建；`inspect backends` 确认                                       |
+| `session_start failed: format (-8)`（MPP 硬编）      | 旧检出无 FRAME_SINK 格式注入，编码器读到 UNKNOWN                                      | §5.1 修复（`core/src/graph.cpp` 注入段）                                                    |
+| 三方互等挂死（pull / queue / MPP）                   | flush 前"send 数帧 → `while (recv==OK)` 排空"反模式（recv 恒阻塞，无超时）            | §3.3：排空只在 flush 后进行                                                                 |
+| `drain_pending` 吞帧/误判 EOF，send 背压后丢输出     | 旧版队列 try_pop 成功弹帧后仍报空，被误判成 EOS                                       | 更新 core；用 queue/session 非阻塞回归测试确认（§2.2-1）                                    |
+| 解码输出为全零帧但返回成功                           | 新适配层未处理 DMABUF 域（`desc.data==NULL` 跳过 memcpy）                             | §3.4-1：自持 DMABUF 回读补丁                                                                |
+| `caps enc=0/dec=0` 但 NPU 可用                       | caps 新语义把 RKNN 计入编/解能力，MPP 探针失败时不体现                                | §3.3 caps（先确认语义，再查 MPP probe 条件 §5.4）                                           |
+| `has_npu=0` 但 NPU 驱动正常                          | 旧检出只认 `/dev/rknpu*`，DRM 形态 NPU（161）漏检                                     | 更新 core/sr（§5.5）                                                                        |
+| 编码质量异常（码率失控/全黑）                        | `memset` 配置后未显式 `qp=-1`，`qp=0` 被当固定 QP 0                                   | §3.2                                                                                        |
+| 长流 RSS 线性增长                                    | 适配层 `owned_` 会话级驻留，close 前不释放（C ABI 无释放回调创建函数）                | §3.3：宿主自持载荷、按引用归零释放                                                          |
+| 编译报 `CLOCK_MONOTONIC` 未声明等                    | 宿主目录属性污染 core 子目录                                                          | §3.1 属性隔离                                                                               |
+| 链接失败引用 `__isoc23_strtoul` / `arc4random`       | 交叉 libstdc++ 与低版本 sysroot glibc 不兼容                                          | §4.5：换板载编译（§4.6 配置 C）                                                             |
 
 ## 8. 集成核对清单
 
@@ -493,11 +496,10 @@ AIS_VIDEO_BACKEND_DIR=/abs/path/to/.build/rkvc ./test_video_codec
 
 ## 9. 版本与变更记录
 
-| 日期 | 变更 |
-| ---- | ---- |
-| 2026-09-09 | 重写落地：全篇翻转为 C ABI 0.5.0 现状（`rkvc_session_*`、`rkvc-core-static` 内嵌、插件自包含无宿主导出、`rkvc_h264h265.so` 等新插件名、GLIBC ≤ 2.34 审计、`RKVC_BUILD_CLI/CODECS` 开关）；旧 C ABI 0.4 树已删除，时期标注移除 |
+| 日期       | 变更                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-10 | NPU 探测补 DRM 形态（161 无 `/dev/rknpu` 但 `renderD129` 可用，§5.5 + 排障行）；GLIBC 审计基线收口 2.34；caps 默认路径修正为 §4.1 后三条                                                                                                                                                                                                                                                            |
+| 2026-09-09 | 重写落地：全篇翻转为 C ABI 0.5.0 现状（`rkvc_session_*`、`rkvc-core-static` 内嵌、插件自包含无宿主导出、`rkvc_h264h265.so` 等新插件名、GLIBC ≤ 2.34 审计、`RKVC_BUILD_CLI/CODECS` 开关）；旧 C ABI 0.4 树已删除，时期标注移除                                                                                                                                                                       |
 | 2026-09-09 | 适配上游 2026-09 快照：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口为 `ais_video_open/send/recv/flush/caps`（`config_init`/`struct_size`/`ais_buffer_bitstream` 移除）；send 同步化、recv 恒阻塞；帧载荷改 `rkvc_frame_wrap`+`owned_` 驻留；caps 纳入 RKNN；新增 MLVC family；发现新适配层 DMABUF 回读缺失与解码 bitstream 注入缺口；`ais_video_example` 移除，回归改 `test_video_codec.c` |
-| 2026-09-03 | 宿主公共 API 收口；补真实 H.264 编解码、线性 DMABUF 回读及静态安装包下游验证                                                                                                                                                                                                                                                                                                                        |
-| 2026-09-03 | RK3576 收尾：修复 try_pop 误报 EOF 与 MPP 有界排空；50/500 帧硬编、RSS 和无泄漏回归通过                                                                                                                                                                                                                                                                                                             |
-| 2026-09-03 | 重写为长期集成指南：并入 RK3576 实板结论（FRAME_SINK 注入修复、阻塞 pull 死锁模式、部署 RUNPATH 约定、故障速查表）                                                                                                                                                                                                                                                                                  |
+| 2026-09-03 | 宿主公共 API 收口；真实 H.264 编解码回环、线性 DMABUF 回读、try_pop 误报 EOF 与 MPP 有界排空修复，50/500 帧硬编回归通过（旧宿主契约，内存行已不适用）                                                                                                                                                                                                                                               |
 | 2026-08    | 初版：x86 容器验证（SVT 软编 E2E）与最小修改提案（内嵌构建修复、try_pull 对称原语）——均已落地本仓与参考宿主                                                                                                                                                                                                                                                                                         |

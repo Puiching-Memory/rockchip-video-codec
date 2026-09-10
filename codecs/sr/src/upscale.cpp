@@ -8,6 +8,7 @@
 #include <vector>
 
 #ifdef __linux__
+#include <dirent.h>
 #include <fcntl.h>
 #include <linux/dma-buf.h>
 #include <sys/ioctl.h>
@@ -224,6 +225,22 @@ bool SrUpscaleFactory::npu_present() noexcept {
         return true;
     if (access("/dev/rknn", R_OK | W_OK) == 0)
         return true;
+    // DRM-based rknpu driver exposes no /dev/rknpu; the NPU shows up as
+    // DRI card/render nodes instead (161: platform-27700000.npu-card).
+    for (const char* dir : {"/dev/dri/by-path", "/sys/class/devfreq"}) {
+        if (DIR* dp = opendir(dir)) {
+            bool hit = false;
+            while (dirent* e = readdir(dp)) {
+                if (strstr(e->d_name, "npu")) {
+                    hit = true;
+                    break;
+                }
+            }
+            closedir(dp);
+            if (hit)
+                return true;
+        }
+    }
 #endif
     return false;
 }
