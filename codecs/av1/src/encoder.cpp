@@ -160,8 +160,9 @@ rkvc::Status drain_packets(SvtEncoderNode::Impl* enc, rkvc::Diag* diag) {
 
 rkvc::Status init_locked(SvtEncoderNode::Impl* enc, rkvc::Diag* diag) {
     EbSvtAv1EncConfiguration* cfg = &enc->config;
-    // init_handle loads library defaults into *cfg.
-    if (svt_av1_enc_init_handle(&enc->handle, nullptr, cfg) != EB_ErrorNone)
+    // 4.x 起 init_handle 只收 handle 与 config（旧版的 app_data 参数已删），
+    // 由它把库内默认值灌进 *cfg。
+    if (svt_av1_enc_init_handle(&enc->handle, cfg) != EB_ErrorNone)
         return rkvc::Status::Hw;
     cfg->source_width = enc->width;
     cfg->source_height = enc->height;
@@ -172,7 +173,8 @@ rkvc::Status init_locked(SvtEncoderNode::Impl* enc, rkvc::Diag* diag) {
     cfg->intra_period_length = enc->req.quality.gop_size
                                    ? (int32_t)enc->req.quality.gop_size - 1
                                    : (int32_t)kDefaultGop;
-    cfg->pred_structure = SVT_AV1_PRED_RANDOM_ACCESS;
+    // 4.x 把 pred_structure 从 uint8_t 收紧为 PredStructure 枚举。
+    cfg->pred_structure = RANDOM_ACCESS;
     if (enc->req.quality.gop_size) {
         cfg->intra_refresh_type = SVT_AV1_KF_REFRESH;
         cfg->scene_change_detection = 0;
