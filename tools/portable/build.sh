@@ -23,8 +23,17 @@ RKNN_SO_SHA=d31fc19c85b85f6091b2bd0f6af9d962d5264a4e410bfb536402ec92bac738e8
 RKNN_H_SHA=c48e11a6f41b451a5fd1e4ad774ea60252d3d94f78bee9b21ea3d21b21deba9a
 
 # 目标机自带、不进包的运行库；其余 NEEDED 必须在已构建前缀里找到。
-SYSTEM_LIBS="libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 librt.so.1
-libstdc++.so.6 libgcc_s.so.1 ld-linux-aarch64.so.1"
+# （数组而非空格串：跨行赋值会用换行代替空格，case 模式匹配会失效。）
+SYSTEM_LIBS=(libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 librt.so.1
+    libstdc++.so.6 libgcc_s.so.1 ld-linux-aarch64.so.1)
+
+is_system_lib() {
+    local l
+    for l in "${SYSTEM_LIBS[@]}"; do
+        [[ "$l" == "$1" ]] && return 0
+    done
+    return 1
+}
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -270,9 +279,9 @@ bundle_runtime_libs() {
         for f in "${artifacts[@]}"; do readelf -d "$f"; done |
             sed -n 's/.*NEEDED.*\[\(.*\)\].*/\1/p' | sort -u
     ); do
-        case " $SYSTEM_LIBS " in
-            *" $dep "*) continue ;;
-        esac
+        if is_system_lib "$dep"; then
+            continue
+        fi
         src="$(find "$deps/mpp/lib" "$deps/svt/lib" "$deps/rknn/lib" \
             -maxdepth 1 -name "$dep" -print -quit 2>/dev/null || true)"
         if [[ -z "$src" ]]; then
@@ -389,9 +398,9 @@ verify_package() {
         [[ -f "$f" ]] || continue
         for dep in $(readelf -d "$f" |
             sed -n 's/.*NEEDED.*\[\(.*\)\].*/\1/p'); do
-            case " $SYSTEM_LIBS " in
-                *" $dep "*) continue ;;
-            esac
+            if is_system_lib "$dep"; then
+                continue
+            fi
             if grep -qxF "$dep" <<<"$provided"; then
                 continue
             fi
