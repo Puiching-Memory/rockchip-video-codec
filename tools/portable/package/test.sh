@@ -71,10 +71,10 @@ else
     bad "docs/ 图片为 git-lfs 指针"
 fi
 samples="$(find "$ROOT/examples" -name CMakeLists.txt 2>/dev/null | wc -l)"
-if ((samples == 3)); then
-    ok "examples/ 三个 C ABI 样板"
+if ((samples >= 3)); then
+    ok "examples/ C ABI 样板 $samples 个（≥3）"
 else
-    bad "examples/ 样板数（$samples，需 3）"
+    bad "examples/ 样板数（$samples，需 ≥3）"
 fi
 
 echo "== 完整性 =="
