@@ -21,6 +21,7 @@ lib/pkgconfig/rkvc-<codec>.pc   codec 版 pkg-config（Requires: rkvc）
 lib/*.so*                  随包运行库（rockchip_mpp / rknnrt / SvtAv1Enc，按需）
 docs/                      全套文档（入口 docs/index.md）
 examples/                  三个 C ABI 样板（integration-c / decode-file / upscale-file）
+                           + ais-video-host/（semantic-codec-sdk 视频顶层模板）
 models/<bundle>/           可选模型目录（构建时 --models 收录）
 licenses/                  许可证文本与来源清单（PROVENANCE.txt）
 CHANGELOG.md               版本历史（docs 里有链接引到这里）

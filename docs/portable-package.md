@@ -29,7 +29,7 @@
 | `include/rkvc/`（16 个头文件：`rkvc.h` + C++ 头）                   |                                             |
 | `lib/cmake/rkvc/`、`lib/pkgconfig/rkvc.pc`（两种查找方式）          |                                             |
 | `lib/*.so*`（MPP / rknnrt / SVT-AV1）                               |                                             |
-| `docs/`（全套文档）、`examples/`（三个 C ABI 样板）、`CHANGELOG.md` |                                             |
+| `docs/`（全套文档）、`examples/`（三个 C ABI 样板 + `ais-video-host` 装配模板）、`CHANGELOG.md` |                                             |
 | `licenses/`、可选 `models/`、`test.sh`、`MANIFEST.sha256`           |                                             |
 
 三条路各有边界，别混：
@@ -93,6 +93,9 @@ cmake -S . -B build -Drkvc_DIR=<pkg>/lib/cmake/rkvc
 cmake -S examples/integration-c -B build -Drkvc_DIR=<pkg>/lib/cmake/rkvc
 cmake -S examples/integration-c -B build -DRKVC_CORE_DIR=<rkvc 源码>/core
 ```
+
+把 `semantic-codec-sdk` 的视频适配层装成 `ais_semantic_codec` 的顶层写法见
+`examples/ais-video-host/`（另加 `-DAIS_SDK_ROOT=<SDK 根>`）。
 
 ### 2.3 pkg-config / 裸编译
 

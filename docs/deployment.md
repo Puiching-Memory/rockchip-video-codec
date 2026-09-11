@@ -37,7 +37,7 @@ lib/librockchip_mpp.so.1       # MPP（h264h265 插件用）
 lib/librknnrt.so               # RKNN 运行库 2.3.2（mlvc/sr 用，SHA-256 固定）
 lib/libSvtAv1Enc.so.4          # SVT-AV1（av1 插件用）
 docs/                          # 全套文档（原样收录，入口 docs/index.md）
-examples/                      # 三个 C ABI 样板（integration-c/decode-file/upscale-file）
+examples/                      # 三个 C ABI 样板 + ais-video-host/（SDK 视频顶层模板）
 models/<bundle>/               # 可选，--models 收录（目录即装载单元）
 licenses/                      # AGPLv3 + 第三方文本 + PROVENANCE.txt
 CHANGELOG.md                   # 版本历史（docs 里有链接引到这里）

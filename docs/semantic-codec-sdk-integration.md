@@ -44,7 +44,7 @@ size/version 首字段演化）逐项覆盖：
 | 类      | 符号                                                                                                                                                                                                                                                            |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | options | `rkvc_context_options_init`                                                                                                                                                                                                                                     |
-| context | `rkvc_context_create`（带 `backend_dirs`）/ `rkvc_context_destroy` / `rkvc_probe_device` / `rkvc_context_add_model_dir`                                                                                                                                        |
+| context | `rkvc_context_create`（带 `backend_dirs`）/ `rkvc_context_destroy` / `rkvc_probe_device` / `rkvc_context_add_model_dir`                                                                                                                                         |
 | session | `rkvc_session_request_init` / `rkvc_session_create`（带 diag）/ `rkvc_session_start` / `rkvc_session_push` / `rkvc_session_try_pull` / `rkvc_session_pull` / `rkvc_session_push_eos` / `rkvc_session_wait` / `rkvc_session_destroy` / `rkvc_session_error_text` |
 | frame   | `rkvc_frame_desc_init` / `rkvc_frame_wrap` / `rkvc_frame_wrap_owned`（释放回调）/ `rkvc_frame_get_desc` / `rkvc_frame_release`                                                                                                                                  |
 | diag    | `rkvc_diag_fmt_text` / `rkvc_diag_release` / `rkvc_status_str`                                                                                                                                                                                                  |
@@ -113,7 +113,8 @@ else()
 endif()
 ```
 
-上游不提供参考顶层，集成者自持。参考骨架：
+上游不提供参考顶层，集成者自持。参考骨架（内嵌 rkvc 源码，用法 ③）；
+改用可移植包里的预编译 SDK（用法 ②）装配的完整顶层见 `examples/ais-video-host/`。
 
 ```cmake
 cmake_minimum_required(VERSION 3.21)   # 内嵌 rkvc 要求 ≥3.21
@@ -372,7 +373,9 @@ NPU 存在位任一命中即置位：`/dev/rknpu`、`/dev/rknpu0`、`/dev/rknn`�
 ### 6.1 回归入口
 
 上游 `examples/` 已无视频示例，回归入口是 `tests/test_video_codec.c`
-（未接入上游 CMake，视频侧顶层自行接线，§3.4-3）：
+（未接入上游 CMake，视频侧顶层自行接线，§3.4-3；rkvc 侧
+`examples/ais-video-host/` 给出该顶层的可编译写法，自带最小编码 demo，
+不依赖上游 `tests/`）：
 
 ```cmake
 add_executable(test_video_codec ${AIS_SDK_ROOT}/tests/test_video_codec.c)
@@ -396,15 +399,15 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
 
 ### 6.2 实测基线（RK3576-evb1-v10，2026-09-11）
 
-| 环境            | Ubuntu 22.04 / glibc 2.35 / RKNPU v0.9.8 / 交叉 g++-11.4.0（rkvc_dev 容器） |
-| --------------- | --------------------------------------------------------------------------- |
-| 构建            | 视频侧自持顶层 + 四插件交叉编译全过；5 产物指纹一致                         |
-| H264 硬编回环   | 320×240×8 帧 → 8 包 2620B → 8 帧 NV12 HOST，0 全零                          |
-| HEVC 硬编回环   | 320×240×8 帧 → 8 包 704B → 8 帧，0 全零                                     |
-| AV1 软编回环    | 640×368×16 帧 → 16 包 1214B → 16 帧（板上 AV1 硬解），0 全零                |
-| H264 500 帧长流 | 500 包 537060B；进程内实测峰值 RSS 11204KiB（push 后释放帧包装，平坦不随帧数增长）                       |
-| 交错 send/recv  | 50/500 帧均通过（640×368），0 全零                                          |
-| caps            | soc=rk3576-evb1-v10 enc=1 dec=1 npu=1                                       |
+| 环境            | Ubuntu 22.04 / glibc 2.35 / RKNPU v0.9.8 / 交叉 g++-11.4.0（rkvc_dev 容器）        |
+| --------------- | ---------------------------------------------------------------------------------- |
+| 构建            | 视频侧自持顶层 + 四插件交叉编译全过；5 产物指纹一致                                |
+| H264 硬编回环   | 320×240×8 帧 → 8 包 2620B → 8 帧 NV12 HOST，0 全零                                 |
+| HEVC 硬编回环   | 320×240×8 帧 → 8 包 704B → 8 帧，0 全零                                            |
+| AV1 软编回环    | 640×368×16 帧 → 16 包 1214B → 16 帧（板上 AV1 硬解），0 全零                       |
+| H264 500 帧长流 | 500 包 537060B；进程内实测峰值 RSS 11204KiB（push 后释放帧包装，平坦不随帧数增长） |
+| 交错 send/recv  | 50/500 帧均通过（640×368），0 全零                                                 |
+| caps            | soc=rk3576-evb1-v10 enc=1 dec=1 npu=1                                              |
 
 ### 6.3 板级回归矩阵
 
@@ -424,21 +427,21 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
 
 ## 7. 故障排查速查
 
-| 错误特征                                             | 根因                                                                  | 处置                                                   |
-| ---------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------ |
-| 视频接口全部返回 `AIS_ERR_UNSUPPORTED`，测试恒"跳过" | 顶层缺 `AIS_VIDEO_CODEC_RKVC=1` 编译定义，编出退化实现（§3.1）        | 补编译定义后全量重建                                   |
-| 无候选（`required stage has no candidate`）          | 插件未装载（目录无 .so / 路径非绝对 / 握手失败）                      | `inspect backends` 看拒载原因；确认 §4.1/§4.4          |
-| 插件拒载（ABI/指纹）                                 | 插件与 core 非同一次构建（`kPluginAbi` 或工具链指纹不一致）           | 插件与宿主链的 core 同源重建；`inspect backends` 确认  |
-| `session_start failed: format (-8)`（MPP 硬编）      | 检出无 FRAME_SINK 格式注入，编码器读到 UNKNOWN                        | 更新 core（§5.1）                                      |
-| 三方互等挂死（pull / queue / MPP）                   | flush 前"send 数帧 → `while (recv==OK)` 排空"反模式（recv 恒阻塞）    | §3.3：排空只在 flush 后进行                            |
-| `drain_pending` 吞帧/误判 EOF，send 背压后丢输出     | 旧版队列 try_pop 成功弹帧后仍报空，被误判成 EOS                       | 更新 core；queue/session 非阻塞回归确认（§2.2-1）      |
-| 解码输出为全零帧但返回成功                           | `core.download` 桥未命中（如非线性布局），适配层域防御兜底报错        | §3.4-1：核对 core 版本与桥接；适配层日志有 dmabuf 告警 |
-| `caps enc=0/dec=0` 但 NPU 可用                       | caps 把 RKNN 计入编/解能力，MPP 探针失败时不体现                      | §3.3 caps 语义；再查 MPP probe 条件（§5.4）            |
-| `has_npu=0` 但 NPU 驱动正常                          | 旧检出只认 `/dev/rknpu*`，DRM 形态 NPU（161）漏检                     | 更新 core/sr（§5.5）                                   |
-| 编码质量异常（码率失控/全黑）                        | `memset` 配置后未显式 `qp=-1`，`qp=0` 被当固定 QP 0                   | §3.2                                                   |
-| 长流 RSS 线性增长（约每帧一帧 NV12）                | 适配层 `send` 在 `rkvc_session_push` 成功后未释放 C 帧包装——push 是借用语义，包装内 shared_ptr 永持引用致 `wrap_owned` 释放回调不触发 | `push` 返回 OK 后立即 `rkvc_frame_release`；对照 §6.3 阶梯核查 |
-| 编译报 `CLOCK_MONOTONIC` 未声明等                    | 宿主目录属性污染 core 子目录                                          | §3.1 属性隔离                                          |
-| 链接失败引用 `__isoc23_strtoul` / `arc4random`       | 交叉 libstdc++ 与低版本 sysroot glibc 不兼容                          | §4.5：改板载编译（§4.6）                               |
+| 错误特征                                             | 根因                                                                                                                                  | 处置                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| 视频接口全部返回 `AIS_ERR_UNSUPPORTED`，测试恒"跳过" | 顶层缺 `AIS_VIDEO_CODEC_RKVC=1` 编译定义，编出退化实现（§3.1）                                                                        | 补编译定义后全量重建                                           |
+| 无候选（`required stage has no candidate`）          | 插件未装载（目录无 .so / 路径非绝对 / 握手失败）                                                                                      | `inspect backends` 看拒载原因；确认 §4.1/§4.4                  |
+| 插件拒载（ABI/指纹）                                 | 插件与 core 非同一次构建（`kPluginAbi` 或工具链指纹不一致）                                                                           | 插件与宿主链的 core 同源重建；`inspect backends` 确认          |
+| `session_start failed: format (-8)`（MPP 硬编）      | 检出无 FRAME_SINK 格式注入，编码器读到 UNKNOWN                                                                                        | 更新 core（§5.1）                                              |
+| 三方互等挂死（pull / queue / MPP）                   | flush 前"send 数帧 → `while (recv==OK)` 排空"反模式（recv 恒阻塞）                                                                    | §3.3：排空只在 flush 后进行                                    |
+| `drain_pending` 吞帧/误判 EOF，send 背压后丢输出     | 旧版队列 try_pop 成功弹帧后仍报空，被误判成 EOS                                                                                       | 更新 core；queue/session 非阻塞回归确认（§2.2-1）              |
+| 解码输出为全零帧但返回成功                           | `core.download` 桥未命中（如非线性布局），适配层域防御兜底报错                                                                        | §3.4-1：核对 core 版本与桥接；适配层日志有 dmabuf 告警         |
+| `caps enc=0/dec=0` 但 NPU 可用                       | caps 把 RKNN 计入编/解能力，MPP 探针失败时不体现                                                                                      | §3.3 caps 语义；再查 MPP probe 条件（§5.4）                    |
+| `has_npu=0` 但 NPU 驱动正常                          | 旧检出只认 `/dev/rknpu*`，DRM 形态 NPU（161）漏检                                                                                     | 更新 core/sr（§5.5）                                           |
+| 编码质量异常（码率失控/全黑）                        | `memset` 配置后未显式 `qp=-1`，`qp=0` 被当固定 QP 0                                                                                   | §3.2                                                           |
+| 长流 RSS 线性增长（约每帧一帧 NV12）                 | 适配层 `send` 在 `rkvc_session_push` 成功后未释放 C 帧包装——push 是借用语义，包装内 shared_ptr 永持引用致 `wrap_owned` 释放回调不触发 | `push` 返回 OK 后立即 `rkvc_frame_release`；对照 §6.3 阶梯核查 |
+| 编译报 `CLOCK_MONOTONIC` 未声明等                    | 宿主目录属性污染 core 子目录                                                                                                          | §3.1 属性隔离                                                  |
+| 链接失败引用 `__isoc23_strtoul` / `arc4random`       | 交叉 libstdc++ 与低版本 sysroot glibc 不兼容                                                                                          | §4.5：改板载编译（§4.6）                                       |
 
 ## 8. 集成核对清单
 
@@ -463,10 +466,10 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
 
 ## 9. 版本与变更记录
 
-| 日期       | 变更                                                                                                                                                                                                                                                                                                                                                                              |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-11 | 板级回归矩阵全绿并修复帧包装泄漏：适配层 `send` 在 `rkvc_session_push` 成功后补 `rkvc_frame_release`（C ABI push 为借用语义，漏释放致 RSS 每帧一帧 NV12 线性增长）；实测口径改进程内采样，H264/HEVC 编码段 100–600 帧全平坦（峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB；AV1 软编受 SVT 内部缓冲影响基线高但趋饱和。矩阵 3/4/5 实跑打勾（§6.3） |
+| 日期       | 变更                                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-11 | 板级回归矩阵全绿并修复帧包装泄漏：适配层 `send` 在 `rkvc_session_push` 成功后补 `rkvc_frame_release`（C ABI push 为借用语义，漏释放致 RSS 每帧一帧 NV12 线性增长）；实测口径改进程内采样，H264/HEVC 编码段 100–600 帧全平坦（峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB；AV1 软编受 SVT 内部缓冲影响基线高但趋饱和。矩阵 3/4/5 实跑打勾（§6.3）    |
 | 2026-09-11 | 修复上游三缺口并板测全绿：rkvc 新增 `rkvc_frame_wrap_owned`；适配层删 `owned_` 改释放回调；上游公开 `ais_buffer_bitstream`/`ais_buffer_set_packet_info`/`ais_buffer_cdata`；DMABUF 回读双保险（core 自动桥接 + 适配层域防御）；`codec/video` 补 `AIS_BUILDING=1`。板测（RK3576）：H264/HEVC/AV1 回环 0 全零帧、交错 50/500 通过、caps enc=1 dec=1 npu=1 |
-| 2026-09-11 | 适配层模型装载对齐：`register_model_dir` 改直调 `rkvc_context_add_model_dir`（rkvc 按导出器约定整组装载 `.rknn`/`.bin`/`.qppatch`，上游不再自行扫描）                                                                                                                                                                                                                             |
-| 2026-09-10 | 新增[可移植包 × 宿主集成](portable-package.md)（§4.3）；NPU 探测补 DRM 形态（§5.5）；GLIBC 审计基线收口 2.34                                                                                                                                                                                                                                                                      |
-| 2026-09-09 | 适配上游 2026-09 快照并全篇翻转为 C ABI 0.5.0 现状：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口 `ais_video_open/send/recv/flush/caps`；send 同步化、recv 恒阻塞；caps 纳入 RKNN；新增 MLVC family；回归改 `test_video_codec.c`。更早（2026-08~09-03）的初版与旧契约基线见 git 历史                                                                                      |
+| 2026-09-11 | 适配层模型装载对齐：`register_model_dir` 改直调 `rkvc_context_add_model_dir`（rkvc 按导出器约定整组装载 `.rknn`/`.bin`/`.qppatch`，上游不再自行扫描）                                                                                                                                                                                                   |
+| 2026-09-10 | 新增[可移植包 × 宿主集成](portable-package.md)（§4.3）；NPU 探测补 DRM 形态（§5.5）；GLIBC 审计基线收口 2.34                                                                                                                                                                                                                                            |
+| 2026-09-09 | 适配上游 2026-09 快照并全篇翻转为 C ABI 0.5.0 现状：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口 `ais_video_open/send/recv/flush/caps`；send 同步化、recv 恒阻塞；caps 纳入 RKNN；新增 MLVC family；回归改 `test_video_codec.c`。更早（2026-08~09-03）的初版与旧契约基线见 git 历史                                                            |
