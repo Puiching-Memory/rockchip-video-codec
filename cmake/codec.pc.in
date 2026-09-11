@@ -1,0 +1,11 @@
+# rkvc codec 的 pkg-config 描述文件。prefix 由 pcfiledir 反推（本文件位于
+# <prefix>/<libdir>/pkgconfig），SDK 目录整体移动后无需重新生成。
+# ABI 口径跟 Requires 里的 rkvc 走，不在此重复声明。
+prefix=${pcfiledir}/../..
+
+Name: @CODEC_NAME@
+Description: rkvc @CODEC_NAME@ codec library (project @CODEC_VERSION@)
+Version: @CODEC_VERSION@
+Requires: rkvc
+Libs: -L${prefix}/@CMAKE_INSTALL_LIBDIR@ -l@CODEC_NAME@
+Cflags: -I${prefix}/@CMAKE_INSTALL_INCLUDEDIR@

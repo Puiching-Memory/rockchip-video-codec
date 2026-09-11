@@ -7,12 +7,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT TARGET rkvc::core)
-    add_subdirectory(../../core core-build)
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/RkvcCodec.cmake")
+rkvc_resolve_core()
 find_package(Threads REQUIRED)
 
-add_library(mlvc-algo STATIC
+set(MLVC_ALGO_SOURCES
     src/container.cpp
     src/pmf.cpp
     src/qptab.cpp
@@ -21,6 +20,7 @@ add_library(mlvc-algo STATIC
     src/rans.cpp
     src/pixel.cpp
 )
+add_library(mlvc-algo STATIC ${MLVC_ALGO_SOURCES})
 add_library(mlvc::algo ALIAS mlvc-algo)
 
 target_include_directories(mlvc-algo
@@ -63,13 +63,14 @@ else()
     set(MLVC_NPU_SRC src/npu_stub.cpp)
 endif()
 
-add_library(mlvc-codec STATIC
+set(MLVC_CODEC_SOURCES
     src/codec.cpp
     src/encoder.cpp
     src/decoder.cpp
     src/npu_fake.cpp
     ${MLVC_NPU_SRC}
 )
+add_library(mlvc-codec STATIC ${MLVC_CODEC_SOURCES})
 add_library(mlvc::codec ALIAS mlvc-codec)
 target_include_directories(mlvc-codec
     PUBLIC
@@ -88,6 +89,19 @@ target_link_libraries(rkvc_mlvc PRIVATE mlvc::codec)
 target_compile_options(rkvc_mlvc PRIVATE -fno-exceptions -fno-rtti
     -Wall -Wextra)
 set_target_properties(rkvc_mlvc PROPERTIES PREFIX "")
+
+# SDK 面。algo 与 codec 的源合并进同一个 .so（静态侧的两个库是内部拆分，
+# 对外只暴露一份自洽的动态库）；插件入口一并编入，宿主可二选一。
+rkvc_codec_sdk(
+    INCLUDE_DIR include
+    SOURCES ${MLVC_ALGO_SOURCES} ${MLVC_CODEC_SOURCES} src/plugin.cpp
+    PRIVATE_INCLUDE ${RKNN_INCLUDE_DIR}
+    PRIVATE_LINK ${RKNN_LIB})
+
+if(RKVC_MLVC_BUILD_TESTS AND NOT TARGET rkvc::doctest)
+    message(STATUS "rkvc-mlvc: doctest 不可用，跳过单测")
+    set(RKVC_MLVC_BUILD_TESTS OFF)
+endif()
 
 if(RKVC_MLVC_BUILD_TESTS)
     enable_testing()

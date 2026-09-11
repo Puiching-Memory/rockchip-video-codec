@@ -45,10 +45,14 @@ MLVC 与超分需要 NPU 与已注册的模型目录（`--model DIR`，`--model-
 | `.build/debug/`   | `debug` 预设：Debug 构建                                         |
 | `.build/tests/`   | `tests` 预设：Debug + `RKVC_CORE_BUILD_TESTS=ON`，`ctest` 在此跑 |
 
-各子工程可独立配置（codec 工程自动回退 `add_subdirectory(core)`）。顶层只有
+各子工程可独立配置：codec 工程的 `rkvc::core` 按"仓库内 `core/` →
+`-DRKVC_CORE_DIR=<core 目录>` → `find_package(rkvc CONFIG)`"三级解析，公共逻辑
+收在 `cmake/RkvcCodec.cmake`，所以脱离仓库布局也能配置。顶层只有
 `RKVC_BUILD_CLI` / `RKVC_BUILD_CODECS` 两个开关；各 codec 与测试工程的
 `RKVC_*_BUILD_TESTS` 默认全开，core 的 `RKVC_CORE_BUILD_TESTS` 默认关闭，
 由 `tests` 预设或 CI 打开。
 
-本仓没有 install 规则、不产安装树，板端部署见 [部署](deployment.md)；
+默认不安装、不产安装树；`RKVC_INSTALL_SDK=ON` 时才装 SDK 面（core 与各 codec
+的公开头文件 + 动态库 + CMake config + pkg-config），布局与用法见
+[可移植包 × 宿主集成](portable-package.md)。板端部署见 [部署](deployment.md)；
 测试与基准见 [测试](testing.md)。

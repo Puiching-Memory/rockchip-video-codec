@@ -209,6 +209,7 @@ bundle 目录），板端复制这三样并用 `--backend-dir/--model-dir` 指�
 - [快速开始](docs/getting-started.md) · [架构](docs/architecture.md) ·
   [部署](docs/deployment.md) · [测试](docs/testing.md)
 - [MLVC RKNN 导出](docs/mlvc-rknn-export.md) ·
+  [MLVC 帧型机制](docs/mlvc-frame-types.md) ·
   [SR 模型规格](docs/sr-model-yuv-spec.md) ·
   [语义编解码 SDK 集成](docs/semantic-codec-sdk-integration.md) ·
   [GB28181 推流](docs/gb28181-streaming.md)

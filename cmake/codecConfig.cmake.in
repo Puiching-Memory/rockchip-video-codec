@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+# 由 configure_package_config_file 生成：PACKAGE_PREFIX_DIR 相对本文件定位，
+# 整个 SDK 目录可整体搬迁（与包内 RPATH 用 $ORIGIN 的思路一致）。
+# rkvc::core 由 rkvc 自己的包文件提供，两者同前缀安装。
+
+include(CMakeFindDependencyMacro)
+find_dependency(rkvc CONFIG)
+
+include("${CMAKE_CURRENT_LIST_DIR}/@CODEC_NAME@Targets.cmake")
+
+check_required_components(@CODEC_NAME@)

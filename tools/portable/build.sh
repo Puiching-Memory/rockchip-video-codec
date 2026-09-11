@@ -282,7 +282,8 @@ install_sdk() {
     # --prefix——包文件里的前缀是相对自身推算的，整包搬走后照样能用。
     run_logged "$logs/install-sdk.log" "SDK 安装" cmake --install "$build/build"
     local so
-    for so in "$pkg/lib"/librkvc.so.*.*; do
+    # librkvc.so.* 与各 codec 的 librkvc-<codec>.so.*（RKVC_INSTALL_SDK 一起出）。
+    for so in "$pkg/lib"/librkvc*.so.*.*; do
         # 带调试符号的 .so 会让可移植包体积翻倍；运行不需要符号。
         aarch64-linux-gnu-strip --strip-unneeded "$so" 2>/dev/null ||
             strip --strip-unneeded "$so" 2>/dev/null || true
@@ -479,7 +480,7 @@ verify_package() {
     done
     run_logged "$logs/check-symbols.log" "符号审计" \
         bash "$REPO_ROOT/tools/check-symbols.sh" \
-        "$pkg/bin/rkvc" "$pkg"/lib/rkvc/backends/*.so "$pkg"/lib/librkvc.so
+        "$pkg/bin/rkvc" "$pkg"/lib/rkvc/backends/*.so "$pkg"/lib/librkvc*.so
 }
 
 build_examples() {

@@ -7,9 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT TARGET rkvc::core)
-    add_subdirectory(../../core core-build)
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/RkvcCodec.cmake")
+rkvc_resolve_core()
 find_package(Threads REQUIRED)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -40,11 +39,14 @@ if(RKVC_H264H265_WITH_MPP AND NOT MPP_INCLUDE_DIR)
 endif()
 
 if(RKVC_H264H265_WITH_MPP)
-    add_library(h264h265-codec STATIC
+    # 源文件清单共用：静态库给单测与内嵌形态；SDK 共享库（RKVC_INSTALL_SDK=ON）
+    # 另编一份，避免把静态对象混链进 .so。
+    set(H264H265_SOURCES
         src/detail.cpp
         src/decoder.cpp
         src/encoder.cpp
     )
+    add_library(h264h265-codec STATIC ${H264H265_SOURCES})
     add_library(h264h265::codec ALIAS h264h265-codec)
     target_include_directories(h264h265-codec
         PUBLIC
@@ -64,6 +66,19 @@ if(RKVC_H264H265_WITH_MPP)
     target_compile_options(rkvc_h264h265 PRIVATE -fno-exceptions -fno-rtti
         -Wall -Wextra)
     set_target_properties(rkvc_h264h265 PROPERTIES PREFIX "")
+
+    # SDK 面。动态库带上插件入口，宿主既能链它，也能直接当后端 dlopen。
+    rkvc_codec_sdk(
+        INCLUDE_DIR include
+        SOURCES ${H264H265_SOURCES} src/plugin.cpp
+        PRIVATE_INCLUDE ${MPP_INCLUDE_DIR}
+        PRIVATE_LINK ${MPP_LIB})
+
+    # 单测的 doctest 来自 core 源码树；对着已安装的 SDK 配置本工程时没有它。
+    if(RKVC_H264H265_BUILD_TESTS AND NOT TARGET rkvc::doctest)
+        message(STATUS "rkvc-h264h265: doctest 不可用，跳过单测")
+        set(RKVC_H264H265_BUILD_TESTS OFF)
+    endif()
 
     if(RKVC_H264H265_BUILD_TESTS)
         enable_testing()

@@ -7,9 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT TARGET rkvc::core)
-    add_subdirectory(../../core core-build)
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/RkvcCodec.cmake")
+rkvc_resolve_core()
 find_package(Threads REQUIRED)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -42,11 +41,12 @@ else()
     set(SR_RKNN_SRC src/rknn_stub.cpp)
 endif()
 
-add_library(sr-codec STATIC
+set(SR_SOURCES
     src/post.cpp
     src/upscale.cpp
     ${SR_RKNN_SRC}
 )
+add_library(sr-codec STATIC ${SR_SOURCES})
 add_library(sr::codec ALIAS sr-codec)
 target_include_directories(sr-codec
     PUBLIC
@@ -65,6 +65,19 @@ target_link_libraries(rkvc_sr PRIVATE sr::codec)
 target_compile_options(rkvc_sr PRIVATE -fno-exceptions -fno-rtti
     -Wall -Wextra)
 set_target_properties(rkvc_sr PROPERTIES PREFIX "")
+
+# SDK 面。动态库带上插件入口，宿主既能链它，也能直接当后端 dlopen。
+rkvc_codec_sdk(
+    INCLUDE_DIR include
+    SOURCES ${SR_SOURCES} src/plugin.cpp
+    PRIVATE_INCLUDE ${RKNN_INCLUDE_DIR}
+    PRIVATE_LINK ${RKNN_LIB})
+
+# 单测的 doctest 来自 core 源码树；对着已安装的 SDK 配置本工程时没有它。
+if(RKVC_SR_BUILD_TESTS AND NOT TARGET rkvc::doctest)
+    message(STATUS "rkvc-sr: doctest 不可用，跳过单测")
+    set(RKVC_SR_BUILD_TESTS OFF)
+endif()
 
 if(RKVC_SR_BUILD_TESTS)
     enable_testing()

@@ -25,6 +25,7 @@
 | `bin/rkvc`（CLI，C++ 运行时静态链接）                               | doxide 生成的 `docs/api/`（现生成、不入库） |
 | `lib/rkvc/backends/rkvc_*.so`（codec 插件）                         | rkvc 源码（要走用法 ③ 请自行 clone）        |
 | `lib/librkvc.so*`（**SDK 主体**，§2）                               | 模型（bundle 目录需 `--models` 单独打包）   |
+| `lib/librkvc-<codec>.so*`、`include/<codec>/`（codec SDK，§2.5）    |                                             |
 | `include/rkvc/`（16 个头文件：`rkvc.h` + C++ 头）                   |                                             |
 | `lib/cmake/rkvc/`、`lib/pkgconfig/rkvc.pc`（两种查找方式）          |                                             |
 | `lib/*.so*`（MPP / rknnrt / SVT-AV1）                               |                                             |
@@ -117,6 +118,32 @@ CMake config 由 `configure_package_config_file` 生成），所以整包解压�
 `dladdr` 认的是"含 core 的映像"：静态内嵌（用法 ③）时是宿主的可执行文件或
 宿主 .so；链接 `librkvc.so`（用法 ②）时就是 `librkvc.so` 自己。两条路都不需要
 宿主知道包的路径（§3 表的部署位 B/C）。
+
+### 2.5 codec 的 SDK 面
+
+core 之外，五个 codec 工程（`h264h265` / `av1` / `mlvc` / `sr` / `pspack`）
+在 `RKVC_INSTALL_SDK=ON` 时也随包安装独立的 SDK 面（头文件 + 动态库 + CMake
+config + pkg-config）：
+
+```text
+<pkg>/include/h264h265/*.hpp                  codec 自己的 C++ 头
+<pkg>/lib/librkvc-h264h265.so -> .so.0 -> .so.0.5.0   SONAME = librkvc-h264h265.so.0
+<pkg>/lib/cmake/rkvc-h264h265/rkvc-h264h265Config.cmake
+<pkg>/lib/pkgconfig/rkvc-h264h265.pc          Requires: rkvc
+```
+
+```cmake
+find_package(rkvc-h264h265 CONFIG REQUIRED)
+target_link_libraries(host PRIVATE rkvc-h264h265::codec)
+```
+
+其余四个同理（`rkvc-av1` / `rkvc-mlvc` / `rkvc-sr` / `rkvc-pspack`，导入目标
+`rkvc-<codec>::codec`）。每份 `librkvc-<codec>.so` 的 RUNPATH 同样只有
+`$ORIGIN`（与 `librkvc.so` 同处 `lib/`），且 **h264h265 / av1 / mlvc / sr 把
+插件入口编在同一份 `.so` 内**：宿主既可以链它用 C++ 面，也可以把它当后端
+dlopen（与 `lib/rkvc/backends/rkvc_<codec>.so` 等价）；`pspack` 没有插件入口
+（核心直接链接它），只出库与头文件。`av1` 的库与插件一样受 SVT-AV1 4.x 门控，
+未找到时一并跳过。
 
 ## 3. 宿主怎么找到包内插件
 
@@ -261,7 +288,8 @@ encode: session create failed: not found                     # 与"没装插件"
 按顺序做完这几步，集成即算通过（第 1–5 步对三种用法通用，第 6 步只关用法 ②）：
 
 1. **完整性**：`sha256sum -c MANIFEST.sha256`（包根执行）
-2. **依赖闭包**：`ldd <pkg>/lib/rkvc/backends/*.so | grep 'not found'` → 无输出
+2. **依赖闭包**：`ldd <pkg>/lib/rkvc/backends/*.so <pkg>/lib/librkvc*.so | grep 'not found'`
+   → 无输出
 3. **插件可用**：`<pkg>/bin/rkvc inspect backends --backend-dir <pkg>/lib/rkvc/backends`
    → 四个插件各带 factory 列表（只证明"能 dlopen + 导出了描述符"）
 4. **指纹配对**：§4 的 `strings` 比对，两边一致
@@ -306,18 +334,18 @@ flowchart TD
     F -- 一致 --> H["设备或能力问题：<br/>rkvc caps、/dev/mpp_service、模型未注册"]
 ```
 
-| 症状                                        | 根因                                                             | 处置                                            |
-| ------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
-| 包外宿主"无候选"，补 `--backend-dir` 后正常 | 未传 `backend_dirs`（用法 ③ 的宿主不参与自动发现，除非落在包内） | §3 A：传绝对目录，或用部署位 B                  |
-| `backend_dirs` 传了仍无候选，且目录看着没错 | 相对路径字面量未展开                                             | 改绝对路径                                      |
-| 全部插件都不可用                            | 指纹不符（宿主编译器 ≠ 11.4.0）                                  | §4：核对 `strings`，用 `g++-11` 重建宿主        |
-| 只有某个插件不可用                          | 该插件被单独搬运 / 其三方库缺                                    | §5：`ldd` 该插件                                |
-| `inspect backends` 列出插件但会话仍无候选   | 列出 ≠ 宿主会接受：`inspect` 不比对指纹                          | 按 §4 比对指纹，再按 §3 确认发现路径            |
-| 插件装到系统路径后被别的宿主抢装            | 发现顺序"先命中赢"，与系统里其他 rkvc 混用                       | 一处只留一套，或宿主显式传 `backend_dirs`       |
-| `dlopen` 报 GLIBC 版本不足                  | 目标机 glibc < 2.34                                              | 升级目标机，或自建更低基线的包                  |
+| 症状                                        | 根因                                                             | 处置                                           |
+| ------------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------- |
+| 包外宿主"无候选"，补 `--backend-dir` 后正常 | 未传 `backend_dirs`（用法 ③ 的宿主不参与自动发现，除非落在包内） | §3 A：传绝对目录，或用部署位 B                 |
+| `backend_dirs` 传了仍无候选，且目录看着没错 | 相对路径字面量未展开                                             | 改绝对路径                                     |
+| 全部插件都不可用                            | 指纹不符（宿主编译器 ≠ 11.4.0）                                  | §4：核对 `strings`，用 `g++-11` 重建宿主       |
+| 只有某个插件不可用                          | 该插件被单独搬运 / 其三方库缺                                    | §5：`ldd` 该插件                               |
+| `inspect backends` 列出插件但会话仍无候选   | 列出 ≠ 宿主会接受：`inspect` 不比对指纹                          | 按 §4 比对指纹，再按 §3 确认发现路径           |
+| 插件装到系统路径后被别的宿主抢装            | 发现顺序"先命中赢"，与系统里其他 rkvc 混用                       | 一处只留一套，或宿主显式传 `backend_dirs`      |
+| `dlopen` 报 GLIBC 版本不足                  | 目标机 glibc < 2.34                                              | 升级目标机，或自建更低基线的包                 |
 | `mlvc`/`sr` 无候选但插件在                  | 模型未注册 / 无 NPU                                              | §6：`add_model_dir` 绝对路径、`rkvc caps` 核对 |
-| 链接 SDK 报 `cannot find -lrkvc`            | 未指认 SDK 位置                                                  | §2.2/§2.3：`-Drkvc_DIR=` 或 `-L<pkg>/lib`       |
-| 运行时 `librkvc.so.0: cannot open …`        | 宿主的 rpath 不含 `<pkg>/lib`                                    | §2.4：加 rpath 或用 `LD_LIBRARY_PATH`           |
+| 链接 SDK 报 `cannot find -lrkvc`            | 未指认 SDK 位置                                                  | §2.2/§2.3：`-Drkvc_DIR=` 或 `-L<pkg>/lib`      |
+| 运行时 `librkvc.so.0: cannot open …`        | 宿主的 rpath 不含 `<pkg>/lib`                                    | §2.4：加 rpath 或用 `LD_LIBRARY_PATH`          |
 
 ## 9. 变更记录
 

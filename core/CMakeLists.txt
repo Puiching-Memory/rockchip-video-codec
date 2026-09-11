@@ -173,6 +173,17 @@ if(RKVC_CORE_BUILD_TESTS)
         add_test(NAME ${t} COMMAND ${t})
     endforeach()
 
+    # 公开头能不能被 C 编译器直接吃下去，只有 C 编译器说了算。
+    enable_language(C)
+    add_executable(test_c_header tests/test_c_header.c)
+    target_link_libraries(test_c_header PRIVATE rkvc::core)
+    set_target_properties(test_c_header PROPERTIES
+        C_STANDARD 99
+        C_STANDARD_REQUIRED ON
+        C_EXTENSIONS OFF)
+    target_compile_options(test_c_header PRIVATE -Wall -Wextra -Werror)
+    add_test(NAME test_c_header COMMAND test_c_header)
+
     # Plugin handshake fixtures: built as DSOs, loaded by test_plugin.
     foreach(p identity badabi empty)
         add_library(test_plugin_${p} MODULE tests/plugins/${p}.cpp)

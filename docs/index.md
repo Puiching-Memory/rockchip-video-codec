@@ -29,6 +29,7 @@ MLVC 编解码链路：
 - [可移植包 × 宿主集成](portable-package.md)：包的三张面孔（CLI 自用 / 链 SDK / 源码内嵌）、SDK 用法、工具链指纹约束
 - [测试](testing.md)：C++ / Python / Bash 三类测试与板端回归
 - [MLVC RKNN 导出](mlvc-rknn-export.md)：ONNX → RKNN 模型生产与 NPU I/O 约定
+- [MLVC 帧型机制](mlvc-frame-types.md)：I / P / LTR 的参考语义与上游对应
 - [SR 模型规格](sr-model-yuv-spec.md)：Phase-RLFN I/O 契约与实测数据
 - [语义编解码 SDK 集成](semantic-codec-sdk-integration.md)：宿主内嵌契约与排障
 - [GB28181 推流](gb28181-streaming.md)：PS over RTP 媒体面、PS 容器格式与 pspack 契约

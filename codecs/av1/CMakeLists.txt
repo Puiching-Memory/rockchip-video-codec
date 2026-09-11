@@ -7,9 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT TARGET rkvc::core)
-    add_subdirectory(../../core core-build)
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/RkvcCodec.cmake")
+rkvc_resolve_core()
 find_package(Threads REQUIRED)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -64,7 +63,8 @@ if(RKVC_AV1_WITH_SVT)
 endif()
 
 if(RKVC_AV1_WITH_SVT)
-    add_library(av1-codec STATIC src/encoder.cpp)
+    set(AV1_SOURCES src/encoder.cpp)
+    add_library(av1-codec STATIC ${AV1_SOURCES})
     add_library(av1::codec ALIAS av1-codec)
     target_include_directories(av1-codec
         PUBLIC
@@ -81,6 +81,19 @@ if(RKVC_AV1_WITH_SVT)
     target_compile_options(rkvc_av1 PRIVATE -fno-exceptions -fno-rtti
         -Wall -Wextra)
     set_target_properties(rkvc_av1 PROPERTIES PREFIX "")
+
+    # SDK 面。动态库带上插件入口，宿主既能链它，也能直接当后端 dlopen。
+    rkvc_codec_sdk(
+        INCLUDE_DIR include
+        SOURCES ${AV1_SOURCES} src/plugin.cpp
+        PRIVATE_INCLUDE ${SVT_INCLUDE_DIR}
+        PRIVATE_LINK ${SVT_ENC_LIB})
+
+    # 单测的 doctest 来自 core 源码树；对着已安装的 SDK 配置本工程时没有它。
+    if(RKVC_AV1_BUILD_TESTS AND NOT TARGET rkvc::doctest)
+        message(STATUS "rkvc-av1: doctest 不可用，跳过单测")
+        set(RKVC_AV1_BUILD_TESTS OFF)
+    endif()
 
     if(RKVC_AV1_BUILD_TESTS)
         enable_testing()

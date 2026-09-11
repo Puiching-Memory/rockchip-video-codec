@@ -7,9 +7,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(NOT TARGET rkvc::core)
-    add_subdirectory(../../core core-build)
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/RkvcCodec.cmake")
+rkvc_resolve_core()
 
 add_library(pspack STATIC src/ps.cpp)
 add_library(pspack::pspack ALIAS pspack)
@@ -21,7 +20,19 @@ target_link_libraries(pspack PUBLIC rkvc::core)
 target_compile_options(pspack PRIVATE -fno-exceptions -fno-rtti
     -Wall -Wextra -Werror=return-type)
 
+# SDK 面。本工程没有插件入口（核心直接链接），只出库与头文件。
+rkvc_codec_sdk(
+    INCLUDE_DIR include
+    SOURCES src/ps.cpp)
+
 option(RKVC_PSPACK_BUILD_TESTS "Build pspack logic tests" ON)
+
+# 单测的 doctest 来自 core 源码树；对着已安装的 SDK 配置本工程时没有它。
+if(RKVC_PSPACK_BUILD_TESTS AND NOT TARGET rkvc::doctest)
+    message(STATUS "rkvc-pspack: doctest 不可用，跳过单测")
+    set(RKVC_PSPACK_BUILD_TESTS OFF)
+endif()
+
 if(RKVC_PSPACK_BUILD_TESTS)
     enable_testing()
     add_executable(test_ps tests/test_ps.cpp)

@@ -12,7 +12,7 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 
 ### 修复
 
-- **公开头 `rkvc.h` C 编译兼容**：`rkvc_frame_wrap_owned` 原型里的 `noexcept` 直接暴露在 `extern "C"` 块内，纯 C 消费者（如独立探针程序）无法编译该头。引入 `RKVC_NOEXCEPT` 宏（C++ 下展开为 `noexcept`，C 下为空），C ABI 头恢复可被两种语言直接包含。
+- **公开头 `rkvc.h` C 编译兼容**：`rkvc_frame_wrap_owned` 原型里的 `noexcept` 直接暴露在 `extern "C"` 块内，纯 C 消费者（如独立探针程序）无法编译该头。引入 `RKVC_NOEXCEPT` 宏（C++ 下展开为 `noexcept`，C 下为空），C ABI 头恢复可被两种语言直接包含；并补 `test_c_header`（C99 + `-Wall -Wextra -Werror` 编译并调用 C ABI 的最小纯 C 消费者），钉进 ctest 与 CI 的用例清单，避免再被 C++ 侧的单测放过。
 - **上游适配层帧包装泄漏（板级回归发现，修复落在上游 `video_runtime.cpp`）**：`rkvc_session_push` 是借用语义（返回 OK 后帧包装与 shared_ptr 引用仍归调用方，参见 `examples/integration-c` 的既定契约），而语义 codec 适配层 `send` 在 push 成功后未调 `rkvc_frame_release`，导致每帧深拷贝驻留、RSS 以约一帧 NV12/帧 的斜率线性增长（RK3576 实测 500 帧 640×368 涨至 176MiB）。补一行释放后板测：H264/HEVC 编码段 100–600 帧与 640×368×500 全平坦（进程内采样峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB，close 后 RSS 回落。
 
 ### 新增
@@ -26,6 +26,7 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 - **包内随带全套文档与示例**：`docs/`（10 个页面 + 配图）、`examples/`（三个 C ABI 样板）、`CHANGELOG.md` 原样收录，不为包另建副本；排除 doxide 现生成的 `docs/api/` 以免包内容随构建机变化。文档图片走 git-lfs，构建时检测到 130 字节指针文件即报错退出，不交付坏图。
 - **插件发现新增包布局目录**：`<二进制目录>/../lib/rkvc/backends`（即 `bin/rkvc` + `lib/rkvc/backends` 的可移植包，装载插件不再需要 `--backend-dir`）。
 - **可移植包升级为复合产品（三面同包）**：同一份 tarball 同时服务"CLI 直接跑"、"链预编译 SDK 集成"、"源码内嵌"三种用法。新增 SDK 面：`core/CMakeLists.txt` 的 `RKVC_INSTALL_SDK=ON` 产出 `librkvc.so`（SONAME 取自 `RKVC_ABI_VERSION_MAJOR`，`INSTALL_RPATH=$ORIGIN`）+ `include/rkvc/`（16 个公开头）+ `lib/cmake/rkvc/`（`find_package(rkvc CONFIG)`）+ `lib/pkgconfig/rkvc.pc`；两份包文件的前缀都相对自身定位（`${pcfiledir}/../..`、`configure_package_config_file`），整包搬目录后无需重新生成。`build.sh` 走 `cmake --install` 落盘并对 `librkvc.so` 一并做符号审计，`test.sh` 新增 SDK 段（文件点名 + pkg-config 反推 + 纯 C 消费者编译链接 + 零配置建会话）。`examples/` 三个样板同时支持 `-Drkvc_DIR=<pkg>/lib/cmake/rkvc` 与 `-DRKVC_CORE_DIR=<core 目录>`，`build.sh` 每次打包都对着包内 SDK 真编一遍并跑 `intc_encode`（非 aarch64 主机只编译不运行）。
+- **codec 工程补上 SDK 面（静态 + 动态双产物）**：`cmake/RkvcCodec.cmake` 收拢两段易漂移的逻辑——`rkvc_resolve_core()`（core 来源三级解析：仓库内 `core/` → `-DRKVC_CORE_DIR` → `find_package(rkvc CONFIG)`，codec 工程因此不再依赖硬编码相对路径）与 `rkvc_codec_sdk()`（`RKVC_INSTALL_SDK=ON` 时用同一份源码另编共享库）。五个 codec 工程全部接入：除原有静态库外，额外产出 `librkvc-<codec>.so`（SONAME `librkvc-<codec>.so.0`、`INSTALL_RPATH=$ORIGIN`）+ `include/<codec>/` + `lib/cmake/rkvc-<codec>/`（`find_package(rkvc-<codec> CONFIG)`）+ `lib/pkgconfig/rkvc-<codec>.pc`；h264h265 / av1 / mlvc / sr 把插件入口编入同一份 `.so`（宿主既可链它也可当后端 dlopen），pspack 无插件入口只出库与头文件。五个工程均可在仓库内单独配置构建（CI 增独立构建门禁），也能脱离仓库布局配置（`-DRKVC_CORE_DIR` 或 `-Drkvc_DIR`）；av1 的库与插件同样受 SVT-AV1 4.x 门控，未找到时一并跳过。
 
 ### 修复
 

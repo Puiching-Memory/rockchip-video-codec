@@ -26,9 +26,13 @@ docker 时脚本自动重入）：镜像固定交叉工具链，目标 glibc 2.3
 bin/rkvc                       # CLI（C++ 运行时静态链接）
 lib/rkvc/backends/rkvc_*.so    # h264h265 / av1 / mlvc / sr 插件
 lib/librkvc.so.0.5.0           # SDK 主体（预编译 core，供上游链接；§SDK 面）
+lib/librkvc-<codec>.so.0.5.0   # codec SDK（五个 codec，pspack 无插件入口）
 include/rkvc/                  # 16 个公开头文件（rkvc.h + C++ 头）
+include/<codec>/               # codec 自己的公开头文件
 lib/cmake/rkvc/                # find_package(rkvc CONFIG) 的包文件
 lib/pkgconfig/rkvc.pc          # pkg-config（前缀由 pcfiledir 反推，可搬迁）
+lib/cmake/rkvc-<codec>/        # find_package(rkvc-<codec> CONFIG) 的包文件
+lib/pkgconfig/rkvc-<codec>.pc  # codec 版 pkg-config（Requires: rkvc）
 lib/librockchip_mpp.so.1       # MPP（h264h265 插件用）
 lib/librknnrt.so               # RKNN 运行库 2.3.2（mlvc/sr 用，SHA-256 固定）
 lib/libSvtAv1Enc.so.4          # SVT-AV1（av1 插件用）

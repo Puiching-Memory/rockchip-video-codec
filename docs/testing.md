@@ -10,15 +10,15 @@
 
 ## C++ 测试
 
-| 工程     | 测试                                                                         | 覆盖                                                                           |
-| -------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| core     | status_result、spec_frame、model、queue、plugin、pipeline、c_abi、download | Status/Result/Diag、帧规约、模型目录装载、队列、插件握手、管线、C ABI、Dmabuf 下载桥 |
-| mlvc     | tables、ratectl、rans、pixel、mlvc_codec                                     | 算法表、码控、熵编码、像素打包、编解码往返                                     |
-| av1      | av1                                                                          | SVT 软编逻辑                                                                   |
-| sr       | sr_post                                                                      | 超分后处理（非方形 `core_w`/`core_h` 拆分）                                    |
-| h264h265 | mpp_logic、mpp_plugin                                                        | MPP 参数逻辑、插件装载                                                         |
-| pspack   | ps                                                                           | GB28181 PS 打包 / 解包、PSM 与 PTS、AU 组装                                    |
-| cli      | cli                                                                          | 长选项解析（含 `--fps/--json`，无 `--low-delay`）                              |
+| 工程     | 测试                                                                                 | 覆盖                                                                                              |
+| -------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| core     | status_result、spec_frame、model、queue、plugin、pipeline、c_abi、c_header、download | Status/Result/Diag、帧规约、模型目录装载、队列、插件握手、管线、C ABI、纯 C 头文件、Dmabuf 下载桥 |
+| mlvc     | tables、ratectl、rans、pixel、mlvc_codec                                             | 算法表、码控、熵编码、像素打包、编解码往返                                                        |
+| av1      | av1                                                                                  | SVT 软编逻辑                                                                                      |
+| sr       | sr_post                                                                              | 超分后处理（非方形 `core_w`/`core_h` 拆分）                                                       |
+| h264h265 | mpp_logic、mpp_plugin                                                                | MPP 参数逻辑、插件装载                                                                            |
+| pspack   | ps                                                                                   | GB28181 PS 打包 / 解包、PSM 与 PTS、AU 组装                                                       |
+| cli      | cli                                                                                  | 长选项解析（含 `--fps/--json`，无 `--low-delay`）                                                 |
 
 ~~~bash
 cmake --preset tests && cmake --build --preset tests
@@ -27,9 +27,13 @@ ctest --test-dir .build/tests --output-on-failure
 
 `tests` 预设多开 `RKVC_CORE_BUILD_TESTS=ON`（core 测试默认关闭，其余工程
 测试开关默认全开）。缺 MPP 头少 2 个（`mpp_logic` / `mpp_plugin`）、缺
-SVT-AV1 少 1 个（`av1`），两者都缺时注册 16 个用例、齐备时 19 个；CI 逐个
+SVT-AV1 少 1 个（`av1`），两者都缺时注册 17 个用例、齐备时 20 个；CI 逐个
 断言这份清单都已注册（依赖缺失即失败，不再静默跳过）。x86 只覆盖纯软
 路径；MPP / NPU 用例在板端跑同一条 `ctest`。
+
+`c_header` 是唯一一个用 C 编译器编的用例（`core/tests/test_c_header.c`，
+C99 + `-Wall -Wextra -Werror`）：公开头 `rkvc.h` 必须能被纯 C 包含并使用，
+C++ 侧看不出这类回归（见 CHANGELOG 里 `noexcept` 泄漏的那条）。
 
 av1 插件按 **SVT-AV1 4.2.0** API 写（子模块钉的版本），发行版包太旧——
 noble 是 1.7.0，配置期会被版本门挡下并提示。本地要跑 av1 用例先从子模块

@@ -19,6 +19,7 @@ nav = [
   { "可移植包集成" = "portable-package.md" },
   { "测试" = "testing.md" },
   { "MLVC RKNN 导出" = "mlvc-rknn-export.md" },
+  { "MLVC 帧型机制" = "mlvc-frame-types.md" },
   { "SR 模型规格" = "sr-model-yuv-spec.md" },
   { "语义编解码 SDK 集成" = "semantic-codec-sdk-integration.md" },
   { "GB28181 推流" = "gb28181-streaming.md" },

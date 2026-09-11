@@ -11,9 +11,13 @@
 bin/rkvc                   CLI（C++ 运行时已静态链接）
 lib/rkvc/backends/*.so     codec 插件（h264h265 / av1 / mlvc / sr，按构建开关）
 lib/librkvc.so.0.5.0       SDK：预编译 core（与上面插件同源同编译器）
+lib/librkvc-<codec>.so.*   SDK：各 codec 预编译库（五个 codec；pspack 无插件入口）
 include/rkvc/              16 个公开头文件（C 的 rkvc.h + C++ 头）
+include/<codec>/           该 codec 的公开头文件（如 h264h265/decoder.hpp、mlvc/*.hpp）
 lib/cmake/rkvc/            find_package(rkvc CONFIG) 用的包文件（可搬迁）
+lib/cmake/rkvc-<codec>/    find_package(rkvc-<codec> CONFIG) 用的包文件（可搬迁）
 lib/pkgconfig/rkvc.pc      pkg-config 描述（前缀由 pcfiledir 反推，可搬迁）
+lib/pkgconfig/rkvc-<codec>.pc   codec 版 pkg-config（Requires: rkvc）
 lib/*.so*                  随包运行库（rockchip_mpp / rknnrt / SvtAv1Enc，按需）
 docs/                      全套文档（入口 docs/index.md）
 examples/                  三个 C ABI 样板（integration-c / decode-file / upscale-file）

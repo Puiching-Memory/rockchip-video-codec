@@ -116,7 +116,8 @@ jobs:
           ctest --test-dir .build/tests -N > tests.txt
           missing=0
           for t in test_status_result test_spec_frame test_model test_queue \
-                   test_pipeline test_c_abi test_download test_plugin test_cli \
+                   test_pipeline test_c_abi test_c_header test_download \
+                   test_plugin test_cli \
                    test_ps test_rans test_pixel test_ratectl test_mlvc_tables \
                    test_mlvc_codec test_sr_post test_mpp_logic test_mpp_plugin \
                    test_av1; do
@@ -126,6 +127,47 @@ jobs:
             }
           done
           exit "$missing"
+      - name: Build codec projects standalone
+        # 解耦门禁：codec 工程要能在仓库里孤立配置（不经过顶层工程），并在
+        # RKVC_INSTALL_SDK=ON 时同时产出静态库、SDK 共享库与可安装的
+        # CMake config / pkg-config / 头文件。
+        run: |
+          fail=0
+          for c in h264h265 mlvc av1 sr pspack; do
+            b=".build/standalone-$c"
+            extra=()
+            case "$c" in
+              h264h265) static="$b/libh264h265-codec.a" ;;
+              mlvc)     static="$b/libmlvc-codec.a" ;;
+              av1)      static="$b/libav1-codec.a"
+                        extra+=(-DSVT_AV1_INSTALL_PREFIX="$PWD/.build/svt-install") ;;
+              sr)       static="$b/libsr-codec.a" ;;
+              pspack)   static="$b/libpspack.a" ;;
+            esac
+            cmake -S "codecs/$c" -B "$b" -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+              -DRKVC_INSTALL_SDK=ON \
+              -DCMAKE_INSTALL_PREFIX="$PWD/$b/install" \
+              -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_INCLUDEDIR=include \
+              "${extra[@]}"
+            cmake --build "$b"
+            cmake --install "$b"
+            for f in "$static" "$b/librkvc-$c.so" "$b/librkvc-$c.so.0" \
+                     "$b/librkvc-$c.so".*.* \
+                     "$b/install/lib/cmake/rkvc-$c/rkvc-${c}Config.cmake" \
+                     "$b/install/lib/pkgconfig/rkvc-$c.pc" \
+                     "$b/install/lib/cmake/rkvc/rkvcConfig.cmake" \
+                     "$b/install/include/rkvc/rkvc.h"; do
+              if [ ! -e "$f" ]; then
+                echo "缺少产物: $f" >&2
+                fail=1
+              fi
+            done
+            if ! ls "$b/install/include/$c"/*.hpp >/dev/null 2>&1; then
+              echo "缺少安装头文件: $b/install/include/$c/*.hpp" >&2
+              fail=1
+            fi
+          done
+          exit "$fail"
       - name: Run C++ tests
         run: ctest --test-dir .build/tests --output-on-failure
       - name: Run Python tests
