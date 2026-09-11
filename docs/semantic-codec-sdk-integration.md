@@ -373,9 +373,8 @@ NPU 存在位任一命中即置位：`/dev/rknpu`、`/dev/rknpu0`、`/dev/rknn`�
 ### 6.1 回归入口
 
 上游 `examples/` 已无视频示例，回归入口是 `tests/test_video_codec.c`
-（未接入上游 CMake，视频侧顶层自行接线，§3.4-3；rkvc 侧
-`examples/ais-video-host/` 给出该顶层的可编译写法，自带最小编码 demo，
-不依赖上游 `tests/`）：
+（SDK 侧已支持独立配置：`cmake -S codec/video -DAIS_BUILD_TESTS=ON`；
+rkvc 侧对应顶层见 `examples/ais-video-host/`，自带最小编码 demo）：
 
 ```cmake
 add_executable(test_video_codec ${AIS_SDK_ROOT}/tests/test_video_codec.c)
@@ -440,7 +439,7 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
 | `has_npu=0` 但 NPU 驱动正常                          | 旧检出只认 `/dev/rknpu*`，DRM 形态 NPU（161）漏检                                                                                     | 更新 core/sr（§5.5）                                           |
 | 编码质量异常（码率失控/全黑）                        | `memset` 配置后未显式 `qp=-1`，`qp=0` 被当固定 QP 0                                                                                   | §3.2                                                           |
 | 长流 RSS 线性增长（约每帧一帧 NV12）                 | 适配层 `send` 在 `rkvc_session_push` 成功后未释放 C 帧包装——push 是借用语义，包装内 shared_ptr 永持引用致 `wrap_owned` 释放回调不触发 | `push` 返回 OK 后立即 `rkvc_frame_release`；对照 §6.3 阶梯核查 |
-| 编译报 `CLOCK_MONOTONIC` 未声明等                    | 宿主目录属性污染 core 子目录                                                                                                          | §3.1 属性隔离                                                  |
+| 编译报 `CLOCK_MONOTONIC` 未声明等                    | 宿主以严格 -std=c11 编 SDK core（core 需 POSIX 特性宏，已补 `_POSIX_C_SOURCE`）                                                       | §3.1 属性隔离                                                  |
 | 链接失败引用 `__isoc23_strtoul` / `arc4random`       | 交叉 libstdc++ 与低版本 sysroot glibc 不兼容                                                                                          | §4.5：改板载编译（§4.6）                                       |
 
 ## 8. 集成核对清单
@@ -466,10 +465,11 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
 
 ## 9. 版本与变更记录
 
-| 日期       | 变更                                                                                                                                                                                                                                                                                                                                                    |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-11 | 板级回归矩阵全绿并修复帧包装泄漏：适配层 `send` 在 `rkvc_session_push` 成功后补 `rkvc_frame_release`（C ABI push 为借用语义，漏释放致 RSS 每帧一帧 NV12 线性增长）；实测口径改进程内采样，H264/HEVC 编码段 100–600 帧全平坦（峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB；AV1 软编受 SVT 内部缓冲影响基线高但趋饱和。矩阵 3/4/5 实跑打勾（§6.3）    |
-| 2026-09-11 | 修复上游三缺口并板测全绿：rkvc 新增 `rkvc_frame_wrap_owned`；适配层删 `owned_` 改释放回调；上游公开 `ais_buffer_bitstream`/`ais_buffer_set_packet_info`/`ais_buffer_cdata`；DMABUF 回读双保险（core 自动桥接 + 适配层域防御）；`codec/video` 补 `AIS_BUILDING=1`。板测（RK3576）：H264/HEVC/AV1 回环 0 全零帧、交错 50/500 通过、caps enc=1 dec=1 npu=1 |
-| 2026-09-11 | 适配层模型装载对齐：`register_model_dir` 改直调 `rkvc_context_add_model_dir`（rkvc 按导出器约定整组装载 `.rknn`/`.bin`/`.qppatch`，上游不再自行扫描）                                                                                                                                                                                                   |
-| 2026-09-10 | 新增[可移植包 × 宿主集成](portable-package.md)（§4.3）；NPU 探测补 DRM 形态（§5.5）；GLIBC 审计基线收口 2.34                                                                                                                                                                                                                                            |
-| 2026-09-09 | 适配上游 2026-09 快照并全篇翻转为 C ABI 0.5.0 现状：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口 `ais_video_open/send/recv/flush/caps`；send 同步化、recv 恒阻塞；caps 纳入 RKNN；新增 MLVC family；回归改 `test_video_codec.c`。更早（2026-08~09-03）的初版与旧契约基线见 git 历史                                                            |
+| 日期       | 变更                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-11 | 上游 `semantic-codec-sdk` 补齐视频自举构建并板端验证：`codec/video` 可独立配置（`-Drkvc_DIR` 或 `-DAIS_RKVC_CORE_DIR`，`-DAIS_BUILD_TESTS=ON` 出 `test_video_codec`）、公共头补齐 `ais_buffer_bitstream`/`ais_buffer_cdata`/`ais_buffer_set_packet_info`、`core/ais_log.c` 补 `_POSIX_C_SOURCE 200809L`、图像 aarch64 工具链补 `CMAKE_TRY_COMPILE_PLATFORM_VARIABLES`（否则 GCC 主版本覆盖无效）；RK3576 实测 H264/HEVC/AV1 回环 0 全零帧、H264 640×368×500 帧 RSS 平坦 |
+| 2026-09-11 | 板级回归矩阵全绿并修复帧包装泄漏：适配层 `send` 在 `rkvc_session_push` 成功后补 `rkvc_frame_release`（C ABI push 为借用语义，漏释放致 RSS 每帧一帧 NV12 线性增长）；实测口径改进程内采样，H264/HEVC 编码段 100–600 帧全平坦（峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB；AV1 软编受 SVT 内部缓冲影响基线高但趋饱和。矩阵 3/4/5 实跑打勾（§6.3）                                                                                                                    |
+| 2026-09-11 | 修复上游三缺口并板测全绿：rkvc 新增 `rkvc_frame_wrap_owned`；适配层删 `owned_` 改释放回调；上游公开 `ais_buffer_bitstream`/`ais_buffer_set_packet_info`/`ais_buffer_cdata`；DMABUF 回读双保险（core 自动桥接 + 适配层域防御）；`codec/video` 补 `AIS_BUILDING=1`。板测（RK3576）：H264/HEVC/AV1 回环 0 全零帧、交错 50/500 通过、caps enc=1 dec=1 npu=1                                                                                                                 |
+| 2026-09-11 | 适配层模型装载对齐：`register_model_dir` 改直调 `rkvc_context_add_model_dir`（rkvc 按导出器约定整组装载 `.rknn`/`.bin`/`.qppatch`，上游不再自行扫描）                                                                                                                                                                                                                                                                                                                   |
+| 2026-09-10 | 新增[可移植包 × 宿主集成](portable-package.md)（§4.3）；NPU 探测补 DRM 形态（§5.5）；GLIBC 审计基线收口 2.34                                                                                                                                                                                                                                                                                                                                                            |
+| 2026-09-09 | 适配上游 2026-09 快照并全篇翻转为 C ABI 0.5.0 现状：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口 `ais_video_open/send/recv/flush/caps`；send 同步化、recv 恒阻塞；caps 纳入 RKNN；新增 MLVC family；回归改 `test_video_codec.c`。更早（2026-08~09-03）的初版与旧契约基线见 git 历史                                                                                                                                                                            |
