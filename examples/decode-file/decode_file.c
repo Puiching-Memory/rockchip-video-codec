@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// FILE-endpoint decode over the rkvc C ABI (mirrors `rkvc decode`).
+// 基于 rkvc C ABI 的 FILE 端点解码（等价于 `rkvc decode`）。
 //
-// Usage:
+// 用法：
 //   decode_file <backend_dir> <h264|hevc|av1|mlvc> <width> <height>
-//               <nv12|yuv420p> <in.bit> <out.raw> [model.rkmodel ...]
+//               <nv12|yuv420p> <in.bit> <out.raw> [model_dir ...]
 //
-// The width/height describe the coded picture; the raw output keeps the same
-// geometry. MLVC decode needs its decoder model registered (--model-id is the
-// export stem, e.g. mlvc_rk3576_qp21_decoder); pass model files positionally.
+// width/height 描述编码图像；裸输出保持相同几何。MLVC 解码需要注册其
+// 解码器模型（--model-id 是 bundle 内文件词干，如 MLVCDecoder_rk3576）；
+// 模型目录按位置参数传入。
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     if (argc < 8) {
         fprintf(stderr,
                 "usage: %s <backend_dir> <codec> <width> <height> <pixfmt> "
-                "<in.bit> <out.raw> [model.rkmodel ...]\n",
+                "<in.bit> <out.raw> [model_dir ...]\n",
                 argv[0]);
         return 1;
     }
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     }
     for (int i = 8; i < argc; i++) {
         rkvc_diagnostic *diag = NULL;
-        rkvc_status st = rkvc_context_add_model_file(ctx, argv[i], &diag);
+        rkvc_status st = rkvc_context_add_model_dir(ctx, argv[i], &diag);
         if (st != RKVC_OK) {
             int rc = fail("add model", st, diag);
             rkvc_context_destroy(ctx);

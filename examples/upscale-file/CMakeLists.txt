@@ -6,8 +6,8 @@ project(rkvc-upscale-file LANGUAGES C CXX)
 #   cmake -S . -B build -Drkvc_DIR=/path/to/pkg/lib/cmake/rkvc
 #   # 方式二：自带 core 源码（静态链，插件指纹需与自身编译器一致）
 #   cmake -S . -B build -DRKVC_CORE_DIR=/path/to/core \
-#     -DRKVC_MODEL=/path/to/phase-rlfn-bench.rkmodel
-#   ./build/upscale_file <plugin-dir> <w> <h> nv12 <model-id> in.nv12 out.nv12 <model.rkmodel>
+#     -DRKVC_MODEL_DIR=/path/to/models/rkvc-sr
+#   ./build/upscale_file <plugin-dir> <w> <h> nv12 <model-id> in.nv12 out.nv12 <model_dir>
 set(RKVC_CORE_DIR "" CACHE PATH "rkvc core source dir（未提供预编译 SDK 时使用）")
 find_package(rkvc CONFIG QUIET)
 if(rkvc_FOUND)

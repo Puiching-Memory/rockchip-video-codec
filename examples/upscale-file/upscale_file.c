@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// FILE-endpoint 3x upscale over the rkvc C ABI (mirrors `rkvc upscale`).
+// 基于 rkvc C ABI 的 FILE 端点 3 倍上采样（等价于 `rkvc upscale`）。
 //
-// Usage:
+// 用法：
 //   upscale_file <backend_dir> <width> <height> <nv12|yuv420p> <model-id>
-//                <in.raw> <out.raw> [model.rkmodel ...]
+//                <in.raw> <out.raw> [model_dir ...]
 //
-// The SR node is fixed-3x: output geometry is (3w, 3h). The model id selects
-// a registered RKMDL1 file (export stem, e.g. phase-rlfn-bench).
+// SR 节点固定 3 倍：输出几何为 (3w, 3h)。model id 选择已注册的
+// 模型（目录内 .rknn 文件词干，如 phase_rlfn_sr_x3）。
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     if (argc < 8) {
         fprintf(stderr,
                 "usage: %s <backend_dir> <width> <height> <pixfmt> <model-id> "
-                "<in.raw> <out.raw> [model.rkmodel ...]\n",
+                "<in.raw> <out.raw> [model_dir ...]\n",
                 argv[0]);
         return 1;
     }
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
     }
     for (int i = 8; i < argc; i++) {
         rkvc_diagnostic *diag = NULL;
-        rkvc_status st = rkvc_context_add_model_file(ctx, argv[i], &diag);
+        rkvc_status st = rkvc_context_add_model_dir(ctx, argv[i], &diag);
         if (st != RKVC_OK) {
             int rc = fail("add model", st, diag);
             rkvc_context_destroy(ctx);

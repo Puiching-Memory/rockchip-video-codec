@@ -18,14 +18,14 @@
 
 #include "sr/post.hpp"
 
-#include "rkvc/rkmodel.hpp"
+#include "rkvc/model.hpp"
 
 namespace sr {
 
 struct SrUpscaleNode::Impl {
     rkvc::Request req;
     std::unique_ptr<SrRuntime> rt;
-    std::vector<uint8_t> model_bytes;  // borrowed content, copied for RKNN
+    std::vector<uint8_t> model_bytes;  // 借用内容，为 RKNN 拷贝一份
     SrGeometry geom;
     bool opened = false;
     std::vector<uint8_t> packed;
@@ -93,7 +93,7 @@ rkvc::Status SrUpscaleNode::open(rkvc::Emit* emit, rkvc::Diag* diag) {
         return rkvc::Status::Format;
     }
     if (!up->rt)
-        return rkvc::Status::Hw;  // no runtime: participates in HW fallback
+        return rkvc::Status::Hw;  // 无运行时：参与硬件回退
     rkvc::Status st = up->rt->open(up->model_bytes, up->geom, diag);
     if (st != rkvc::Status::Ok)
         return st;

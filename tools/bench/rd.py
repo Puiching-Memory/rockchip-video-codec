@@ -32,7 +32,7 @@ def digest(path):
 
 
 def model_listing(stdout):
-    # Some vendor libraries print startup banners to stdout before CLI JSON.
+    # 有些厂商库会在 CLI JSON 之前向 stdout 打印启动横幅。
     candidates = []
     for line in stdout.splitlines():
         try:
@@ -50,7 +50,7 @@ def progress(message):
     try:
         print(message, flush=True)
     except BrokenPipeError:
-        # Losing a progress consumer must not cancel an hours-long measurement.
+        # 丢失进度消费者不能取消长达数小时的测量。
         sys.stdout = open(os.devnull, 'w', encoding='utf-8')
 
 
@@ -177,9 +177,9 @@ class Runner:
         return [self.c['ffmpeg'], '-hide_banner', '-nostdin', '-y']
 
     def media(self, op, src, dst, codec=None, w=None, h=None, qp=None, model=None):
-        # New C++ CLI (cpp-rewrite): long options, --model-id selects a
-        # registered RKMDL1 file. --low-delay is gone: MLVC is P-only and
-        # MPP defaults have no B-frames by construction (see protocol).
+        # 新 C++ CLI（cpp-rewrite）：长选项，--model-dir 选择已注册的
+        # 模型目录。--low-delay 已移除：MLVC 只有 P 帧，MPP 默认
+        # 构造上就没有 B 帧（见 protocol）。
         args = [self.c['rkvc'], op, '--input', src, '--output', dst]
         if op == 'encode' and 'gop' in self.c:
             args += ['--gop', self.c['gop'], '--fps', self.c['fps']]
@@ -229,8 +229,8 @@ class Runner:
                 count += 1
             details = {'fps': fps, 'ltr_period': ltr}
         elif codec == 'av1':
-            # rkmpp does not propagate AV1 key_frame flags to decoded AVFrames.
-            # Read the actual AV1 frame_type syntax instead of trusting flags.
+            # rkmpp 不把 AV1 key_frame 标志传播到解码出的 AVFrame。
+            # 改为直接读 AV1 frame_type 语法，而不是相信标志。
             _, _, stderr = self.run(self.ff() + ['-f', 'obu', '-i', stream,
                 '-c', 'copy', '-bsf:v', 'trace_headers', '-f', 'null', '-'])
             kinds = re.findall(r'\bframe_type\s+[01]+\s*=\s*(\d+)', stderr)
@@ -257,7 +257,7 @@ class Runner:
         values = {}
         for metric in ('psnr', 'ssim'):
             log = work / f'{metric}.txt'
-            # cwd-independent filter filename; escape Windows drive and separators.
+            # cwd 无关的 filter 文件名；转义 Windows 盘符与分隔符。
             escaped = log.resolve().as_posix().replace(':', r'\:').replace("'", r"'\''")
             self.run(self.ff() + self.raw(rec, w, h) + self.raw(ref, w, h) +
                      ['-lavfi', f"[0:v][1:v]{metric}=stats_file='{escaped}'",
@@ -273,7 +273,7 @@ class Runner:
             if not all(math.isfinite(x) for x in samples):
                 raise ValueError('nonfinite pixel metric')
             mean = statistics.fmean(samples)
-            # Null means lossless (+infinity); keep JSON standards compliant.
+            # Null 表示无损（+infinity）；保持 JSON 标准合规。
             values['psnr_y' if metric == 'psnr' else 'ssim_y'] = (
                 (10 * math.log10(255 ** 2 / mean) if mean else None)
                 if metric == 'psnr' else mean)
@@ -327,8 +327,8 @@ class Runner:
                      '-pix_fmt', 'nv12', '-f', 'rawvideo', source])
         raw_decoded = work / 'padded-decoded.nv12' if (coded_w, coded_h) != (w, h) else decoded
         enc = self.media('encode', source, stream, codec, coded_w, coded_h, qp, model)
-        # New CLI decode takes --width/--height as output geometry: the coded
-        # (possibly padded) size, cropped back to w,h afterwards.
+        # 新 CLI 的 decode 把 --width/--height 当输出几何：编码后
+        # （可能带填充）的尺寸，之后再裁剪回 w,h。
         dec = self.media('decode', stream, raw_decoded, codec, coded_w, coded_h,
                          model=dec_model)
         decoder = 'rkvc'
@@ -355,7 +355,7 @@ class Runner:
             if i >= c['warmup']:
                 samples.append({'encode_seconds': te, 'decode_seconds': td})
                 sizes.append(stream.stat().st_size)
-        # Quality belongs to the final measured stream; retain its bytes/hash.
+        # 质量指标属于最终测得的码流；保留其字节/哈希。
         common = {'codec': codec, 'qp': qp, 'branch': branch, 'status': 'ok',
                   'bytes': sizes[-1], 'sample_bytes': sizes, 'stream_sha256': digest(stream),
                   'kbps': sizes[-1] * 8 * c['fps'] / c['frames'] / 1000,
@@ -395,7 +395,7 @@ class Runner:
                 row['upscale_samples_seconds'] = up
                 row['encode_fps'] = c['frames'] / statistics.fmean(s['encode_seconds'] for s in samples)
                 row['decode_fps'] = c['frames'] / statistics.fmean(s['decode_seconds'] for s in samples)
-                # Sum of separately timed process stages, not a streaming pipeline measurement.
+                # 各进程阶段分别计时的总和，并非流式流水线的测量。
                 row['stage_sum_seconds'] = (statistics.fmean(s['encode_seconds'] + s['decode_seconds']
                     for s in samples) + (statistics.fmean(up) if up else 0) + row['downsample_seconds'] + padding_seconds)
                 row['stage_sum_fps'] = c['frames'] / row['stage_sum_seconds']
@@ -465,9 +465,10 @@ def main(argv=None):
         report['version'] = runner.run([c['rkvc'], 'version', '--json'])[1]
         backends = [c['rkvc'], 'inspect', 'backends', '--json']
         models_cmd = [c['rkvc'], 'inspect', 'models', '--json']
-        # inspect models resolves --model-dir like encode/decode do.
+        # inspect models 与 encode/decode 一样解析 --model-dir。
         model_dir = Path(c['model_dir']) if c.get('model_dir') else Path(c['rkvc']).resolve().parent.parent / 'share/rkvc/models'
-        report['model_hashes'] = {str(f): digest(f) for f in model_dir.glob('*.rkmodel')}
+        report['model_hashes'] = {str(f): digest(f)
+                                  for f in model_dir.rglob('*.rknn')}
         if c.get('model_dir'):
             models_cmd += ['--model-dir', c['model_dir']]
         if c.get('backend_dir'):
@@ -531,7 +532,7 @@ def main(argv=None):
                             report['points'] = [r for r in report['points'] if point_key(r) != key]
                             report['points'].extend(dict(row, sequence=sequence['name']) for row in rows)
                             save(report, args.output)
-                            # Only delete files created in this fresh run's point directory.
+                            # 只删除本次全新运行的 point 目录中创建的文件。
                             if not c.get('keep_media', False):
                                 for f in point_work.iterdir():
                                     if f.is_file():

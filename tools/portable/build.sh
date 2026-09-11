@@ -11,7 +11,7 @@
 #   --no-rknn     关闭 NPU 后端（mlvc/sr 落 stub，跳过 librknnrt 下载）
 #   --no-av1      不构建 av1 插件（跳过 SVT-AV1 交叉构建）
 #   --rknn-dir D  用 D 下 rknn_api.h + librknnrt.so 替代固定版本下载
-#   --models D    把 D 下 *.rkmodel 收进包内 models/
+#   --models D    把 D 下模型 bundle 目录收进包内 models/
 #   --out D       产物目录（默认 .build/dist）
 set -euo pipefail
 
@@ -47,7 +47,7 @@ usage() {
   --no-rknn     关闭 NPU 后端（mlvc/sr 落 stub，跳过 librknnrt 下载）
   --no-av1      不构建 av1 插件（跳过 SVT-AV1 交叉构建）
   --rknn-dir D  用 D 下 rknn_api.h + librknnrt.so 替代固定版本下载
-  --models D    把 D 下 *.rkmodel 收进包内 models/
+  --models D    把 D 下模型 bundle 目录收进包内 models/
   --out D       产物目录（默认 .build/dist）
 EOF
 }
@@ -345,17 +345,40 @@ collect_licenses() {
 }
 
 pack_models() {
-    local count=0 f
-    for f in "$models_dir"/*.rkmodel; do
-        [[ -f "$f" ]] || continue
-        install -m 644 "$f" "$pkg/models/"
-        count=$((count + 1))
-    done
-    if ((count == 0)); then
-        echo "错误: $models_dir 下没有 .rkmodel" >&2
+    # 模型按 bundle 目录整体收录（目录即装载单元）。
+    local count=0 d
+    if [[ ! -d "$models_dir" ]]; then
+        echo "错误: $models_dir 不是目录" >&2
         exit 1
     fi
-    echo "-- models: 收录 $count 个 .rkmodel"
+    for d in "$models_dir"/*/; do
+        [[ -d "$d" ]] || continue
+        local name
+        name=$(basename "$d")
+        mkdir -p "$pkg/models/$name"
+        local f n=0
+        for f in "$d"*.rknn "$d"*.bin "$d"qp_patches/*.qppatch; do
+            [[ -f "$f" ]] || continue
+            install -D -m 644 "$f" "$pkg/models/$name/${f#"$d"}"
+            n=$((n + 1))
+        done
+        ((n > 0)) && count=$((count + 1))
+    done
+    # 允许单目录直接给文件集合（不带子目录）。
+    if ((count == 0)); then
+        local n=0
+        for f in "$models_dir"/*.rknn; do
+            [[ -f "$f" ]] || continue
+            install -m 644 "$f" "$pkg/models/"
+            n=$((n + 1))
+        done
+        ((n > 0)) || {
+            echo "错误: $models_dir 下没有模型文件" >&2
+            exit 1
+        }
+        count=1
+    fi
+    echo "-- models: 收录 $count 个模型目录"
 }
 
 pack_docs_and_examples() {

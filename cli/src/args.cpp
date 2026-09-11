@@ -13,16 +13,17 @@ void usage() {
         "  rkvc version [--json]\n"
         "  rkvc inspect backends|models [--backend-dir DIR]...\n"
         "            [--model-dir DIR]... [--json]\n"
+
         "  rkvc encode --codec h264|hevc|av1 --input IN --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
-        "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n"
+        "            [--model DIR]... [--model-dir DIR]... [--model-id ID]\n"
         "            [--qp Q] [--bitrate BPS] [--gop G] [--fps N]\n"
         "  rkvc decode --codec mlvc --input IN.mlvc --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
-        "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n"
+        "            [--model DIR]... [--model-dir DIR]... [--model-id ID]\n"
         "  rkvc upscale --input IN --width W --height H\n"
         "            --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...\n"
-        "            [--model FILE]... [--model-dir DIR]... [--model-id ID]\n");
+        "            [--model DIR]... [--model-dir DIR]... [--model-id ID]\n");
 }
 
 namespace {

@@ -11,7 +11,7 @@ namespace {
 
 bool parse(std::vector<std::string> words, std::string& cmd, cli::Args& a) {
     std::vector<char*> argv;
-    // parse_args does not mutate its inputs; keep storage alive.
+    // parse_args 不会修改入参；保持存储存活。
     std::vector<std::string> store = words;
     for (auto& w : store)
         argv.push_back(w.data());
@@ -70,15 +70,15 @@ TEST_CASE("cli parses model options") {
     CHECK(parse(
         {"rkvc",      "encode",      "--codec",     "mlvc",       "--input",
          "in.yuv",    "--width",     "640",         "--height",   "368",
-         "--output",  "out.bin",     "--model",     "a.rkmodel",  "--model",
-         "b.rkmodel", "--model-dir", "models/mlvc", "--model-id", "mlvc-rk3576",
+         "--output",  "out.bin",     "--model",     "models/mlvc", "--model",
+         "models/mlvc-s", "--model-dir", "models", "--model-id", "mlvc-rk3576",
          "--qp",      "21"},
         cmd, a));
     CHECK(a.models.size() == 2);
-    CHECK(a.models[0] == "a.rkmodel");
-    CHECK(a.models[1] == "b.rkmodel");
+    CHECK(a.models[0] == "models/mlvc");
+    CHECK(a.models[1] == "models/mlvc-s");
     CHECK(a.model_dirs.size() == 1);
-    CHECK(a.model_dirs[0] == "models/mlvc");
+    CHECK(a.model_dirs[0] == "models");
     CHECK(a.model_id == "mlvc-rk3576");
 }
 

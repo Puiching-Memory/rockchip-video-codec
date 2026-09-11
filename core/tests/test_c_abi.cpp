@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// C ABI mechanics: structs, frames, failure diagnostics (no codec needed).
+// C ABI 机制：结构体、帧、失败诊断（无需编解码器）。
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
@@ -80,8 +80,39 @@ TEST_CASE("c abi frame wrap roundtrip") {
     CHECK(back.data == payload);
     CHECK(back.pts == 9000);
     rkvc_frame_release(f);
-    // Undersized payload is rejected.
+    // 负载过小被拒绝。
     desc.size = 10;
     CHECK(rkvc_frame_wrap(&desc, &f) == RKVC_INVALID);
     CHECK(f == nullptr);
+}
+
+TEST_CASE("c abi frame wrap owned release hook") {
+    static int released;
+    released = 0;
+    auto on_release = [](void* ctx) noexcept { ++released; };
+    rkvc_frame_desc desc;
+    rkvc_frame_desc_init(&desc, sizeof(desc));
+    desc.spec.width = 16;
+    desc.spec.height = 16;
+    desc.spec.fmt = RKVC_FRAME_FMT_NV12;
+    desc.spec.domain = RKVC_MEM_DOMAIN_HOST;
+    auto* payload = static_cast<uint8_t*>(malloc(16 * 16 * 3 / 2));
+    desc.data = payload;
+    desc.size = 16 * 16 * 3 / 2;
+    // Null callback is rejected without taking ownership.
+    rkvc_frame* f = nullptr;
+    CHECK(rkvc_frame_wrap_owned(&desc, nullptr, payload, &f) ==
+          RKVC_INVALID);
+    CHECK(f == nullptr);
+    CHECK(rkvc_frame_wrap_owned(&desc, on_release, payload, &f) == RKVC_OK);
+    CHECK(f != nullptr);
+    CHECK(released == 0);
+    rkvc_frame_release(f);
+    CHECK(released == 1);
+    // Wrap failure must not fire the hook nor steal ownership.
+    desc.size = 10;
+    CHECK(rkvc_frame_wrap_owned(&desc, on_release, payload, &f) ==
+          RKVC_INVALID);
+    CHECK(released == 1);
+    free(payload);
 }

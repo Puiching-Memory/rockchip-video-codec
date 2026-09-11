@@ -17,7 +17,7 @@ lib/pkgconfig/rkvc.pc      pkg-config 描述（前缀由 pcfiledir 反推，可�
 lib/*.so*                  随包运行库（rockchip_mpp / rknnrt / SvtAv1Enc，按需）
 docs/                      全套文档（入口 docs/index.md）
 examples/                  三个 C ABI 样板（integration-c / decode-file / upscale-file）
-models/*.rkmodel           可选 RKMDL1 模型（构建时 --models 收录）
+models/<bundle>/           可选模型目录（构建时 --models 收录）
 licenses/                  许可证文本与来源清单（PROVENANCE.txt）
 CHANGELOG.md               版本历史（docs 里有链接引到这里）
 test.sh                    包内自测（含 SDK 面校验与 C 消费者冒烟）

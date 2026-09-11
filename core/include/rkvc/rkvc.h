@@ -10,11 +10,17 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
+#define RKVC_NOEXCEPT noexcept
+#else
+#define RKVC_NOEXCEPT
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 
 #define RKVC_ABI_VERSION_MAJOR 0
-#define RKVC_ABI_VERSION_MINOR 5
+#define RKVC_ABI_VERSION_MINOR 6
 #define RKVC_ABI_VERSION_PATCH 0
 #define RKVC_ABI_VERSION \
     ((RKVC_ABI_VERSION_MAJOR << 16) | (RKVC_ABI_VERSION_MINOR << 8) | \
@@ -203,9 +209,11 @@ void rkvc_context_destroy(rkvc_context *ctx);
  * @return 成功返回 `RKVC_OK`。 */
 rkvc_status rkvc_probe_device(rkvc_context *ctx, rkvc_caps *caps);
 
-/** 从 RKMDL1 文件装载模型并注册（id 去重；失败时可选填 diag）。 */
-rkvc_status rkvc_context_add_model_file(rkvc_context *ctx, const char *path,
-                                        rkvc_diagnostic **diag);
+/** 按导出器约定扫描模型目录并注册整组原生文件（.rknn/.bin/.qppatch，
+ * id 去重；失败时可选填 diag）。一个 bundle 目录可产出 encoder/decoder
+ * 等多个模型，全部注册。 */
+rkvc_status rkvc_context_add_model_dir(rkvc_context *ctx, const char *dir,
+                                       rkvc_diagnostic **diag);
 
 /** 初始化会话请求（填写 `struct_size`/`version` 与默认值）。
  * @param req 请求结构。
@@ -257,6 +265,19 @@ void rkvc_frame_desc_init(rkvc_frame_desc *desc, size_t size);
  * @param out 接收帧句柄。
  * @return 成功返回 `RKVC_OK`。 */
 rkvc_status rkvc_frame_wrap(const rkvc_frame_desc *desc, rkvc_frame **out);
+
+/** 包装一帧并持有载荷所有权：最后一个帧引用释放时回调
+ * `release(release_ctx)`（典型用途：释放宿主的深拷贝副本）。
+ * wrap 失败时所有权不转移，调用方自释放。域语义与 `rkvc_frame_wrap`
+ * 相同（Host 用 `data`，Dmabuf 用 `fd`）。
+ * @param desc 帧描述。
+ * @param release 载荷释放回调（不可为 NULL）。
+ * @param release_ctx 传给回调的上下文（通常即载荷指针）。
+ * @param out 接收帧句柄。
+ * @return 成功返回 `RKVC_OK`。 */
+rkvc_status rkvc_frame_wrap_owned(const rkvc_frame_desc *desc,
+                                  void (*release)(void *release_ctx) noexcept,
+                                  void *release_ctx, rkvc_frame **out);
 
 /** 查询帧的当前描述。 */
 rkvc_status rkvc_frame_get_desc(const rkvc_frame *f, rkvc_frame_desc *desc);

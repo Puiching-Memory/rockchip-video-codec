@@ -15,11 +15,11 @@
 #include "rkvc/node.hpp"
 #include "rkvc/registry.hpp"
 #include "rkvc/result.hpp"
-#include "rkvc/rkmodel.hpp"
+#include "rkvc/model.hpp"
 
 namespace mlvc {
 
-// Payload kind strings in the new .rkmodel container.
+// 模型 payload 的 kind 字符串（目录装载与节点约定一致）。
 inline constexpr const char* kKindRknn = "rknn";
 inline constexpr const char* kKindPmfGaussian = "pmf-gaussian";
 inline constexpr const char* kKindPmfBitest = "pmf-bitest";
@@ -39,21 +39,21 @@ struct EntropyConfig {
     int spatial_repeat = 0;
 };
 
-// One NPU context per QP rung (QPPATCH deltas applied at init).
+// 每个 QP 档位一个 NPU 上下文（QPPATCH 增量在初始化时应用）。
 struct RungSet {
     std::vector<std::unique_ptr<NpuModel>> models;
-    std::vector<int> rung_qp;  // ascending
+    std::vector<int> rung_qp;  // 升序
     size_t active = 0;
 };
 
 struct QRows {
     bool present = false;
-    // (input index, table) pairs for q_*_row feeding.
+    // 供 q_*_row 使用的（输入索引，表）对。
     std::vector<std::pair<size_t, const QpTable*>> rows;
     int fed_qp = -1;
 };
 
-// Shared helpers (codec.cpp).
+// 共享辅助函数（codec.cpp）。
 rkvc::Status init_rans_coders(const rkvc::Model& model, RansCoder& g,
                               RansCoder& b, EntropyConfig& cfg,
                               rkvc::Diag* diag);
@@ -72,8 +72,8 @@ void build_z_idx(std::vector<int32_t>& z_idx, int qp, int ZC, int ZH, int ZW);
 int find_input(const std::vector<NpuTensorInfo>& ts, const char* key) noexcept;
 int find_output(const std::vector<NpuTensorInfo>& ts, const char* key) noexcept;
 
-// MLVC neural encoder ("mlvc.encode") / decoder ("mlvc.decode"). The NPU
-// backend is injected (real RKNN in the plugin, fake in tests).
+// MLVC 神经编码器（"mlvc.encode"）/解码器（"mlvc.decode"）。NPU
+// 后端为注入式（插件中是真实 RKNN，测试中是 fake）。
 class MlvcEncoderNode : public rkvc::Node {
 public:
     struct Impl;

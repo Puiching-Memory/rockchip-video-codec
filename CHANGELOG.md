@@ -2,6 +2,17 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
+## [未发布]
+
+### 变更（破坏性）
+
+- **废除 RKMDL1 模型容器，模型改为原生文件直读（C ABI 0.5.0 → 0.6.0）**：对齐上游 semantic-codec-sdk 的模型管理方式（裸 `.rknn`/`.onnx` 按原生扩展名直接装载）。删除 `pack_model`/`unpack_model`、`.rkmodel` 扩展名与 `tools/mlvc/rkmdl1.py`；`rkvc_context_add_model_file` 改为 `rkvc_context_add_model_dir(ctx, dir)`，按导出器约定扫描模型目录整组装载：`MLVCEncoder_<t>.rknn`/`MLVCDecoder_<t>.rknn`/`gaussian.bin`/`bitest.bin`/`qptab_{enc,dec}*.bin`/`qp_patches/{enc,dec}_qp*.qppatch` 为 MLVC 组（family `mlvc`），其余 `*.rknn` 各成单载荷模型（family `sr`）。内存态 `rkvc::Model`（原 `rkmodel.hpp` → `model.hpp`）与节点 `bind_model` 链路不变，mlvc/sr 逻辑零改动；配套性由导出目录天然保证（同一目录即同一次导出），节点侧 QPP1 base_crc 校验兜底。CLI `--model` 语义从 FILE 改为 DIR；`tools/mlvc/export_rknn.py` 不再打包，产物即目录；portable 包 `models/<bundle>/` 收录目录。
+
+### 修复
+
+- **公开头 `rkvc.h` C 编译兼容**：`rkvc_frame_wrap_owned` 原型里的 `noexcept` 直接暴露在 `extern "C"` 块内，纯 C 消费者（如独立探针程序）无法编译该头。引入 `RKVC_NOEXCEPT` 宏（C++ 下展开为 `noexcept`，C 下为空），C ABI 头恢复可被两种语言直接包含。
+- **上游适配层帧包装泄漏（板级回归发现，修复落在上游 `video_runtime.cpp`）**：`rkvc_session_push` 是借用语义（返回 OK 后帧包装与 shared_ptr 引用仍归调用方，参见 `examples/integration-c` 的既定契约），而语义 codec 适配层 `send` 在 push 成功后未调 `rkvc_frame_release`，导致每帧深拷贝驻留、RSS 以约一帧 NV12/帧 的斜率线性增长（RK3576 实测 500 帧 640×368 涨至 176MiB）。补一行释放后板测：H264/HEVC 编码段 100–600 帧与 640×368×500 全平坦（进程内采样峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB，close 后 RSS 回落。
+
 ## [0.5.0] - 2026-09-10
 
 C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli/5 个 codec 工程），C ABI 0.5.0，插件 ABI 1。

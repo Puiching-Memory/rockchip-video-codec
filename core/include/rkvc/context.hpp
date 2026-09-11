@@ -11,7 +11,7 @@
 #include "rkvc/registry.hpp"
 #include "rkvc/request.hpp"
 #include "rkvc/result.hpp"
-#include "rkvc/rkmodel.hpp"
+#include "rkvc/model.hpp"
 
 namespace rkvc {
 

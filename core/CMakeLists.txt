@@ -25,7 +25,7 @@ set(RKVC_CORE_SOURCES
     src/spec.cpp
     src/frame.cpp
     src/sha256.cpp
-    src/rkmodel.cpp
+    src/model.cpp
     src/request.cpp
     src/node.cpp
     src/registry.cpp
@@ -152,14 +152,15 @@ if(RKVC_CORE_BUILD_TESTS)
     target_compile_options(test_spec_frame PRIVATE -fno-exceptions -fno-rtti)
     add_test(NAME test_spec_frame COMMAND test_spec_frame)
 
-    add_executable(test_rkmodel tests/test_rkmodel.cpp)
-    target_link_libraries(test_rkmodel PRIVATE rkvc::core)
-    target_include_directories(test_rkmodel PRIVATE
+    add_executable(test_model tests/test_model.cpp)
+    target_link_libraries(test_model PRIVATE rkvc::core)
+    target_include_directories(test_model PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-    target_compile_definitions(test_rkmodel PRIVATE
-        DOCTEST_CONFIG_NO_EXCEPTIONS)
-    target_compile_options(test_rkmodel PRIVATE -fno-exceptions -fno-rtti)
-    add_test(NAME test_rkmodel COMMAND test_rkmodel)
+    target_compile_definitions(test_model PRIVATE
+        DOCTEST_CONFIG_NO_EXCEPTIONS
+        RKVC_TEST_MODEL_TMPDIR="${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_options(test_model PRIVATE -fno-exceptions -fno-rtti)
+    add_test(NAME test_model COMMAND test_model)
 
     foreach(t test_queue test_pipeline test_c_abi test_download)
         add_executable(${t} tests/${t}.cpp)

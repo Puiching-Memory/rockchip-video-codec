@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// rkvc CLI: caps probing and raw-file encode sessions over the C ABI.
+// rkvc CLI：通过 C ABI 进行能力探测与裸文件编码会话。
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -12,7 +12,7 @@
 #endif
 
 #include "args.hpp"
-#include "rkvc/rkmodel.hpp"
+#include "rkvc/model.hpp"
 #include "rkvc/rkvc.h"
 
 #ifdef __linux__
@@ -151,41 +151,28 @@ int cmd_inspect(const cli::Args& a) {
         return 0;
     }
     if (a.sub == "models") {
-        std::vector<std::string> files = a.models;
-        for (const auto& dir : a.model_dirs)
-            for (const auto& f : scan_dir(dir, ".rkmodel"))
-                files.push_back(f);
+        std::vector<std::string> dirs = a.model_dirs;
+        for (const auto& m : a.models)
+            dirs.push_back(m);  // --model 直接给目录
         bool first = true;
         std::string text, json = "{\"models\": [";
-        for (const auto& path : files) {
-            FILE* fp = fopen(path.c_str(), "rb");
-            if (!fp)
-                continue;
-            fseek(fp, 0, SEEK_END);
-            long size = ftell(fp);
-            std::vector<uint8_t> buf;
-            if (size > 0 && size <= (1L << 29)) {
-                buf.resize((size_t)size);
-                fseek(fp, 0, SEEK_SET);
-                if (fread(buf.data(), 1, buf.size(), fp) != buf.size())
-                    buf.clear();
-            }
-            fclose(fp);
+        for (const auto& dir : dirs) {
             rkvc::Diag d;
-            auto m = rkvc::unpack_model(buf.data(), buf.size(), &d);
-            if (!m)
+            auto ms = rkvc::load_model_dir(dir, &d);
+            if (!ms)
                 continue;
-            const rkvc::Model& info = m.value();
-            text += path + " " + info.meta.id + " " + info.meta.family + " " +
-                    info.meta.role + " " + info.meta.target + "\n";
-            if (!first)
-                json += ", ";
-            first = false;
-            json += "{\"id\": \"" + json_escape(info.meta.id) +
-                    "\", \"role\": \"" + json_escape(info.meta.role) +
-                    "\", \"family\": \"" + json_escape(info.meta.family) +
-                    "\", \"target\": \"" + json_escape(info.meta.target) +
-                    "\", \"path\": \"" + json_escape(path) + "\"}";
+            for (const rkvc::Model& info : ms.value()) {
+                text += dir + " " + info.meta.id + " " + info.meta.family +
+                        " " + info.meta.role + " " + info.meta.target + "\n";
+                if (!first)
+                    json += ", ";
+                first = false;
+                json += "{\"id\": \"" + json_escape(info.meta.id) +
+                        "\", \"role\": \"" + json_escape(info.meta.role) +
+                        "\", \"family\": \"" + json_escape(info.meta.family) +
+                        "\", \"target\": \"" + json_escape(info.meta.target) +
+                        "\", \"path\": \"" + json_escape(dir) + "\"}";
+            }
         }
         json += "]}";
         printf("%s", a.json ? (json + "\n").c_str() : text.c_str());
@@ -214,11 +201,11 @@ rkvc_codec parse_codec(const std::string& s) {
     return RKVC_CODEC_AUTO;
 }
 
-int add_model_file(rkvc_context* ctx, const std::string& path) {
+int add_model_dir(rkvc_context* ctx, const std::string& dir) {
     rkvc_diagnostic* diag = nullptr;
-    rkvc_status st = rkvc_context_add_model_file(ctx, path.c_str(), &diag);
+    rkvc_status st = rkvc_context_add_model_dir(ctx, dir.c_str(), &diag);
     if (st != RKVC_OK) {
-        fprintf(stderr, "model: load '%s' failed: %s\n", path.c_str(),
+        fprintf(stderr, "model: load dir '%s' failed: %s\n", dir.c_str(),
                 rkvc_status_str(st));
         print_diag(diag);
         return 2;
@@ -228,32 +215,11 @@ int add_model_file(rkvc_context* ctx, const std::string& path) {
 
 int load_models(rkvc_context* ctx, const cli::Args& a) {
     for (const auto& m : a.models)
-        if (add_model_file(ctx, m) != 0)
+        if (add_model_dir(ctx, m) != 0)
             return 2;
-#ifdef __linux__
-    for (const auto& dir : a.model_dirs) {
-        DIR* dp = opendir(dir.c_str());
-        if (!dp) {
-            fprintf(stderr, "model: cannot open dir '%s'\n", dir.c_str());
+    for (const auto& dir : a.model_dirs)
+        if (add_model_dir(ctx, dir) != 0)
             return 2;
-        }
-        std::vector<std::string> files;
-        while (dirent* e = readdir(dp)) {
-            std::string name = e->d_name;
-            if (name.size() < 8 ||
-                name.compare(name.size() - 8, 8, ".rkmodel") != 0)
-                continue;
-            files.push_back(dir + "/" + name);
-        }
-        closedir(dp);
-        std::sort(files.begin(), files.end());
-        for (const auto& f : files)
-            if (add_model_file(ctx, f) != 0)
-                return 2;
-    }
-#else
-    (void)a;
-#endif
     return 0;
 }
 

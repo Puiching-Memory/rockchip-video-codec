@@ -15,7 +15,7 @@
 #endif
 
 #include "rkvc/context.hpp"
-#include "rkvc/rkmodel.hpp"
+#include "rkvc/model.hpp"
 #include "rkvc/session.hpp"
 
 struct rkvc_context {
@@ -193,7 +193,7 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
     if (!ctx)
         return RKVC_NOMEM;
 #ifdef __linux__
-    // NOTE: copts was moved-from above; rescan from the caller's copy.
+    // 注意：上面的 copts 已被移动走，这里从调用者的原始副本重新扫描。
     if (opts) {
         for (size_t i = 0; i < opts->backend_dir_count; ++i)
             if (opts->backend_dirs && opts->backend_dirs[i])
@@ -205,8 +205,8 @@ rkvc_status rkvc_context_create(const rkvc_context_options* opts,
         size_t slash = self.rfind('/');
         if (slash != std::string::npos) {
             std::string dir = self.substr(0, slash);
-            // Sibling layout first, then the portable package layout
-            // (bin/rkvc with the plugins in lib/rkvc/backends).
+            // 优先同目录布局，其次是可移植包布局
+            //（bin/rkvc 可执行文件，插件位于 lib/rkvc/backends）。
             discover_dir(ctx->ctx, (dir + "/rkvc/backends").c_str());
             discover_dir(ctx->ctx, (dir + "/../lib/rkvc/backends").c_str());
         }
@@ -222,11 +222,11 @@ void rkvc_context_destroy(rkvc_context* ctx) {
     delete ctx;
 }
 
-rkvc_status rkvc_context_add_model_file(rkvc_context* ctx, const char* path,
-                                        rkvc_diagnostic** diag) {
+rkvc_status rkvc_context_add_model_dir(rkvc_context* ctx, const char* dir,
+                                       rkvc_diagnostic** diag) {
     if (diag)
         *diag = nullptr;
-    if (!ctx || !path || !*path)
+    if (!ctx || !dir || !*dir)
         return RKVC_INVALID;
     rkvc::Diag d;
     auto fail = [&](rkvc::Status s, const char* reason) {
@@ -235,35 +235,17 @@ rkvc_status rkvc_context_add_model_file(rkvc_context* ctx, const char* path,
             *diag = make_diag(s, std::move(d));
         return sc(s);
     };
-    FILE* fp = fopen(path, "rb");
-    if (!fp)
-        return fail(rkvc::Status::Io, "open failed");
-    if (fseek(fp, 0, SEEK_END) != 0) {
-        fclose(fp);
-        return fail(rkvc::Status::Io, "seek failed");
-    }
-    long size = ftell(fp);
-    constexpr long kMaxModelFile = 1L << 29;
-    if (size < 0 || size > kMaxModelFile || fseek(fp, 0, SEEK_SET) != 0) {
-        fclose(fp);
-        return fail(rkvc::Status::Format, "bad file size");
-    }
-    std::vector<uint8_t> buf(static_cast<size_t>(size));
-    bool ok = !buf.empty() || size == 0;
-    if (ok && size > 0)
-        ok = fread(buf.data(), 1, buf.size(), fp) == buf.size();
-    fclose(fp);
-    if (!ok)
-        return fail(rkvc::Status::Io, "read failed");
-    auto m = rkvc::unpack_model(buf.data(), buf.size(), &d);
-    if (!m) {
+    auto ms = rkvc::load_model_dir(dir, &d);
+    if (!ms) {
         if (diag)
-            *diag = make_diag(m.status(), std::move(d));
-        return sc(m.status());
+            *diag = make_diag(ms.status(), std::move(d));
+        return sc(ms.status());
     }
-    rkvc::Status st = ctx->ctx.add_model(std::move(m.value()));
-    if (st != rkvc::Status::Ok)
-        return fail(st, "register failed");
+    for (auto& m : ms.value()) {
+        rkvc::Status st = ctx->ctx.add_model(std::move(m));
+        if (st != rkvc::Status::Ok)
+            return fail(st, "register failed");
+    }
     return RKVC_OK;
 }
 
@@ -288,7 +270,7 @@ void rkvc_session_request_init(rkvc_session_request* req, size_t size) {
     memset(req, 0, sizeof(*req));
     req->struct_size = sizeof(*req);
     req->version = RKVC_ABI_VERSION;
-    req->quality.qp = -1;  // automatic; 0 would mean fixed QP 0
+    req->quality.qp = -1;  // 自动；0 表示固定 QP 0
     req->queue_capacity = 4;
 }
 
@@ -505,6 +487,36 @@ rkvc_status rkvc_frame_wrap(const rkvc_frame_desc* desc, rkvc_frame** out) {
         (spec.domain == rkvc::MemDomain::Dmabuf)
             ? rkvc::Frame::borrow_dmabuf(spec, desc->fd, desc->size)
             : rkvc::Frame::borrow_host(spec, desc->data, desc->size);
+    if (!r)
+        return sc(r.status());
+    r.value()->set_pts(desc->pts);
+    r.value()->set_dts(desc->dts);
+    r.value()->set_flags(desc->flags);
+    rkvc_frame* wrap = new (std::nothrow) rkvc_frame();
+    if (!wrap)
+        return RKVC_NOMEM;
+    wrap->f = std::move(r.value());
+    *out = wrap;
+    return RKVC_OK;
+}
+
+rkvc_status rkvc_frame_wrap_owned(
+    const rkvc_frame_desc* desc,
+    void (*release)(void* release_ctx) noexcept, void* release_ctx,
+    rkvc_frame** out) {
+    if (!desc || !release || !out)
+        return RKVC_INVALID;
+    *out = nullptr;
+    if (!check_struct(desc->struct_size, desc->version, sizeof(*desc)))
+        return RKVC_INVALID;
+    rkvc::Spec spec = map_spec(desc->spec);
+    rkvc::FrameHooks hooks;
+    hooks.release = release;
+    hooks.ctx = release_ctx;
+    rkvc::Result<rkvc::FramePtr> r =
+        (spec.domain == rkvc::MemDomain::Dmabuf)
+            ? rkvc::Frame::borrow_dmabuf(spec, desc->fd, desc->size, hooks)
+            : rkvc::Frame::borrow_host(spec, desc->data, desc->size, hooks);
     if (!r)
         return sc(r.status());
     r.value()->set_pts(desc->pts);
