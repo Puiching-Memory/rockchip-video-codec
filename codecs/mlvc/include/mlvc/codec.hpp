@@ -12,10 +12,10 @@
 #include "mlvc/rans.hpp"
 #include "mlvc/ratectl.hpp"
 #include "rkvc/diag.hpp"
+#include "rkvc/model.hpp"
 #include "rkvc/node.hpp"
 #include "rkvc/registry.hpp"
 #include "rkvc/result.hpp"
-#include "rkvc/model.hpp"
 
 namespace mlvc {
 

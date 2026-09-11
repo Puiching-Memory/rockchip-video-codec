@@ -33,8 +33,7 @@ bool read_file(const std::string& path, std::vector<uint8_t>& out,
         return false;
     }
     out.resize(static_cast<size_t>(size));
-    bool ok = size == 0 ||
-              fread(out.data(), 1, out.size(), fp) == out.size();
+    bool ok = size == 0 || fread(out.data(), 1, out.size(), fp) == out.size();
     fclose(fp);
     if (!ok)
         err = "read failed";
@@ -127,13 +126,11 @@ Result<std::vector<Model>> load_model_dir(const std::string& dir, Diag* diag) {
         // target 从第一个 MLVC*_<t>.rknn 提取（如 rk3576）。
         std::string target;
         {
-            const std::string& first =
-                !enc.empty() ? enc.front() : dec.front();
+            const std::string& first = !enc.empty() ? enc.front() : dec.front();
             size_t u = first.find('_');
             target = u == std::string::npos
                          ? std::string()
-                         : first.substr(u + 1,
-                                        first.size() - u - 1 - 5);
+                         : first.substr(u + 1, first.size() - u - 1 - 5);
         }
         for (const auto& role_files :
              std::vector<std::pair<const char*, std::vector<std::string>*>>{

@@ -276,7 +276,8 @@ rkvc_status rkvc_frame_wrap(const rkvc_frame_desc *desc, rkvc_frame **out);
  * @param out 接收帧句柄。
  * @return 成功返回 `RKVC_OK`。 */
 rkvc_status rkvc_frame_wrap_owned(const rkvc_frame_desc *desc,
-                                  void (*release)(void *release_ctx) RKVC_NOEXCEPT,
+                                  void (*release)(void *release_ctx)
+                                      RKVC_NOEXCEPT,
                                   void *release_ctx, rkvc_frame **out);
 
 /** 查询帧的当前描述。 */

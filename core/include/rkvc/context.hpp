@@ -6,12 +6,12 @@
 
 #include "rkvc/diag.hpp"
 #include "rkvc/graph.hpp"
+#include "rkvc/model.hpp"
 #include "rkvc/node.hpp"
 #include "rkvc/plugin.hpp"
 #include "rkvc/registry.hpp"
 #include "rkvc/request.hpp"
 #include "rkvc/result.hpp"
-#include "rkvc/model.hpp"
 
 namespace rkvc {
 

@@ -500,10 +500,9 @@ rkvc_status rkvc_frame_wrap(const rkvc_frame_desc* desc, rkvc_frame** out) {
     return RKVC_OK;
 }
 
-rkvc_status rkvc_frame_wrap_owned(
-    const rkvc_frame_desc* desc,
-    void (*release)(void* release_ctx) noexcept, void* release_ctx,
-    rkvc_frame** out) {
+rkvc_status rkvc_frame_wrap_owned(const rkvc_frame_desc* desc,
+                                  void (*release)(void* release_ctx) noexcept,
+                                  void* release_ctx, rkvc_frame** out) {
     if (!desc || !release || !out)
         return RKVC_INVALID;
     *out = nullptr;

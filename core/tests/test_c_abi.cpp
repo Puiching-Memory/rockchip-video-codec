@@ -101,8 +101,7 @@ TEST_CASE("c abi frame wrap owned release hook") {
     desc.size = 16 * 16 * 3 / 2;
     // Null callback is rejected without taking ownership.
     rkvc_frame* f = nullptr;
-    CHECK(rkvc_frame_wrap_owned(&desc, nullptr, payload, &f) ==
-          RKVC_INVALID);
+    CHECK(rkvc_frame_wrap_owned(&desc, nullptr, payload, &f) == RKVC_INVALID);
     CHECK(f == nullptr);
     CHECK(rkvc_frame_wrap_owned(&desc, on_release, payload, &f) == RKVC_OK);
     CHECK(f != nullptr);

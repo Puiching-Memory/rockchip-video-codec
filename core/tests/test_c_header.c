@@ -11,7 +11,9 @@
 #error "本用例必须由 C 编译器编译（纯 C 消费者检查）"
 #endif
 
-static void release_cb(void *release_ctx) { (void)release_ctx; }
+static void release_cb(void *release_ctx) {
+    (void)release_ctx;
+}
 
 int main(void) {
     /* 回调参数要能直接写成 C 的函数指针类型——回归点就在这里。 */
@@ -29,8 +31,8 @@ int main(void) {
     /* struct_size/version 是 C ABI 的前向兼容约定，C 侧同样要能填。 */
     rkvc_context_options_init(&opts, sizeof(opts));
     if (opts.struct_size != sizeof(opts) ||
-        opts.version != (uint32_t)RKVC_ABI_VERSION || opts.backend_dirs != NULL ||
-        opts.backend_dir_count != 0) {
+        opts.version != (uint32_t)RKVC_ABI_VERSION ||
+        opts.backend_dirs != NULL || opts.backend_dir_count != 0) {
         fputs("rkvc_context_options_init 未按约定初始化\n", stderr);
         return 1;
     }

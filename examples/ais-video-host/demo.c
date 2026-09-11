@@ -15,15 +15,13 @@
 
 #include "ais/ais.h"
 
-static int env_int(const char* name, int dflt)
-{
+static int env_int(const char* name, int dflt) {
     const char* s = getenv(name);
     const int v = s ? atoi(s) : 0;
     return v > 0 ? v : dflt;
 }
 
-static ais_codec_family_t env_family(void)
-{
+static ais_codec_family_t env_family(void) {
     const char* s = getenv("AIS_VIDEO_FAMILY");
     if (!s)
         return AIS_CODEC_FAMILY_AV1;
@@ -36,8 +34,7 @@ static ais_codec_family_t env_family(void)
     return AIS_CODEC_FAMILY_AV1;
 }
 
-int main(void)
-{
+int main(void) {
     const int frames = env_int("AIS_VIDEO_FRAMES", 5);
     const uint32_t width = (uint32_t)env_int("AIS_VIDEO_WIDTH", 64);
     const uint32_t height = (uint32_t)env_int("AIS_VIDEO_HEIGHT", 64);
@@ -81,7 +78,8 @@ int main(void)
         st = ais_buffer_video(width, height, AIS_PIXEL_NV12, (int64_t)i * 33333,
                               (uint32_t)i, &frame);
         if (st == AIS_OK) {
-            memset(ais_buffer_data(frame), 0x22 + (i & 0x0f), ais_buffer_size(frame));
+            memset(ais_buffer_data(frame), 0x22 + (i & 0x0f),
+                   ais_buffer_size(frame));
             st = ais_video_send(enc, frame);
         }
         ais_buffer_destroy(frame);

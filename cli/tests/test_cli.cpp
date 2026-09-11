@@ -67,13 +67,13 @@ TEST_CASE("cli rejects bad input") {
 TEST_CASE("cli parses model options") {
     std::string cmd;
     cli::Args a;
-    CHECK(parse(
-        {"rkvc",      "encode",      "--codec",     "mlvc",       "--input",
-         "in.yuv",    "--width",     "640",         "--height",   "368",
-         "--output",  "out.bin",     "--model",     "models/mlvc", "--model",
-         "models/mlvc-s", "--model-dir", "models", "--model-id", "mlvc-rk3576",
-         "--qp",      "21"},
-        cmd, a));
+    CHECK(parse({"rkvc",        "encode",      "--codec",    "mlvc",
+                 "--input",     "in.yuv",      "--width",    "640",
+                 "--height",    "368",         "--output",   "out.bin",
+                 "--model",     "models/mlvc", "--model",    "models/mlvc-s",
+                 "--model-dir", "models",      "--model-id", "mlvc-rk3576",
+                 "--qp",        "21"},
+                cmd, a));
     CHECK(a.models.size() == 2);
     CHECK(a.models[0] == "models/mlvc");
     CHECK(a.models[1] == "models/mlvc-s");
