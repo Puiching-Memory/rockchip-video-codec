@@ -1,0 +1,354 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="1020" viewBox="0 0 1760 1020" font-family="'Segoe UI','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c00000"/>
+    </marker>
+  </defs>
+
+  <!-- ===== 标题 ===== -->
+  <text x="880" y="30" text-anchor="middle" font-size="22" font-weight="bold" fill="#1a1a1a">MLVC / MLVC-S 神经视频编解码模型架构</text>
+  <text x="880" y="52" text-anchor="middle" font-size="12.5" fill="#666">DMC-6.1SB（TraceableMLVC · split dmc61sbr_e1d1）· 特征域条件编码 + 双路时空先验 · RKNN FP16 · 示例形状 @640×368 / QP21</text>
+
+  <!-- ===== 顶部宏观流程 ===== -->
+  <g font-size="12">
+    <!-- 1 当前帧 -->
+    <rect x="20" y="78" width="160" height="40" rx="6" fill="#e7e6e6" stroke="#bfbfbf"/>
+    <text x="100" y="95" text-anchor="middle" font-weight="bold">当前帧 x</text>
+    <text x="100" y="110" text-anchor="middle" font-size="10.5" fill="#555">1×3×368×640（−0.5）</text>
+    <!-- 2 Encoder -->
+    <rect x="200" y="78" width="220" height="40" rx="6" fill="#9dc3e6" stroke="#2e75b6"/>
+    <text x="310" y="95" text-anchor="middle" font-weight="bold">MLVCEncoder.rknn</text>
+    <text x="310" y="110" text-anchor="middle" font-size="10.5" fill="#333">NPU FP16 · 2 入 / 4 出</text>
+    <!-- 3 latents -->
+    <rect x="440" y="78" width="160" height="40" rx="6" fill="#ffe599" stroke="#bf9000"/>
+    <text x="520" y="95" text-anchor="middle" font-weight="bold">latent 量化残差</text>
+    <text x="520" y="110" text-anchor="middle" font-size="10.5" fill="#555">z_raw · y_raw_0 · y_raw_1</text>
+    <!-- 4 rANS enc -->
+    <rect x="620" y="78" width="210" height="40" rx="6" fill="#ea9999" stroke="#c00000"/>
+    <text x="725" y="95" text-anchor="middle" font-weight="bold">rANS 熵编码</text>
+    <text x="725" y="110" text-anchor="middle" font-size="10.5" fill="#555">gaussian.bin + bitest.bin（PMF1）</text>
+    <!-- 5 stream -->
+    <rect x="850" y="78" width="160" height="40" rx="6" fill="#d9d9d9" stroke="#7f7f7f"/>
+    <text x="930" y="95" text-anchor="middle" font-weight="bold">.mlvc 码流</text>
+    <text x="930" y="110" text-anchor="middle" font-size="10.5" fill="#555">QP 21 · QPP1 可切换</text>
+    <!-- 6 rANS dec -->
+    <rect x="1030" y="78" width="220" height="40" rx="6" fill="#ea9999" stroke="#c00000"/>
+    <text x="1140" y="95" text-anchor="middle" font-weight="bold">rANS 熵解码</text>
+    <text x="1140" y="110" text-anchor="middle" font-size="10.5" fill="#555">ẑ · ŷ（双路棋盘重建）</text>
+    <!-- 7 Decoder -->
+    <rect x="1270" y="78" width="220" height="40" rx="6" fill="#9dc3e6" stroke="#2e75b6"/>
+    <text x="1380" y="95" text-anchor="middle" font-weight="bold">MLVCDecoder.rknn</text>
+    <text x="1380" y="110" text-anchor="middle" font-size="10.5" fill="#333">NPU FP16 · 4 入 / 2 出</text>
+    <!-- 8 out -->
+    <rect x="1510" y="78" width="230" height="40" rx="6" fill="#c5e0b4" stroke="#548235"/>
+    <text x="1625" y="95" text-anchor="middle" font-weight="bold">x̂ 1×3×368×640</text>
+    <text x="1625" y="110" text-anchor="middle" font-size="10.5" fill="#333">CPU DepthToSpace(DCR)+Clip</text>
+    <!-- DPB in -->
+    <rect x="200" y="130" width="220" height="34" rx="6" fill="#e7e6e6" stroke="#bfbfbf"/>
+    <text x="310" y="144" text-anchor="middle" font-size="11" font-weight="bold">DPB：ref_feature 1×2F×46×80</text>
+    <text x="310" y="158" text-anchor="middle" font-size="10" fill="#555">首帧由 FeatureAdaptor-I 从参考帧生成</text>
+    <!-- DPB out -->
+    <rect x="1270" y="130" width="220" height="34" rx="6" fill="#f4cccc" stroke="#c00000"/>
+    <text x="1380" y="144" text-anchor="middle" font-size="11" font-weight="bold">ref_feature′ = Cat(feature, memory)</text>
+    <text x="1380" y="158" text-anchor="middle" font-size="10" fill="#555">1×2F×46×80 · 写回 DPB 供下一帧</text>
+    <!-- arrows -->
+    <line x1="180" y1="98" x2="198" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="420" y1="98" x2="438" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="600" y1="98" x2="618" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="830" y1="98" x2="848" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="1010" y1="98" x2="1028" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="1250" y1="98" x2="1268" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="1490" y1="98" x2="1508" y2="98" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="310" y1="130" x2="310" y2="120" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="1380" y1="118" x2="1380" y2="128" stroke="#c00000" stroke-width="1.6" marker-end="url(#arr)"/>
+    <path d="M1270,147 L420,147" stroke="#c00000" stroke-width="1.4" stroke-dasharray="6,4" fill="none" marker-end="url(#arr)"/>
+    <text x="845" y="141" text-anchor="middle" font-size="10" fill="#c00000">递归参考（供下一帧）</text>
+  </g>
+
+  <!-- ===== 列标题 ===== -->
+  <text x="25" y="205" font-size="15" font-weight="bold" fill="#1a1a1a">① Encoder 图（特征域条件编码）</text>
+  <text x="535" y="205" font-size="15" font-weight="bold" fill="#1a1a1a">② 熵先验（双路时空）+ Decoder 图</text>
+  <text x="1045" y="205" font-size="15" font-weight="bold" fill="#1a1a1a">③ 变体配置 · 模块细节 · 运行时契约</text>
+
+  <!-- ===== 左列：Encoder 图 ===== -->
+  <!-- L0 -->
+  <text x="148" y="252" text-anchor="end" font-size="10.5" fill="#777">1×3×368×640</text>
+  <rect x="155" y="225" width="350" height="50" rx="6" fill="#e7e6e6" stroke="#bfbfbf"/>
+  <text x="168" y="244" font-size="13" font-weight="bold" fill="#1a1a1a">输入：当前帧 x</text>
+  <text x="168" y="261" font-size="11" fill="#444">I420 → float，+ input_offset(−0.5)</text>
+  <circle cx="490" cy="262" r="9" fill="#fff" stroke="#999"/><text x="490" y="266" text-anchor="middle" font-size="10" fill="#555">0</text>
+  <!-- L1 -->
+  <text x="148" y="314" text-anchor="end" font-size="10.5" fill="#777">1×2F×46×80</text>
+  <rect x="155" y="287" width="350" height="50" rx="6" fill="#e7e6e6" stroke="#bfbfbf"/>
+  <text x="168" y="306" font-size="13" font-weight="bold" fill="#1a1a1a">DPB：ref_feature</text>
+  <text x="168" y="323" font-size="11" fill="#444">首帧：x̂ref → PUnshuffle8 → DCB 192→2F → chunk</text>
+  <circle cx="490" cy="324" r="9" fill="#fff" stroke="#999"/><text x="490" y="328" text-anchor="middle" font-size="10" fill="#555">1</text>
+  <!-- L2 -->
+  <text x="148" y="376" text-anchor="end" font-size="10.5" fill="#777">1×F×46×80</text>
+  <rect x="155" y="349" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="168" y="368" font-size="13" font-weight="bold" fill="#1a1a1a">FeatureAdaptor-P</text>
+  <text x="168" y="385" font-size="11" fill="#444">Conv 1×1，F→F（chain_feature_adaptors）</text>
+  <circle cx="490" cy="386" r="9" fill="#fff" stroke="#999"/><text x="490" y="390" text-anchor="middle" font-size="10" fill="#555">2</text>
+  <!-- L3 -->
+  <text x="148" y="433" text-anchor="end" font-size="10.5" fill="#777">ctx_t 1×H×46×80</text>
+  <rect x="155" y="411" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="168" y="430" font-size="13" font-weight="bold" fill="#1a1a1a">FeatureExtractor.conv1</text>
+  <text x="168" y="447" font-size="11" fill="#444">L1 × DepthConvBlock（F→H）→ ⊙q_feature ⇒ ctx_t</text>
+  <circle cx="490" cy="448" r="9" fill="#fff" stroke="#999"/><text x="490" y="452" text-anchor="middle" font-size="10" fill="#555">3</text>
+  <!-- L4 -->
+  <text x="148" y="495" text-anchor="end" font-size="10.5" fill="#777">ctx 1×H×46×80</text>
+  <rect x="155" y="473" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="168" y="492" font-size="13" font-weight="bold" fill="#1a1a1a">FeatureExtractor.conv2</text>
+  <text x="168" y="509" font-size="11" fill="#444">L2 × DepthConvBlock（H→H）⇒ ctx</text>
+  <circle cx="490" cy="510" r="9" fill="#fff" stroke="#999"/><text x="490" y="514" text-anchor="middle" font-size="10" fill="#555">4</text>
+  <!-- L5 -->
+  <text x="148" y="552" text-anchor="end" font-size="10.5" fill="#777">192×46×80</text>
+  <text x="148" y="566" text-anchor="end" font-size="10.5" fill="#777">→ H×46×80</text>
+  <rect x="155" y="535" width="350" height="50" rx="6" fill="#d9d2e9" stroke="#7030a0"/>
+  <text x="168" y="554" font-size="13" font-weight="bold" fill="#1a1a1a">PixelUnshuffle(8) + Conv 1×1</text>
+  <text x="168" y="571" font-size="11" fill="#444">3·8²=192 → H（与参考特征同分辨率）</text>
+  <circle cx="490" cy="572" r="9" fill="#fff" stroke="#999"/><text x="490" y="576" text-anchor="middle" font-size="10" fill="#555">5</text>
+  <!-- L6 -->
+  <text x="148" y="624" text-anchor="end" font-size="10.5" fill="#777">1×2H×46×80</text>
+  <rect x="155" y="597" width="350" height="50" rx="6" fill="#f8cbad" stroke="#c55a11"/>
+  <text x="168" y="616" font-size="13" font-weight="bold" fill="#1a1a1a">Cat(feature, ctx)</text>
+  <text x="168" y="633" font-size="11" fill="#444">沿通道拼接当前帧特征与时序上下文</text>
+  <circle cx="490" cy="634" r="9" fill="#fff" stroke="#999"/><text x="490" y="638" text-anchor="middle" font-size="10" fill="#555">6</text>
+  <!-- L7 -->
+  <text x="148" y="686" text-anchor="end" font-size="10.5" fill="#777">1×H×46×80</text>
+  <rect x="155" y="659" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="168" y="678" font-size="13" font-weight="bold" fill="#1a1a1a">Encoder 主体</text>
+  <text x="168" y="695" font-size="11" fill="#444">DCB(2H→H) → 2×DCB(H→H) → ⊙q_encoder</text>
+  <circle cx="490" cy="696" r="9" fill="#fff" stroke="#999"/><text x="490" y="700" text-anchor="middle" font-size="10" fill="#555">7</text>
+  <!-- L8 -->
+  <text x="148" y="743" text-anchor="end" font-size="10.5" fill="#777">y 1×Y×23×40</text>
+  <text x="148" y="757" text-anchor="end" font-size="10.5" fill="#777">（pad 24×40）</text>
+  <rect x="155" y="721" width="350" height="50" rx="6" fill="#9dc3e6" stroke="#2e75b6"/>
+  <text x="168" y="740" font-size="13" font-weight="bold" fill="#1a1a1a">下采样 Conv k=3 s=2 p=1</text>
+  <text x="168" y="757" font-size="11" fill="#444">H→Y，⇒ 主 latent y（1/16 分辨率）</text>
+  <circle cx="490" cy="758" r="9" fill="#fff" stroke="#999"/><text x="490" y="762" text-anchor="middle" font-size="10" fill="#555">8</text>
+  <!-- L9 -->
+  <text x="148" y="805" text-anchor="end" font-size="10.5" fill="#777">z：128×3×5</text>
+  <text x="148" y="819" text-anchor="end" font-size="10.5" fill="#777">（S：48×6×10）</text>
+  <rect x="155" y="783" width="350" height="50" rx="6" fill="#9dc3e6" stroke="#2e75b6"/>
+  <text x="168" y="802" font-size="13" font-weight="bold" fill="#1a1a1a">HyperEncoder（y → z）</text>
+  <text x="168" y="819" font-size="11" fill="#444">full：DCB+3×ResStride2｜mini：2×Conv k=2 s=2</text>
+  <circle cx="490" cy="820" r="9" fill="#fff" stroke="#999"/><text x="490" y="824" text-anchor="middle" font-size="10" fill="#555">9</text>
+  <!-- L10 -->
+  <text x="148" y="872" text-anchor="end" font-size="10.5" fill="#777">ẑ 同 z 形状</text>
+  <rect x="155" y="845" width="350" height="50" rx="6" fill="#ffe599" stroke="#bf9000"/>
+  <text x="168" y="864" font-size="13" font-weight="bold" fill="#1a1a1a">Quantize</text>
+  <text x="168" y="881" font-size="11" fill="#444">z_raw = round(z) ⇒ rANS；ẑ ⇒ 先验链路</text>
+  <circle cx="490" cy="882" r="9" fill="#fff" stroke="#999"/><text x="490" y="886" text-anchor="middle" font-size="10" fill="#555">10</text>
+  <!-- 左列主干箭头 -->
+  <line x1="330" y1="337" x2="330" y2="347" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="399" x2="330" y2="409" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="461" x2="330" y2="471" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="585" x2="330" y2="595" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="647" x2="330" y2="657" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="709" x2="330" y2="719" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="771" x2="330" y2="781" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="330" y1="833" x2="330" y2="843" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <!-- 跨列连线：先铺白色底衬，交叉处形成跳线 -->
+  <g stroke="#fff" stroke-width="4.5" fill="none" stroke-linejoin="round">
+    <path d="M505,250 L548,250 L548,560 L507,560"/>
+    <path d="M505,436 L528,436 L528,343 L880,343 L880,347"/>
+    <path d="M505,498 L512,498 L512,591 L420,591 L420,595"/>
+    <path d="M512,591 L512,715 L900,715 L900,719"/>
+    <path d="M505,746 L536,746 L536,467 L890,467 L890,471"/>
+    <path d="M505,870 L520,870 L520,213 L800,213 L800,223"/>
+    <path d="M520,281 L870,281 L870,285"/>
+    <path d="M1015,312 L1022,312 L1022,436 L1017,436"/>
+    <path d="M1015,250 L1034,250 L1034,492 L1017,492"/>
+  </g>
+  <!-- x → L5（灰） -->
+  <path d="M505,250 L548,250 L548,560 L507,560" stroke="#555" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <!-- ctx_t → M2 顶（蓝） -->
+  <path d="M505,436 L528,436 L528,343 L880,343 L880,347" stroke="#2e75b6" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <!-- ctx → L6 顶 / M8 顶（蓝） -->
+  <path d="M505,498 L512,498 L512,591 L420,591 L420,595" stroke="#2e75b6" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <path d="M512,591 L512,715 L900,715 L900,719" stroke="#2e75b6" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <!-- y → M4 顶（金） -->
+  <path d="M505,746 L536,746 L536,467 L890,467 L890,471" stroke="#bf9000" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <!-- ẑ → M0 顶 / M1 顶（金） -->
+  <path d="M505,870 L520,870 L520,213 L800,213 L800,223" stroke="#bf9000" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <path d="M520,281 L870,281 L870,285" stroke="#bf9000" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <!-- hier：M1 右缘 → M3 右缘（绕开 M2 块） -->
+  <path d="M1015,312 L1022,312 L1022,436 L1017,436" stroke="#2e75b6" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+  <!-- y_scales：M0 右缘 → M4 右缘 -->
+  <path d="M1015,250 L1034,250 L1034,492 L1017,492" stroke="#bf9000" stroke-width="1.6" fill="none" marker-end="url(#ar)"/>
+
+  <!-- ===== 中列：先验 + Decoder ===== -->
+  <!-- M0 -->
+  <text x="658" y="252" text-anchor="end" font-size="10.5" fill="#777">1×Y×23×40</text>
+  <rect x="665" y="225" width="350" height="50" rx="6" fill="#ffe599" stroke="#bf9000"/>
+  <text x="678" y="244" font-size="13" font-weight="bold" fill="#1a1a1a">y_scales 生成（逐通道 scale）</text>
+  <text x="678" y="261" font-size="11" fill="#444">|ẑ[0:Y/R]| → repeat R → 最近邻上采样 ×2^b</text>
+  <circle cx="1000" cy="262" r="9" fill="#fff" stroke="#999"/><text x="1000" y="266" text-anchor="middle" font-size="10" fill="#555">11</text>
+  <!-- M1 -->
+  <text x="658" y="314" text-anchor="end" font-size="10.5" fill="#777">hier 1×Y×23×40</text>
+  <rect x="665" y="287" width="350" height="50" rx="6" fill="#9dc3e6" stroke="#2e75b6"/>
+  <text x="678" y="306" font-size="13" font-weight="bold" fill="#1a1a1a">HyperDecoder（ẑ → 层级先验）</text>
+  <text x="678" y="323" font-size="11" fill="#444">full：3×ResUpsample+DCB｜mini：2×SubpelConv2x</text>
+  <circle cx="1000" cy="324" r="9" fill="#fff" stroke="#999"/><text x="1000" y="328" text-anchor="middle" font-size="10" fill="#555">12</text>
+  <!-- M2 -->
+  <text x="658" y="376" text-anchor="end" font-size="10.5" fill="#777">1×2Y×23×40</text>
+  <rect x="665" y="349" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="678" y="368" font-size="13" font-weight="bold" fill="#1a1a1a">TemporalPriorEncoder</text>
+  <text x="678" y="385" font-size="11" fill="#444">ResidualBlockWithStride2（H→2Y，s=2）← ctx_t</text>
+  <circle cx="1000" cy="386" r="9" fill="#fff" stroke="#999"/><text x="1000" y="390" text-anchor="middle" font-size="10" fill="#555">13</text>
+  <!-- M3 -->
+  <text x="658" y="433" text-anchor="end" font-size="10.5" fill="#777">1×2Y×23×40</text>
+  <rect x="665" y="411" width="350" height="50" rx="6" fill="#f8cbad" stroke="#c55a11"/>
+  <text x="678" y="430" font-size="13" font-weight="bold" fill="#1a1a1a">Cat → PriorFusion</text>
+  <text x="678" y="447" font-size="11" fill="#444">3×DCB + Conv1×1 ⇒ quant_step(≥0.5) + means₀</text>
+  <circle cx="1000" cy="448" r="9" fill="#fff" stroke="#999"/><text x="1000" y="452" text-anchor="middle" font-size="10" fill="#555">14</text>
+  <!-- M4 -->
+  <text x="658" y="495" text-anchor="end" font-size="10.5" fill="#c00000">y_raw_0 ⇒ 码流</text>
+  <rect x="665" y="473" width="350" height="50" rx="6" fill="#ffe599" stroke="#bf9000"/>
+  <text x="678" y="492" font-size="13" font-weight="bold" fill="#1a1a1a">棋盘 chunk0（mask₀）</text>
+  <text x="678" y="509" font-size="11" fill="#444">y⊙q_enc − means₀ → Round → rANS ⇒ y_raw_0 → ŷ₀</text>
+  <circle cx="1000" cy="510" r="9" fill="#fff" stroke="#999"/><text x="1000" y="514" text-anchor="middle" font-size="10" fill="#555">15</text>
+  <!-- M5 -->
+  <text x="658" y="557" text-anchor="end" font-size="10.5" fill="#777">means₁ 1×Y</text>
+  <rect x="665" y="535" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="678" y="554" font-size="13" font-weight="bold" fill="#1a1a1a">SpatialPrior</text>
+  <text x="678" y="571" font-size="11" fill="#444">Cat(ŷ₀, params) → 2×DCB + Conv1×1 ⇒ means₁</text>
+  <circle cx="1000" cy="572" r="9" fill="#fff" stroke="#999"/><text x="1000" y="576" text-anchor="middle" font-size="10" fill="#555">16</text>
+  <!-- M6 -->
+  <text x="658" y="619" text-anchor="end" font-size="10.5" fill="#c00000">y_raw_1 ⇒ 码流</text>
+  <rect x="665" y="597" width="350" height="50" rx="6" fill="#ffe599" stroke="#bf9000"/>
+  <text x="678" y="616" font-size="13" font-weight="bold" fill="#1a1a1a">棋盘 chunk1（mask₁）</text>
+  <text x="678" y="633" font-size="11" fill="#444">−means₁ → Round → rANS ⇒ y_raw_1；ŷ=(ŷ₀+ŷ₁)⊙q_dec</text>
+  <circle cx="1000" cy="634" r="9" fill="#fff" stroke="#999"/><text x="1000" y="638" text-anchor="middle" font-size="10" fill="#555">17</text>
+  <!-- M7 -->
+  <text x="658" y="681" text-anchor="end" font-size="10.5" fill="#777">1×H×46×80</text>
+  <rect x="665" y="659" width="350" height="50" rx="6" fill="#d9d2e9" stroke="#7030a0"/>
+  <text x="678" y="678" font-size="13" font-weight="bold" fill="#1a1a1a">Decoder.up：SubpelConv2x</text>
+  <text x="678" y="695" font-size="11" fill="#444">Conv k=3 p=1（Y→4H）→ PixelShuffle(2)，↑1/8</text>
+  <circle cx="1000" cy="696" r="9" fill="#fff" stroke="#999"/><text x="1000" y="700" text-anchor="middle" font-size="10" fill="#555">18</text>
+  <!-- M8 -->
+  <text x="658" y="743" text-anchor="end" font-size="10.5" fill="#777">1×3F×46×80</text>
+  <rect x="665" y="721" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="678" y="740" font-size="13" font-weight="bold" fill="#1a1a1a">Cat(↑, ctx) → 3×DCB → Conv1×1</text>
+  <text x="678" y="757" font-size="11" fill="#444">2H→H→H→H → 3F（state / forget / output）</text>
+  <circle cx="1000" cy="758" r="9" fill="#fff" stroke="#999"/><text x="1000" y="762" text-anchor="middle" font-size="10" fill="#555">19</text>
+  <!-- M9 -->
+  <text x="658" y="805" text-anchor="end" font-size="10.5" fill="#c00000">ref_feature′ ⇒ 回写 DPB</text>
+  <text x="658" y="819" text-anchor="end" font-size="10.5" fill="#777">1×2F×46×80</text>
+  <rect x="665" y="783" width="350" height="50" rx="6" fill="#f4cccc" stroke="#c00000"/>
+  <text x="678" y="802" font-size="13" font-weight="bold" fill="#1a1a1a">门控记忆更新（ConvLSTM 风格）</text>
+  <text x="678" y="819" font-size="10.5" fill="#444">m′=f⊙m+(1−f)⊙s；feat=o⊙m′⊙q_dec；Cat(feat,m′)</text>
+  <circle cx="1000" cy="820" r="9" fill="#fff" stroke="#999"/><text x="1000" y="824" text-anchor="middle" font-size="10" fill="#555">20</text>
+  <!-- M10 -->
+  <text x="658" y="867" text-anchor="end" font-size="10.5" fill="#777">head 输出</text>
+  <text x="658" y="881" text-anchor="end" font-size="10.5" fill="#777">1×192×46×80</text>
+  <rect x="665" y="845" width="350" height="50" rx="6" fill="#bdd7ee" stroke="#2e75b6"/>
+  <text x="678" y="864" font-size="13" font-weight="bold" fill="#1a1a1a">ReconGeneration</text>
+  <text x="678" y="881" font-size="11" fill="#444">DCB(F→R)+3×DCB(R→R) → ⊙q_recon → Conv1×1 R→192</text>
+  <circle cx="1000" cy="882" r="9" fill="#fff" stroke="#999"/><text x="1000" y="886" text-anchor="middle" font-size="10" fill="#555">21</text>
+  <!-- M11 -->
+  <text x="658" y="934" text-anchor="end" font-size="10.5" fill="#777">x̂ 1×3×368×640</text>
+  <rect x="665" y="907" width="350" height="50" rx="6" fill="#c5e0b4" stroke="#548235"/>
+  <text x="678" y="926" font-size="13" font-weight="bold" fill="#1a1a1a">重建帧 x̂（图外 CPU）</text>
+  <text x="678" y="943" font-size="11" fill="#444">DepthToSpace(DCR) + Clip(0,1)，−input_offset</text>
+  <circle cx="1000" cy="944" r="9" fill="#fff" stroke="#999"/><text x="1000" y="948" text-anchor="middle" font-size="10" fill="#555">22</text>
+  <!-- 中列主干箭头 -->
+  <line x1="900" y1="399" x2="900" y2="409" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="461" x2="840" y2="471" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="523" x2="840" y2="533" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="585" x2="840" y2="595" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="647" x2="840" y2="657" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="709" x2="840" y2="719" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="771" x2="840" y2="781" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="833" x2="840" y2="843" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+  <line x1="840" y1="895" x2="840" y2="905" stroke="#555" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- ===== 右列：变体表 ===== -->
+  <text x="1045" y="222" font-size="13" font-weight="bold" fill="#1a1a1a">变体配置与 RK3576 实测（640×368 · FP16 · QP21）</text>
+  <g font-size="11">
+    <rect x="1045" y="230" width="695" height="24" fill="#4472c4"/>
+    <text x="1060" y="246" fill="#fff" font-weight="bold">参数</text>
+    <text x="1445" y="246" fill="#fff" font-weight="bold" text-anchor="middle">MLVC</text>
+    <text x="1633" y="246" fill="#fff" font-weight="bold" text-anchor="middle">MLVC-S</text>
+    <!-- rows -->
+    <g fill="#1a1a1a">
+      <rect x="1045" y="254" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="270">feature_channels　F</text><text x="1445" y="270" text-anchor="middle">128</text><text x="1633" y="270" text-anchor="middle">48</text>
+      <rect x="1045" y="276" width="695" height="22" fill="#fff"/><text x="1060" y="292">hidden_channels　H</text><text x="1445" y="292" text-anchor="middle">256</text><text x="1633" y="292" text-anchor="middle">192</text>
+      <rect x="1045" y="298" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="314">recon_channels　R</text><text x="1445" y="314" text-anchor="middle">256</text><text x="1633" y="314" text-anchor="middle">192</text>
+      <rect x="1045" y="320" width="695" height="22" fill="#fff"/><text x="1060" y="336">y_channels / z_channels　Y / Z</text><text x="1445" y="336" text-anchor="middle">128 / 128</text><text x="1633" y="336" text-anchor="middle">48 / 48</text>
+      <rect x="1045" y="342" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="358">spatial_prior_channels</text><text x="1445" y="358" text-anchor="middle">256</text><text x="1633" y="358" text-anchor="middle">128</text>
+      <rect x="1045" y="364" width="695" height="22" fill="#fff"/><text x="1060" y="380">HyperEnc/Dec（块数 × 变体）</text><text x="1445" y="380" text-anchor="middle">full ×3</text><text x="1633" y="380" text-anchor="middle">mini ×2</text>
+      <rect x="1045" y="386" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="402">FeatureExtractor 层数 L1 / L2</text><text x="1445" y="402" text-anchor="middle">2 / 4</text><text x="1633" y="402" text-anchor="middle">1 / 1</text>
+      <rect x="1045" y="408" width="695" height="22" fill="#fff"/><text x="1060" y="424">y_scale_repeat</text><text x="1445" y="424" text-anchor="middle">2</text><text x="1633" y="424" text-anchor="middle">4</text>
+      <rect x="1045" y="430" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="446">ref_feature 通道（2F）</text><text x="1445" y="446" text-anchor="middle">256</text><text x="1633" y="446" text-anchor="middle">96</text>
+      <rect x="1045" y="452" width="695" height="22" fill="#fff"/><text x="1060" y="468">z 空间分辨率</text><text x="1445" y="468" text-anchor="middle">3×5</text><text x="1633" y="468" text-anchor="middle">6×10</text>
+      <rect x="1045" y="474" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="490">编码节点 ms/帧（fps）</text><text x="1445" y="490" text-anchor="middle">95.29（10.5）</text><text x="1633" y="490" text-anchor="middle">47.78（20.9）</text>
+      <rect x="1045" y="496" width="695" height="22" fill="#fff"/><text x="1060" y="512">解码节点 ms/帧（fps）</text><text x="1445" y="512" text-anchor="middle">81.23（12.3）</text><text x="1633" y="512" text-anchor="middle">40.48（24.7）</text>
+      <rect x="1045" y="518" width="695" height="22" fill="#d9e2f3"/><text x="1060" y="534">bpp / Y MS-SSIM</text><text x="1445" y="534" text-anchor="middle">0.00884 / 0.9742</text><text x="1633" y="534" text-anchor="middle">0.00577 / 0.9707</text>
+    </g>
+    <rect x="1045" y="230" width="695" height="310" fill="none" stroke="#4472c4" stroke-width="1.5"/>
+    <line x1="1365" y1="230" x2="1365" y2="540" stroke="#4472c4"/>
+    <line x1="1525" y1="230" x2="1525" y2="540" stroke="#4472c4"/>
+  </g>
+
+  <!-- ===== 右列：DepthConvBlock 面板 ===== -->
+  <rect x="1045" y="560" width="695" height="270" rx="8" fill="#fff9e6" stroke="#d6b656" stroke-width="1.5"/>
+  <text x="1062" y="584" font-size="13.5" font-weight="bold" fill="#1a1a1a">DepthConvBlock（gated FFN · 全图基本积木）</text>
+  <g font-size="11">
+    <rect x="1062" y="596" width="250" height="26" rx="5" fill="#bdd7ee" stroke="#2e75b6"/>
+    <text x="1187" y="613" text-anchor="middle">adaptor：Conv 1×1（仅 in≠out）</text>
+    <rect x="1062" y="630" width="250" height="26" rx="5" fill="#9dc3e6" stroke="#2e75b6"/>
+    <text x="1187" y="647" text-anchor="middle">DC：1×1 → LeakyReLU → DW3×3 → 1×1</text>
+    <rect x="1062" y="664" width="250" height="26" rx="5" fill="#ffe599" stroke="#bf9000"/>
+    <text x="1187" y="681" text-anchor="middle">×α₁ ＋ 残差（α zero-init）</text>
+    <rect x="1062" y="698" width="250" height="26" rx="5" fill="#9dc3e6" stroke="#2e75b6"/>
+    <text x="1187" y="715" text-anchor="middle">FFN：1×1（C→4C）→ ReLU1(g)⊙v</text>
+    <rect x="1062" y="732" width="250" height="26" rx="5" fill="#ffe599" stroke="#bf9000"/>
+    <text x="1187" y="749" text-anchor="middle">1×1（2C→C）→ ×α₂ ＋ 残差</text>
+    <line x1="1187" y1="622" x2="1187" y2="628" stroke="#555" stroke-width="1.4" marker-end="url(#ar)"/>
+    <line x1="1187" y1="656" x2="1187" y2="662" stroke="#555" stroke-width="1.4" marker-end="url(#ar)"/>
+    <line x1="1187" y1="690" x2="1187" y2="696" stroke="#555" stroke-width="1.4" marker-end="url(#ar)"/>
+    <line x1="1187" y1="724" x2="1187" y2="730" stroke="#555" stroke-width="1.4" marker-end="url(#ar)"/>
+  </g>
+  <g font-size="11" fill="#333">
+    <text x="1340" y="606">· zero_init_residual：α₁/α₂ 从 0 学起，稳定训练</text>
+    <text x="1340" y="628">· gated FFN：chunk2 后 ReLU1(gate) ⊙ value</text>
+    <text x="1340" y="650">　（ReLU1 = clamp(x, 0, 1)，C→4C→2C→C）</text>
+    <text x="1340" y="672">· ResStride2 / ResUpsample 内 DCB shortcut=True</text>
+    <text x="1340" y="694">· DW3×3 为 depthwise（groups=C），无 BN</text>
+    <text x="1340" y="716">· SubpelConv2x = Conv → PixelShuffle(2)</text>
+    <text x="1340" y="738">· Encoder / HyperEnc / Recon 头部固定 FP32 trace</text>
+    <text x="1340" y="760">· QP 嵌入 q_enc / q_dec / q_feature / q_recon 为</text>
+    <text x="1340" y="782">　逐通道增益（qp 折常量，QPP1 补丁切换）</text>
+  </g>
+
+  <!-- ===== 右列：熵编码与 RKNN 契约面板 ===== -->
+  <rect x="1045" y="845" width="695" height="155" rx="8" fill="#f2f2f2" stroke="#7f7f7f" stroke-width="1.5"/>
+  <text x="1062" y="869" font-size="13.5" font-weight="bold" fill="#1a1a1a">熵编码与 RKNN 运行时契约</text>
+  <g font-size="11" fill="#333">
+    <text x="1062" y="892">· y：逐通道高斯 rANS（means/scale ← 双路先验），PMF 表 gaussian.bin（index_space=1）</text>
+    <text x="1062" y="912">· z：位估计器 rANS，z_idx = qp×ZC + c，PMF 表 bitest.bin（qp_num × channels）</text>
+    <text x="1062" y="932">· 编码图：in [x, ref_feature] → out [feature, z_raw, y_raw_0, y_raw_1]，native 零拷贝输入 + 逻辑 NCHW 输出</text>
+    <text x="1062" y="952">· 解码图：in [z_raw, y_raw_0, y_raw_1, ref_feature] → out [x_hat(head 192ch), feature]，native NC1HWC2 零拷贝</text>
+    <text x="1062" y="972">· x_hat 尾部 DepthToSpace(DCR)+Clip 拆出图外，node_mlvc.c 在 CPU 完成</text>
+    <text x="1062" y="992">· 码流头 + rANS 状态机见 lib/node_mlvc.c；PMF 二进制布局见 tools/mlvc/pmf.py（PMF1）</text>
+  </g>
+
+  <!-- ===== 图例 ===== -->
+  <text x="25" y="925" font-size="12" font-weight="bold" fill="#1a1a1a">图例</text>
+  <g font-size="10.5" fill="#333">
+    <rect x="25" y="936" width="16" height="12" fill="#e7e6e6" stroke="#bfbfbf"/><text x="46" y="946">输入 / DPB</text>
+    <rect x="130" y="936" width="16" height="12" fill="#bdd7ee" stroke="#2e75b6"/><text x="151" y="946">Conv / DCB 特征变换</text>
+    <rect x="280" y="936" width="16" height="12" fill="#9dc3e6" stroke="#2e75b6"/><text x="301" y="946">下/上采样模块</text>
+    <rect x="410" y="936" width="16" height="12" fill="#f8cbad" stroke="#c55a11"/><text x="431" y="946">Cat 拼接</text>
+    <rect x="25" y="958" width="16" height="12" fill="#d9d2e9" stroke="#7030a0"/><text x="46" y="968">Pixel(Un)Shuffle</text>
+    <rect x="165" y="958" width="16" height="12" fill="#ffe599" stroke="#bf9000"/><text x="186" y="968">量化 / QP 嵌入</text>
+    <rect x="300" y="958" width="16" height="12" fill="#f4cccc" stroke="#c00000"/><text x="321" y="968">门控记忆</text>
+    <rect x="410" y="958" width="16" height="12" fill="#c5e0b4" stroke="#548235"/><text x="431" y="968">重建输出</text>
+    <text x="25" y="992" font-size="10" fill="#777">形状标注约定：C×H×W（N=1 省略）；F/H/R/Y/Z 为变体通道代号，数值见右上变体表；b = hyperprior 块数（MLVC=3，MLVC-S=2）。</text>
+  </g>
+</svg>

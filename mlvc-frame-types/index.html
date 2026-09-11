@@ -1,0 +1,971 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/mlvc-frame-types/">
+      
+      
+        <link rel="prev" href="../mlvc-rknn-export/">
+      
+      
+        <link rel="next" href="../sr-model-yuv-spec/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.60">
+    
+    
+      
+        <title>MLVC 帧型机制 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ce62732f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/doxide.css">
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#mlvc-i-p-ltr" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MLVC 帧型机制
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 引用
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  部署
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../portable-package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  可移植包集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC 帧型机制
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC 帧型机制
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上游出处
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        核心：帧型 = 参考来源，模型只有一个
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#i" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        出货配置关掉了 I 帧自参考支路
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        帧型状态机对照
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        待确认的口径问题
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        相关文件
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sr-model-yuv-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SR 模型规格
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../semantic-codec-sdk-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  语义编解码 SDK 集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gb28181-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GB28181 推流
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        上游出处
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        核心：帧型 = 参考来源，模型只有一个
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#i" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        出货配置关掉了 I 帧自参考支路
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        帧型状态机对照
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        待确认的口径问题
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        相关文件
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="mlvc-i-p-ltr">MLVC 帧型与参考机制（I / P / LTR）<a class="headerlink" href="#mlvc-i-p-ltr" title="Permanent link">&para;</a></h1>
+<p>本文说明 <code>codecs/mlvc</code> 的 I 帧 / P 帧 / LTR 恢复帧语义——<strong>帧型只决定「参考先验来自哪里」，
+编解码各只有一个模型</strong>。内容分两部分：上游 microsoft/mlvc 的原始设计，以及本仓 C++ 实现
+与它的对应关系。</p>
+<h2 id="_1">上游出处<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>MLVC: Multi-platform Learned Video Codec for Real-World Deployment</strong>
+  （Pärnamaa / Lumiste / Loot / Indenbom / Znobishchev / Saabas，arXiv 2606.28027）。</li>
+<li>上游 README 声明起点是 <strong>DCVC-RT</strong>（<code>microsoft/DCVC</code>），熵编码适配自 <strong>ryg_rans</strong>。</li>
+<li>本仓库不 vendoring 上游代码，模型由 <code>tools/mlvc/export_rknn.py --from-mlvc</code> 从
+  <code>mlvc-psnr-v1.ckpt</code> 导出，见 <code>docs/mlvc-rknn-export.md</code>。</li>
+</ul>
+<h2 id="_2">核心：帧型 = 参考来源，模型只有一个<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>上游 <code>video/conversion/_full_model/_dmc61sb_model.py</code> 的 <code>apply_feature_adaptor(dpb)</code>
+承担全部帧型语义：</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">apply_feature_adaptor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dpb</span><span class="p">):</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_params</span><span class="o">.</span><span class="n">disable_feature_reset</span><span class="p">:</span>              <span class="c1"># ← 出货配置走这条</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        <span class="n">feature_ref_feature</span><span class="p">,</span> <span class="n">feature_ref_memory</span> <span class="o">=</span> <span class="n">dpb</span><span class="p">[</span><span class="s2">"ref_feature"</span><span class="p">]</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        <span class="n">feature_ref_feature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_adaptor_p</span><span class="p">(</span><span class="n">feature_ref_feature</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>        <span class="k">return</span> <span class="n">feature_ref_feature</span><span class="p">,</span> <span class="n">feature_ref_memory</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="k">else</span><span class="p">:</span>                                                    <span class="c1"># ← 通用变体</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>        <span class="n">frame</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shift_input</span><span class="p">(</span><span class="n">dpb</span><span class="p">[</span><span class="s2">"ref_frame"</span><span class="p">])</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>        <span class="n">ref_frame</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">pixel_unshuffle</span><span class="p">(</span><span class="n">frame</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pixel_shuffle_factor</span><span class="p">)</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>        <span class="n">frame_feature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_adaptor_i</span><span class="p">(</span><span class="n">ref_frame</span><span class="p">)</span>     <span class="c1"># 自参考：用参考帧自己造先验</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>        <span class="n">frame_ref_feature</span><span class="p">,</span> <span class="n">frame_ref_memory</span> <span class="o">=</span> <span class="n">frame_feature</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chain_feature_adaptors</span><span class="p">:</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>            <span class="n">frame_ref_feature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_adaptor_p</span><span class="p">(</span><span class="n">frame_ref_feature</span><span class="p">)</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">feature_ref_feature</span><span class="p">,</span> <span class="n">feature_ref_memory</span> <span class="o">=</span> <span class="n">dpb</span><span class="p">[</span><span class="s2">"ref_feature"</span><span class="p">]</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>        <span class="n">feature_ref_feature</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">feature_adaptor_p</span><span class="p">(</span><span class="n">feature_ref_feature</span><span class="p">)</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>        <span class="n">ref_exists</span> <span class="o">=</span> <span class="n">dpb</span><span class="p">[</span><span class="s2">"ref_exists"</span><span class="p">]</span>                        <span class="c1"># 0/1 软混合</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>        <span class="k">return</span> <span class="p">(</span><span class="n">ref_exists</span> <span class="o">*</span> <span class="n">feature_ref_feature</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">ref_exists</span><span class="p">)</span> <span class="o">*</span> <span class="n">frame_ref_feature</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>                <span class="n">ref_exists</span> <span class="o">*</span> <span class="n">feature_ref_memory</span>  <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">ref_exists</span><span class="p">)</span> <span class="o">*</span> <span class="n">frame_ref_memory</span><span class="p">)</span>
+</span></code></pre></div>
+<p>DPB 里的 <code>ref_feature</code> 是 <strong>2F 通道</strong>，即 <code>feature(F) ‖ memory(F)</code>（本仓 128+128=256），
+与 <code>codecs/mlvc/src/decoder.cpp</code> 里 <code>Cat(feature, memory)</code> 写回的形状一致。</p>
+<ul>
+<li><strong>P 帧</strong>：<code>ref_exists = 1</code> → 取 DPB 的 <code>ref_feature</code>，<code>feature</code> 半边过
+  <code>feature_adaptor_p</code>（1×1 conv）。</li>
+<li><strong>I 帧</strong>：<code>ref_exists = 0</code> → 不做时间预测，改用「参考帧自己」经
+  <code>pixel_unshuffle(8) → feature_adaptor_i → chunk(2)</code> 现造一份 (feature, memory)。</li>
+</ul>
+<p><code>chain_feature_adaptors: true</code> 让 I 路产出的 feature 再过一次 <code>feature_adaptor_p</code>，
+使两条路的通道统计对齐，模型才能共用。</p>
+<h2 id="i">出货配置关掉了 I 帧自参考支路<a class="headerlink" href="#i" title="Permanent link">&para;</a></h2>
+<p>上游 <code>video/conversion/_full_model/model_configs_example.yaml</code> 的<strong>两个条目</strong>（标准 MLVC 与
+MLVC-S）都写了：</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">params</span><span class="p">:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">disable_feature_reset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">chain_feature_adaptors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span></code></pre></div>
+<p><code>disable_feature_reset: true</code> 使 <code>apply_feature_adaptor</code> 永远走第一条分支：只读 DPB 的
+<code>ref_feature</code>，<code>ref_exists</code> / <code>ref_frame</code> 不进图。这解释了导出契约——<strong>编码图只有 2 个输入
+<code>[x, ref_feature]</code></strong>（见 <code>tools/mlvc/onnx_rewrite.py</code> 的 <code>ENC_INPUT_KEYS</code>），而不是 split 模型
+里的 5 输入 <code>[x, ref_frame, ref_feature, q_index_shifted, ref_exists]</code>。</p>
+<p>因此 I 帧由<strong>调用方给空参考</strong>：上游 <code>video/conversion/_frame_loop.py</code> 在 IDR 时</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">frame_type</span> <span class="o">=</span> <span class="n">FrameType</span><span class="o">.</span><span class="n">I_FRAME</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">cur_frame_idx</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">latest_ltr_frame_idx</span> <span class="o">=</span> <span class="kc">None</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">ref_manager_encoder</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">ref_manager_decoder</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+</span></code></pre></div>
+<p>随后 <code>ref_frame_idx = None</code> → <code>ref_manager.load(None)</code> 返回
+<code>video/conversion/_split_model/_base_split_model.py</code> 中的默认值
+（<code>ref_exists=False</code>、<code>ref_feature</code> 全零）。</p>
+<p>本仓 C++ 与此一致：<code>codecs/mlvc/src/encoder.cpp</code> 在 <code>is_idr</code> 时清零 <code>ref_prev</code> / <code>ref_ltr</code>
+并照常数喂 <code>ref_feature</code>；<code>codecs/mlvc/src/decoder.cpp</code> 收到 <code>kRecKeyframe</code> 时同样清零。
+<strong>I 帧 = 空先验 + 该帧自身图像</strong>，同一模型、同一张图。</p>
+<h2 id="_3">帧型状态机对照<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>上游 <code>video/conversion/_frame_loop.py</code></th>
+<th>本仓 <code>codecs/mlvc/src/encoder.cpp</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>i == 0 or (iframe_period and cur_frame_idx % iframe_period == 0)</code> → <code>I_FRAME</code>，<code>cur_frame_idx = 0</code></td>
+<td><code>is_idr</code>（首帧用 <code>frame_count == 0</code>）</td>
+</tr>
+<tr>
+<td>IDR 时 <code>ref_manager.clear()</code>、<code>latest_ltr_frame_idx = None</code></td>
+<td>清 <code>ref_prev</code> / <code>ref_ltr</code>，<code>have_ltr = false</code></td>
+</tr>
+<tr>
+<td><code>mark_as_ltr = ltr_period&gt;0 and (cur == ltr_start_idx or cur &gt; ltr_start_idx and cur % ltr_period == 0)</code></td>
+<td><code>mark_ltr</code>，同构</td>
+</tr>
+<tr>
+<td><code>proactive_ltr_recovery and mark_as_ltr and latest_ltr_frame_idx is not None</code> → <code>LTR_RECOVERY</code>，<code>ref_frame_idx = latest_ltr_frame_idx</code></td>
+<td><code>is_recovery</code>，参考取 <code>ref_ltr</code></td>
+</tr>
+<tr>
+<td>P 帧 <code>ref_frame_idx = cur_frame_idx - 1</code></td>
+<td>参考取 <code>ref_prev</code></td>
+</tr>
+<tr>
+<td>仅 <code>P_FRAME</code> 且非 <code>mark_as_ltr</code>、非 <code>feature_reset</code> 可丢，否则回退 <code>q_index = 0</code></td>
+<td>仅 <code>RcFrameType::P</code> 且 <code>!mark_ltr</code> 可丢，否则 <code>solved = 0</code></td>
+</tr>
+<tr>
+<td>丢弃帧解码时重复上一重建帧</td>
+<td>用 <code>last_nv12</code> 重发（<code>q_index = -1</code> 记录）</td>
+</tr>
+<tr>
+<td><code>RateController.solve_q_index(pt, frame_type, reserved_overhead_bits)</code></td>
+<td><code>rc-&gt;solve(pt, rc_type, kRecSize * 8)</code></td>
+</tr>
+</tbody>
+</table>
+<p>码控帧型为三分（<code>codecs/mlvc/include/mlvc/ratectl.hpp</code> 的 <code>RcFrameType</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>帧型</th>
+<th>参考先验</th>
+<th>记录 flags</th>
+<th>码控模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I</td>
+<td>空（全零）</td>
+<td><code>kRecKeyframe</code> 0x1</td>
+<td><code>m_i_</code> / <code>m_p_idr_</code></td>
+</tr>
+<tr>
+<td>P</td>
+<td><code>ref_prev</code></td>
+<td>无</td>
+<td><code>m_p_ltr_</code></td>
+</tr>
+<tr>
+<td>LTR 恢复</td>
+<td><code>ref_ltr</code></td>
+<td><code>kRecLtrRecovery</code> 0x4</td>
+<td><code>m_ltr_</code></td>
+</tr>
+</tbody>
+</table>
+<p>标记帧另有 <code>kRecLtrMark</code> 0x2；三者与容器 64B 头里的 <code>iframe_period</code> / <code>ltr_start_idx</code> /
+<code>ltr_period</code> / <code>hdr_flags</code> 一起构成 <code>.mlvc</code> 的帧型表达（<code>codecs/mlvc/include/mlvc/container.hpp</code>）。</p>
+<h2 id="_4">待确认的口径问题<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>架构图与出货配置不一致</strong>：<code>docs/images/mlvc-architecture.svg</code> 写
+   「首帧由 FeatureAdaptor-I 从参考帧生成」，即 <code>disable_feature_reset: false</code> 的那条支路；
+   但转换配置写的是 <code>true</code>，导出的 2 输入图里没有 <code>feature_adaptor_i</code>。
+   按配置推断本仓 I 帧是「零先验」，图注描述的却是「自参考先验」——两者只能有一个对得上
+   实际 RNKN，需实测确认。</li>
+<li><strong>DMCI 的角色</strong>：上游另有一个独立图像模型 <strong>DMCI-6.0</strong>（DCVC-RT 的
+   <code>cvpr2025_image.pth.tar</code>，<code>train_image.py</code> / <code>train_image-dcvcrt.yaml</code>），README 归类为
+   <em>auxiliary</em>；基准锚点文件名为 <code>dcvcrt_with_iframe_metrics_*.json</code>。它不参与 <code>dmc61sbr</code>
+   的导出图，主要用于 I 帧指标与对比。本仓没有第三个模型，I 帧只走「空参考」路径。</li>
+<li><strong><code>feature_reset</code> / <code>reset_period</code> 未实现</strong>：上游有周期性特征重置（<code>reset_period</code>），
+   出货配置为 <code>null</code>，故本仓 C++ 未实现，丢帧条件中也就少了 <code>feature_reset</code> 一项。</li>
+</ol>
+<h2 id="_5">相关文件<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>codecs/mlvc/src/encoder.cpp</code>、<code>codecs/mlvc/src/decoder.cpp</code>：帧型判定与双槽 DPB</li>
+<li><code>codecs/mlvc/include/mlvc/ratectl.hpp</code>：<code>RcFrameType</code> 与四个 R-Q 模型</li>
+<li><code>codecs/mlvc/include/mlvc/container.hpp</code>：记录 flags 与头字段</li>
+<li><code>tools/mlvc/onnx_rewrite.py</code>：导出图的 I/O 契约（<code>ENC_INPUT_KEYS</code> / <code>DEC_INPUT_KEYS</code>）</li>
+<li><code>tools/mlvc/export_onnx.py</code>：MLVC-S 转换配置（含 <code>disable_feature_reset</code> / <code>chain_feature_adaptors</code>）</li>
+<li><code>docs/images/mlvc-architecture.svg</code>：MLVC / MLVC-S 模型架构图</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88ee1349.min.js"></script>
+      
+    
+  </body>
+</html>

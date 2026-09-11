@@ -1,0 +1,1762 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/api/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../deployment/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.60">
+    
+    
+      
+        <title>rkvc API 引用 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ce62732f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/doxide.css">
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#rkvc-api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              rkvc API 引用
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 引用
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 引用
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#macros" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Macros
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Functions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#macro-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Macro Details
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Macro Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_ts_unknown" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RKVC_FRAME_TS_UNKNOWN
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Function Details
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Function Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_add_model_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_add_model_dir
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_create
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_destroy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_destroy
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_options_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_options_init
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_diag_fmt_text" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_diag_fmt_text
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_diag_release" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_diag_release
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_desc_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_desc_init
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_get_desc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_get_desc
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_release" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_release
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_wrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_wrap
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_wrap_owned" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_wrap_owned
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_probe_device" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_probe_device
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_create
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_destroy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_destroy
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_error_text" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_error_text
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_pull
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_push" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_push
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_push_eos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_push_eos
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_request_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_request_init
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_start" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_start
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_try_pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_try_pull
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_wait
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_status_str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_status_str
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  部署
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../portable-package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  可移植包集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-frame-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC 帧型机制
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sr-model-yuv-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SR 模型规格
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../semantic-codec-sdk-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  语义编解码 SDK 集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gb28181-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GB28181 推流
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#macros" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Macros
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#functions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Functions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#macro-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Macro Details
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Macro Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_ts_unknown" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RKVC_FRAME_TS_UNKNOWN
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#function-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Function Details
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Function Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_add_model_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_add_model_dir
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_create
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_destroy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_destroy
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_context_options_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_context_options_init
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_diag_fmt_text" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_diag_fmt_text
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_diag_release" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_diag_release
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_desc_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_desc_init
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_get_desc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_get_desc
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_release" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_release
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_wrap" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_wrap
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_frame_wrap_owned" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_frame_wrap_owned
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_probe_device" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_probe_device
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_create" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_create
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_destroy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_destroy
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_error_text" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_error_text
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_pull
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_push" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_push
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_push_eos" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_push_eos
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_request_init" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_request_init
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_start" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_start
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_try_pull" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_try_pull
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_session_wait" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_session_wait
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rkvc_status_str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        rkvc_status_str
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="rkvc-api">rkvc API 引用<a class="headerlink" href="#rkvc-api" title="Permanent link">&para;</a></h1>
+<p>Rockchip 媒体图运行库（C++20 会话式媒体运行库，稳定 C ABI 0.5.0）API 引用</p>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5.12 5h13.75l-.94-1h-12zm15.42.23c.29.34.46.77.46 1.27V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5c0-.5.17-.93.46-1.27l1.38-1.68C5.12 3.21 5.53 3 6 3h12c.47 0 .88.21 1.15.55zM6 18h6v-3H6z"/></svg></span> <a href="rkvc/">rkvc</a></dt>
+<dd></dd>
+</dl>
+<h2 id="types">Types<a class="headerlink" href="#types" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="rkvc_status/">rkvc_status</a></td>
+<td>操作状态码。负值为错误；<code>RKVC_OK</code> 表示成功，<code>RKVC_AGAIN</code>/<code>RKVC_EOF</code> 是会话流控的正常终态；语义与 C++ 侧 <code>rkvc::Status</code> 一一对应。</td>
+</tr>
+<tr>
+<td><a href="rkvc_operation/">rkvc_operation</a></td>
+<td>会话操作类型。</td>
+</tr>
+<tr>
+<td><a href="rkvc_codec/">rkvc_codec</a></td>
+<td>编解码器。</td>
+</tr>
+<tr>
+<td><a href="rkvc_policy/">rkvc_policy</a></td>
+<td>执行策略（时延/质量权衡）。</td>
+</tr>
+<tr>
+<td><a href="rkvc_frame_fmt/">rkvc_frame_fmt</a></td>
+<td>帧像素格式。</td>
+</tr>
+<tr>
+<td><a href="rkvc_mem_domain/">rkvc_mem_domain</a></td>
+<td>帧内存域。</td>
+</tr>
+<tr>
+<td><a href="rkvc_endpoint_kind/">rkvc_endpoint_kind</a></td>
+<td>端点类型。</td>
+</tr>
+<tr>
+<td><a href="rkvc_context_options/">rkvc_context_options</a></td>
+<td>上下文创建选项。结构体自带 <code>struct_size</code>/<code>version</code> 用于前后向兼容演进。</td>
+</tr>
+<tr>
+<td><a href="rkvc_endpoint/">rkvc_endpoint</a></td>
+<td>流端点描述（会话输入或输出）。</td>
+</tr>
+<tr>
+<td><a href="rkvc_quality/">rkvc_quality</a></td>
+<td>编码质量参数。</td>
+</tr>
+<tr>
+<td><a href="rkvc_session_request/">rkvc_session_request</a></td>
+<td>会话创建请求。</td>
+</tr>
+<tr>
+<td><a href="rkvc_frame_spec/">rkvc_frame_spec</a></td>
+<td>帧规格（宽/高/stride 为 0 表示通配或待探测）。</td>
+</tr>
+<tr>
+<td><a href="rkvc_frame_desc/">rkvc_frame_desc</a></td>
+<td>帧描述（包装与查询用）。</td>
+</tr>
+<tr>
+<td><a href="rkvc_caps/">rkvc_caps</a></td>
+<td>设备能力探测结果。</td>
+</tr>
+</tbody>
+</table>
+<h2 id="macros">Macros<a class="headerlink" href="#macros" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#RKVC_FRAME_TS_UNKNOWN">RKVC_FRAME_TS_UNKNOWN</a></td>
+<td>未知时间戳标记</td>
+</tr>
+</tbody>
+</table>
+<h2 id="functions">Functions<a class="headerlink" href="#functions" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#rkvc_status_str">rkvc_status_str</a></td>
+<td>状态码转可读字符串（静态存储，无需释放）。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_context_options_init">rkvc_context_options_init</a></td>
+<td>初始化上下文选项（填写 <code>struct_size</code>/<code>version</code>）。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>opts</code> :    选项结构。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code> :    传入的缓冲区大小，用于向后兼容校验。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_context_create">rkvc_context_create</a></td>
+<td>创建运行上下文。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>opts</code> :    选项；可传 NULL 使用默认值。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code> :    接收上下文句柄。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong> :    成功返回 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_context_destroy">rkvc_context_destroy</a></td>
+<td>销毁上下文，并释放其持有的一切资源。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_probe_device">rkvc_probe_device</a></td>
+<td>探测设备能力。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>ctx</code> :    上下文句柄。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>caps</code> :    输出的能力结构。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong> :    成功返回 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_context_add_model_dir">rkvc_context_add_model_dir</a></td>
+<td>按导出器约定扫描模型目录并注册整组原生文件（.rknn/.bin/.qppatch， id 去重；失败时可选填 diag）。一个 bundle 目录可产出 encoder/decoder 等多个模型，全部注册。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_request_init">rkvc_session_request_init</a></td>
+<td>初始化会话请求（填写 <code>struct_size</code>/<code>version</code> 与默认值）。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>req</code> :    请求结构。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code> :    传入的缓冲区大小。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_create">rkvc_session_create</a></td>
+<td>创建会话。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>req</code> :    会话请求。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code> :    接收会话句柄。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>diag</code> :    可选诊断输出。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong> :    成功返回 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_start">rkvc_session_start</a></td>
+<td>启动会话。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>diag</code> :    可选诊断输出。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong> :    成功返回 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_push">rkvc_session_push</a></td>
+<td>非阻塞入队一帧。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_try_pull">rkvc_session_try_pull</a></td>
+<td>非阻塞拉取一帧；无可用数据时返回 <code>RKVC_AGAIN</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_pull">rkvc_session_pull</a></td>
+<td>阻塞拉取一帧。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_push_eos">rkvc_session_push_eos</a></td>
+<td>推送流结束标记。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_wait">rkvc_session_wait</a></td>
+<td>等待管道排空，返回首个错误或 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_destroy">rkvc_session_destroy</a></td>
+<td>销毁会话。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_session_error_text">rkvc_session_error_text</a></td>
+<td>取终端错误的阶段明细（wait 已排空后调用，立即返回；Ok 时 buf 置空）。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>buf</code> :    输出缓冲区。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code> :    缓冲区大小。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_frame_desc_init">rkvc_frame_desc_init</a></td>
+<td>初始化帧描述（填写 <code>struct_size</code>/<code>version</code>）。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_frame_wrap">rkvc_frame_wrap</a></td>
+<td>按描述包装一帧。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>desc</code> :    帧描述。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code> :    接收帧句柄。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong> :    成功返回 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_frame_wrap_owned">rkvc_frame_wrap_owned</a></td>
+<td>包装一帧并持有载荷所有权：最后一个帧引用释放时回调 <code>release(release_ctx)</code>（典型用途：释放宿主的深拷贝副本）。 wrap 失败时所有权不转移，调用方自释放。域语义与 <code>rkvc_frame_wrap</code> 相同（Host 用 <code>data</code>，Dmabuf 用 <code>fd</code>）。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>desc</code> :    帧描述。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>release</code> :    载荷释放回调（不可为 NULL）。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>release_ctx</code> :    传给回调的上下文（通常即载荷指针）。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code> :    接收帧句柄。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong> :    成功返回 <code>RKVC_OK</code>。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_frame_get_desc">rkvc_frame_get_desc</a></td>
+<td>查询帧的当前描述。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_frame_release">rkvc_frame_release</a></td>
+<td>释放帧句柄。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_diag_fmt_text">rkvc_diag_fmt_text</a></td>
+<td>将诊断信息格式化为文本。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>buf</code> :    输出缓冲区。 <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code> :    缓冲区大小。</td>
+</tr>
+<tr>
+<td><a href="#rkvc_diag_release">rkvc_diag_release</a></td>
+<td>释放诊断对象。</td>
+</tr>
+</tbody>
+</table>
+<dl>
+<dt><strong>RKVC_FRAME_FLAG_KEYFRAME = 1u &lt;&lt; 0</strong></dt>
+<dd>帧标志位。
+关键帧</dd>
+<dt><strong>RKVC_FRAME_FLAG_DISCONTINUITY = 1u &lt;&lt; 1</strong></dt>
+<dd>流不连续</dd>
+<dt><strong>RKVC_FRAME_FLAG_CORRUPT = 1u &lt;&lt; 2</strong></dt>
+<dd>数据损坏</dd>
+</dl>
+<h2 id="macro-details">Macro Details<a class="headerlink" href="#macro-details" title="Permanent link">&para;</a></h2>
+<h3 id="rkvc_frame_ts_unknown">RKVC_FRAME_TS_UNKNOWN<a name="RKVC_FRAME_TS_UNKNOWN"></a><a class="headerlink" href="#rkvc_frame_ts_unknown" title="Permanent link">&para;</a></h3>
+<div class="admonition macro">
+<p class="admonition-title">#define RKVC_FRAME_TS_UNKNOWN</p>
+<p>未知时间戳标记</p>
+</div>
+<h2 id="function-details">Function Details<a class="headerlink" href="#function-details" title="Permanent link">&para;</a></h2>
+<h3 id="rkvc_context_add_model_dir">rkvc_context_add_model_dir<a name="rkvc_context_add_model_dir"></a><a class="headerlink" href="#rkvc_context_add_model_dir" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_context_add_model_dir(rkvc_context &#42;ctx, const char &#42;dir, rkvc_diagnostic &#42;&#42;diag)</p>
+<div class="language-text highlight"><pre><span></span><code>按导出器约定扫描模型目录并注册整组原生文件（.rknn/.bin/.qppatch，
+id 去重；失败时可选填 diag）。一个 bundle 目录可产出 encoder/decoder
+等多个模型，全部注册。
+</code></pre></div>
+</div>
+<h3 id="rkvc_context_create">rkvc_context_create<a name="rkvc_context_create"></a><a class="headerlink" href="#rkvc_context_create" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_context_create(const rkvc_context_options &#42;opts, rkvc_context &#42;&#42;out)</p>
+<div class="language-text highlight"><pre><span></span><code>创建运行上下文。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>opts</code></dt>
+<dd>选项；可传 NULL 使用默认值。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code></dt>
+<dd>接收上下文句柄。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong></dt>
+<dd>成功返回 <code>RKVC_OK</code>。</dd>
+</dl>
+</div>
+<h3 id="rkvc_context_destroy">rkvc_context_destroy<a name="rkvc_context_destroy"></a><a class="headerlink" href="#rkvc_context_destroy" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_context_destroy(rkvc_context &#42;ctx)</p>
+<div class="language-text highlight"><pre><span></span><code>销毁上下文，并释放其持有的一切资源。
+</code></pre></div>
+</div>
+<h3 id="rkvc_context_options_init">rkvc_context_options_init<a name="rkvc_context_options_init"></a><a class="headerlink" href="#rkvc_context_options_init" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_context_options_init(rkvc_context_options &#42;opts, size_t size)</p>
+<p>初始化上下文选项（填写 <code>struct_size</code>/<code>version</code>）。</p>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>opts</code></dt>
+<dd>选项结构。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code></dt>
+<dd>传入的缓冲区大小，用于向后兼容校验。</dd>
+</dl>
+</div>
+<h3 id="rkvc_diag_fmt_text">rkvc_diag_fmt_text<a name="rkvc_diag_fmt_text"></a><a class="headerlink" href="#rkvc_diag_fmt_text" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_diag_fmt_text(const rkvc_diagnostic &#42;diag, char &#42;buf, size_t size)</p>
+<div class="language-text highlight"><pre><span></span><code>将诊断信息格式化为文本。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>buf</code></dt>
+<dd>输出缓冲区。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code></dt>
+<dd>缓冲区大小。</dd>
+</dl>
+</div>
+<h3 id="rkvc_diag_release">rkvc_diag_release<a name="rkvc_diag_release"></a><a class="headerlink" href="#rkvc_diag_release" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_diag_release(rkvc_diagnostic &#42;diag)</p>
+<div class="language-text highlight"><pre><span></span><code>释放诊断对象。
+</code></pre></div>
+</div>
+<h3 id="rkvc_frame_desc_init">rkvc_frame_desc_init<a name="rkvc_frame_desc_init"></a><a class="headerlink" href="#rkvc_frame_desc_init" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_frame_desc_init(rkvc_frame_desc &#42;desc, size_t size)</p>
+<div class="language-text highlight"><pre><span></span><code>初始化帧描述（填写 `struct_size`/`version`）。
+</code></pre></div>
+</div>
+<h3 id="rkvc_frame_get_desc">rkvc_frame_get_desc<a name="rkvc_frame_get_desc"></a><a class="headerlink" href="#rkvc_frame_get_desc" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_frame_get_desc(const rkvc_frame &#42;f, rkvc_frame_desc &#42;desc)</p>
+<div class="language-text highlight"><pre><span></span><code>查询帧的当前描述。
+</code></pre></div>
+</div>
+<h3 id="rkvc_frame_release">rkvc_frame_release<a name="rkvc_frame_release"></a><a class="headerlink" href="#rkvc_frame_release" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_frame_release(rkvc_frame &#42;f)</p>
+<div class="language-text highlight"><pre><span></span><code>释放帧句柄。
+</code></pre></div>
+</div>
+<h3 id="rkvc_frame_wrap">rkvc_frame_wrap<a name="rkvc_frame_wrap"></a><a class="headerlink" href="#rkvc_frame_wrap" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_frame_wrap(const rkvc_frame_desc &#42;desc, rkvc_frame &#42;&#42;out)</p>
+<div class="language-text highlight"><pre><span></span><code>按描述包装一帧。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>desc</code></dt>
+<dd>帧描述。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code></dt>
+<dd>接收帧句柄。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong></dt>
+<dd>成功返回 <code>RKVC_OK</code>。</dd>
+</dl>
+</div>
+<h3 id="rkvc_frame_wrap_owned">rkvc_frame_wrap_owned<a name="rkvc_frame_wrap_owned"></a><a class="headerlink" href="#rkvc_frame_wrap_owned" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_frame_wrap_owned(const rkvc_frame_desc &#42;desc, void (&#42;release)(void &#42;release_ctx) RKVC_NOEXCEPT, void &#42;release_ctx, rkvc_frame &#42;&#42;out)</p>
+<div class="language-text highlight"><pre><span></span><code>包装一帧并持有载荷所有权：最后一个帧引用释放时回调
+`release(release_ctx)`（典型用途：释放宿主的深拷贝副本）。
+wrap 失败时所有权不转移，调用方自释放。域语义与 `rkvc_frame_wrap`
+相同（Host 用 `data`，Dmabuf 用 `fd`）。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>desc</code></dt>
+<dd>帧描述。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>release</code></dt>
+<dd>载荷释放回调（不可为 NULL）。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>release_ctx</code></dt>
+<dd>传给回调的上下文（通常即载荷指针）。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code></dt>
+<dd>接收帧句柄。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong></dt>
+<dd>成功返回 <code>RKVC_OK</code>。</dd>
+</dl>
+</div>
+<h3 id="rkvc_probe_device">rkvc_probe_device<a name="rkvc_probe_device"></a><a class="headerlink" href="#rkvc_probe_device" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_probe_device(rkvc_context &#42;ctx, rkvc_caps &#42;caps)</p>
+<div class="language-text highlight"><pre><span></span><code>探测设备能力。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>ctx</code></dt>
+<dd>上下文句柄。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>caps</code></dt>
+<dd>输出的能力结构。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong></dt>
+<dd>成功返回 <code>RKVC_OK</code>。</dd>
+</dl>
+</div>
+<h3 id="rkvc_session_create">rkvc_session_create<a name="rkvc_session_create"></a><a class="headerlink" href="#rkvc_session_create" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_create(rkvc_context &#42;ctx, const rkvc_session_request &#42;req, rkvc_session &#42;&#42;out, rkvc_diagnostic &#42;&#42;diag)</p>
+<div class="language-text highlight"><pre><span></span><code>创建会话。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>req</code></dt>
+<dd>会话请求。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>out</code></dt>
+<dd>接收会话句柄。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>diag</code></dt>
+<dd>可选诊断输出。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong></dt>
+<dd>成功返回 <code>RKVC_OK</code>。</dd>
+</dl>
+</div>
+<h3 id="rkvc_session_destroy">rkvc_session_destroy<a name="rkvc_session_destroy"></a><a class="headerlink" href="#rkvc_session_destroy" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_session_destroy(rkvc_session &#42;s)</p>
+<div class="language-text highlight"><pre><span></span><code>销毁会话。
+</code></pre></div>
+</div>
+<h3 id="rkvc_session_error_text">rkvc_session_error_text<a name="rkvc_session_error_text"></a><a class="headerlink" href="#rkvc_session_error_text" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_error_text(rkvc_session &#42;s, char &#42;buf, size_t size)</p>
+<div class="language-text highlight"><pre><span></span><code>取终端错误的阶段明细（wait 已排空后调用，立即返回；Ok 时 buf 置空）。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>buf</code></dt>
+<dd>输出缓冲区。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code></dt>
+<dd>缓冲区大小。</dd>
+</dl>
+</div>
+<h3 id="rkvc_session_pull">rkvc_session_pull<a name="rkvc_session_pull"></a><a class="headerlink" href="#rkvc_session_pull" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_pull(rkvc_session &#42;s, rkvc_frame &#42;&#42;out)</p>
+<div class="language-text highlight"><pre><span></span><code>阻塞拉取一帧。
+</code></pre></div>
+</div>
+<h3 id="rkvc_session_push">rkvc_session_push<a name="rkvc_session_push"></a><a class="headerlink" href="#rkvc_session_push" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_push(rkvc_session &#42;s, rkvc_frame &#42;f)</p>
+<div class="language-text highlight"><pre><span></span><code>非阻塞入队一帧。
+</code></pre></div>
+</div>
+<h3 id="rkvc_session_push_eos">rkvc_session_push_eos<a name="rkvc_session_push_eos"></a><a class="headerlink" href="#rkvc_session_push_eos" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_push_eos(rkvc_session &#42;s)</p>
+<div class="language-text highlight"><pre><span></span><code>推送流结束标记。
+</code></pre></div>
+</div>
+<h3 id="rkvc_session_request_init">rkvc_session_request_init<a name="rkvc_session_request_init"></a><a class="headerlink" href="#rkvc_session_request_init" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">void rkvc_session_request_init(rkvc_session_request &#42;req, size_t size)</p>
+<div class="language-text highlight"><pre><span></span><code>初始化会话请求（填写 `struct_size`/`version` 与默认值）。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>req</code></dt>
+<dd>请求结构。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>size</code></dt>
+<dd>传入的缓冲区大小。</dd>
+</dl>
+</div>
+<h3 id="rkvc_session_start">rkvc_session_start<a name="rkvc_session_start"></a><a class="headerlink" href="#rkvc_session_start" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_start(rkvc_session &#42;s, rkvc_diagnostic &#42;&#42;diag)</p>
+<div class="language-text highlight"><pre><span></span><code>启动会话。
+</code></pre></div>
+<dl>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14 12-4-4v3H2v2h8v3m12-4a10 10 0 0 1-19.54 3h2.13a8 8 0 1 0 0-6H2.46A10 10 0 0 1 22 12"/></svg></span> <code>diag</code></dt>
+<dd>可选诊断输出。</dd>
+<dt><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 7v4H5.83l3.58-3.59L8 6l-6 6 6 6 1.41-1.42L5.83 13H21V7z"/></svg></span> <strong>Return</strong></dt>
+<dd>成功返回 <code>RKVC_OK</code>。</dd>
+</dl>
+</div>
+<h3 id="rkvc_session_try_pull">rkvc_session_try_pull<a name="rkvc_session_try_pull"></a><a class="headerlink" href="#rkvc_session_try_pull" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_try_pull(rkvc_session &#42;s, rkvc_frame &#42;&#42;out)</p>
+<div class="language-text highlight"><pre><span></span><code>非阻塞拉取一帧；无可用数据时返回 `RKVC_AGAIN`。
+</code></pre></div>
+</div>
+<h3 id="rkvc_session_wait">rkvc_session_wait<a name="rkvc_session_wait"></a><a class="headerlink" href="#rkvc_session_wait" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">rkvc_status rkvc_session_wait(rkvc_session &#42;s)</p>
+<div class="language-text highlight"><pre><span></span><code>等待管道排空，返回首个错误或 `RKVC_OK`。
+</code></pre></div>
+</div>
+<h3 id="rkvc_status_str">rkvc_status_str<a name="rkvc_status_str"></a><a class="headerlink" href="#rkvc_status_str" title="Permanent link">&para;</a></h3>
+<div class="admonition function">
+<p class="admonition-title">const char &#42;rkvc_status_str(rkvc_status status)</p>
+<p>状态码转可读字符串（静态存储，无需释放）。</p>
+</div>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88ee1349.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2022 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/semantic-codec-sdk-integration/">
+      
+      
+        <link rel="prev" href="../sr-model-yuv-spec/">
+      
+      
+        <link rel="next" href="../gb28181-streaming/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.60">
+    
+    
+      
+        <title>语义编解码 SDK 集成 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ce62732f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/doxide.css">
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#semantic-codec-sdk" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              语义编解码 SDK 集成
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 引用
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  部署
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../portable-package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  可移植包集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-frame-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC 帧型机制
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sr-model-yuv-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SR 模型规格
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  语义编解码 SDK 集成
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  语义编解码 SDK 集成
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 集成模型
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 接口清单与行为契约
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 接口清单与行为契约">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.1 宿主消费的接口清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.2 行为契约
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.3 状态码与宿主映射
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 宿主集成
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 宿主集成">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.1 构建：视频顶层由集成者自持
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.2 公共 API 与配置
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.3 适配层实现契约
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.4 上游侧机制与遗留事项
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. 构建与部署机制
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 构建与部署机制">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-codec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.1 codec 插件发现顺序
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.2 宿主符号导出（已取消）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.3 插件依赖与部署
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-backend_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.4 backend_dir 传参
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.5 工具链与交叉
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-rkvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.6 rkvc 构建开关与典型配置
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-rkvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. rkvc 侧行为保证
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. rkvc 侧行为保证">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-frame_sink-22-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.1 FRAME_SINK 格式注入（§2.2-4）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-mpp-22-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.2 MPP 后端排空与超时（§2.2-6 的当前实现）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-dmabuf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.3 线性 DMABUF 解码输出
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-mpp-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.4 MPP probe 条件
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-npu" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.5 NPU 探测条件
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 端到端验证
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 端到端验证">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.1 回归入口
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-rk3576-evb1-v102026-09-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.2 实测基线（RK3576-evb1-v10，2026-09-11）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.3 板级回归矩阵
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. 故障排查速查
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. 集成核对清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        9. 版本与变更记录
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gb28181-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GB28181 推流
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 集成模型
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 接口清单与行为契约
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. 接口清单与行为契约">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.1 宿主消费的接口清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.2 行为契约
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.3 状态码与宿主映射
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 宿主集成
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. 宿主集成">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.1 构建：视频顶层由集成者自持
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.2 公共 API 与配置
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.3 适配层实现契约
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.4 上游侧机制与遗留事项
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. 构建与部署机制
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. 构建与部署机制">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-codec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.1 codec 插件发现顺序
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.2 宿主符号导出（已取消）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#43" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.3 插件依赖与部署
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#44-backend_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.4 backend_dir 传参
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.5 工具链与交叉
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#46-rkvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4.6 rkvc 构建开关与典型配置
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-rkvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. rkvc 侧行为保证
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. rkvc 侧行为保证">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-frame_sink-22-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.1 FRAME_SINK 格式注入（§2.2-4）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-mpp-22-6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.2 MPP 后端排空与超时（§2.2-6 的当前实现）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-dmabuf" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.3 线性 DMABUF 解码输出
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#54-mpp-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.4 MPP probe 条件
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#55-npu" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5.5 NPU 探测条件
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 端到端验证
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. 端到端验证">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.1 回归入口
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-rk3576-evb1-v102026-09-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.2 实测基线（RK3576-evb1-v10，2026-09-11）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6.3 板级回归矩阵
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. 故障排查速查
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. 集成核对清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        9. 版本与变更记录
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="semantic-codec-sdk">semantic-codec-sdk 向上集成指南<a class="headerlink" href="#semantic-codec-sdk" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>宿主（<code>semantic-codec-sdk</code>，ais SDK）内嵌 rkvc 的单点指南：rkvc 提供
+什么、宿主侧必须做什么、如何验证与排障。rkvc 内部设计见
+<a href="../architecture/">architecture.md</a>，版本变更见 <a href="../../CHANGELOG/">CHANGELOG.md</a>。
+宿主快照 2026-09-11；本文描述 <strong>C ABI 0.5.x 现状</strong>。</p>
+</blockquote>
+<h2 id="1">1. 集成模型<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>核心内嵌、codec 插件自包含</strong>：<code>rkvc-core-static</code> 链接进宿主；
+   编解码能力以独立 DSO 运行时发现（dlopen + <code>rkvc_plugin_query</code> 握手 +
+   probe）。插件静态内嵌 core、只导出 <code>rkvc_plugin_query</code>，
+   <strong>宿主无需导出任何符号</strong>（§4.2）。</li>
+<li><strong>宿主只描述意图</strong>：operation/codec/policy/quality/端点交给规划器，
+   在已装载 codec 中按优先级挑候选，open 失败自动回退次优。</li>
+<li><strong>C ABI 是唯一稳定面</strong>：宿主只经 <code>core/include/rkvc/rkvc.h</code> 消费 rkvc；
+   原生 C++ API 不对宿主做跨编译器承诺。</li>
+</ol>
+<p>工具链：C++20、CMake ≥ 3.21、自有源 <code>-fno-exceptions -fno-rtti</code>；aarch64
+自动 <code>-static-libstdc++ -static-libgcc</code>；依赖 Threads + dl（各 codec 另需
+第三方前缀，§4.6）；板端符号审计 <code>tools/check-symbols.sh</code>（GLIBC ≤ 2.34 +
+NEEDED 禁动态 C++ 运行时）。</p>
+<pre class="mermaid"><code>flowchart LR
+    App[宿主应用] --&gt;|"ais_video_send / recv"| HostSo["libais_semantic_codec.so&lt;br/&gt;(C++ 适配层)"]
+    subgraph HostSo
+        RC[rkvc-core-static]
+    end
+    RC --&gt;|"dlopen + rkvc_plugin_query 握手&lt;br/&gt;扫描 backend 目录"| BE[codec 插件&lt;br/&gt;rkvc_h264h265.so 等]
+    BE --&gt; MPP["librockchip_mpp.so.1"]</code></pre>
+<h2 id="2">2. 接口清单与行为契约<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<p><code>examples/</code> 三个 C 样板按本节验收；宿主侧对接现状见 §3。</p>
+<h3 id="21">2.1 宿主消费的接口清单<a class="headerlink" href="#21" title="Permanent link">&para;</a></h3>
+<p>上游适配层 <code>codec/video/runtime/video_runtime.cpp</code>（宿主的全部 rkvc 调用点）
+消费面，按 C ABI（handle 式 context/<strong>session</strong>/frame，结构体
+size/version 首字段演化）逐项覆盖：</p>
+<table>
+<thead>
+<tr>
+<th>类</th>
+<th>符号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>options</td>
+<td><code>rkvc_context_options_init</code></td>
+</tr>
+<tr>
+<td>context</td>
+<td><code>rkvc_context_create</code>（带 <code>backend_dirs</code>）/ <code>rkvc_context_destroy</code> / <code>rkvc_probe_device</code> / <code>rkvc_context_add_model_dir</code></td>
+</tr>
+<tr>
+<td>session</td>
+<td><code>rkvc_session_request_init</code> / <code>rkvc_session_create</code>（带 diag）/ <code>rkvc_session_start</code> / <code>rkvc_session_push</code> / <code>rkvc_session_try_pull</code> / <code>rkvc_session_pull</code> / <code>rkvc_session_push_eos</code> / <code>rkvc_session_wait</code> / <code>rkvc_session_destroy</code> / <code>rkvc_session_error_text</code></td>
+</tr>
+<tr>
+<td>frame</td>
+<td><code>rkvc_frame_desc_init</code> / <code>rkvc_frame_wrap</code> / <code>rkvc_frame_wrap_owned</code>（释放回调）/ <code>rkvc_frame_get_desc</code> / <code>rkvc_frame_release</code></td>
+</tr>
+<tr>
+<td>diag</td>
+<td><code>rkvc_diag_fmt_text</code> / <code>rkvc_diag_release</code> / <code>rkvc_status_str</code></td>
+</tr>
+<tr>
+<td>枚举</td>
+<td>STATUS / CODEC / POLICY / OPERATION / FRAME_FMT / MEM_DOMAIN / ENDPOINT / <code>RKVC_FRAME_TS_UNKNOWN</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="22">2.2 行为契约<a class="headerlink" href="#22" title="Permanent link">&para;</a></h3>
+<p>宿主适配层依赖以下语义，重写必须保持：</p>
+<ol>
+<li><strong>背压三原语</strong>：push 非阻塞（输入队列有界，满 → AGAIN）；pull 阻塞至
+   有帧或 EOS；try_pull 非阻塞（空且未 EOS → AGAIN）。成功/EOS/暂空
+   三态严格区分，由 queue/session 两层回归覆盖。EOS 经 <code>push_eos</code> 注入。</li>
+<li><strong>帧借用</strong>：wrap 零拷贝借用宿主内存；帧引用归零前载荷必须存活；销毁
+   顺序 = 先 session，再载荷副本，再 context。</li>
+<li><strong>诊断链</strong>：session 创建与启动失败携带 stage/subject/reason 诊断链，
+   可格式化为文本；FILE 会话终端错误另经 <code>rkvc_session_error_text</code> 取明细。</li>
+<li><strong>FRAME_SINK 格式注入</strong>：无端点源节点时，请求端点声明的 fmt/宽高注入
+   首末节点端口（§5.1；缺失时 MPP 硬编 open 报 FORMAT）。</li>
+<li><strong>probe 语义</strong>：只反映设备能力探测；probe 失败淘汰候选而不使 context
+   创建失败；最近装载诊断可查。</li>
+<li><strong>排空有界性</strong>：flush 提交 EOS 后，后端在有限时间内必然到达尾包/EOS/
+   错误（当前 MPP 实现见 §5.2）——宿主"flush 后阻塞排空"以此为先决条件。</li>
+<li><strong>无异常</strong>：C ABI 实现 100% 无异常，dlopen 边界零翻译；OOM 走
+   <code>RKVC_NOMEM</code> 返回路径。</li>
+</ol>
+<h3 id="23">2.3 状态码与宿主映射<a class="headerlink" href="#23" title="Permanent link">&para;</a></h3>
+<p>上游 <code>map_status()</code>（<code>video_runtime.cpp</code>）的映射：</p>
+<table>
+<thead>
+<tr>
+<th>rkvc 状态</th>
+<th>宿主映射</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OK</code> / <code>AGAIN</code> / <code>EOF</code> / <code>NOMEM</code></td>
+<td>同名 <code>AIS_*</code></td>
+<td>AGAIN 只出现在内部背压路径，send/recv 均不对外暴露（§3.3）</td>
+</tr>
+<tr>
+<td><code>INVALID</code> / <code>NEGOTIATE</code></td>
+<td><code>AIS_ERR_INVALID_ARG</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>NOT_FOUND</code> / <code>UNSUPPORTED</code> / <code>FORMAT</code> / <code>PERMISSION</code> / <code>HW</code></td>
+<td><code>AIS_ERR_UNSUPPORTED</code></td>
+<td><code>HW</code> 也映到 UNSUPPORTED，open 阶段硬件失败对外表现为"不支持"</td>
+</tr>
+<tr>
+<td><code>MODEL</code> / <code>LICENSE</code> / <code>INTEGRITY</code></td>
+<td><code>AIS_ERR_MODEL</code></td>
+<td>模型/许可证类</td>
+</tr>
+<tr>
+<td>其他（<code>IO</code> / <code>CANCELED</code> / <code>INTERNAL</code>）</td>
+<td><code>AIS_ERR_INTERNAL</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>视频路径不使用 <code>AIS_ERR_ENCODE</code> / <code>AIS_ERR_DECODE</code>（留给图像式一次性调用）。</p>
+<h2 id="3">3. 宿主集成<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<h3 id="31">3.1 构建：视频顶层由集成者自持<a class="headerlink" href="#31" title="Permanent link">&para;</a></h3>
+<p>上游无仓库级统一构建（仓库根 <code>CMakeLists.txt</code> 是占位报错；按上游
+<code>docs/build.md</code>，语音/视频"由对应负责人自己写 CMake、自己编"），只为视频
+提供挂在父目标 <code>ais_semantic_codec</code> 上的 CMake 片段。
+<code>codec/video/CMakeLists.txt</code> 全文：</p>
+<div class="language-cmake highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">if</span><span class="p">(</span><span class="s">AIS_VIDEO_CODEC_RKVC</span><span class="p">)</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="c"># 前提：视频侧顶层已 add_subdirectory(&lt;rkvc&gt;/core) 并关闭</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="c"># RKVC_BUILD_CLI / RKVC_BUILD_CODECS；此处只链 rkvc::core，</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="c"># 插件运行时 dlopen，不链进宿主。</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="c"># AIS_BUILDING：ais_export.h 在 Linux 下仅编译库自身时导出 AIS_API 符号。</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="nb">target_compile_definitions</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">PRIVATE</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">        </span><span class="s">AIS_VIDEO_CODEC_RKVC=1</span><span class="w"> </span><span class="s">AIS_BUILDING=1</span><span class="p">)</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nb">target_sources</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">PRIVATE</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">        </span><span class="o">${</span><span class="nv">CMAKE_CURRENT_SOURCE_DIR</span><span class="o">}</span><span class="s">/video_codec.cpp</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">        </span><span class="o">${</span><span class="nv">CMAKE_CURRENT_SOURCE_DIR</span><span class="o">}</span><span class="s">/runtime/video_runtime.cpp</span><span class="p">)</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nb">target_link_libraries</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">PRIVATE</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">        </span><span class="s">rkvc::core</span><span class="p">)</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="nb">else</span><span class="p">()</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="c"># 未内嵌 rkvc：只编退化实现，视频接口返回 AIS_ERR_UNSUPPORTED。</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="nb">target_sources</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">PRIVATE</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">        </span><span class="o">${</span><span class="nv">CMAKE_CURRENT_SOURCE_DIR</span><span class="o">}</span><span class="s">/video_codec.cpp</span><span class="p">)</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="nb">endif</span><span class="p">()</span>
+</span></code></pre></div>
+<p>上游不提供参考顶层，集成者自持。参考骨架（内嵌 rkvc 源码，用法 ③）；
+改用可移植包里的预编译 SDK（用法 ②）装配的完整顶层见 <code>examples/ais-video-host/</code>。</p>
+<div class="language-cmake highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cmake_minimum_required</span><span class="p">(</span><span class="s">VERSION</span><span class="w"> </span><span class="s">3.21</span><span class="p">)</span><span class="w">   </span><span class="c"># 内嵌 rkvc 要求 ≥3.21</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">project</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">LANGUAGES</span><span class="w"> </span><span class="s">C</span><span class="w"> </span><span class="s">CXX</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_C_STANDARD</span><span class="w"> </span><span class="s">11</span><span class="p">)</span><span class="w">    </span><span class="c"># SDK 公共层 C11</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_CXX_STANDARD</span><span class="w"> </span><span class="s">17</span><span class="p">)</span><span class="w">  </span><span class="c"># 视频适配层 C++17</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_POSITION_INDEPENDENT_CODE</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="nb">set</span><span class="p">(</span><span class="s">AIS_SDK_ROOT</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">CACHE</span><span class="w"> </span><span class="s">PATH</span><span class="w"> </span><span class="s2">"semantic-codec-sdk source tree"</span><span class="p">)</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="nb">set</span><span class="p">(</span><span class="s">AIS_RKVC_SOURCE_DIR</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">CACHE</span><span class="w"> </span><span class="s">PATH</span><span class="w"> </span><span class="s2">"rkvc source tree"</span><span class="p">)</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="nb">option</span><span class="p">(</span><span class="s">AIS_VIDEO_CODEC_RKVC</span><span class="w"> </span><span class="s2">"Video codec backed by rkvc"</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nb">add_library</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">SHARED</span><span class="p">)</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c"># 适配层 #include "core/..." 以 SDK 根为基准</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="nb">target_include_directories</span><span class="p">(</span><span class="s">ais_semantic_codec</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="s">PUBLIC</span><span class="w">  </span><span class="o">${</span><span class="nv">AIS_SDK_ROOT</span><span class="o">}</span><span class="s">/include</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="s">PRIVATE</span><span class="w"> </span><span class="o">${</span><span class="nv">AIS_SDK_ROOT</span><span class="o">}</span><span class="p">)</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="nb">if</span><span class="p">(</span><span class="s">AIS_VIDEO_CODEC_RKVC</span><span class="p">)</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="c"># CMake 选项不会自动变成编译定义；缺它静默编出退化实现（§7）</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="nb">target_compile_definitions</span><span class="p">(</span><span class="s">ais_semantic_codec</span><span class="w"> </span><span class="s">PRIVATE</span><span class="w"> </span><span class="s">AIS_VIDEO_CODEC_RKVC=1</span><span class="p">)</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_CLI</span><span class="w"> </span><span class="s">OFF</span><span class="w">    </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">RKVC_BUILD_CODECS</span><span class="w"> </span><span class="s">OFF</span><span class="w"> </span><span class="s">CACHE</span><span class="w"> </span><span class="s">BOOL</span><span class="w"> </span><span class="s2">""</span><span class="w"> </span><span class="s">FORCE</span><span class="p">)</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="c"># 目录属性隔离：core 硬约束 C++20、无异常、无 RTTI；宿主顶层锁了</span>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="c"># 旧标准/开关会污染子目录，进子目录前后保存/恢复 CXX_STANDARD 等</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_CXX_STANDARD</span><span class="w"> </span><span class="s">20</span><span class="p">)</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_CXX_STANDARD_REQUIRED</span><span class="w"> </span><span class="s">ON</span><span class="p">)</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">    </span><span class="nb">set</span><span class="p">(</span><span class="s">CMAKE_CXX_EXTENSIONS</span><span class="w"> </span><span class="s">OFF</span><span class="p">)</span>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">    </span><span class="nb">add_subdirectory</span><span class="p">(</span><span class="o">${</span><span class="nv">AIS_RKVC_SOURCE_DIR</span><span class="o">}</span><span class="s">/core</span><span class="w"> </span><span class="s">rkvc-core</span><span class="p">)</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="nb">endif</span><span class="p">()</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="c"># 挂 SDK 片段（rkvc::core 别名生成期解析，与 add_subdirectory 顺序无关）</span>
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="nb">add_subdirectory</span><span class="p">(</span><span class="o">${</span><span class="nv">AIS_SDK_ROOT</span><span class="o">}</span><span class="s">/core</span><span class="w"> </span><span class="s">sdk-core</span><span class="p">)</span>
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="nb">add_subdirectory</span><span class="p">(</span><span class="o">${</span><span class="nv">AIS_SDK_ROOT</span><span class="o">}</span><span class="s">/codec/video</span><span class="w"> </span><span class="s">sdk-video</span><span class="p">)</span>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="c"># 需要板级探测时再加：add_subdirectory(${AIS_SDK_ROOT}/platform sdk-platform)</span>
+</span></code></pre></div>
+<p>注意：</p>
+<ul>
+<li>宿主只链 <code>rkvc::core</code>；插件是运行时 dlopen 的独立 DSO，<strong>不要</strong>链进
+  宿主，也无需 <code>-Wl,--export-dynamic</code>（§4.2）。改过可见性/标准后必须
+  全量重建。</li>
+<li>宿主自身 C++ 部分仍需满足目标机运行库（§4.5）。</li>
+</ul>
+<h3 id="32-api">3.2 公共 API 与配置<a class="headerlink" href="#32-api" title="Permanent link">&para;</a></h3>
+<ul>
+<li>公共接口（<code>include/ais/video_codec.h</code>）：<code>ais_video_open</code> →
+  <code>ais_video_send</code>×N → <code>ais_video_flush</code> → <code>ais_video_recv</code> 至 <code>AIS_ERR_EOF</code>
+  → <code>ais_video_close</code>；能力查询 <code>ais_video_caps</code>。SDK 对外纯 C ABI，视频
+  适配层 C++17。codec ID：<code>AIS_CODEC_VIDEO_STANDARD=0x20</code> /
+  <code>AIS_CODEC_VIDEO_SEMANTIC=0x21</code>；编解码族
+  <code>AIS_CODEC_FAMILY_{AUTO,H264,HEVC,AV1,MLVC}</code>。</li>
+<li>配置：无 <code>ais_video_config_init</code>，<code>memset(&amp;cfg,0,sizeof)</code> 后逐字段赋值。
+  陷阱：</li>
+<li><code>memset</code> 后 <code>qp == 0</code> 被当<strong>固定 QP 0</strong>——要自动 QP 必须显式 <code>cfg.qp = -1</code>；</li>
+<li><code>bitrate_bps</code> 为 int64，&gt;0 时强转 int32，超 <code>INT32_MAX</code> 静默截断；</li>
+<li><code>fps_num/fps_den</code> 透传到 <code>req.quality.fps</code>（0 取后端默认）。</li>
+<li>缓冲：视频帧 <code>ais_buffer_video(w, h, fmt, pts_us, frame_index, &amp;out)</code>；
+  码流包 <code>ais_buffer_bitstream(size, &amp;out)</code> + <code>ais_buffer_set_packet_info</code>
+  （PTS/DTS/flags）构造解码输入；只读访问器 <code>ais_buffer_cdata</code>。时间戳
+  哨兵 <code>AIS_TS_UNKNOWN</code>(=INT64_MIN) ↔ <code>RKVC_FRAME_TS_UNKNOWN</code> 互转。</li>
+<li>端点与格式：流式会话使用 <code>RKVC_ENDPOINT_FRAME_SINK</code> 双端点。编码：
+  <code>req.input.fmt</code> = <code>cfg.format</code> 的 rkvc 映射（NV12/YUV420P/RGB24，不支持
+  直接 open 失败 UNSUPPORTED），<code>req.output.fmt = RKVC_FRAME_FMT_BITSTREAM</code>，
+  宽高写 <code>req.input.width/height</code>；解码：<code>req.input.fmt = BITSTREAM</code>，
+  <code>req.output.fmt</code> = <code>cfg.format</code> 映射（无法映射时 UNKNOWN，由后端/协商
+  决定）。<code>req.model_id = cfg.model_id</code> 透传语义模型。</li>
+<li>模型注册：<code>cfg.model_dir</code> 直接传 <code>rkvc_context_add_model_dir(ctx, dir)</code>，
+  按导出器约定整组装载目录内原生文件（<code>.rknn</code>/<code>.bin</code>/<code>.qppatch</code>，与 rkvc
+  CLI <code>--model-dir</code> 同款约定），适配层不再自行扫描。mlvc/sr 依赖此路径，
+  h264h265/av1 无模型。</li>
+</ul>
+<h3 id="33">3.3 适配层实现契约<a class="headerlink" href="#33" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>send 完全同步</strong>：校验 buffer kind（编码 <code>AIS_BUFFER_VIDEO</code> / 解码
+  <code>AIS_BUFFER_BITSTREAM</code>）→ 深拷贝载荷 → <code>rkvc_frame_wrap_owned</code> → push；
+  遇 AGAIN 先 <code>drain_pending()</code> 腾输入槽位再重试——调用方永远收不到
+  <code>AIS_ERR_AGAIN</code>。flush 后再 send 返回 <code>AIS_ERR_EOF</code>。</li>
+<li><strong>recv 恒阻塞</strong>：先消费 <code>pending_</code>，空则 <code>rkvc_session_pull</code>；EOF 锁存
+  后恒 <code>AIS_ERR_EOF</code>；排空期错误锁存进 <code>error_</code>。</li>
+<li><strong>帧载荷策略</strong>：send 副本经 <code>rkvc_frame_wrap_owned</code> 挂到帧引用计数，
+  最后引用释放时回调 free——长流内存不随发送量增长（500 帧进程内实测
+  峰值 RSS 11204KiB 板测）。wrap 失败时所有权不转移。
+  <strong>附注（2026-09-11 板级回归发现的修复）</strong>：C ABI 的
+  <code>rkvc_session_push</code> 是借用语义——返回 OK 后帧包装（内含 shared_ptr）
+  仍归调用方，必须显式 <code>rkvc_frame_release</code>；否则每帧驻留一份深拷贝，
+  RSS 以约一帧 NV12/帧 的斜率线性增长。该修复在适配层 <code>send</code> 的 push
+  成功分支补一行释放实现。</li>
+<li><strong>caps</strong>：<code>ais_video_caps</code> 无 <code>backend_dir</code> 参数，只走默认搜索路径
+  （§4.1 后三条）。<code>has_encoder = has_mpp_encoder || has_rknn</code>、
+  <code>has_decoder</code> 同理；<code>has_npu = npu_cores &gt; 0</code>（§5.5）；<code>soc</code> 截断 63B。
+  caps 只反映设备探测，不代表已装载后端集合。</li>
+<li><strong>死锁反模式</strong>：flush 前"send 数帧 → <code>while (recv==OK)</code> 排空"。硬件
+  编码器攒帧不产包，阻塞 recv 永等输出、后端等新输入，三方互等。安全
+  模式只有两种：交错 send/recv，或 flush 后排空至 EOF。</li>
+</ul>
+<h3 id="34">3.4 上游侧机制与遗留事项<a class="headerlink" href="#34" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>DMABUF 数据通路</strong>：core 在管线组装时自动插 <code>core.download</code> 桥
+   （Dmabuf→Host，去 stride 分平面拷贝，见 §5.3），FRAME_SINK 解码会话
+   输出即 Host 帧；适配层 <code>frame_to_buffer</code> 带域防御——仍见到 Dmabuf 帧
+   （桥接未命中）时报 <code>AIS_ERR_INTERNAL</code> 并记日志，绝不返回全零伪帧。</li>
+<li><strong>构建导出</strong>：<code>codec/video/CMakeLists.txt</code> 带 <code>AIS_BUILDING=1</code> 编译定义
+   （Linux 下 <code>AIS_API</code> 仅在编译库自身时导出；缺它编出无符号哑库，
+   链接报 undefined reference to <code>ais_*</code>）。</li>
+<li>遗留：视频测试未接入上游构建（<code>tests/CMakeLists.txt</code> 只编图像），仍需
+   视频侧顶层接线（§6.1）；上游 <code>docs/api.md</code> 过时，以其头文件与实现为准。</li>
+</ol>
+<h2 id="4">4. 构建与部署机制<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<h3 id="41-codec">4.1 codec 插件发现顺序<a class="headerlink" href="#41-codec" title="Permanent link">&para;</a></h3>
+<p><code>rkvc_context_create</code> 时按以下目录顺序收集 <code>*.so</code>（目录内排序后逐个
+<code>rkvc_plugin_query</code> 握手，失败只记诊断）：</p>
+<ol>
+<li>调用方经 <code>rkvc_context_options.backend_dirs</code> 传入的可信目录
+   （宿主应把 <code>cfg.backend_dir</code> 透传到此）；</li>
+<li>二进制旁目录：<code>&lt;core 所在宿主二进制映射目录&gt;/rkvc/backends</code>（dladdr
+   定位，适配"CLI 与插件同目录部署"布局）；</li>
+<li>可移植包布局：<code>&lt;二进制目录&gt;/../lib/rkvc/backends</code>（<code>tools/portable/</code>
+   产出的包不带任何参数即可装载）；</li>
+<li><code>/usr/local/lib/rkvc/backends</code>；</li>
+<li><code>/usr/lib/rkvc/backends</code>。</li>
+</ol>
+<p>装载失败的最近诊断记录在 context 内部，<code>inspect backends</code> 可逐个 dlopen
+探查握手结果。</p>
+<h3 id="42">4.2 宿主符号导出（已取消）<a class="headerlink" href="#42" title="Permanent link">&para;</a></h3>
+<p>插件以 <code>RTLD_NOW | RTLD_LOCAL</code> 装载，<code>dlsym</code> 取 <code>rkvc_plugin_query</code> 并
+校验 <code>host_abi == kPluginAbi</code> 与工具链指纹；插件静态内嵌 core、只导出
+<code>rkvc_plugin_query</code>，装载不依赖宿主进程符号域。<strong>宿主无需
+<code>-Wl,--export-dynamic</code>、无需管 visibility，静态宿主同样</strong>；拒载只看
+<code>kPluginAbi</code> 与工具链指纹（<code>inspect backends</code> 可见原因）。</p>
+<h3 id="43">4.3 插件依赖与部署<a class="headerlink" href="#43" title="Permanent link">&para;</a></h3>
+<p>插件 DSO 的第三方依赖（MPP 的 <code>librockchip_mpp.so.1</code>、rknnrt、SVT）走常规
+动态链接；目标机按下列任一方式满足（可移植包已用第 1 种）：</p>
+<ol>
+<li>随包携带：插件 RUNPATH（<code>$ORIGIN/../..</code>）指向包内 <code>lib/</code>，整包搬迁
+   不用改配置；</li>
+<li>前缀按配置期路径原样存在（构建机即目标机/板载编译场景天然满足）；</li>
+<li>目标机系统路径可解析依赖；</li>
+<li>运行时 <code>LD_LIBRARY_PATH</code> 指向依赖库目录。</li>
+</ol>
+<p>可移植包与宿主的拼装（零配置摆法、指纹约束与验收步骤）另见
+<a href="../portable-package/">可移植包 × 宿主集成</a>。注意插件不可单独搬运，否则
+RUNPATH 闭包破裂会让插件静默消失；链接包内 <code>librkvc.so</code> 时不走 §3.1 的
+源码内嵌路径，但插件指纹约束同样适用。</p>
+<h3 id="44-backend_dir">4.4 backend_dir 传参<a class="headerlink" href="#44-backend_dir" title="Permanent link">&para;</a></h3>
+<p>传给宿主/<code>rkvc_context_options</code> 的目录须为<strong>绝对路径</strong>；脚本内变量未展开
+（如 <code>$PWD/rkvc</code> 字面量）会得到"无候选"的误导性报错。</p>
+<h3 id="45">4.5 工具链与交叉<a class="headerlink" href="#45" title="Permanent link">&para;</a></h3>
+<ul>
+<li>板端审计：<code>tools/check-symbols.sh</code>（GLIBC ≤ 2.34、NEEDED 禁动态
+  C++ 运行时；板 glibc 2.35，x86 构建不跑此审计）。</li>
+<li><strong>若宿主含 C++（适配层 C++17），宿主交叉工具链的 libstdc++ 必须与目标机
+  glibc 兼容</strong>——高版本宿主交叉 GCC 的 libstdc++ 常要求 GLIBC ≥ 2.36/2.38，
+  低版本 sysroot 链接会引用 <code>__isoc23_strtoul</code>/<code>arc4random</code> 等新符号而失败，
+  此时改开发机 aarch64-linux-gnu g++-11 交叉编译或目标板本地编译
+  （RK3576 实测 g++-11.4.0 / libstdc++ 3.4.30 与 glibc 2.35 匹配）。</li>
+</ul>
+<h3 id="46-rkvc">4.6 rkvc 构建开关与典型配置<a class="headerlink" href="#46-rkvc" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>开关</th>
+<th>默认</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RKVC_BUILD_CLI</code></td>
+<td>ON</td>
+<td>构建 <code>rkvc</code> CLI；内嵌关</td>
+</tr>
+<tr>
+<td><code>RKVC_BUILD_CODECS</code></td>
+<td>ON</td>
+<td>构建四个 codec 插件；内嵌关</td>
+</tr>
+<tr>
+<td><code>RKVC_CORE_BUILD_TESTS</code></td>
+<td>OFF</td>
+<td>core 单测；<code>tests</code> 预设/CI 开</td>
+</tr>
+<tr>
+<td>各 codec <code>RKVC_*_BUILD_TESTS</code> / <code>RKVC_CLI_BUILD_TESTS</code></td>
+<td>ON</td>
+<td>内嵌按需关</td>
+</tr>
+</tbody>
+</table>
+<p>第三方前缀（各 codec 工程独立声明，缺失时对应插件关 NPU/MPP 硬件路径，
+纯软逻辑仍可构建测试）：</p>
+<table>
+<thead>
+<tr>
+<th>前缀</th>
+<th>消费方</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MPP_INSTALL_PREFIX</code></td>
+<td>h264h265</td>
+<td><code>lib/librockchip_mpp.so</code> + 头</td>
+</tr>
+<tr>
+<td><code>SVT_AV1_INSTALL_PREFIX</code></td>
+<td>av1</td>
+<td><code>lib/libSvtAv1Enc.so</code> + <code>include/svt-av1/</code></td>
+</tr>
+<tr>
+<td><code>RKNN_INSTALL_PREFIX</code></td>
+<td>mlvc、sr</td>
+<td><code>lib/librknnrt.so</code> + <code>rknn_api.h</code></td>
+</tr>
+</tbody>
+</table>
+<p>依赖前缀用板卡/系统自带安装或目标架构前缀目录；交叉务必用目标架构前缀，
+混入宿主架构库运行期才暴露。</p>
+<p>典型配置（<code>-S</code> 指向 §3.1 的视频侧自持顶层）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># x86 开发验证（SVT 软编路径，无硬件依赖）</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cmake<span class="w"> </span>-S<span class="w"> </span>&lt;视频顶层&gt;<span class="w"> </span>-B<span class="w"> </span>.build<span class="w"> </span>-G<span class="w"> </span>Ninja<span class="w"> </span>-DAIS_VIDEO_CODEC_RKVC<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>-DAIS_SDK_ROOT<span class="o">=</span>/path/to/semantic-codec-sdk<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>-DAIS_RKVC_SOURCE_DIR<span class="o">=</span>/path/to/rkvc<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>-DRKVC_BUILD_CLI<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_CODECS<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span>-DSVT_AV1_INSTALL_PREFIX<span class="o">=</span>/path/to/svt-install
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>cmake<span class="w"> </span>--build<span class="w"> </span>.build
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># 板端（RK3576 实测；aarch64 交叉 libstdc++ 不兼容时同样改此路径，§4.5）</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>cmake<span class="w"> </span>-S<span class="w"> </span>&lt;视频顶层&gt;<span class="w"> </span>-B<span class="w"> </span>.build<span class="w"> </span>-G<span class="w"> </span>Ninja<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Release<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span>-DAIS_VIDEO_CODEC_RKVC<span class="o">=</span>ON<span class="w"> </span>-DAIS_SDK_ROOT<span class="o">=</span>/data/sdk-test/semantic-codec-sdk<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span>-DAIS_RKVC_SOURCE_DIR<span class="o">=</span>/data/sdk-test/rockchip-video-codec<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span>-DRKVC_BUILD_CLI<span class="o">=</span>OFF<span class="w"> </span>-DRKVC_BUILD_CODECS<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span>-DMPP_INSTALL_PREFIX<span class="o">=</span>&lt;mpp前缀&gt;<span class="w"> </span>-DRKNN_INSTALL_PREFIX<span class="o">=</span>&lt;rknn前缀&gt;
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>cmake<span class="w"> </span>--build<span class="w"> </span>.build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ctest<span class="w"> </span>--test-dir<span class="w"> </span>.build
+</span></code></pre></div>
+<h2 id="5-rkvc">5. rkvc 侧行为保证<a class="headerlink" href="#5-rkvc" title="Permanent link">&para;</a></h2>
+<h3 id="51-frame_sink-22-4">5.1 FRAME_SINK 格式注入（§2.2-4）<a class="headerlink" href="#51-frame_sink-22-4" title="Permanent link">&para;</a></h3>
+<p>管线组装时把 <code>req.input.fmt</code>（width/height 字段级合并，冲突报 NEGOTIATE）
+注入首节点输入端口、<code>req.output.fmt</code> 注入末节点输出端口（<code>core/src/graph.cpp</code>）；
+FILE 端点路径由 fileio source 声明格式传递，不受影响。缺失该注入的检出
+在 MPP 硬编 open 时报 FORMAT（§7）。</p>
+<h3 id="52-mpp-22-6">5.2 MPP 后端排空与超时（§2.2-6 的当前实现）<a class="headerlink" href="#52-mpp-22-6" title="Permanent link">&para;</a></h3>
+<ul>
+<li>process 路径输出超时 <code>MPP_TIMEOUT_NON_BLOCK</code>（编码器尚未产包时 worker
+  不卡在 <code>encode_get_packet</code>）；输入沿用同步 task/frame 所有权语义，设
+  5000ms 有限超时，硬件异常时可失败退出；</li>
+<li>flush 成功提交 EOS 后输出超时切 5000ms，持续排包直到 MPP EOS，既保留
+  GOP 尾包又避免永久等待；</li>
+<li>旧版 MPP 的空非阻塞输出可能以 <code>MPP_NOK</code> 而非 <code>MPP_OK + NULL packet</code>
+  表示：process 路径两种都视为"当前无包"，flush 路径仍视为硬件错误；</li>
+<li>队列已有帧先于 cancel/error 状态交付；process/flush 错误最终透传给
+  pull，不表现成正常 EOF。</li>
+</ul>
+<h3 id="53-dmabuf">5.3 线性 DMABUF 解码输出<a class="headerlink" href="#53-dmabuf" title="Permanent link">&para;</a></h3>
+<p>MPP 编码接受 NV12 / YUV420P（HOST 域拷入或 DMABUF 导入）；解码输出为线性
+DMABUF 帧（<code>desc.spec.domain = RKVC_MEM_DOMAIN_DMABUF</code>，载荷在 <code>desc.fd</code>；
+FBC/瓦片布局需 DRM modifier 契约，后端刻意只暴露线性帧，非线性 modifier
+拒绝）。HOST 回读由 core 的 <code>core.download</code> 桥统一完成（<code>Graph::build</code> 对
+Dmabuf→Host 边自动插桥，去 stride 分平面拷贝），适配层只做域防御
+（§3.4-1）。</p>
+<h3 id="54-mpp-probe">5.4 MPP probe 条件<a class="headerlink" href="#54-mpp-probe" title="Permanent link">&para;</a></h3>
+<p>MPP 后端装载探测 = <code>access("/dev/mpp_service", R_OK|W_OK)</code>（旧节点名
+<code>/dev/mpp-service</code> 兼容）+ <code>mpp_check_support_format</code> AVC 编/解任一支持。
+RK3576 实测：DEC AVC/HEVC/AV1/VP9 均可，ENC 仅 AVC/HEVC（AV1/VP9 编码
+不支持，属硬件能力，非缺陷）。</p>
+<h3 id="55-npu">5.5 NPU 探测条件<a class="headerlink" href="#55-npu" title="Permanent link">&para;</a></h3>
+<p>NPU 存在位任一命中即置位：<code>/dev/rknpu</code>、<code>/dev/rknpu0</code>、<code>/dev/rknn</code>，
+或 DRI/设备指纹（<code>/dev/dri/by-path/</code> 下 <code>*npu*</code>、<code>/sys/class/devfreq/</code> 下
+<code>*npu*</code>）。161（RKNPU 0.9.8 DRM 形态）无 <code>/dev/rknpu</code>，NPU 以
+<code>card1/renderD129</code>（<code>platform-27700000.npu-card/render</code>）存在——只认
+<code>/dev/rknpu*</code> 的旧检出在此板误报无 NPU（<code>has_npu=0</code>），更新 core/sr 即可。</p>
+<h2 id="6">6. 端到端验证<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<h3 id="61">6.1 回归入口<a class="headerlink" href="#61" title="Permanent link">&para;</a></h3>
+<p>上游 <code>examples/</code> 已无视频示例，回归入口是 <code>tests/test_video_codec.c</code>
+（SDK 侧已支持独立配置：<code>cmake -S codec/video -DAIS_BUILD_TESTS=ON</code>；
+rkvc 侧对应顶层见 <code>examples/ais-video-host/</code>，自带最小编码 demo）：</p>
+<div class="language-cmake highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">add_executable</span><span class="p">(</span><span class="s">test_video_codec</span><span class="w"> </span><span class="o">${</span><span class="nv">AIS_SDK_ROOT</span><span class="o">}</span><span class="s">/tests/test_video_codec.c</span><span class="p">)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nb">target_include_directories</span><span class="p">(</span><span class="s">test_video_codec</span><span class="w"> </span><span class="s">PRIVATE</span><span class="w"> </span><span class="o">${</span><span class="nv">AIS_SDK_ROOT</span><span class="o">}</span><span class="s">/tests</span><span class="p">)</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">target_link_libraries</span><span class="p">(</span><span class="s">test_video_codec</span><span class="w"> </span><span class="s">PRIVATE</span><span class="w"> </span><span class="s">ais_semantic_codec</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nb">add_test</span><span class="p">(</span><span class="s">NAME</span><span class="w"> </span><span class="s">video_codec</span><span class="w"> </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">test_video_codec</span><span class="p">)</span>
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># backend_dir 必须绝对路径；不设则只靠默认搜索路径（§4.1 前三条）</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">AIS_VIDEO_BACKEND_DIR</span><span class="o">=</span>/abs/path/to/.build/rkvc<span class="w"> </span>./test_video_codec
+</span></code></pre></div>
+<p>行为：按环境变量编码 N 帧（默认 family=AV1 64×64×5；板上用
+<code>AIS_VIDEO_FAMILY=h264</code> 等）→ flush → recv 至 <code>AIS_ERR_EOF</code> 并断言有字节
+产出；再把产出逐包经 <code>ais_buffer_bitstream</code> 回灌解码，断言帧数一致且无
+全零帧。未内嵌 rkvc 或无可用后端时打印 <code>rkvc backend not built; skipping
+video test</code> 并以 0 退出——x86 上"测试通过"可能只是跳过，需结合后端装载
+日志判断。交错压力另有 <code>tests/test_video_interleave.c</code>（同环境变量，
+发送线程 + 接收主线程并发）。</p>
+<h3 id="62-rk3576-evb1-v102026-09-11">6.2 实测基线（RK3576-evb1-v10，2026-09-11）<a class="headerlink" href="#62-rk3576-evb1-v102026-09-11" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>环境</th>
+<th>Ubuntu 22.04 / glibc 2.35 / RKNPU v0.9.8 / 交叉 g++-11.4.0（rkvc_dev 容器）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>构建</td>
+<td>视频侧自持顶层 + 四插件交叉编译全过；5 产物指纹一致</td>
+</tr>
+<tr>
+<td>H264 硬编回环</td>
+<td>320×240×8 帧 → 8 包 2620B → 8 帧 NV12 HOST，0 全零</td>
+</tr>
+<tr>
+<td>HEVC 硬编回环</td>
+<td>320×240×8 帧 → 8 包 704B → 8 帧，0 全零</td>
+</tr>
+<tr>
+<td>AV1 软编回环</td>
+<td>640×368×16 帧 → 16 包 1214B → 16 帧（板上 AV1 硬解），0 全零</td>
+</tr>
+<tr>
+<td>H264 500 帧长流</td>
+<td>500 包 537060B；进程内实测峰值 RSS 11204KiB（push 后释放帧包装，平坦不随帧数增长）</td>
+</tr>
+<tr>
+<td>交错 send/recv</td>
+<td>50/500 帧均通过（640×368），0 全零</td>
+</tr>
+<tr>
+<td>caps</td>
+<td>soc=rk3576-evb1-v10 enc=1 dec=1 npu=1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="63">6.3 板级回归矩阵<a class="headerlink" href="#63" title="Permanent link">&para;</a></h3>
+<p>（2026-09-11 实跑全过。矩阵 3 排查中发现并修复了 C ABI 帧包装泄漏，
+见 §3.3 附注；实测口径为测试进程内 <code>/proc/self/status</code> 采样。）</p>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> <code>test_video_codec.c</code> 接入视频侧顶层构建：AV1 编码 → flush → 排空至
+      EOF（<code>AIS_VIDEO_BACKEND_DIR</code> 绝对路径）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> H264 / HEVC / AV1 逐包回环（编→解）：0 全零帧，解码输入走公开
+      <code>ais_buffer_bitstream</code>（版本升级后复测）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> H264 硬编 500 帧 + RSS 峰值对比（H264/HEVC 320×240 编码段
+      100/300/600 帧与 640×368×500 帧全部平坦，峰值 7.4–11.2MiB；
+      AV1 软编受 SVT 内部缓冲影响基线高，增长趋饱和非泄漏）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 交错 send/recv 压力（50/500 帧：h264 600 帧、hevc 500 帧均过，
+      峰值 RSS 8.2/8.9MiB）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> caps 输出（soc=rk3576-evb1-v10 / enc=1 / dec=1 / npu=1）</li>
+</ul>
+<h2 id="7">7. 故障排查速查<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>错误特征</th>
+<th>根因</th>
+<th>处置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>视频接口全部返回 <code>AIS_ERR_UNSUPPORTED</code>，测试恒"跳过"</td>
+<td>顶层缺 <code>AIS_VIDEO_CODEC_RKVC=1</code> 编译定义，编出退化实现（§3.1）</td>
+<td>补编译定义后全量重建</td>
+</tr>
+<tr>
+<td>无候选（<code>required stage has no candidate</code>）</td>
+<td>插件未装载（目录无 .so / 路径非绝对 / 握手失败）</td>
+<td><code>inspect backends</code> 看拒载原因；确认 §4.1/§4.4</td>
+</tr>
+<tr>
+<td>插件拒载（ABI/指纹）</td>
+<td>插件与 core 非同一次构建（<code>kPluginAbi</code> 或工具链指纹不一致）</td>
+<td>插件与宿主链的 core 同源重建；<code>inspect backends</code> 确认</td>
+</tr>
+<tr>
+<td><code>session_start failed: format (-8)</code>（MPP 硬编）</td>
+<td>检出无 FRAME_SINK 格式注入，编码器读到 UNKNOWN</td>
+<td>更新 core（§5.1）</td>
+</tr>
+<tr>
+<td>三方互等挂死（pull / queue / MPP）</td>
+<td>flush 前"send 数帧 → <code>while (recv==OK)</code> 排空"反模式（recv 恒阻塞）</td>
+<td>§3.3：排空只在 flush 后进行</td>
+</tr>
+<tr>
+<td><code>drain_pending</code> 吞帧/误判 EOF，send 背压后丢输出</td>
+<td>旧版队列 try_pop 成功弹帧后仍报空，被误判成 EOS</td>
+<td>更新 core；queue/session 非阻塞回归确认（§2.2-1）</td>
+</tr>
+<tr>
+<td>解码输出为全零帧但返回成功</td>
+<td><code>core.download</code> 桥未命中（如非线性布局），适配层域防御兜底报错</td>
+<td>§3.4-1：核对 core 版本与桥接；适配层日志有 dmabuf 告警</td>
+</tr>
+<tr>
+<td><code>caps enc=0/dec=0</code> 但 NPU 可用</td>
+<td>caps 把 RKNN 计入编/解能力，MPP 探针失败时不体现</td>
+<td>§3.3 caps 语义；再查 MPP probe 条件（§5.4）</td>
+</tr>
+<tr>
+<td><code>has_npu=0</code> 但 NPU 驱动正常</td>
+<td>旧检出只认 <code>/dev/rknpu*</code>，DRM 形态 NPU（161）漏检</td>
+<td>更新 core/sr（§5.5）</td>
+</tr>
+<tr>
+<td>编码质量异常（码率失控/全黑）</td>
+<td><code>memset</code> 配置后未显式 <code>qp=-1</code>，<code>qp=0</code> 被当固定 QP 0</td>
+<td>§3.2</td>
+</tr>
+<tr>
+<td>长流 RSS 线性增长（约每帧一帧 NV12）</td>
+<td>适配层 <code>send</code> 在 <code>rkvc_session_push</code> 成功后未释放 C 帧包装——push 是借用语义，包装内 shared_ptr 永持引用致 <code>wrap_owned</code> 释放回调不触发</td>
+<td><code>push</code> 返回 OK 后立即 <code>rkvc_frame_release</code>；对照 §6.3 阶梯核查</td>
+</tr>
+<tr>
+<td>编译报 <code>CLOCK_MONOTONIC</code> 未声明等</td>
+<td>宿主以严格 -std=c11 编 SDK core（core 需 POSIX 特性宏，已补 <code>_POSIX_C_SOURCE</code>）</td>
+<td>§3.1 属性隔离</td>
+</tr>
+<tr>
+<td>链接失败引用 <code>__isoc23_strtoul</code> / <code>arc4random</code></td>
+<td>交叉 libstdc++ 与低版本 sysroot glibc 不兼容</td>
+<td>§4.5：改板载编译（§4.6）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8">8. 集成核对清单<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<p>（2026-09-11 按本清单逐项核对：1–7 项有 RK3576 板测背书，第 &#8540; 项于
+当日补跑 <code>nm -D</code> 与 <code>check-symbols.sh</code> 审计，全过。）</p>
+<ol class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 视频顶层自持：<code>ais_semantic_codec</code> 目标、SDK 根 include、
+       <code>AIS_VIDEO_CODEC_RKVC=1</code> 编译定义、core 子目录
+       （<code>RKVC_BUILD_CLI=OFF</code> / <code>RKVC_BUILD_CODECS=OFF</code>）与目录属性隔离（§3.1）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 依赖前缀按需准备 MPP / SVT / RKNN（§4.6）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 构建全量通过；<code>nm -D</code> 确认插件只导出 <code>rkvc_plugin_query</code>（§4.2）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 运行：<code>cfg.backend_dir</code> 绝对路径；插件第三方依赖在目标机可解析
+       （§4.3/§4.4）；<code>ais_video_caps</code> 不走 <code>backend_dir</code>（§3.3）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 适配层：配置显式赋值（<code>qp=-1</code> 等，§3.2）；<code>rkvc_frame_wrap_owned</code>
+       释放回调（§3.3）；排空只在 flush 后（§3.3）；DMABUF 帧域防御（§3.4-1）；
+       <code>AIS_BUILDING=1</code>（§3.4-2）</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 回归：<code>test_video_codec.c</code> 接线 + §6.3 矩阵全绿</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 适配层按 §2.1 清单消费 C ABI 0.5.x，以 <code>examples/</code> 三个 C 样板为契约</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled checked/><span class="task-list-indicator"></span></label> 板端全产物过 <code>tools/check-symbols.sh</code>（GLIBC ≤ 2.34 + NEEDED 审计）；
+       宿主 <code>libais_semantic_codec.so</code> 动态链 libstdc++ 属适配层 C++17 预期
+       （§4.5，GLIBCXX 3.4.30 与板载匹配，板测实跑验证）</li>
+</ol>
+<h2 id="9">9. 版本与变更记录<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>变更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-11</td>
+<td>上游 <code>semantic-codec-sdk</code> 补齐视频自举构建并板端验证：<code>codec/video</code> 可独立配置（<code>-Drkvc_DIR</code> 或 <code>-DAIS_RKVC_CORE_DIR</code>，<code>-DAIS_BUILD_TESTS=ON</code> 出 <code>test_video_codec</code>）、公共头补齐 <code>ais_buffer_bitstream</code>/<code>ais_buffer_cdata</code>/<code>ais_buffer_set_packet_info</code>、<code>core/ais_log.c</code> 补 <code>_POSIX_C_SOURCE 200809L</code>、图像 aarch64 工具链补 <code>CMAKE_TRY_COMPILE_PLATFORM_VARIABLES</code>（否则 GCC 主版本覆盖无效）；RK3576 实测 H264/HEVC/AV1 回环 0 全零帧、H264 640×368×500 帧 RSS 平坦</td>
+</tr>
+<tr>
+<td>2026-09-11</td>
+<td>板级回归矩阵全绿并修复帧包装泄漏：适配层 <code>send</code> 在 <code>rkvc_session_push</code> 成功后补 <code>rkvc_frame_release</code>（C ABI push 为借用语义，漏释放致 RSS 每帧一帧 NV12 线性增长）；实测口径改进程内采样，H264/HEVC 编码段 100–600 帧全平坦（峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB；AV1 软编受 SVT 内部缓冲影响基线高但趋饱和。矩阵 &frac34;/5 实跑打勾（§6.3）</td>
+</tr>
+<tr>
+<td>2026-09-11</td>
+<td>修复上游三缺口并板测全绿：rkvc 新增 <code>rkvc_frame_wrap_owned</code>；适配层删 <code>owned_</code> 改释放回调；上游公开 <code>ais_buffer_bitstream</code>/<code>ais_buffer_set_packet_info</code>/<code>ais_buffer_cdata</code>；DMABUF 回读双保险（core 自动桥接 + 适配层域防御）；<code>codec/video</code> 补 <code>AIS_BUILDING=1</code>。板测（RK3576）：H264/HEVC/AV1 回环 0 全零帧、交错 50/500 通过、caps enc=1 dec=1 npu=1</td>
+</tr>
+<tr>
+<td>2026-09-11</td>
+<td>适配层模型装载对齐：<code>register_model_dir</code> 改直调 <code>rkvc_context_add_model_dir</code>（rkvc 按导出器约定整组装载 <code>.rknn</code>/<code>.bin</code>/<code>.qppatch</code>，上游不再自行扫描）</td>
+</tr>
+<tr>
+<td>2026-09-10</td>
+<td>新增<a href="../portable-package/">可移植包 × 宿主集成</a>（§4.3）；NPU 探测补 DRM 形态（§5.5）；GLIBC 审计基线收口 2.34</td>
+</tr>
+<tr>
+<td>2026-09-09</td>
+<td>适配上游 2026-09 快照并全篇翻转为 C ABI 0.5.0 现状：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口 <code>ais_video_open/send/recv/flush/caps</code>；send 同步化、recv 恒阻塞；caps 纳入 RKNN；新增 MLVC family；回归改 <code>test_video_codec.c</code>。更早（2026-08~09-03）的初版与旧契约基线见 git 历史</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88ee1349.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1504 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/portable-package/">
+      
+      
+        <link rel="prev" href="../deployment/">
+      
+      
+        <link rel="next" href="../testing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.60">
+    
+    
+      
+        <title>可移植包集成 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ce62732f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/doxide.css">
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              可移植包集成
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 引用
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  部署
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  可移植包集成
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  可移植包集成
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 包的定位：一个包，三种用法
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 包的定位：一个包，三种用法">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1.1 为什么这样切还能留住以后接别的上游库的自由度
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-sdk-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. SDK 面怎么用（用法 ②）
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. SDK 面怎么用（用法 ②）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.1 目录约定
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.2 CMake 工程（推荐）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-pkg-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.3 pkg-config / 裸编译
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.4 运行期：库与插件怎么被找到
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-codec-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.5 codec 的 SDK 面
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 宿主怎么找到包内插件
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. 硬约束：工具链指纹
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. 插件不能拆散部署
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 模型与设备前提
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. 验收清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. 排障
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        9. 变更记录
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-frame-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC 帧型机制
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sr-model-yuv-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SR 模型规格
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../semantic-codec-sdk-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  语义编解码 SDK 集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gb28181-streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GB28181 推流
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 包的定位：一个包，三种用法
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. 包的定位：一个包，三种用法">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1.1 为什么这样切还能留住以后接别的上游库的自由度
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-sdk-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. SDK 面怎么用（用法 ②）
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. SDK 面怎么用（用法 ②）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.1 目录约定
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-cmake" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.2 CMake 工程（推荐）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-pkg-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.3 pkg-config / 裸编译
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#24" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.4 运行期：库与插件怎么被找到
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#25-codec-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2.5 codec 的 SDK 面
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. 宿主怎么找到包内插件
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. 硬约束：工具链指纹
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. 插件不能拆散部署
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 模型与设备前提
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. 验收清单
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. 排障
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        9. 变更记录
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="_1">可移植包 × 宿主集成<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>面向两类人：想把 rkvc 内嵌进下游宿主（如 <code>semantic-codec-sdk</code> / ais SDK）的
+集成者，和只想拿包直接跑转码的运维。回答一个问题：
+<code>tools/portable/build.sh</code> 产出的 tarball 到底怎么用、怎么拼到上游里去。
+宿主侧 C ABI 契约见 <a href="../semantic-codec-sdk-integration/">semantic-codec-sdk-integration.md</a>；
+包怎么构建、怎么单独部署见 <a href="../deployment/">deployment.md</a>。
+本文的结论均为 2026-09-10 在 RK3576（Ubuntu 22.04.5）与 x86 交叉环境实测。</p>
+</blockquote>
+<h2 id="1">1. 包的定位：一个包，三种用法<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>可移植包是<strong>复合产品</strong>：同一份产物同时服务三类消费者，互不牵制。选哪条路只
+取决于"谁来编代码"：</p>
+<table>
+<thead>
+<tr>
+<th>用法</th>
+<th>谁在用</th>
+<th>需要什么</th>
+<th>入口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>① CLI 自用</strong></td>
+<td>运维 / 现场定位 / 脚本</td>
+<td>只要解包，无编译器</td>
+<td><code>bin/rkvc</code>（§7 验收）</td>
+</tr>
+<tr>
+<td><strong>② 链 SDK 集成</strong></td>
+<td>上游宿主、第三方应用</td>
+<td>C/C++ 编译器，<strong>不需要 core 源码</strong></td>
+<td><code>-Drkvc_DIR=&lt;pkg&gt;/lib/cmake/rkvc</code></td>
+</tr>
+<tr>
+<td><strong>③ 源码内嵌</strong></td>
+<td>需改 core / 自带编译器策略</td>
+<td>rkvc 源码树</td>
+<td><code>add_subdirectory(core)</code></td>
+</tr>
+</tbody>
+</table>
+<p>包内因此同时带着"运行物"和"开发物"：</p>
+<table>
+<thead>
+<tr>
+<th>包内有</th>
+<th>包内没有</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bin/rkvc</code>（CLI，C++ 运行时静态链接）</td>
+<td>doxide 生成的 <code>docs/api/</code>（现生成、不入库）</td>
+</tr>
+<tr>
+<td><code>lib/rkvc/backends/rkvc_*.so</code>（codec 插件）</td>
+<td>rkvc 源码（要走用法 ③ 请自行 clone）</td>
+</tr>
+<tr>
+<td><code>lib/librkvc.so*</code>（<strong>SDK 主体</strong>，§2）</td>
+<td>模型（bundle 目录需 <code>--models</code> 单独打包）</td>
+</tr>
+<tr>
+<td><code>lib/librkvc-&lt;codec&gt;.so*</code>、<code>include/&lt;codec&gt;/</code>（codec SDK，§2.5）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>include/rkvc/</code>（16 个头文件：<code>rkvc.h</code> + C++ 头）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>lib/cmake/rkvc/</code>、<code>lib/pkgconfig/rkvc.pc</code>（两种查找方式）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>lib/*.so*</code>（MPP / rknnrt / SVT-AV1）</td>
+<td></td>
+</tr>
+<tr>
+<td><code>docs/</code>（全套文档）、<code>examples/</code>（三个 C ABI 样板 + <code>ais-video-host</code> 装配模板）、<code>CHANGELOG.md</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>licenses/</code>、可选 <code>models/</code>、<code>test.sh</code>、<code>MANIFEST.sha256</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>三条路各有边界，别混：</p>
+<ul>
+<li>用法 ② 拿到的是<strong>已编译的 core</strong>（<code>librkvc.so</code>），与包内插件同源同编译器，
+  所以插件指纹天生一致——这是它比用法 ③ 省事的地方。</li>
+<li>用法 ③ 自己编 core，指纹取决于<strong>你自己的编译器</strong>，必须写 <code>g++-11.4.0</code> 同版
+  才能装载包内插件（§4）。要用自己的编译器编插件宿主，就得连插件一起自己编。</li>
+<li><strong>用法 ① 不依赖 ②/③</strong>：CLI 静态链接 core，<code>librkvc.so</code> 装不装、装哪版都不
+  影响它。反过来，上游也不必为了拿 SDK 而接受 CLI 的存在。</li>
+</ul>
+<h3 id="11">1.1 为什么这样切还能留住以后接别的上游库的自由度<a class="headerlink" href="#11" title="Permanent link">&para;</a></h3>
+<p>三个面之间的耦合点只有一处，就是<strong>插件 ABI</strong>（<code>kPluginAbi</code> + 工具链指纹，
+§4），其余全部解耦：</p>
+<ul>
+<li><strong>新增一个上游库/新硬件</strong>（新 NPU runtime、新软编库、新 ISP 库）：写一个新的
+  codec 插件工程（<code>codecs/&lt;name&gt;/</code>，导出 <code>rkvc_plugin_query</code>），在
+  <code>tools/portable/build.sh</code> 的 <code>collect_artifacts</code> 里加一条预期产物即可。
+  core、SDK 面、CLI 都不用动——这是插件模型存在的意义。</li>
+<li><strong>上游库要反过来复用 rkvc</strong>：<code>find_package(rkvc CONFIG)</code> 或
+  <code>pkg-config rkvc</code>（§2），拿到的是同一份 <code>rkvc::core</code> 契约。</li>
+<li><strong>以后要出 C++ API 版 SDK</strong>：<code>include/rkvc/</code> 里 15 个 C++ 头已随包（<code>context.hpp</code>
+  等），<code>librkvc.so</code> 的符号也按官方清单审计（§7 第 3 步），不存在"只给 C 面不给
+  C++ 面"的返工。</li>
+<li><strong>要拆包</strong>（比如 SDK 与运行库分包）：<code>librkvc.so</code> 的 RUNPATH 只有 <code>$ORIGIN</code>，
+  三方库全在 <code>lib/</code>，插件靠 <code>$ORIGIN/../..</code> 找 <code>lib/</code>（§5），所以"SDK + 插件 +
+  三方库"三者必须同 <code>lib/</code> 布局一起搬，拆包就是把这三个一起搬。</li>
+</ul>
+<h2 id="2-sdk-2">2. SDK 面怎么用（用法 ②）<a class="headerlink" href="#2-sdk-2" title="Permanent link">&para;</a></h2>
+<h3 id="21">2.1 目录约定<a class="headerlink" href="#21" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;pkg&gt;/include/rkvc/rkvc.h             C ABI（0.5.0，ABI 主版本 0）
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>&lt;pkg&gt;/include/rkvc/*.hpp              C++ 头（context/plugin/frame/...）
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>&lt;pkg&gt;/lib/librkvc.so -&gt; .so.0 -&gt; .so.0.5.0    SONAME = librkvc.so.0（跟 ABI 主版本）
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>&lt;pkg&gt;/lib/cmake/rkvc/rkvcConfig.cmake         find_package(rkvc CONFIG) 用
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>&lt;pkg&gt;/lib/pkgconfig/rkvc.pc                   pkg-config 用
+</span></code></pre></div>
+<p><code>librkvc.so</code> 不依赖 libstdc++/libgcc（静态链入），NEEDED 只有 glibc；所以 C
+程序直接 <code>-lrkvc</code> 即可，不需要 <code>-lstdc++</code>——板卡上用 <code>gcc-11</code> 实测通过。</p>
+<h3 id="22-cmake">2.2 CMake 工程（推荐）<a class="headerlink" href="#22-cmake" title="Permanent link">&para;</a></h3>
+<div class="language-cmake highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">find_package</span><span class="p">(</span><span class="s">rkvc</span><span class="w"> </span><span class="s">CONFIG</span><span class="w"> </span><span class="s">REQUIRED</span><span class="p">)</span><span class="w">   </span><span class="c"># 指向 &lt;pkg&gt;/lib/cmake/rkvc 或系统安装位</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">add_executable</span><span class="p">(</span><span class="s">host</span><span class="w"> </span><span class="s">main.c</span><span class="p">)</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">target_link_libraries</span><span class="p">(</span><span class="s">host</span><span class="w"> </span><span class="s">PRIVATE</span><span class="w"> </span><span class="s">rkvc::core</span><span class="p">)</span>
+</span></code></pre></div>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cmake<span class="w"> </span>-S<span class="w"> </span>.<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-Drkvc_DIR<span class="o">=</span>&lt;pkg&gt;/lib/cmake/rkvc
+</span></code></pre></div>
+<p>包里的 <code>examples/</code>（<code>integration-c</code> / <code>decode-file</code> / <code>upscale-file</code>）就是这个
+写法，且<strong>同时支持</strong>用法 ② 与 ③：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmake<span class="w"> </span>-S<span class="w"> </span>examples/integration-c<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-Drkvc_DIR<span class="o">=</span>&lt;pkg&gt;/lib/cmake/rkvc
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>cmake<span class="w"> </span>-S<span class="w"> </span>examples/integration-c<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DRKVC_CORE_DIR<span class="o">=</span>&lt;rkvc<span class="w"> </span>源码&gt;/core
+</span></code></pre></div>
+<p>把 <code>semantic-codec-sdk</code> 的视频适配层装成 <code>ais_semantic_codec</code> 的顶层写法见
+<code>examples/ais-video-host/</code>（另加 <code>-DAIS_SDK_ROOT=&lt;SDK 根&gt;</code>）。</p>
+<h3 id="23-pkg-config">2.3 pkg-config / 裸编译<a class="headerlink" href="#23-pkg-config" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">PKG_CONFIG_PATH</span><span class="o">=</span>&lt;pkg&gt;/lib/pkgconfig<span class="w"> </span>pkg-config<span class="w"> </span>--cflags<span class="w"> </span>--libs<span class="w"> </span>rkvc
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>gcc<span class="w"> </span>-I&lt;pkg&gt;/include<span class="w"> </span>host.c<span class="w"> </span>-L&lt;pkg&gt;/lib<span class="w"> </span>-lrkvc<span class="w"> </span>-o<span class="w"> </span>host
+</span></code></pre></div>
+<p>包内两份配置都写成<strong>相对自身定位前缀</strong>（<code>.pc</code> 用 <code>${pcfiledir}/../..</code>，
+CMake config 由 <code>configure_package_config_file</code> 生成），所以整包解压到任意目录
+都不用重新生成，<code>pkg-config</code> 直接给出解压后的真实路径（板卡实测）。</p>
+<h3 id="24">2.4 运行期：库与插件怎么被找到<a class="headerlink" href="#24" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>librkvc.so</code></strong>：由宿主自己的 rpath 决定。宿主编译时加
+  <code>-Wl,-rpath,$ORIGIN/../lib</code>（宿主在 <code>&lt;pkg&gt;/bin/</code> 时）或用 <code>LD_LIBRARY_PATH</code>；
+  用 CMake <code>find_package</code> 时，构建树里 CMake 会自动把 <code>&lt;pkg&gt;/lib</code> 记进 rpath。</li>
+<li><strong>插件</strong>：<code>librkvc.so</code> 被 <code>dladdr</code> 定位在 <code>&lt;pkg&gt;/lib/</code>，于是发现顺序里第 ③
+  条 <code>&lt;映像目录&gt;/../lib/rkvc/backends</code> 正好命中 <code>&lt;pkg&gt;/lib/rkvc/backends</code>。
+  也就是说<strong>用法 ② 默认零配置</strong>：不用传 <code>backend_dirs</code>。板卡实测：纯 C 消费者
+  链接包内 SDK、不填 <code>backend_dirs</code>，建会话成功（<code>test.sh</code> 的 SDK 段即为该检查）。</li>
+</ul>
+<p><code>dladdr</code> 认的是"含 core 的映像"：静态内嵌（用法 ③）时是宿主的可执行文件或
+宿主 .so；链接 <code>librkvc.so</code>（用法 ②）时就是 <code>librkvc.so</code> 自己。两条路都不需要
+宿主知道包的路径（§3 表的部署位 B/C）。</p>
+<h3 id="25-codec-sdk">2.5 codec 的 SDK 面<a class="headerlink" href="#25-codec-sdk" title="Permanent link">&para;</a></h3>
+<p>core 之外，五个 codec 工程（<code>h264h265</code> / <code>av1</code> / <code>mlvc</code> / <code>sr</code> / <code>pspack</code>）
+在 <code>RKVC_INSTALL_SDK=ON</code> 时也随包安装独立的 SDK 面（头文件 + 动态库 + CMake
+config + pkg-config）：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>&lt;pkg&gt;/include/h264h265/*.hpp                  codec 自己的 C++ 头
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>&lt;pkg&gt;/lib/librkvc-h264h265.so -&gt; .so.0 -&gt; .so.0.5.0   SONAME = librkvc-h264h265.so.0
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>&lt;pkg&gt;/lib/cmake/rkvc-h264h265/rkvc-h264h265Config.cmake
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>&lt;pkg&gt;/lib/pkgconfig/rkvc-h264h265.pc          Requires: rkvc
+</span></code></pre></div>
+<div class="language-cmake highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">find_package</span><span class="p">(</span><span class="s">rkvc-h264h265</span><span class="w"> </span><span class="s">CONFIG</span><span class="w"> </span><span class="s">REQUIRED</span><span class="p">)</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">target_link_libraries</span><span class="p">(</span><span class="s">host</span><span class="w"> </span><span class="s">PRIVATE</span><span class="w"> </span><span class="s">rkvc-h264h265::codec</span><span class="p">)</span>
+</span></code></pre></div>
+<p>其余四个同理（<code>rkvc-av1</code> / <code>rkvc-mlvc</code> / <code>rkvc-sr</code> / <code>rkvc-pspack</code>，导入目标
+<code>rkvc-&lt;codec&gt;::codec</code>）。每份 <code>librkvc-&lt;codec&gt;.so</code> 的 RUNPATH 同样只有
+<code>$ORIGIN</code>（与 <code>librkvc.so</code> 同处 <code>lib/</code>），且 <strong>h264h265 / av1 / mlvc / sr 把
+插件入口编在同一份 <code>.so</code> 内</strong>：宿主既可以链它用 C++ 面，也可以把它当后端
+dlopen（与 <code>lib/rkvc/backends/rkvc_&lt;codec&gt;.so</code> 等价）；<code>pspack</code> 没有插件入口
+（核心直接链接它），只出库与头文件。<code>av1</code> 的库与插件一样受 SVT-AV1 4.x 门控，
+未找到时一并跳过。</p>
+<h2 id="3">3. 宿主怎么找到包内插件<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<p><code>rkvc_context_create</code> 按下列顺序收集 <code>*.so</code>（<code>core/src/c_api.cpp</code>，目录内排序
+后逐个握手，失败静默跳过）：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>目录</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>①</td>
+<td><code>rkvc_context_options.backend_dirs</code></td>
+<td>调用方显式传入，按数组顺序；<strong>先命中的赢</strong></td>
+</tr>
+<tr>
+<td>②</td>
+<td><code>&lt;含 core 的映像所在目录&gt;/rkvc/backends</code></td>
+<td><code>dladdr</code> 定位；映像是宿主可执行文件<strong>或宿主 .so</strong></td>
+</tr>
+<tr>
+<td>③</td>
+<td><code>&lt;同上目录&gt;/../lib/rkvc/backends</code></td>
+<td>可移植包布局；与 ② 都会尝试（重复命中时第二次按重复工厂拒载，无副作用）</td>
+</tr>
+<tr>
+<td>④</td>
+<td><code>/usr/local/lib/rkvc/backends</code></td>
+<td>系统安装位</td>
+</tr>
+<tr>
+<td>⑤</td>
+<td><code>/usr/lib/rkvc/backends</code></td>
+<td>系统安装位</td>
+</tr>
+</tbody>
+</table>
+<p>据此可选四类部署位，实测（<code>av1</code> 软编 3 帧 640×360，宿主二进制在
+<code>/tmp/hosttest/bin/</code>，包在 <code>/tmp/rkvc-pkg/...</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>部署位</th>
+<th>宿主需要传参</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. 宿主在包外</strong>（最常见）</td>
+<td>必须：<code>backend_dirs</code> 指向 <code>&lt;pkg&gt;/lib/rkvc/backends</code></td>
+<td>实测：无参 <code>rc=2</code> "no candidate"；传参 <code>rc=0</code>，547692 B</td>
+</tr>
+<tr>
+<td><strong>B. 宿主映像落在 <code>&lt;pkg&gt;/lib/</code></strong></td>
+<td>不需要（命中 ③）</td>
+<td>实测：<code>rc=0</code>，547692 B</td>
+</tr>
+<tr>
+<td><strong>C. 宿主映像落在 <code>&lt;pkg&gt;/bin/</code></strong></td>
+<td>不需要（命中 ③）</td>
+<td>实测：包内 CLI 即此形态，<code>test.sh</code> 全程不传 <code>--backend-dir</code> 也能跑通</td>
+</tr>
+<tr>
+<td>D. 插件装到系统路径</td>
+<td>不需要（命中 ④/⑤）</td>
+<td>未实测，按代码顺序推断；须自行保证三方库可解析（§5）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>上游宿主是共享库</strong>（<code>libais_semantic_codec.so</code>），部署位 B 对它成立：把
+<code>libais_semantic_codec.so</code> 放进 <code>&lt;pkg&gt;/lib/</code>，<code>dladdr</code> 取到的就是该 .so 的
+路径，<code>lib/rkvc/backends</code> 直接命中，宿主侧一行配置都不用写。这是把包交付给
+上层应用时最省事的摆法（上表用二进制置于 <code>&lt;pkg&gt;/lib/</code> 复现同一条 dladdr
+路径，.so 形态未单独实测）。</p>
+</blockquote>
+<p>A 的接线（C，节选自 <code>rkvc_context_options</code> 的用法）：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">dirs</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s">"/opt/rkvc/lib/rkvc/backends"</span><span class="w"> </span><span class="p">};</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="n">rkvc_context_options</span><span class="w"> </span><span class="n">opts</span><span class="p">;</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">rkvc_context_options_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">opts</span><span class="p">,</span><span class="w"> </span><span class="k">sizeof</span><span class="p">(</span><span class="n">opts</span><span class="p">));</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">opts</span><span class="p">.</span><span class="n">backend_dirs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dirs</span><span class="p">;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">opts</span><span class="p">.</span><span class="n">backend_dir_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">rkvc_context</span><span class="w"> </span><span class="o">*</span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">NULL</span><span class="p">;</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">rkvc_context_create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">opts</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">RKVC_OK</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 处理 */</span><span class="w"> </span><span class="p">}</span>
+</span></code></pre></div>
+<p>目录必须<strong>绝对路径</strong>（<code>$PWD/...</code> 之类的字面量不会展开，症状是"无候选"）。</p>
+<h2 id="4">4. 硬约束：工具链指纹<a class="headerlink" href="#4" title="Permanent link">&para;</a></h2>
+<p>混版 <code>.so</code> 靠指纹拦住（<code>RKVC_TOOLCHAIN_FINGERPRINT</code>，
+<code>core/include/rkvc/plugin.hpp</code>）：</p>
+<div class="language-c highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="cp">#define RKVC_TOOLCHAIN_FINGERPRINT ("g++-" __VERSION__ "-c++20-noexc-nortti")</span>
+</span></code></pre></div>
+<p><code>rkvc::Context::load_plugin</code> 对插件上报的指纹做<strong>精确字符串比较</strong>，不一致即
+拒载。关键点是 Ubuntu 22.04 的 GCC 11 把 <code>__VERSION__</code> 展开成<strong>纯版本号</strong>：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>$ echo | aarch64-linux-gnu-g++-11 -E -dM -x c++ - | grep __VERSION__
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>#define __VERSION__ "11.4.0"
+</span></code></pre></div>
+<p>于是指纹只取决于 <strong>GCC 主次版本</strong>，与交叉/原生、发行版后缀无关：</p>
+<table>
+<thead>
+<tr>
+<th>宿主编译器</th>
+<th>指纹</th>
+<th>能否装载本包插件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ubuntu 22.04 <code>g++-11</code>（11.4.0，交叉或板载）</td>
+<td><code>g++-11.4.0-c++20-noexc-nortti</code></td>
+<td>✅ 实测</td>
+</tr>
+<tr>
+<td>Ubuntu 24.04 <code>g++-13</code>（13.3.0）</td>
+<td><code>g++-13.3.0-c++20-noexc-nortti</code></td>
+<td>❌ 拒载（推断）</td>
+</tr>
+<tr>
+<td>其他 GCC 11.x（11.1/11.2/…）</td>
+<td>各自版本号</td>
+<td>❌ 只认 11.4.0</td>
+</tr>
+</tbody>
+</table>
+<p>除首行实测外，其余为按构成规则推断（指纹只由 <code>__VERSION__</code> 决定）；要确认请用
+下面的 <code>strings</code> 自查，别靠推断。</p>
+<p>包内 CLI 与插件实测都是 <code>g++-11.4.0-c++20-noexc-nortti</code>：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>strings<span class="w"> </span>bin/rkvc<span class="w">                        </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'^g\+\+-.*c\+\+20-noexc-nortti$'</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>strings<span class="w"> </span>lib/rkvc/backends/rkvc_av1.so<span class="w">   </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'^g\+\+-.*c\+\+20-noexc-nortti$'</span>
+</span></code></pre></div>
+<p><strong>自查方法</strong>（宿主与包分别取字符串比对，一致才配对）：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>strings<span class="w"> </span>&lt;宿主可执行或<span class="w"> </span>.so&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'^g\+\+-.*c\+\+20-noexc-nortti$'</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>strings<span class="w"> </span>&lt;pkg&gt;/lib/rkvc/backends/*.so<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'^g\+\+-.*c\+\+20-noexc-nortti$'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-u
+</span></code></pre></div>
+<p>板卡侧对齐情况：RK3576 是 Ubuntu 22.04.5，仓库自带的 <code>gcc-11</code> 报
+<code>11.4.0-1ubuntu1~22.04</code>；装 <code>g++-11</code> 后板载编译出的宿主指纹与包插件一致，
+所以 <a href="../semantic-codec-sdk-integration/">SDK 集成 §4.6 配置 C</a>（板载编译）与本
+包可以直接配。</p>
+<p>实测拒载效果（把包复制一份，仅改写 <code>rkvc_av1.so</code> 内的指纹为 <code>12.3.0</code>）：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>av1 编码 → encode: session create failed: not found
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>           status=-3 planner(request): required stage has no candidate   (rc=2)
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>同目录未改写的 h264h265 → 照常硬编 8 帧（rc=0，2151580 B）
+</span></code></pre></div>
+<p>即校验是逐插件独立做的：一个插件被拒不影响同目录其它插件。</p>
+<p>注意 <strong><code>inspect backends</code> 不能用来判兼容</strong>：它只对显式给到的目录做裸
+<code>dlopen</code> + 打印描述符，既不比对指纹也不做自动发现（本文 §3 的自动发现发生在
+<code>rkvc_context_create</code>，只有真正建会话的路径才会走）。指纹不符的插件，它照列不误。</p>
+<p>指纹只覆盖编译器；插件 ABI（<code>kPluginAbi</code>）只在破坏性变更时 +1，所以
+<strong>宿主与插件必须取自同一次 rkvc 发布</strong>，升级时两边同步换。</p>
+<h2 id="5">5. 插件不能拆散部署<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<p>插件 RUNPATH 是 <code>$ORIGIN/../..</code>（即包内 <code>lib/</code>），三方库靠它解析。把单个
+<code>.so</code> 拷到别处不会报错，只会<strong>静默消失</strong>：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>$<span class="w"> </span>cp<span class="w"> </span>&lt;pkg&gt;/lib/rkvc/backends/rkvc_av1.so<span class="w"> </span>/tmp/mismatch/<span class="w">     </span><span class="c1"># 只拷插件</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>$<span class="w"> </span>ldd<span class="w"> </span>/tmp/mismatch/rkvc_av1.so<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">'not found'</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">        </span>libSvtAv1Enc.so.4<span class="w"> </span><span class="o">=</span>&gt;<span class="w"> </span>not<span class="w"> </span>found<span class="w">                      </span><span class="c1"># → dlopen 失败</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>$<span class="w"> </span>rkvc<span class="w"> </span>encode<span class="w"> </span>--codec<span class="w"> </span>av1<span class="w"> </span>...<span class="w"> </span>--backend-dir<span class="w"> </span>/tmp/mismatch
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>encode:<span class="w"> </span>session<span class="w"> </span>create<span class="w"> </span>failed:<span class="w"> </span>not<span class="w"> </span>found<span class="w">                     </span><span class="c1"># 与"没装插件"同一句</span>
+</span></code></pre></div>
+<p>包内插件（含 MPP / rknnrt / SVT）逐项 <code>ldd</code> 无 <code>not found</code>，<code>test.sh</code> 已覆盖。
+搬运或安装到别处时，要么整包保持相对布局，要么让 <code>lib/</code> 落在系统搜索路径
+（<code>LD_LIBRARY_PATH</code> / <code>ldconfig</code>），二者必居其一。</p>
+<h2 id="6">6. 模型与设备前提<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>模型没有自动发现</strong>：<code>rkvc_context_options</code> 只有 <code>backend_dirs</code>，没有模型
+  目录项，也无环境变量。宿主调
+  <code>rkvc_context_add_model_dir(ctx, "/abs/path/bundle", &amp;diag)</code> 按导出器约定
+  整组装载目录内原生文件；CLI 对应
+  <code>--model-dir</code> / <code>--model</code>。<code>h264h265</code>、<code>av1</code> 不需要模型，<code>mlvc</code>、<code>sr</code> 需要。</li>
+<li><strong>设备节点</strong>：H264/HEVC 硬编解需要 <code>/dev/mpp_service</code>；<code>mlvc</code>/<code>sr</code> 需要 NPU
+  （RK3576 无 <code>/dev/rknpu</code>，NPU 以 DRM render 节点存在，core 会认）。
+  <code>rkvc caps</code> 可核对。</li>
+<li><strong>运行库基线</strong>：aarch64 产物要求 glibc ≥ 2.34（板 2.35 满足）；
+  <code>librknnrt.so</code> 自身动态依赖目标机 <code>libstdc++.so.6</code> / <code>libgcc_s.so.1</code>。</li>
+</ul>
+<h2 id="7">7. 验收清单<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<p>按顺序做完这几步，集成即算通过（第 1–5 步对三种用法通用，第 6 步只关用法 ②）：</p>
+<ol>
+<li><strong>完整性</strong>：<code>sha256sum -c MANIFEST.sha256</code>（包根执行）</li>
+<li><strong>依赖闭包</strong>：<code>ldd &lt;pkg&gt;/lib/rkvc/backends/*.so &lt;pkg&gt;/lib/librkvc*.so | grep 'not found'</code>
+   → 无输出</li>
+<li><strong>插件可用</strong>：<code>&lt;pkg&gt;/bin/rkvc inspect backends --backend-dir &lt;pkg&gt;/lib/rkvc/backends</code>
+   → 四个插件各带 factory 列表（只证明"能 dlopen + 导出了描述符"）</li>
+<li><strong>指纹配对</strong>：§4 的 <code>strings</code> 比对，两边一致</li>
+<li><strong>真会话冒烟</strong>：用宿主自己的路径跑一次编码（或直接用包内 CLI）——
+   这是唯一能同时验证发现路径、指纹、设备、第三方库的检查：</li>
+</ol>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>&lt;pkg&gt;/bin/rkvc<span class="w"> </span>encode<span class="w"> </span>--codec<span class="w"> </span>h264<span class="w"> </span>--input<span class="w"> </span><span class="k">in</span>.nv12<span class="w"> </span>--width<span class="w"> </span><span class="m">640</span><span class="w"> </span>--height<span class="w"> </span><span class="m">368</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span>--pixfmt<span class="w"> </span>nv12<span class="w"> </span>--output<span class="w"> </span>out.h264<span class="w"> </span>--qp<span class="w"> </span><span class="m">26</span><span class="w"> </span>--gop<span class="w"> </span><span class="m">30</span>
+</span></code></pre></div>
+<p>宿主在包外时补 <code>--backend-dir &lt;pkg&gt;/lib/rkvc/backends</code>；
+   包内 CLI 不用补（自动发现）。</p>
+<ol>
+<li><strong>SDK 面自证</strong>（用法 ②）：包根跑 <code>bash test.sh</code>，SDK 段会逐个点名
+   <code>include/</code>、<code>lib/librkvc.so</code>、<code>lib/cmake/rkvc/</code>、<code>lib/pkgconfig/rkvc.pc</code>，
+   编译一个纯 C 消费者对着包内 SDK 建会话（零配置发现）。想更深一层，用板载
+   编译器把示例编出来真跑一次（板卡实测，3 帧 AV1 输出 <code>intc: 3 packets …</code>）：</li>
+</ol>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">cd</span><span class="w"> </span>&lt;pkg&gt;<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>gcc-11<span class="w"> </span>-std<span class="o">=</span>c99<span class="w"> </span>-Wall<span class="w"> </span>-Iinclude<span class="w"> </span>examples/integration-c/main.c<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">    </span>-Llib<span class="w"> </span>-Wl,-rpath,<span class="s1">'$ORIGIN/../lib'</span><span class="w"> </span>-lrkvc<span class="w"> </span>-o<span class="w"> </span>/tmp/intc_encode
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>/tmp/intc_encode<span class="w"> </span>lib/rkvc/backends/rkvc_av1.so<span class="w"> </span><span class="m">640</span><span class="w"> </span><span class="m">368</span><span class="w"> </span><span class="m">3</span>
+</span></code></pre></div>
+<blockquote>
+<p>法二（FrameSink 推帧）<strong>在 qemu-user 下必崩</strong>，用静态 core 编同一示例同样
+崩、板卡上正常，属模拟器局限；CI 里只编译链接不运行，运行校验请在板卡做。</p>
+</blockquote>
+<h2 id="8">8. 排障<a class="headerlink" href="#8" title="Permanent link">&para;</a></h2>
+<p>"无候选"是三件不同的事共用的同一句报错（包内 CLI 实测）：
+发现路径没命中、插件依赖闭包破了、指纹不符。判别流程：</p>
+<pre class="mermaid"><code>flowchart TD
+    A["session create failed: not found&lt;br/&gt;planner: required stage has no candidate"] --&gt; B{"补 --backend-dir 指向&lt;br/&gt;pkg/lib/rkvc/backends 后好了吗?"}
+    B -- 好了 --&gt; C["发现路径问题：&lt;br/&gt;宿主在包外却没传 backend_dirs"]
+    B -- 仍失败 --&gt; D{"ldd 插件有 not found 吗?"}
+    D -- 有 --&gt; E["依赖闭包破了：&lt;br/&gt;插件被单独搬运 / lib 缺失"]
+    D -- 没有 --&gt; F{"strings 比对指纹一致吗?"}
+    F -- 不一致 --&gt; G["宿主编译器版本不同：&lt;br/&gt;改用 g++-11.4.0 重建宿主"]
+    F -- 一致 --&gt; H["设备或能力问题：&lt;br/&gt;rkvc caps、/dev/mpp_service、模型未注册"]</code></pre>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>根因</th>
+<th>处置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>包外宿主"无候选"，补 <code>--backend-dir</code> 后正常</td>
+<td>未传 <code>backend_dirs</code>（用法 ③ 的宿主不参与自动发现，除非落在包内）</td>
+<td>§3 A：传绝对目录，或用部署位 B</td>
+</tr>
+<tr>
+<td><code>backend_dirs</code> 传了仍无候选，且目录看着没错</td>
+<td>相对路径字面量未展开</td>
+<td>改绝对路径</td>
+</tr>
+<tr>
+<td>全部插件都不可用</td>
+<td>指纹不符（宿主编译器 ≠ 11.4.0）</td>
+<td>§4：核对 <code>strings</code>，用 <code>g++-11</code> 重建宿主</td>
+</tr>
+<tr>
+<td>只有某个插件不可用</td>
+<td>该插件被单独搬运 / 其三方库缺</td>
+<td>§5：<code>ldd</code> 该插件</td>
+</tr>
+<tr>
+<td><code>inspect backends</code> 列出插件但会话仍无候选</td>
+<td>列出 ≠ 宿主会接受：<code>inspect</code> 不比对指纹</td>
+<td>按 §4 比对指纹，再按 §3 确认发现路径</td>
+</tr>
+<tr>
+<td>插件装到系统路径后被别的宿主抢装</td>
+<td>发现顺序"先命中赢"，与系统里其他 rkvc 混用</td>
+<td>一处只留一套，或宿主显式传 <code>backend_dirs</code></td>
+</tr>
+<tr>
+<td><code>dlopen</code> 报 GLIBC 版本不足</td>
+<td>目标机 glibc &lt; 2.34</td>
+<td>升级目标机，或自建更低基线的包</td>
+</tr>
+<tr>
+<td><code>mlvc</code>/<code>sr</code> 无候选但插件在</td>
+<td>模型未注册 / 无 NPU</td>
+<td>§6：<code>add_model_dir</code> 绝对路径、<code>rkvc caps</code> 核对</td>
+</tr>
+<tr>
+<td>链接 SDK 报 <code>cannot find -lrkvc</code></td>
+<td>未指认 SDK 位置</td>
+<td>§2.2/§2.3：<code>-Drkvc_DIR=</code> 或 <code>-L&lt;pkg&gt;/lib</code></td>
+</tr>
+<tr>
+<td>运行时 <code>librkvc.so.0: cannot open …</code></td>
+<td>宿主的 rpath 不含 <code>&lt;pkg&gt;/lib</code></td>
+<td>§2.4：加 rpath 或用 <code>LD_LIBRARY_PATH</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="9">9. 变更记录<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>变更</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-10</td>
+<td>初版。实测：四类部署位（含宿主落在 <code>&lt;pkg&gt;/lib/</code> 的零配置命中）、指纹只取决于 GCC 版本号（<code>11.4.0</code>）、指纹改写后的拒载症状、单拷插件导致依赖闭包破裂、<code>inspect backends</code> 不做兼容校验</td>
+</tr>
+<tr>
+<td>2026-09-10</td>
+<td>包升级为<strong>复合产品</strong>：新增 SDK 面（<code>librkvc.so</code> + 头文件 + CMake config + pkg-config，§1/§2），<code>examples/</code> 同时支持 <code>-Drkvc_DIR=</code> 与 <code>-DRKVC_CORE_DIR=</code>；实测板卡 <code>gcc-11</code> 裸编译链 SDK、零配置建会话并跑通 FrameSink AV1 示例（qemu 下该示例必崩，已定性为模拟器局限）</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88ee1349.min.js"></script>
+      
+    
+  </body>
+</html>

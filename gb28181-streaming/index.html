@@ -1,0 +1,1033 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Rockchip 媒体图运行库">
+      
+      
+      
+        <link rel="canonical" href="https://puiching-memory.github.io/rockchip-video-codec/gb28181-streaming/">
+      
+      
+        <link rel="prev" href="../semantic-codec-sdk-integration/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.60">
+    
+    
+      
+        <title>GB28181 推流 - rkvc</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ce62732f.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/doxide.css">
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gb28181-h265-ps-over-rtp" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="rkvc" class="md-header__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rkvc
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              GB28181 推流
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="rkvc" class="md-nav__button md-logo" aria-label="rkvc" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    rkvc
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Puiching-Memory/rockchip-video-codec" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    rkvc
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  首页
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  快速开始
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  架构
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API 引用
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  部署
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../portable-package/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  可移植包集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  测试
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-rknn-export/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC RKNN 导出
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mlvc-frame-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MLVC 帧型机制
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sr-model-yuv-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SR 模型规格
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../semantic-codec-sdk-integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  语义编解码 SDK 集成
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GB28181 推流
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GB28181 推流
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 角色与流程
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 信令流程（宿主负责）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-ps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. PS 容器格式（实现口径）
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. PS 容器格式（实现口径）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-pack-14b00-00-01-ba-10b" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.1 pack 头（14B：<code>00 00 01 BA</code> + 10B）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-system-15b00-00-01-bb-2b-9-9b" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.2 system 头（15B：<code>00 00 01 BB</code> + 2B 长度 9 + 9B）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-psm20b00-00-01-bc-2b-14-10b-4b-crc32" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.3 PSM（20B：<code>00 00 01 BC</code> + 2B 长度 14 + 10B 表 + 4B CRC32）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-pes-14b-9b" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.4 PES（首包 14B 头 + 载荷，续包 9B 头 + 载荷）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-pspack" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. <code>pspack</code> 契约
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-rtp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. RTP 与时钟
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 分工与验收
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. 角色与流程
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. 信令流程（宿主负责）
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-ps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. PS 容器格式（实现口径）
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. PS 容器格式（实现口径）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-pack-14b00-00-01-ba-10b" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.1 pack 头（14B：<code>00 00 01 BA</code> + 10B）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-system-15b00-00-01-bb-2b-9-9b" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.2 system 头（15B：<code>00 00 01 BB</code> + 2B 长度 9 + 9B）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-psm20b00-00-01-bc-2b-14-10b-4b-crc32" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.3 PSM（20B：<code>00 00 01 BC</code> + 2B 长度 14 + 10B 表 + 4B CRC32）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-pes-14b-9b" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3.4 PES（首包 14B 头 + 载荷，续包 9B 头 + 载荷）
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-pspack" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. <code>pspack</code> 契约
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-rtp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. RTP 与时钟
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. 分工与验收
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="gb28181-h265-ps-over-rtp">GB28181 H.265 推流（PS over RTP）<a class="headerlink" href="#gb28181-h265-ps-over-rtp" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p>范围：GB/T 28181-2022 的 H.265 媒体面（PS 封装 + RTP 承载）与本仓
+<code>codecs/pspack</code> 的实现口径。SIP 信令只记流程，信令栈归宿主。
+<code>pspack</code> 只覆盖 AVC / HEVC（<code>stream_type</code> 0x1B / 0x24），
+MLVC 的 <code>.mlvc</code> 容器格式见 <code>codecs/mlvc/include/mlvc/container.hpp</code>。</p>
+</blockquote>
+<h2 id="1">1. 角色与流程<a class="headerlink" href="#1" title="Permanent link">&para;</a></h2>
+<p>3576 作设备端（编码推流），3588 作平台侧（收流解码）。代码只有一份，
+差异仅 SIP 行为（设备发 REGISTER/应答 INVITE，平台收 REGISTER/发起 INVITE）。</p>
+<pre class="mermaid"><code>flowchart TB
+    subgraph DEV["3576 设备端（同一进程）"]
+        CAP["采集"] --&gt; ENC["rkvc H.265 硬编&lt;br/&gt;FRAME_SINK push/pull"]
+        ENC --&gt; PS["pspack 打包&lt;br/&gt;pack+system/PSM+PES"]
+        PS --&gt; RTP_TX["RTP 发送 PT=96"]
+        SIP_D["SIP-UA&lt;br/&gt;REGISTER/心跳/应答INVITE"]
+    end
+    subgraph PLAT["3588 平台侧"]
+        SIP_S["SIP 服务&lt;br/&gt;收REGISTER/发INVITE"]
+        RTP_RX["RTP 接收排序去重"]
+        DEMUX["pspack 解包&lt;br/&gt;AU 组装"]
+        DEC["rkvc H.265 硬解"]
+        PLAY["播放/校验"]
+        RTP_RX --&gt; DEMUX --&gt; DEC --&gt; PLAY
+    end
+    SIP_D &lt;-.-&gt;|"REGISTER/心跳&lt;br/&gt;INVITE/200/ACK/BYE"| SIP_S
+    SIP_S -.-&gt;|"SDP 协商 SSRC/端口"| RTP_TX
+    RTP_TX == "PS over RTP" ==&gt; RTP_RX</code></pre>
+<h2 id="2">2. 信令流程（宿主负责）<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<ol>
+<li>设备 <code>REGISTER</code> → 平台 401 → 带 Digest 再注册，心跳保活。</li>
+<li>平台 <code>INVITE</code>（SDP 含 <code>m=video … RTP/AVP 96</code>、<code>a=rtpmap:96 PS/90000</code>、
+   <code>y=</code> SSRC、端口与 TCP 主被动）→ 设备 <code>200 OK</code>（SDP 应答）→ 平台 <code>ACK</code>。</li>
+<li>设备按协商地址起流；结束平台发 <code>BYE</code>。传输优先 TCP 被动/主动，
+   UDP 仅受控链路可用。</li>
+</ol>
+<h2 id="3-ps">3. PS 容器格式（实现口径）<a class="headerlink" href="#3-ps" title="Permanent link">&para;</a></h2>
+<p>视频单节目，PES <code>stream_id = 0xE0</code>，<code>stream_type</code> H.265 = <code>0x24</code>、
+H.264 = <code>0x1B</code>。每帧恰一个 pack；关键帧的 pack 内 pack 头之后
+依次为 system 头、PSM，再接首个 PES。</p>
+<h3 id="31-pack-14b00-00-01-ba-10b">3.1 pack 头（14B：<code>00 00 01 BA</code> + 10B）<a class="headerlink" href="#31-pack-14b00-00-01-ba-10b" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>位宽</th>
+<th>字段</th>
+<th>取值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>固定</td>
+<td><code>01</code></td>
+</tr>
+<tr>
+<td>33+9</td>
+<td>SCR base + ext</td>
+<td>SCR base = PTS（90kHz），ext = 0</td>
+</tr>
+<tr>
+<td>22</td>
+<td>program_mux_rate</td>
+<td><code>MuxOptions.mux_rate_50bs</code>（默认 25000，50B/s 单位）</td>
+</tr>
+<tr>
+<td>1+1+5+3</td>
+<td>marker + marker + <code>11111</code> + stuffing</td>
+<td>填充长度 0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-system-15b00-00-01-bb-2b-9-9b">3.2 system 头（15B：<code>00 00 01 BB</code> + 2B 长度 9 + 9B）<a class="headerlink" href="#32-system-15b00-00-01-bb-2b-9-9b" title="Permanent link">&para;</a></h3>
+<p><code>rate_bound</code> 同 mux_rate；<code>audio_bound = 0</code>、<code>video_bound = 1</code>；
+随后一个视频绑定项：<code>0xE0</code> + <code>11</code> + scale 1 + bound 230。</p>
+<h3 id="33-psm20b00-00-01-bc-2b-14-10b-4b-crc32">3.3 PSM（20B：<code>00 00 01 BC</code> + 2B 长度 14 + 10B 表 + 4B CRC32）<a class="headerlink" href="#33-psm20b00-00-01-bc-2b-14-10b-4b-crc32" title="Permanent link">&para;</a></h3>
+<p>表：<code>0xC0 0xFF</code> + 空节目信息 + ES 映射长 4 + 单表项
+<code>[stream_type, 0xE0, 0x0000]</code>；CRC32（IEEE）覆盖表 10B。
+仅关键帧 pack 携带，晚加入者从任一关键帧起解。</p>
+<h3 id="34-pes-14b-9b">3.4 PES（首包 14B 头 + 载荷，续包 9B 头 + 载荷）<a class="headerlink" href="#34-pes-14b-9b" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>包</th>
+<th>头</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>首</td>
+<td><code>00 00 01 E0</code> + 显式长度 + <code>84 80 05</code> + 5B PTS</td>
+<td><code>data_alignment = 1</code> 标 AU 起点</td>
+</tr>
+<tr>
+<td>续</td>
+<td><code>00 00 01 E0</code> + 显式长度 + <code>80 00 00</code></td>
+<td>无 PTS，载荷 ≤ 60000B</td>
+</tr>
+</tbody>
+</table>
+<p>单 AU 超 60KB 按 60000B 切片；载荷为 Annex-B 原样（含起始码，
+仿真防范保证包内无伪起始码）。单 AU 上限 64MB（<code>kMaxPayload</code>）。</p>
+<h2 id="4-pspack">4. <code>pspack</code> 契约<a class="headerlink" href="#4-pspack" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>mux_frame(codec, annexb, size, pts90, keyframe)</code>：一调用一 AU，
+  失败 <code>Invalid</code>（空/空指针）/<code>Format</code>（超 64MB）。</li>
+<li><code>Demux::append/next/flush</code>：<code>next</code> 在下个 AU 起点到达时吐出上一个 AU
+ （固定一帧管线延迟，PTS 保序显示无碍）；流尾调 <code>flush</code> 排最后一帧，
+  排空后 <code>flush</code> 报 <code>Eof</code>；数据不够报 <code>Again</code>。</li>
+<li>无 PSM 先验时按 NAL 嗅探定 codec（HEVC 优先，AVC 的 SPS/IDR 低 5 位
+  可能与 HEVC 保留类型混淆，故 PSM 为准）。</li>
+<li>配对约束：只与本打包器帧格式配对（align 位组帧）；第三方 PS
+  走 ES 解析器，不进本解包器。<code>len == 0</code> 的视频 PES 直接判 <code>Format</code>。</li>
+<li>PTS 33 位回绕（<code>&amp; 0x1FFFFFFFF</code>），DTS 恒等于 PTS（无 B 帧）。</li>
+</ul>
+<h2 id="5-rtp">5. RTP 与时钟<a class="headerlink" href="#5-rtp" title="Permanent link">&para;</a></h2>
+<ul>
+<li>PT = 96，时钟 90000Hz，Marker 置于一帧末包；载荷上限 1400B 等长切片。</li>
+<li>编码输入 <code>pts</code> 有效则换算 90kHz；未知哨兵时首帧为 0 按帧率标称递增。</li>
+<li>rANS 式的零容忍在此不适用，但丢包仍打乱 AU 组装：优先 TCP/SRT 类
+  可靠承载；UDP 下平台按 PSM/关键帧重同步。</li>
+</ul>
+<h2 id="6">6. 分工与验收<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<ul>
+<li>本仓：<code>rkvc</code> 编解码 + <code>pspack</code> 装箱/拆箱（字节精确到 AU）。</li>
+<li>宿主：SIP 会话生死、socket 收发与重传/排序、线程与配置、播放渲染。</li>
+<li>验收：注册心跳正常、点播可拉起、推送稳定、解码无花屏卡顿；
+  花屏先查 PSM/<code>stream_type</code>/PTS，卡顿先查 RTP 排序与 AU 组装。</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":[],"search":"../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.88ee1349.min.js"></script>
+      
+    
+  </body>
+</html>
