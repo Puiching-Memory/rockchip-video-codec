@@ -10,7 +10,7 @@ MPP、RGA、RKNN 或 SVT 类型。
 ## 能力
 
 - **核心**（`core/`）：会话规划与执行、有界队列背压、EOS / 取消 / flush、
-  FILE 与 FRAME_SINK 双端点、RKMDL1 模型容器与注册表、文本诊断
+  FILE 与 FRAME_SINK 双端点、模型 bundle 目录装载注册表、文本诊断
 - **h264h265**（`codecs/h264h265/`）：MPP H.264 / HEVC 硬编码 + 硬解码
 - **av1**（`codecs/av1/`）：SVT-AV1 软件编码
 - **mlvc**（`codecs/mlvc/`）：NPU 神经视频编解码，`.mlvc` 容器（流格式字节
@@ -74,22 +74,23 @@ MPP / SVT / RKNN 等第三方依赖以前缀方式提供，见各 codec 工程�
             [--model-dir DIR]... [--json]
   rkvc encode --codec h264|hevc|av1 --input IN --width W --height H
             --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...
-            [--model FILE]... [--model-dir DIR]... [--model-id ID]
+            [--model DIR]... [--model-dir DIR]... [--model-id ID]
             [--qp Q] [--bitrate BPS] [--gop G] [--fps N]
   rkvc decode --codec mlvc --input IN.mlvc --width W --height H
             --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...
-            [--model FILE]... [--model-dir DIR]... [--model-id ID]
+            [--model DIR]... [--model-dir DIR]... [--model-id ID]
   rkvc upscale --input IN --width W --height H
             --pixfmt nv12|yuv420p --output OUT [--backend-dir DIR]...
-            [--model FILE]... [--model-dir DIR]... [--model-id ID]
+            [--model DIR]... [--model-dir DIR]... [--model-id ID]
 ~~~
 
 - `encode` 的 `--codec` 另接受 `mlvc`（NPU，需 `--model-id` 选编码模型）；
   `--qp` 为量化档，`--gop`/`--fps` 显式控制关键帧周期与帧率。
 - `decode --width/--height` 取**输出几何**（裸帧尺寸；`encode` 则取输入几何）。
 - `upscale` 的 `--width/--height` 为输入尺寸，输出固定 3×；`--model-id` 选
-  已注册的 RKMDL1（如 `phase-rlfn-bench`），模型 ID 即导出 stem。
-- `--model FILE` 逐个注册 RKMDL1，`--model-dir DIR` 扫描目录注册。
+  已注册的模型（如 `phase-rlfn-bench`），模型 ID 即导出 stem。
+- `--model DIR` 与 `--model-dir DIR` 同为模型 bundle 目录（都可重复），
+  按导出 stem 整组装载；会话不传 `--model-id` 时取首个已注册模型。
 
 ## 示例
 
@@ -146,12 +147,12 @@ rkvc_context_destroy(ctx);
 ## 测试
 
 - **C++**（doctest 2.4.11，`DOCTEST_CONFIG_NO_EXCEPTIONS`，随各工程构建、
-  CTest 执行）：core（status/result、spec/frame、rkmdl1、queue、plugin、
+  CTest 执行）：core（status/result、spec/frame、model、queue、plugin、
   pipeline、C ABI、download）8 套；mlvc（tables、ratectl、rans、pixel、
   codec）5 套；h264h265（逻辑 + 插件装载）2 套；av1、sr 后处理、pspack
   PS 组装、CLI 参数各 1 套
 - **Python**（`tests/python/`，`unittest`）：rd 核算、`benchmark.py` 命令生成、
-  RKMDL1 容器、MLVC / SR 导出
+  模型 bundle 目录选择、MLVC / SR 导出
 - **Bash**（`tests/bash/`）：MLVC / 超分导出链路入口（优先 `.venv` 回退
   `python3`，不依赖调用者 cwd）
 
@@ -180,12 +181,16 @@ python3 tools/bench/benchmark.py --config tools/bench/rd.uvg.json
 
 ## 模型
 
-RKMDL1 容器（魔数 `RKMDL1\x00\x00`，128B 头 + 88B 条目 + 多 qppatch 载荷；
-全仓版本 1 政策唯一例外是 `.mlvc` 流字节 `0x02`），由注册表从可信目录或
-`--model FILE` 显式加载，失败只淘汰候选。NPU 侧 I/O 契约：输入 NHWC、
-输出 NCHW。模型 ID 即导出 stem（如 `mlvc_rk3576_qp21_encoder`、
-`phase-rlfn-bench`），CLI 与 bench 配置都用它经 `--model-id` 选模型。
-布局与导出见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md) 与
+模型以**原生 bundle 目录**交付，无容器格式。目录内
+`MLVC{Encoder,Decoder}_<soc>.rknn` 为一个 mlvc 组，须与 `gaussian.bin` /
+`bitest.bin` 同时存在（缺一即按 `Format` 拒绝），组内 `qptab_{enc,dec}*.bin`
+与 `qp_patches/{enc,dec}_qp*.qppatch` 按 role 挂到对应模型；目录内其余
+`*.rknn` 各为一个 sr 单模型。整组装载由 `rkvc_context_add_model_dir`
+（CLI `--model-dir DIR`，可重复）完成，`meta.id` 取导出 stem（如
+`mlvc_rk3576_qp21_encoder`、`phase-rlfn-bench`），`target` 从文件名 `<soc>`
+段解析；目录不可读或一个模型文件都没有即整次失败并附诊断。CLI 与 bench
+配置都用 `meta.id` 经 `--model-id` 选模型。NPU 侧 I/O 契约：输入 NHWC、
+输出 NCHW。布局与导出见 [docs/mlvc-rknn-export.md](docs/mlvc-rknn-export.md) 与
 [docs/sr-model-yuv-spec.md](docs/sr-model-yuv-spec.md)。
 
 ## 发布

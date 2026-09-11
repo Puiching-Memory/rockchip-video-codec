@@ -115,7 +115,7 @@ jobs:
         run: |
           ctest --test-dir .build/tests -N > tests.txt
           missing=0
-          for t in test_status_result test_spec_frame test_rkmodel test_queue \
+          for t in test_status_result test_spec_frame test_model test_queue \
                    test_pipeline test_c_abi test_download test_plugin test_cli \
                    test_ps test_rans test_pixel test_ratectl test_mlvc_tables \
                    test_mlvc_codec test_sr_post test_mpp_logic test_mpp_plugin \

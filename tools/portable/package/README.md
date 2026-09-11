@@ -43,7 +43,7 @@ head -c $((640*368*3/2*30)) /dev/urandom > in.nv12
 
 插件与运行库按包内相对路径自动发现（`bin/../lib/rkvc/backends`），无需
 `--backend-dir`；要指向别处仍可显式传 `--backend-dir DIR`。MLVC 与超分
-模型用 `--model-dir models`（或逐个 `--model FILE`），`--model-id` 按导出
+模型用 `--model-dir models`（`--model DIR` 为同义别名），`--model-id` 按导出
 stem 选择。
 
 ## 当 SDK 用（把 rkvc 链进自己的程序）
