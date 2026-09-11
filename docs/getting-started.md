@@ -31,8 +31,8 @@ head -c $((640*360*3/2)) /dev/urandom > in.nv12
     --backend-dir .build/release --qp 32 --gop 64 --fps 30
 ~~~
 
-MLVC 与超分需要 NPU 与已注册的 RKMDL1（`--model FILE` 或
-`--model-dir DIR`，`--model-id` 按导出 stem 选择），见
+MLVC 与超分需要 NPU 与已注册的模型目录（`--model DIR`，`--model-id`
+按导出 stem 选择），见
 [MLVC RKNN 导出](mlvc-rknn-export.md)。
 
 ## 构建目录与开关

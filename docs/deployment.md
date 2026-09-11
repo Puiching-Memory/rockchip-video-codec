@@ -10,7 +10,7 @@
 ~~~bash
 tools/portable/build.sh                 # 全量：MPP + SVT-AV1 + rknnrt
 tools/portable/build.sh --no-rknn       # 不收 NPU 运行库（mlvc/sr 落 stub）
-tools/portable/build.sh --models DIR    # 另收 DIR/*.rkmodel 进包
+tools/portable/build.sh --models DIR    # 另收 DIR 下模型 bundle 目录进包
 ~~~
 
 输出 `.build/dist/rkvc-<版本>-linux-aarch64-portable.tar.gz`（附 `.sha256`）。
@@ -34,7 +34,7 @@ lib/librknnrt.so               # RKNN 运行库 2.3.2（mlvc/sr 用，SHA-256 �
 lib/libSvtAv1Enc.so.4          # SVT-AV1（av1 插件用）
 docs/                          # 全套文档（原样收录，入口 docs/index.md）
 examples/                      # 三个 C ABI 样板（integration-c/decode-file/upscale-file）
-models/*.rkmodel               # 可选，--models 收录
+models/<bundle>/               # 可选，--models 收录（目录即装载单元）
 licenses/                      # AGPLv3 + 第三方文本 + PROVENANCE.txt
 CHANGELOG.md                   # 版本历史（docs 里有链接引到这里）
 test.sh                        # 包内自测（含 SDK 面校验与 C 消费者冒烟）
@@ -77,7 +77,7 @@ MPP 硬编解码冒烟，无硬件项自动跳过（缺编译器时 SDK 段跳�
 ~~~text
 .build/release/rkvc            # CLI
 .build/release/rkvc_*.so       # 所需 codec 插件
-<模型目录>/*.rkmodel           # RKMDL1 模型（tools/mlvc、tools/sr 导出）
+<模型目录>/                     # 原生模型文件（tools/mlvc、tools/sr 导出）
 ~~~
 
 此时插件与 CLI 必须来自同一次构建（工具链指纹握手会拒载混版 `.so`），

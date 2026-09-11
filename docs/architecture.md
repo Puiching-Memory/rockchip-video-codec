@@ -69,7 +69,7 @@ session_wait (FILE) / pull 至 EOF (FRAME_SINK)
   `RKVC_OP_TRANSCODE`，规划器按解码 + 编码展开，CLI 不暴露）；
   `codec`：`H264 / HEVC / AV1 / MLVC`（`AUTO` 留给 upscale）。
 - `model_id` 透传到模型注册表（导出 stem，如 `mlvc_rk3576_qp21_decoder`）；
-  `rkvc_context_add_model_file` 逐个注册 RKMDL1。
+  `rkvc_context_add_model_dir` 按导出器约定整组装载模型目录。
 - `policy`（REALTIME / BALANCED / QUALITY / OFFLINE）与 `queue_capacity`
   （0 取默认）控制执行形态；`rkvc_probe_device` 填 `rkvc_caps`
   （soc / has_mpp_encoder / has_mpp_decoder / has_rknn / npu_cores）。
@@ -84,6 +84,7 @@ session_wait (FILE) / pull 至 EOF (FRAME_SINK)
 
 ## 模型
 
-RKMDL1 容器（魔数 `RKMDL1\x00\x00`、128B 头、88B 条目、多 qppatch 载荷），
-`rkvc_context_add_model_file` 显式注册或 `--model-dir` 扫描注册，
-`--model-id` 按导出 stem 选择。NPU 侧 I/O 契约：输入 NHWC、输出 NCHW。
+原生文件目录直读（`model.hpp` 的 `load_model_dir`）：
+`rkvc_context_add_model_dir` 按导出器约定扫描目录整组装载
+（`.rknn`/`.bin`/`.qppatch`），`--model-id` 按导出 stem 选择。
+NPU 侧 I/O 契约：输入 NHWC、输出 NCHW。

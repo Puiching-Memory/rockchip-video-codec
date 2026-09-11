@@ -195,8 +195,8 @@ RKMDL1 容器（魔数 `RKMDL1\x00\x00`，128B 头 + 88B 条目 + 多 qppatch �
 随包运行库（MPP / rknnrt / SVT）+ 许可证 + 包内自测，整包可搬迁、装载
 插件免 `--backend-dir`。构建跑在 `tools/portable/Dockerfile` 的 jammy
 镜像里，产物 GLIBC ≤ 2.34 并自动过 `tools/check-symbols.sh`。
-不用包时，发布产物就是构建树（`rkvc` + `rkvc_*.so` 插件 + 所需
-`.rkmodel`），板端复制这三样并用 `--backend-dir/--model-dir` 指向它们。
+不用包时，发布产物就是构建树（`rkvc` + `rkvc_*.so` 插件 + 模型
+bundle 目录），板端复制这三样并用 `--backend-dir/--model-dir` 指向它们。
 两套部署方式与包内容见 [docs/deployment.md](docs/deployment.md)。
 
 ## 文档

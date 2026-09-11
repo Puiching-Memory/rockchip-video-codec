@@ -12,7 +12,7 @@
 
 | 工程     | 测试                                                                         | 覆盖                                                                           |
 | -------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| core     | status_result、spec_frame、rkmodel、queue、plugin、pipeline、c_abi、download | Status/Result/Diag、帧规约、RKMDL1、队列、插件握手、管线、C ABI、Dmabuf 下载桥 |
+| core     | status_result、spec_frame、model、queue、plugin、pipeline、c_abi、download | Status/Result/Diag、帧规约、模型目录装载、队列、插件握手、管线、C ABI、Dmabuf 下载桥 |
 | mlvc     | tables、ratectl、rans、pixel、mlvc_codec                                     | 算法表、码控、熵编码、像素打包、编解码往返                                     |
 | av1      | av1                                                                          | SVT 软编逻辑                                                                   |
 | sr       | sr_post                                                                      | 超分后处理（非方形 `core_w`/`core_h` 拆分）                                    |
@@ -51,7 +51,6 @@ cmake -B .build/tests -G Ninja -DCMAKE_BUILD_TYPE=Debug \
 | --------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | test_rd.py                              | RD 核算（pooled MSE、GOP 审计、resume 校验；直读 `tools/bench/rd.uvg.json` 模板，模板失配即失败） |
 | test_benchmark.py                       | `benchmark.py` 配置与命令生成（新 CLI 长选项、无 `--low-delay`）                                  |
-| test_rkmdl1.py                          | RKMDL1 容器结构                                                                                   |
 | test_mlvc_export.py / test_sr_export.py | MLVC / SR 导出、ONNX 重写、bundle 校验（缺 ONNX/NumPy 时 skip）                                   |
 
 ## 板端回归

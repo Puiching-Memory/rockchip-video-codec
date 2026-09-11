@@ -189,5 +189,5 @@ python3 tools/sr/verify_bundle.py models/rkvc-sr
 
 ## 5. 构建、打包与实机门禁
 
-SR 模型必须进入 `.rkmodel` 注册表，由 request 约束选择。实机门禁要求
+SR 模型必须经模型目录装载进注册表，由 request 约束选择。实机门禁要求
 RKNN NPU 与 RGA，并建立正确性、性能和长稳基线。

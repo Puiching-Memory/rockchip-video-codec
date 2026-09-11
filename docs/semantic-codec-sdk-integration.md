@@ -3,7 +3,7 @@
 > 宿主（`semantic-codec-sdk`，ais SDK）内嵌 rkvc 的单点指南：rkvc 提供
 > 什么、宿主侧必须做什么、如何验证与排障。rkvc 内部设计见
 > [architecture.md](architecture.md)，版本变更见 [CHANGELOG.md](../CHANGELOG.md)。
-> 宿主快照 2026-09-11；本文描述 **C ABI 0.5.0 现状**。
+> 宿主快照 2026-09-11；本文描述 **C ABI 0.5.x 现状**。
 
 ## 1. 集成模型
 
@@ -44,7 +44,7 @@ size/version 首字段演化）逐项覆盖：
 | 类      | 符号                                                                                                                                                                                                                                                            |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | options | `rkvc_context_options_init`                                                                                                                                                                                                                                     |
-| context | `rkvc_context_create`（带 `backend_dirs`）/ `rkvc_context_destroy` / `rkvc_probe_device` / `rkvc_context_add_model_file`                                                                                                                                        |
+| context | `rkvc_context_create`（带 `backend_dirs`）/ `rkvc_context_destroy` / `rkvc_probe_device` / `rkvc_context_add_model_dir`                                                                                                                                        |
 | session | `rkvc_session_request_init` / `rkvc_session_create`（带 diag）/ `rkvc_session_start` / `rkvc_session_push` / `rkvc_session_try_pull` / `rkvc_session_pull` / `rkvc_session_push_eos` / `rkvc_session_wait` / `rkvc_session_destroy` / `rkvc_session_error_text` |
 | frame   | `rkvc_frame_desc_init` / `rkvc_frame_wrap` / `rkvc_frame_wrap_owned`（释放回调）/ `rkvc_frame_get_desc` / `rkvc_frame_release`                                                                                                                                  |
 | diag    | `rkvc_diag_fmt_text` / `rkvc_diag_release` / `rkvc_status_str`                                                                                                                                                                                                  |
@@ -182,9 +182,10 @@ add_subdirectory(${AIS_SDK_ROOT}/codec/video sdk-video)
   宽高写 `req.input.width/height`；解码：`req.input.fmt = BITSTREAM`，
   `req.output.fmt` = `cfg.format` 映射（无法映射时 UNKNOWN，由后端/协商
   决定）。`req.model_id = cfg.model_id` 透传语义模型。
-- 模型注册：`cfg.model_dir` 由适配层扫描目录、逐个
-  `rkvc_context_add_model_file` 注册，过滤扩展名 `.rkmodel`（与 rkvc CLI
-  `--model-dir` 同款约定）。mlvc/sr 依赖此路径，h264h265/av1 无模型。
+- 模型注册：`cfg.model_dir` 直接传 `rkvc_context_add_model_dir(ctx, dir)`，
+  按导出器约定整组装载目录内原生文件（`.rknn`/`.bin`/`.qppatch`，与 rkvc
+  CLI `--model-dir` 同款约定），适配层不再自行扫描。mlvc/sr 依赖此路径，
+  h264h265/av1 无模型。
 
 ### 3.3 适配层实现契约
 
@@ -455,7 +456,7 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
        释放回调（§3.3）；排空只在 flush 后（§3.3）；DMABUF 帧域防御（§3.4-1）；
        `AIS_BUILDING=1`（§3.4-2）
 6. [x] 回归：`test_video_codec.c` 接线 + §6.3 矩阵全绿
-7. [x] 适配层按 §2.1 清单消费 C ABI 0.5.0，以 `examples/` 三个 C 样板为契约
+7. [x] 适配层按 §2.1 清单消费 C ABI 0.5.x，以 `examples/` 三个 C 样板为契约
 8. [x] 板端全产物过 `tools/check-symbols.sh`（GLIBC ≤ 2.34 + NEEDED 审计）；
        宿主 `libais_semantic_codec.so` 动态链 libstdc++ 属适配层 C++17 预期
        （§4.5，GLIBCXX 3.4.30 与板载匹配，板测实跑验证）
@@ -466,6 +467,6 @@ video test` 并以 0 退出——x86 上"测试通过"可能只是跳过，需�
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-09-11 | 板级回归矩阵全绿并修复帧包装泄漏：适配层 `send` 在 `rkvc_session_push` 成功后补 `rkvc_frame_release`（C ABI push 为借用语义，漏释放致 RSS 每帧一帧 NV12 线性增长）；实测口径改进程内采样，H264/HEVC 编码段 100–600 帧全平坦（峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB；AV1 软编受 SVT 内部缓冲影响基线高但趋饱和。矩阵 3/4/5 实跑打勾（§6.3） |
 | 2026-09-11 | 修复上游三缺口并板测全绿：rkvc 新增 `rkvc_frame_wrap_owned`；适配层删 `owned_` 改释放回调；上游公开 `ais_buffer_bitstream`/`ais_buffer_set_packet_info`/`ais_buffer_cdata`；DMABUF 回读双保险（core 自动桥接 + 适配层域防御）；`codec/video` 补 `AIS_BUILDING=1`。板测（RK3576）：H264/HEVC/AV1 回环 0 全零帧、交错 50/500 通过、caps enc=1 dec=1 npu=1 |
-| 2026-09-11 | 上游适配层模型扫描对齐：过滤扩展名 `.rkmdl` → `.rkmodel`（与 rkvc CLI `--model-dir` 同款）                                                                                                                                                                                                                                                                                        |
+| 2026-09-11 | 适配层模型装载对齐：`register_model_dir` 改直调 `rkvc_context_add_model_dir`（rkvc 按导出器约定整组装载 `.rknn`/`.bin`/`.qppatch`，上游不再自行扫描）                                                                                                                                                                                                                             |
 | 2026-09-10 | 新增[可移植包 × 宿主集成](portable-package.md)（§4.3）；NPU 探测补 DRM 形态（§5.5）；GLIBC 审计基线收口 2.34                                                                                                                                                                                                                                                                      |
 | 2026-09-09 | 适配上游 2026-09 快照并全篇翻转为 C ABI 0.5.0 现状：上游移除仓库级统一构建（视频顶层自持）；公共 API 收口 `ais_video_open/send/recv/flush/caps`；send 同步化、recv 恒阻塞；caps 纳入 RKNN；新增 MLVC family；回归改 `test_video_codec.c`。更早（2026-08~09-03）的初版与旧契约基线见 git 历史                                                                                      |

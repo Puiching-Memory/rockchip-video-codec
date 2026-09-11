@@ -262,12 +262,12 @@ else
 fi
 
 echo "== 模型 =="
-mapfile -t models < <(ls "$ROOT"/models/*.rkmodel 2>/dev/null)
-if ((${#models[@]})); then
-    grep_out "inspect models 列出 ${#models[@]} 个" "\.rkmodel" run inspect \
+mapfile -t bundles < <(find "$ROOT"/models -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+if ((${#bundles[@]})); then
+    grep_out "inspect models 列出模型" "mlvc\|sr" run inspect \
         models --model-dir "$ROOT/models"
 else
-    skip "模型（包内无 .rkmodel）"
+    skip "模型（包内无 models/ bundle 目录）"
 fi
 
 echo

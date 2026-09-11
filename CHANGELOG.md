@@ -2,24 +2,22 @@
 
 本文档记录 rkvc 各版本的主要变更。
 
-## [未发布]
+## [0.5.0] - 2026-09-10
 
-### 变更（破坏性）
+C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli/5 个 codec 工程），C ABI 0.5.0，插件 ABI 1。
 
-- **废除 RKMDL1 模型容器，模型改为原生文件直读（C ABI 0.5.0 → 0.6.0）**：对齐上游 semantic-codec-sdk 的模型管理方式（裸 `.rknn`/`.onnx` 按原生扩展名直接装载）。删除 `pack_model`/`unpack_model`、`.rkmodel` 扩展名与 `tools/mlvc/rkmdl1.py`；`rkvc_context_add_model_file` 改为 `rkvc_context_add_model_dir(ctx, dir)`，按导出器约定扫描模型目录整组装载：`MLVCEncoder_<t>.rknn`/`MLVCDecoder_<t>.rknn`/`gaussian.bin`/`bitest.bin`/`qptab_{enc,dec}*.bin`/`qp_patches/{enc,dec}_qp*.qppatch` 为 MLVC 组（family `mlvc`），其余 `*.rknn` 各成单载荷模型（family `sr`）。内存态 `rkvc::Model`（原 `rkmodel.hpp` → `model.hpp`）与节点 `bind_model` 链路不变，mlvc/sr 逻辑零改动；配套性由导出目录天然保证（同一目录即同一次导出），节点侧 QPP1 base_crc 校验兜底。CLI `--model` 语义从 FILE 改为 DIR；`tools/mlvc/export_rknn.py` 不再打包，产物即目录；portable 包 `models/<bundle>/` 收录目录。
+### 变更（破坏性，发布前吸收）
+
+- **废除 RKMDL1 模型容器，模型改为原生文件直读**：0.5.0 尚未正式发布，破坏性变更直接吸收进 0.5.0，不引入新版本号。删除 `pack_model`/`unpack_model`、`.rkmodel` 扩展名与 `tools/mlvc/rkmdl1.py`；`rkvc_context_add_model_file` 改为 `rkvc_context_add_model_dir(ctx, dir)`，按导出器约定扫描模型目录整组装载：`MLVCEncoder_<t>.rknn`/`MLVCDecoder_<t>.rknn`/`gaussian.bin`/`bitest.bin`/`qptab_{enc,dec}*.bin`/`qp_patches/{enc,dec}_qp*.qppatch` 为 MLVC 组（family `mlvc`），其余 `*.rknn` 各成单载荷模型（family `sr`）。内存态 `rkvc::Model`（原 `rkmodel.hpp` → `model.hpp`）与节点 `bind_model` 链路不变，mlvc/sr 逻辑零改动；配套性由导出目录天然保证（同一目录即同一次导出），节点侧 QPP1 base_crc 校验兜底。CLI `--model` 语义从 FILE 改为 DIR；`tools/mlvc/export_rknn.py` 不再打包，产物即目录；portable 包 `models/<bundle>/` 收录目录。
 
 ### 修复
 
 - **公开头 `rkvc.h` C 编译兼容**：`rkvc_frame_wrap_owned` 原型里的 `noexcept` 直接暴露在 `extern "C"` 块内，纯 C 消费者（如独立探针程序）无法编译该头。引入 `RKVC_NOEXCEPT` 宏（C++ 下展开为 `noexcept`，C 下为空），C ABI 头恢复可被两种语言直接包含。
 - **上游适配层帧包装泄漏（板级回归发现，修复落在上游 `video_runtime.cpp`）**：`rkvc_session_push` 是借用语义（返回 OK 后帧包装与 shared_ptr 引用仍归调用方，参见 `examples/integration-c` 的既定契约），而语义 codec 适配层 `send` 在 push 成功后未调 `rkvc_frame_release`，导致每帧深拷贝驻留、RSS 以约一帧 NV12/帧 的斜率线性增长（RK3576 实测 500 帧 640×368 涨至 176MiB）。补一行释放后板测：H264/HEVC 编码段 100–600 帧与 640×368×500 全平坦（进程内采样峰值 7.4–11.2MiB），交错 500/600 帧峰值 ≤8.9MiB，close 后 RSS 回落。
 
-## [0.5.0] - 2026-09-10
-
-C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli/5 个 codec 工程），C ABI 0.5.0，插件 ABI 1。
-
 ### 新增
 
-- **core**：无异常错误模型（`Status`/`Result<T>`/`Diag`，`-fno-exceptions -fno-rtti`）+ `Spec` 协商 + `Frame` 借用语义 + 自研 SHA-256 + RKMDL1 模型容器（魔数 `RKMDL1\x00\x00`、128B 头、88B 条目、多 qppatch 载荷）+ 有界队列管线/执行器（两阶段错误终止，在途帧不丢）+ 设备探测（SoC/MPP/RGA/RKNPU）+ Dmabuf→Host 自动桥接。
+- **core**：无异常错误模型（`Status`/`Result<T>`/`Diag`，`-fno-exceptions -fno-rtti`）+ `Spec` 协商 + `Frame` 借用语义 + 自研 SHA-256 + 模型目录装载（原生文件 bundle，`load_model_dir`）+ 有界队列管线/执行器（两阶段错误终止，在途帧不丢）+ 设备探测（SoC/MPP/RGA/RKNPU）+ Dmabuf→Host 自动桥接。
 - **插件 ABI**：`rkvc_plugin_query(host_abi)` 握手 + 工具链指纹 + 坏 ABI 淘汰；内建 fileio；doctest 2.4.11（NO_EXCEPTIONS）全绿，ASan/UBSan（`-fno-sanitize-recover=all`）7/7 全绿。
 - **五个独立 codec 工程**：h264h265（MPP 编解码节点，出帧走阻塞背压不丢帧）、mlvc（container/pmf/qptab/qppatch/ratectl/rANS/pixel 全部 C golden 对拍 + fake-NPU 精确回环）、av1（SVT-AV1 编码节点，容器出包）、sr（Phase-RLFN 后处理 + SrUpscaleNode + 双后端门控）、pspack（GB28181 PS 打包/解包：pack/system/PSM/PES 与 AU 组装，静态库无插件入口，核心直接链接）。
 - **CLI + 样板**：`rkvc caps/version/inspect/encode/decode/upscale`（`--qp/--bitrate/--gop/--fps`，`--backend-dir/--model-dir/--model-id`，参数解析单测覆盖）+ `examples/` 三个 C ABI 样板（`integration-c` 流式、`decode-file`、`upscale-file`）。
@@ -40,7 +38,7 @@ C++20 推倒重写，零旧兼容。根 `CMakeLists.txt` 仅做聚合（core/cli
 
 - H264/HEVC 硬编码出包，参考解码 70/70 帧；QP 22/27/32/37 单调（542KB/37.62dB → 96KB/35.18dB，repeat70 640×368）；GOP 30/60/120 关键帧数 3/2/1 落地；CBR 1M/4M 码率吻合。
 - RV1126B（glibc 2.41）H264 硬编码出包，`ldd` 仅依赖系统 libc/MPP，无缺失。
-- MLVC 真机闭环（RV1126B/214）：`--pack` 产出的 RKMDL1（rknn+双PMF+4 qppatch rung）经 `--model-dir/--model-id` 装载，NPU 编解码 2 帧 640×368 回环 **42.56dB**（qp21）。附带修复解码尾部分模型不支持（CPU DCR）、NPU 输入通道序（host 约定输入 NHWC/输出 NCHW）、标量 `f16_to_f32` 非规格数三处潜伏 bug。
+- MLVC 真机闭环（RV1126B/214）：导出的模型 bundle 目录（rknn+双PMF+4 qppatch rung）经 `--model-dir/--model-id` 装载，NPU 编解码 2 帧 640×368 回环 **42.56dB**（qp21）。附带修复解码尾部分模型不支持（CPU DCR）、NPU 输入通道序（host 约定输入 NHWC/输出 NCHW）、标量 `f16_to_f32` 非规格数三处潜伏 bug。
 
 ### 删除（旧 C 树清仓）
 

@@ -24,7 +24,7 @@
 | ------------------------------------------------------------------- | ------------------------------------------- |
 | `bin/rkvc`（CLI，C++ 运行时静态链接）                               | doxide 生成的 `docs/api/`（现生成、不入库） |
 | `lib/rkvc/backends/rkvc_*.so`（codec 插件）                         | rkvc 源码（要走用法 ③ 请自行 clone）        |
-| `lib/librkvc.so*`（**SDK 主体**，§2）                               | 模型（`.rkmodel` 需 `--models` 单独打包）   |
+| `lib/librkvc.so*`（**SDK 主体**，§2）                               | 模型（bundle 目录需 `--models` 单独打包）   |
 | `include/rkvc/`（16 个头文件：`rkvc.h` + C++ 头）                   |                                             |
 | `lib/cmake/rkvc/`、`lib/pkgconfig/rkvc.pc`（两种查找方式）          |                                             |
 | `lib/*.so*`（MPP / rknnrt / SVT-AV1）                               |                                             |
@@ -246,8 +246,9 @@ encode: session create failed: not found                     # 与"没装插件"
 ## 6. 模型与设备前提
 
 - **模型没有自动发现**：`rkvc_context_options` 只有 `backend_dirs`，没有模型
-  目录项，也无环境变量。宿主须自行枚举并逐个
-  `rkvc_context_add_model_file(ctx, "/abs/path/x.rkmodel", &diag)`；CLI 对应
+  目录项，也无环境变量。宿主调
+  `rkvc_context_add_model_dir(ctx, "/abs/path/bundle", &diag)` 按导出器约定
+  整组装载目录内原生文件；CLI 对应
   `--model-dir` / `--model`。`h264h265`、`av1` 不需要模型，`mlvc`、`sr` 需要。
 - **设备节点**：H264/HEVC 硬编解需要 `/dev/mpp_service`；`mlvc`/`sr` 需要 NPU
   （RK3576 无 `/dev/rknpu`，NPU 以 DRM render 节点存在，core 会认）。
@@ -314,7 +315,7 @@ flowchart TD
 | `inspect backends` 列出插件但会话仍无候选   | 列出 ≠ 宿主会接受：`inspect` 不比对指纹                          | 按 §4 比对指纹，再按 §3 确认发现路径            |
 | 插件装到系统路径后被别的宿主抢装            | 发现顺序"先命中赢"，与系统里其他 rkvc 混用                       | 一处只留一套，或宿主显式传 `backend_dirs`       |
 | `dlopen` 报 GLIBC 版本不足                  | 目标机 glibc < 2.34                                              | 升级目标机，或自建更低基线的包                  |
-| `mlvc`/`sr` 无候选但插件在                  | 模型未注册 / 无 NPU                                              | §6：`add_model_file` 绝对路径、`rkvc caps` 核对 |
+| `mlvc`/`sr` 无候选但插件在                  | 模型未注册 / 无 NPU                                              | §6：`add_model_dir` 绝对路径、`rkvc caps` 核对 |
 | 链接 SDK 报 `cannot find -lrkvc`            | 未指认 SDK 位置                                                  | §2.2/§2.3：`-Drkvc_DIR=` 或 `-L<pkg>/lib`       |
 | 运行时 `librkvc.so.0: cannot open …`        | 宿主的 rpath 不含 `<pkg>/lib`                                    | §2.4：加 rpath 或用 `LD_LIBRARY_PATH`           |
 
